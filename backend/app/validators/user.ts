@@ -5,6 +5,8 @@ import vine from '@vinejs/vine'
  */
 const email = () => vine.string().email().maxLength(254)
 const password = () => vine.string().minLength(8).maxLength(32)
+const role = () => vine.enum(['student', 'teacher', 'admin'])
+const notificationChannel = () => vine.enum(['email', 'push'])
 
 /**
  * Validator to use when performing self-signup
@@ -14,6 +16,8 @@ export const signupValidator = vine.create({
   email: email().unique({ table: 'users', column: 'email' }),
   password: password(),
   passwordConfirmation: password().sameAs('password'),
+  role: role().optional(),
+  registration: vine.string().nullable().optional(),
 })
 
 /**
@@ -23,4 +27,10 @@ export const signupValidator = vine.create({
 export const loginValidator = vine.create({
   email: email(),
   password: vine.string(),
+})
+
+export const updateProfileValidator = vine.create({
+  fullName: vine.string().nullable().optional(),
+  defaultReminderMinutes: vine.number().min(15).max(10080).optional(),
+  notificationChannel: notificationChannel().optional(),
 })

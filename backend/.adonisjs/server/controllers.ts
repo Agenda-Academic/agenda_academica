@@ -4,7 +4,12 @@
  */
 
 export const controllers = {
+  AcademicContext: () => import('#controllers/academic_context_controller'),
+  AcademicEvents: () => import('#controllers/academic_events_controller'),
   AccessTokens: () => import('#controllers/access_tokens_controller'),
+  CalendarImports: () => import('#controllers/calendar_imports_controller'),
+  Dashboard: () => import('#controllers/dashboard_controller'),
   NewAccount: () => import('#controllers/new_account_controller'),
   Profile: () => import('#controllers/profile_controller'),
+  Reminders: () => import('#controllers/reminders_controller'),
 }

@@ -7,6 +7,108 @@
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
+export class AcademicClassSchema extends BaseModel {
+  static $columns = [
+    'active',
+    'courseId',
+    'createdAt',
+    'id',
+    'name',
+    'period',
+    'semester',
+    'shift',
+    'updatedAt',
+    'year',
+  ] as const
+  $columns = AcademicClassSchema.$columns
+  @column()
+  declare active: boolean
+  @column()
+  declare courseId: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare name: string
+  @column()
+  declare period: string
+  @column()
+  declare semester: number
+  @column()
+  declare shift: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column()
+  declare year: number
+}
+
+export class AcademicEventSchema extends BaseModel {
+  static $columns = [
+    'academicClassId',
+    'calendarImportId',
+    'category',
+    'color',
+    'createdAt',
+    'createdById',
+    'description',
+    'endsAt',
+    'id',
+    'location',
+    'officialPriority',
+    'points',
+    'source',
+    'sourceExternalId',
+    'startsAt',
+    'status',
+    'subjectId',
+    'teacherId',
+    'title',
+    'updatedAt',
+  ] as const
+  $columns = AcademicEventSchema.$columns
+  @column()
+  declare academicClassId: number | null
+  @column()
+  declare calendarImportId: number | null
+  @column()
+  declare category: string
+  @column()
+  declare color: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare createdById: number | null
+  @column()
+  declare description: string | null
+  @column.dateTime()
+  declare endsAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare location: string | null
+  @column()
+  declare officialPriority: boolean
+  @column()
+  declare points: number | null
+  @column()
+  declare source: string
+  @column()
+  declare sourceExternalId: string | null
+  @column.dateTime()
+  declare startsAt: DateTime
+  @column()
+  declare status: string
+  @column()
+  declare subjectId: number | null
+  @column()
+  declare teacherId: number | null
+  @column()
+  declare title: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
 export class AuthAccessTokenSchema extends BaseModel {
   static $columns = [
     'abilities',
@@ -43,19 +145,200 @@ export class AuthAccessTokenSchema extends BaseModel {
   declare updatedAt: DateTime | null
 }
 
+export class CalendarImportSchema extends BaseModel {
+  static $columns = [
+    'checksum',
+    'createdAt',
+    'id',
+    'importedAt',
+    'importedById',
+    'rawPayload',
+    'sourceName',
+    'sourceUrl',
+    'status',
+    'totalEvents',
+    'updatedAt',
+  ] as const
+  $columns = CalendarImportSchema.$columns
+  @column()
+  declare checksum: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column.dateTime()
+  declare importedAt: DateTime
+  @column()
+  declare importedById: number | null
+  @column()
+  declare rawPayload: string | null
+  @column()
+  declare sourceName: string
+  @column()
+  declare sourceUrl: string | null
+  @column()
+  declare status: string
+  @column()
+  declare totalEvents: number
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class CourseSchema extends BaseModel {
+  static $columns = ['active', 'campus', 'code', 'createdAt', 'id', 'name', 'updatedAt'] as const
+  $columns = CourseSchema.$columns
+  @column()
+  declare active: boolean
+  @column()
+  declare campus: string
+  @column()
+  declare code: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare name: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class EnrollmentSchema extends BaseModel {
+  static $columns = ['academicClassId', 'createdAt', 'id', 'status', 'updatedAt', 'userId'] as const
+  $columns = EnrollmentSchema.$columns
+  @column()
+  declare academicClassId: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare status: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column()
+  declare userId: number
+}
+
+export class ReminderSchema extends BaseModel {
+  static $columns = [
+    'academicEventId',
+    'channel',
+    'createdAt',
+    'enabled',
+    'id',
+    'offsetMinutes',
+    'sendAt',
+    'sentAt',
+    'updatedAt',
+    'userId',
+  ] as const
+  $columns = ReminderSchema.$columns
+  @column()
+  declare academicEventId: number
+  @column()
+  declare channel: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare enabled: boolean
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare offsetMinutes: number
+  @column.dateTime()
+  declare sendAt: DateTime
+  @column.dateTime()
+  declare sentAt: DateTime | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column()
+  declare userId: number
+}
+
+export class SubjectSchema extends BaseModel {
+  static $columns = [
+    'active',
+    'code',
+    'createdAt',
+    'id',
+    'name',
+    'updatedAt',
+    'workloadHours',
+  ] as const
+  $columns = SubjectSchema.$columns
+  @column()
+  declare active: boolean
+  @column()
+  declare code: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare name: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column()
+  declare workloadHours: number
+}
+
+export class TeachingAssignmentSchema extends BaseModel {
+  static $columns = [
+    'academicClassId',
+    'createdAt',
+    'id',
+    'subjectId',
+    'teacherId',
+    'updatedAt',
+  ] as const
+  $columns = TeachingAssignmentSchema.$columns
+  @column()
+  declare academicClassId: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare subjectId: number
+  @column()
+  declare teacherId: number
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
 export class UserSchema extends BaseModel {
-  static $columns = ['createdAt', 'email', 'fullName', 'id', 'password', 'updatedAt'] as const
+  static $columns = [
+    'createdAt',
+    'defaultReminderMinutes',
+    'email',
+    'fullName',
+    'id',
+    'notificationChannel',
+    'password',
+    'registration',
+    'role',
+    'updatedAt',
+  ] as const
   $columns = UserSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
+  @column()
+  declare defaultReminderMinutes: number
   @column()
   declare email: string
   @column()
   declare fullName: string | null
   @column({ isPrimary: true })
   declare id: number
+  @column()
+  declare notificationChannel: string
   @column({ serializeAs: null })
   declare password: string
+  @column()
+  declare registration: string | null
+  @column()
+  declare role: string
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
 }

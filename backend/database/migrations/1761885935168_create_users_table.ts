@@ -9,6 +9,10 @@ export default class extends BaseSchema {
       table.string('full_name').nullable()
       table.string('email', 254).notNullable().unique()
       table.string('password').notNullable()
+      table.string('role').notNullable().defaultTo('student')
+      table.string('registration').nullable().unique()
+      table.integer('default_reminder_minutes').notNullable().defaultTo(1440)
+      table.string('notification_channel').notNullable().defaultTo('email')
 
       table.timestamp('created_at').notNullable()
       table.timestamp('updated_at').nullable()
