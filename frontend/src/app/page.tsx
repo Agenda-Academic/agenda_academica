@@ -1,30 +1,36 @@
 "use client";
 
 import {
+  AlertTriangle,
   Bell,
   BookOpen,
   CalendarClock,
   CalendarDays,
   CheckCircle2,
-  ChevronRight,
   Clock,
   Edit3,
   Filter,
   GraduationCap,
+  LayoutDashboard,
   ListChecks,
   Loader2,
   LogOut,
   Mail,
+  PanelRightOpen,
+  Plus,
   RefreshCw,
   Save,
   Search,
   ShieldCheck,
+  Sparkles,
+  Target,
   Trash2,
   UserRound,
   Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   apiFetch,
   getContext,
@@ -43,51 +49,74 @@ import type {
   Session,
 } from "@/lib/types";
 
-const categoryMeta: Record<
-  Category,
-  { label: string; short: string; color: string; dot: string }
-> = {
+type View = "dashboard" | "calendar" | "manage" | "reminders" | "sync";
+type CalendarMode = "list" | "calendar";
+
+type CategoryMeta = {
+  label: string;
+  short: string;
+  accent: string;
+  pill: string;
+  tint: string;
+  rail: string;
+};
+
+const categoryMeta: Record<Category, CategoryMeta> = {
   exam: {
     label: "Provas",
     short: "Prova",
-    color: "border-red-200 bg-red-50 text-red-700",
-    dot: "bg-red-500",
+    accent: "bg-rose-500",
+    pill: "border-rose-200 bg-rose-50 text-rose-700",
+    tint: "bg-rose-50 text-rose-700",
+    rail: "border-l-rose-500",
   },
   assignment: {
     label: "Trabalhos",
     short: "Trabalho",
-    color: "border-violet-200 bg-violet-50 text-violet-700",
-    dot: "bg-violet-500",
+    accent: "bg-indigo-500",
+    pill: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    tint: "bg-indigo-50 text-indigo-700",
+    rail: "border-l-indigo-500",
   },
   activity: {
     label: "Atividades",
     short: "Atividade",
-    color: "border-cyan-200 bg-cyan-50 text-cyan-700",
-    dot: "bg-cyan-500",
+    accent: "bg-sky-500",
+    pill: "border-sky-200 bg-sky-50 text-sky-700",
+    tint: "bg-sky-50 text-sky-700",
+    rail: "border-l-sky-500",
   },
   extracurricular: {
     label: "Extras",
     short: "Extra",
-    color: "border-amber-200 bg-amber-50 text-amber-800",
-    dot: "bg-amber-500",
+    accent: "bg-amber-500",
+    pill: "border-amber-200 bg-amber-50 text-amber-800",
+    tint: "bg-amber-50 text-amber-800",
+    rail: "border-l-amber-500",
   },
   institutional: {
     label: "Institucional",
     short: "Institucional",
-    color: "border-blue-200 bg-blue-50 text-blue-700",
-    dot: "bg-blue-500",
+    accent: "bg-blue-500",
+    pill: "border-blue-200 bg-blue-50 text-blue-700",
+    tint: "bg-blue-50 text-blue-700",
+    rail: "border-l-blue-500",
   },
   holiday: {
     label: "Feriados",
     short: "Feriado",
-    color: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    dot: "bg-emerald-500",
+    accent: "bg-emerald-500",
+    pill: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    tint: "bg-emerald-50 text-emerald-700",
+    rail: "border-l-emerald-500",
   },
   recess: {
     label: "Recessos",
     short: "Recesso",
-    color: "border-lime-200 bg-lime-50 text-lime-800",
-    dot: "bg-lime-500",
+    accent: "bg-lime-500",
+    pill: "border-lime-200 bg-lime-50 text-lime-800",
+    tint: "bg-lime-50 text-lime-800",
+    rail: "border-l-lime-500",
   },
 };
 
@@ -105,8 +134,13 @@ const demoAccounts = [
   { label: "Admin", email: "admin@agenda.test", password: "password123" },
 ];
 
-type View = "dashboard" | "calendar" | "manage" | "reminders" | "sync";
-type CalendarMode = "list" | "calendar";
+const navItems: Array<{ view: View; label: string; icon: LucideIcon }> = [
+  { view: "dashboard", label: "Painel", icon: LayoutDashboard },
+  { view: "calendar", label: "Cronograma", icon: CalendarDays },
+  { view: "manage", label: "Gestao", icon: Edit3 },
+  { view: "reminders", label: "Lembretes", icon: Bell },
+  { view: "sync", label: "Sincronizacao", icon: RefreshCw },
+];
 
 type EventFormState = {
   title: string;
@@ -156,6 +190,8 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
+  const [referenceNow, setReferenceNow] = useState(0);
 
   const loadAll = useCallback(async (token: string) => {
     setLoading(true);
@@ -172,6 +208,9 @@ export default function Home() {
       setEvents(eventsData);
       setReminders(remindersData);
       setSelectedEventId((current) => current ?? eventsData[0]?.id ?? null);
+      const loadedAt = new Date();
+      setLastLoadedAt(loadedAt);
+      setReferenceNow(loadedAt.getTime());
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -234,31 +273,41 @@ export default function Home() {
 
   const filteredEvents = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return events.filter((event) => {
-      const matchesCategory = selectedCategories.includes(event.category);
-      const haystack = [event.title, event.description, event.subject?.name, event.teacher?.fullName]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return matchesCategory && (!term || haystack.includes(term));
-    });
+    return events
+      .filter((event) => {
+        const matchesCategory = selectedCategories.includes(event.category);
+        const haystack = [
+          event.title,
+          event.description,
+          event.subject?.name,
+          event.teacher?.fullName,
+          event.academicClass?.name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return matchesCategory && (!term || haystack.includes(term));
+      })
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
   }, [events, search, selectedCategories]);
 
-  const groupedEvents = useMemo(() => {
-    return filteredEvents.reduce<Record<string, AcademicEvent[]>>((acc, event) => {
-      const key = new Date(event.startsAt).toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "short",
-      });
-      acc[key] = [...(acc[key] ?? []), event];
-      return acc;
-    }, {});
-  }, [filteredEvents]);
+  const upcomingEvents = useMemo(() => {
+    return events
+      .filter((event) => new Date(event.startsAt).getTime() >= referenceNow && event.status === "scheduled")
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  }, [events, referenceNow]);
+
+  const attentionEvents = useMemo(() => {
+    const source = dashboard?.important?.length ? dashboard.important : upcomingEvents.slice(0, 3);
+    return source.slice(0, 4);
+  }, [dashboard, upcomingEvents]);
 
   const selectedEvent =
     selectedEventId === null
       ? null
-      : (selectedEventDetail ?? events.find((event) => event.id === selectedEventId) ?? null);
+      : (selectedEventDetail?.id === selectedEventId
+          ? selectedEventDetail
+          : events.find((event) => event.id === selectedEventId) ?? null);
   const user = session?.user ?? null;
   const canWrite = user?.role === "teacher" || user?.role === "admin";
 
@@ -287,6 +336,7 @@ export default function Home() {
     setReminders([]);
     setSelectedEventId(null);
     setSelectedEventDetail(null);
+    setReferenceNow(0);
     localStorage.removeItem("agenda-academica-session");
   }
 
@@ -306,7 +356,7 @@ export default function Home() {
     setSelectedCategories((current) =>
       current.includes(category)
         ? current.filter((item) => item !== category)
-        : [...current, category],
+        : [...current, category]
     );
   }
 
@@ -468,306 +518,561 @@ export default function Home() {
 
   if (booting) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-100 text-zinc-700">
-        <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+      <main className="grid min-h-screen place-items-center bg-[#f5f7fb] text-slate-700">
+        <div className="surface flex items-center gap-3 px-5 py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-emerald-700" aria-hidden />
+          <span className="text-sm font-medium">Carregando agenda</span>
+        </div>
       </main>
     );
   }
 
   if (!session || !user) {
     return (
-      <main className="min-h-screen bg-zinc-100 px-4 py-6 text-zinc-950 sm:px-6 lg:px-8">
-        <section className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl grid-cols-1 overflow-hidden border border-zinc-200 bg-white shadow-sm lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="flex flex-col justify-between border-b border-zinc-200 bg-emerald-950 p-6 text-white lg:border-b-0 lg:border-r">
-            <div>
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white text-emerald-900">
-                  <GraduationCap className="h-6 w-6" aria-hidden />
-                </span>
-                <div>
-                  <p className="text-sm text-emerald-100">Agenda Academica</p>
-                  <h1 className="text-2xl font-semibold tracking-normal">Organizacao letiva</h1>
-                </div>
-              </div>
-              <div className="mt-12 grid gap-3 text-sm text-emerald-50">
-                <StatusLine icon={CalendarDays} text="Cronograma por provas, trabalhos e datas oficiais" />
-                <StatusLine icon={Bell} text="Lembretes configuraveis por usuario" />
-                <StatusLine icon={Users} text="Gestao docente por turma e disciplina" />
-              </div>
-            </div>
-            <div className="mt-12 border-t border-emerald-800 pt-5 text-sm text-emerald-100">
-              <p>Fonte unica para prazos academicos, sem notas ou controle de frequencia.</p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center p-6 sm:p-10">
-            <form className="w-full max-w-md" onSubmit={handleLogin}>
-              <div className="mb-7">
-                <p className="text-sm font-medium text-emerald-700">Login academico</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-normal">Entrar na agenda</h2>
-              </div>
-
-              <div className="grid gap-3">
-                <label className="grid gap-1.5 text-sm font-medium text-zinc-700">
-                  E-mail
-                  <input
-                    className="h-11 rounded-md border border-zinc-300 px-3 text-zinc-950 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-                    value={loginForm.email}
-                    onChange={(event) => setLoginForm((form) => ({ ...form, email: event.target.value }))}
-                    type="email"
-                    autoComplete="email"
-                  />
-                </label>
-                <label className="grid gap-1.5 text-sm font-medium text-zinc-700">
-                  Senha
-                  <input
-                    className="h-11 rounded-md border border-zinc-300 px-3 text-zinc-950 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-                    value={loginForm.password}
-                    onChange={(event) =>
-                      setLoginForm((form) => ({ ...form, password: event.target.value }))
-                    }
-                    type="password"
-                    autoComplete="current-password"
-                  />
-                </label>
-              </div>
-
-              {error ? <Alert tone="danger" text={error} /> : null}
-
-              <button
-                className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={loading}
-                type="submit"
-              >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <UserRound className="h-4 w-4" aria-hidden />}
-                Entrar
-              </button>
-
-              <div className="mt-6 grid grid-cols-3 gap-2">
-                {demoAccounts.map((account) => (
-                  <button
-                    key={account.email}
-                    type="button"
-                    title={`Usar conta ${account.label}`}
-                    onClick={() => selectDemo(account.email, account.password)}
-                    className="h-10 rounded-md border border-zinc-200 text-sm font-medium text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50"
-                  >
-                    {account.label}
-                  </button>
-                ))}
-              </div>
-            </form>
-          </div>
-        </section>
-      </main>
+      <LoginScreen
+        error={error}
+        loading={loading}
+        loginForm={loginForm}
+        onSubmit={handleLogin}
+        onPickDemo={selectDemo}
+        setLoginForm={setLoginForm}
+      />
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-100 text-zinc-950">
-      <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-white">
-              <GraduationCap className="h-6 w-6" aria-hidden />
-            </span>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-normal text-emerald-700">
-                Agenda Academica
-              </p>
-              <h1 className="text-lg font-semibold tracking-normal sm:text-xl">
-                Ola, {firstName(user.fullName ?? user.email)}
-              </h1>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-700">
-              <ShieldCheck className="h-4 w-4 text-emerald-700" aria-hidden />
-              {roleLabels[user.role]}
-            </span>
-            <IconButton title="Atualizar dados" onClick={refresh} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            </IconButton>
-            <IconButton title="Sair" onClick={handleLogout}>
-              <LogOut className="h-4 w-4" />
-            </IconButton>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto grid max-w-7xl gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[220px_1fr] lg:px-8">
-        <aside className="h-fit border border-zinc-200 bg-white p-2 shadow-sm lg:sticky lg:top-20">
-          <nav className="grid gap-1">
-            <NavButton active={activeView === "dashboard"} icon={CalendarClock} label="Dashboard" onClick={() => setActiveView("dashboard")} />
-            <NavButton active={activeView === "calendar"} icon={CalendarDays} label="Cronograma" onClick={() => setActiveView("calendar")} />
-            <NavButton active={activeView === "manage"} icon={Edit3} label="Gestao" onClick={() => setActiveView("manage")} />
-            <NavButton active={activeView === "reminders"} icon={Bell} label="Lembretes" onClick={() => setActiveView("reminders")} />
-            <NavButton active={activeView === "sync"} icon={RefreshCw} label="Sincronizacao" onClick={() => setActiveView("sync")} />
-          </nav>
-        </aside>
+    <main className="min-h-screen bg-app text-slate-950">
+      <div className="mx-auto grid max-w-[1500px] gap-4 px-3 py-3 sm:px-5 lg:grid-cols-[250px_minmax(0,1fr)] lg:px-6">
+        <Sidebar
+          activeView={activeView}
+          canWrite={canWrite}
+          lastLoadedAt={lastLoadedAt}
+          onLogout={handleLogout}
+          onNavigate={setActiveView}
+          onRefresh={refresh}
+          refreshing={loading}
+          user={user}
+        />
 
         <section className="min-w-0">
-          {notice ? <Alert tone="success" text={notice} onClose={() => setNotice(null)} /> : null}
-          {error ? <Alert tone="danger" text={error} onClose={() => setError(null)} /> : null}
+          <CommandBar
+            activeView={activeView}
+            lastLoadedAt={lastLoadedAt}
+            search={search}
+            setSearch={setSearch}
+            userName={user.fullName ?? user.email}
+          />
 
-          {activeView === "dashboard" ? (
-            <DashboardView dashboard={dashboard} events={events} onSelect={(id) => { setSelectedEventId(id); setActiveView("calendar"); }} />
-          ) : null}
+          <div className="mt-4">
+            {notice ? <Alert tone="success" text={notice} onClose={() => setNotice(null)} /> : null}
+            {error ? <Alert tone="danger" text={error} onClose={() => setError(null)} /> : null}
 
-          {activeView === "calendar" ? (
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <section className="border border-zinc-200 bg-white p-4 shadow-sm">
-                <div className="flex flex-col gap-3 border-b border-zinc-200 pb-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-emerald-700">Cronograma</p>
-                    <h2 className="text-xl font-semibold tracking-normal">Eventos academicos</h2>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <SegmentedButton active={calendarMode === "list"} onClick={() => setCalendarMode("list")} icon={ListChecks} label="Lista" />
-                    <SegmentedButton active={calendarMode === "calendar"} onClick={() => setCalendarMode("calendar")} icon={CalendarDays} label="Calendario" />
-                  </div>
-                </div>
-
-                <Filters
-                  search={search}
-                  setSearch={setSearch}
-                  selectedCategories={selectedCategories}
-                  toggleCategory={toggleCategory}
-                />
-
-                {calendarMode === "list" ? (
-                  <div className="grid gap-2">
-                    {filteredEvents.map((event) => (
-                      <EventRow
-                        key={event.id}
-                        event={event}
-                        selected={selectedEventId === event.id}
-                        onClick={() => setSelectedEventId(event.id)}
-                      />
-                    ))}
-                    {!filteredEvents.length ? <EmptyState text="Nenhum evento encontrado." /> : null}
-                  </div>
-                ) : (
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {Object.entries(groupedEvents).map(([day, dayEvents]) => (
-                      <div key={day} className="min-h-36 border border-zinc-200 bg-zinc-50 p-3">
-                        <p className="text-sm font-semibold text-zinc-800">{day}</p>
-                        <div className="mt-3 grid gap-2">
-                          {dayEvents.map((event) => (
-                            <button
-                              key={event.id}
-                              className="w-full rounded-md border border-zinc-200 bg-white p-2 text-left text-sm transition hover:border-emerald-300"
-                              onClick={() => setSelectedEventId(event.id)}
-                              type="button"
-                            >
-                              <span className={`mr-2 inline-block h-2 w-2 rounded-full ${categoryMeta[event.category].dot}`} />
-                              {event.title}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    {!filteredEvents.length ? <EmptyState text="Nenhum evento encontrado." /> : null}
-                  </div>
-                )}
-              </section>
-
-              <EventDetail
-                event={selectedEvent}
-                canWrite={canWrite}
-                saving={saving}
-                reminderOffset={reminderOffset}
-                setReminderOffset={setReminderOffset}
-                onReminder={saveReminder}
-                onEdit={beginEdit}
-                onDelete={deleteEvent}
+            {activeView === "dashboard" ? (
+              <DashboardView
+                attentionEvents={attentionEvents}
+                context={context}
+                dashboard={dashboard}
+                events={events}
+                lastLoadedAt={lastLoadedAt}
+                reminders={reminders}
+                upcomingEvents={upcomingEvents}
+                onOpenCalendar={() => setActiveView("calendar")}
+                onSelect={(id) => {
+                  setSelectedEventId(id);
+                  setActiveView("calendar");
+                }}
               />
-            </div>
-          ) : null}
+            ) : null}
 
-          {activeView === "manage" ? (
-            <ManageView
-              canWrite={canWrite}
-              context={context}
-              eventForm={eventForm}
-              editingEventId={editingEventId}
-              saving={saving}
-              setEventForm={setEventForm}
-              onCancel={resetEventForm}
-              onSave={saveEvent}
-            />
-          ) : null}
+            {activeView === "calendar" ? (
+              <CalendarView
+                calendarMode={calendarMode}
+                canWrite={canWrite}
+                events={filteredEvents}
+                reminderOffset={reminderOffset}
+                saving={saving}
+                search={search}
+                selectedCategories={selectedCategories}
+                selectedEvent={selectedEvent}
+                selectedEventId={selectedEventId}
+                setCalendarMode={setCalendarMode}
+                setReminderOffset={setReminderOffset}
+                setSearch={setSearch}
+                toggleCategory={toggleCategory}
+                onDelete={deleteEvent}
+                onEdit={beginEdit}
+                onReminder={saveReminder}
+                onSelect={setSelectedEventId}
+              />
+            ) : null}
 
-          {activeView === "reminders" ? <RemindersView reminders={reminders} /> : null}
+            {activeView === "manage" ? (
+              <ManageView
+                canWrite={canWrite}
+                context={context}
+                editingEventId={editingEventId}
+                eventForm={eventForm}
+                saving={saving}
+                setEventForm={setEventForm}
+                onCancel={resetEventForm}
+                onSave={saveEvent}
+              />
+            ) : null}
 
-          {activeView === "sync" ? (
-            <SyncView
-              isAdmin={user.role === "admin"}
-              saving={saving}
-              events={events}
-              onImport={importOfficialDemo}
-            />
-          ) : null}
+            {activeView === "reminders" ? <RemindersView reminders={reminders} /> : null}
+
+            {activeView === "sync" ? (
+              <SyncView
+                events={events}
+                isAdmin={user.role === "admin"}
+                saving={saving}
+                onImport={importOfficialDemo}
+              />
+            ) : null}
+          </div>
         </section>
       </div>
     </main>
   );
 }
 
+function LoginScreen({
+  error,
+  loading,
+  loginForm,
+  setLoginForm,
+  onSubmit,
+  onPickDemo,
+}: {
+  error: string | null;
+  loading: boolean;
+  loginForm: { email: string; password: string };
+  setLoginForm: (value: { email: string; password: string }) => void;
+  onSubmit: (event: FormEvent) => void;
+  onPickDemo: (email: string, password: string) => void;
+}) {
+  return (
+    <main className="min-h-screen bg-login px-4 py-5 text-slate-950 sm:px-6 lg:px-8">
+      <section className="mx-auto grid min-h-[calc(100vh-2.5rem)] max-w-6xl overflow-hidden rounded-lg border border-white/70 bg-white/82 shadow-2xl shadow-slate-900/10 backdrop-blur xl:grid-cols-[1.08fr_0.92fr]">
+        <div className="relative flex min-h-[520px] flex-col justify-between overflow-hidden bg-slate-950 p-6 text-white sm:p-8">
+          <div className="absolute inset-0 opacity-80 [background:linear-gradient(135deg,#0f172a_0%,#064e3b_42%,#312e81_100%)]" />
+          <div className="absolute inset-x-0 bottom-0 h-44 bg-[linear-gradient(180deg,transparent,rgba(15,23,42,0.96))]" />
+          <div className="relative">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-emerald-800 shadow-lg shadow-emerald-950/20">
+                <GraduationCap className="h-6 w-6" aria-hidden />
+              </span>
+              <div>
+                <p className="text-sm text-emerald-100">Agenda Academica</p>
+                <h1 className="text-2xl font-semibold tracking-normal">Painel de prazos do semestre</h1>
+              </div>
+            </div>
+
+            <div className="mt-12 max-w-xl">
+              <p className="text-sm font-medium uppercase tracking-normal text-emerald-100">
+                Fonte unica de verdade
+              </p>
+              <h2 className="mt-3 text-4xl font-semibold leading-tight tracking-normal sm:text-5xl">
+                Veja o que importa hoje, esta semana e no calendario oficial.
+              </h2>
+            </div>
+          </div>
+
+          <div className="relative mt-10 grid gap-3 rounded-lg border border-white/15 bg-white/10 p-3 backdrop-blur md:grid-cols-3">
+            <PreviewMetric label="Proximos" value="5" />
+            <PreviewMetric label="Lembretes" value="3" />
+            <PreviewMetric label="Oficiais" value="2" />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center p-5 sm:p-8">
+          <form className="w-full max-w-md" onSubmit={onSubmit}>
+            <div className="mb-7">
+              <span className="inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">
+                <ShieldCheck className="h-4 w-4" aria-hidden />
+                Acesso academico
+              </span>
+              <h2 className="mt-4 text-3xl font-semibold tracking-normal">Entrar na agenda</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Use uma conta de teste para navegar como aluno, professor ou administrador.
+              </p>
+            </div>
+
+            <div className="grid gap-3">
+              <Field label="E-mail">
+                <input
+                  className="input"
+                  value={loginForm.email}
+                  onChange={(event) => setLoginForm({ ...loginForm, email: event.target.value })}
+                  type="email"
+                  autoComplete="email"
+                />
+              </Field>
+              <Field label="Senha">
+                <input
+                  className="input"
+                  value={loginForm.password}
+                  onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
+                  type="password"
+                  autoComplete="current-password"
+                />
+              </Field>
+            </div>
+
+            {error ? <Alert tone="danger" text={error} /> : null}
+
+            <button className="btn-primary mt-5 w-full" disabled={loading} type="submit">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <UserRound className="h-4 w-4" aria-hidden />}
+              Entrar
+            </button>
+
+            <div className="mt-6 grid grid-cols-3 gap-2">
+              {demoAccounts.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  title={`Usar conta ${account.label}`}
+                  onClick={() => onPickDemo(account.email, account.password)}
+                  className={cx(
+                    "h-11 rounded-md border text-sm font-semibold transition",
+                    loginForm.email === account.email
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                  )}
+                >
+                  {account.label}
+                </button>
+              ))}
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function Sidebar({
+  activeView,
+  canWrite,
+  lastLoadedAt,
+  refreshing,
+  user,
+  onLogout,
+  onNavigate,
+  onRefresh,
+}: {
+  activeView: View;
+  canWrite: boolean;
+  lastLoadedAt: Date | null;
+  refreshing: boolean;
+  user: Session["user"];
+  onLogout: () => void;
+  onNavigate: (view: View) => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <aside className="surface sticky top-3 z-30 h-fit p-3">
+      <div className="flex items-center gap-3 border-b border-slate-200/80 px-2 pb-4">
+        <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-950 text-white">
+          <GraduationCap className="h-6 w-6" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-950">Agenda Academica</p>
+          <p className="text-xs text-slate-500">IFMS Tres Lagoas</p>
+        </div>
+      </div>
+
+      <nav className="mt-3 grid gap-1">
+        {navItems.map((item) => (
+          <button
+            key={item.view}
+            className={cx(
+              "flex h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold transition",
+              activeView === item.view
+                ? "bg-slate-950 text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+            )}
+            onClick={() => onNavigate(item.view)}
+            type="button"
+          >
+            <item.icon className="h-4 w-4" aria-hidden />
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white text-sm font-bold text-slate-900 shadow-sm">
+            {user.initials}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-950">{user.fullName ?? user.email}</p>
+            <p className="text-xs text-slate-500">{roleLabels[user.role]}</p>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          <span className="rounded-md bg-white px-2 py-1 font-medium text-slate-600">
+            {canWrite ? "Pode editar" : "Somente leitura"}
+          </span>
+          <span className="rounded-md bg-white px-2 py-1 font-medium text-slate-600">
+            {lastLoadedAt ? formatTime(lastLoadedAt.toISOString()) : "Aguardando"}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        <button className="btn-secondary flex-1" onClick={onRefresh} disabled={refreshing} type="button">
+          {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Atualizar
+        </button>
+        <button className="icon-button" onClick={onLogout} title="Sair" type="button">
+          <LogOut className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function CommandBar({
+  activeView,
+  lastLoadedAt,
+  search,
+  setSearch,
+  userName,
+}: {
+  activeView: View;
+  lastLoadedAt: Date | null;
+  search: string;
+  setSearch: (value: string) => void;
+  userName: string;
+}) {
+  return (
+    <header className="surface flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <p className="text-sm font-medium text-emerald-700">{viewEyebrow(activeView)}</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">
+          Ola, {firstName(userName)}
+        </h1>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label className="relative block sm:w-80">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+          <input
+            className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+            placeholder="Buscar evento, disciplina ou professor"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        <span className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
+          {lastLoadedAt ? `Sync ${formatTime(lastLoadedAt.toISOString())}` : "Sem sync"}
+        </span>
+      </div>
+    </header>
+  );
+}
+
 function DashboardView({
+  attentionEvents,
+  context,
   dashboard,
   events,
+  lastLoadedAt,
+  reminders,
+  upcomingEvents,
+  onOpenCalendar,
   onSelect,
 }: {
+  attentionEvents: AcademicEvent[];
+  context: AcademicContext | null;
   dashboard: Dashboard | null;
   events: AcademicEvent[];
+  lastLoadedAt: Date | null;
+  reminders: Reminder[];
+  upcomingEvents: AcademicEvent[];
+  onOpenCalendar: () => void;
   onSelect: (id: number) => void;
 }) {
-  const upcoming = dashboard?.upcoming ?? events.slice(0, 5);
-  const important = dashboard?.important ?? upcoming.slice(0, 3);
+  const nextEvent = upcomingEvents[0] ?? null;
+  const officialCount = events.filter((event) => event.source === "imported" || event.officialPriority).length;
+  const categories = dashboard?.metrics.categories ?? {};
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-3">
-        <MetricCard icon={CalendarDays} label="Proximos 30 dias" value={String(dashboard?.metrics.upcomingCount ?? upcoming.length)} />
-        <MetricCard icon={Bell} label="Lembretes ativos" value={String(dashboard?.metrics.remindersCount ?? 0)} />
-        <MetricCard icon={CheckCircle2} label="Categorias visiveis" value={String(Object.keys(dashboard?.metrics.categories ?? {}).length || allCategories.length)} />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <section className="border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
-            <div>
-              <p className="text-sm font-medium text-emerald-700">Importante</p>
-              <h2 className="text-xl font-semibold tracking-normal">Prazos iminentes</h2>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <div className="surface overflow-hidden">
+          <div className="border-b border-slate-200/80 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="max-w-2xl">
+                <span className="inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                  Central de foco
+                </span>
+                <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-normal text-slate-950">
+                  {nextEvent ? nextEvent.title : "Sem prazos urgentes no momento"}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {nextEvent
+                    ? `${categoryMeta[nextEvent.category].short} em ${relativeDue(nextEvent.startsAt)}`
+                    : "Quando a agenda receber novos eventos, o proximo compromisso aparece aqui."}
+                </p>
+              </div>
+              <button className="btn-primary w-fit" type="button" onClick={onOpenCalendar}>
+                <CalendarDays className="h-4 w-4" aria-hidden />
+                Abrir cronograma
+              </button>
             </div>
-            <Clock className="h-5 w-5 text-zinc-500" aria-hidden />
           </div>
+
+          <div className="grid gap-px bg-slate-200/80 md:grid-cols-4">
+            <InsightTile icon={Target} label="Proximos 30 dias" value={String(dashboard?.metrics.upcomingCount ?? upcomingEvents.length)} />
+            <InsightTile icon={Bell} label="Lembretes ativos" value={String(dashboard?.metrics.remindersCount ?? reminders.length)} />
+            <InsightTile icon={ShieldCheck} label="Eventos oficiais" value={String(officialCount)} />
+            <InsightTile icon={BookOpen} label="Turmas visiveis" value={String(context?.catalog.classes.length ?? 0)} />
+          </div>
+        </div>
+
+        <div className="surface p-4">
+          <SectionTitle
+            eyebrow="Agora"
+            icon={AlertTriangle}
+            title="Fila de atencao"
+            subtitle={lastLoadedAt ? `Atualizado ${formatTime(lastLoadedAt.toISOString())}` : "Aguardando dados"}
+          />
           <div className="mt-4 grid gap-2">
-            {important.map((event) => (
+            {attentionEvents.map((event) => (
               <EventRow key={event.id} event={event} compact onClick={() => onSelect(event.id)} />
             ))}
-            {!important.length ? <EmptyState text="Sem prazos iminentes." /> : null}
+            {!attentionEvents.length ? <EmptyState text="Sem alertas importantes." /> : null}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
-            <div>
-              <p className="text-sm font-medium text-emerald-700">Agenda</p>
-              <h2 className="text-xl font-semibold tracking-normal">Linha do tempo</h2>
-            </div>
-            <CalendarClock className="h-5 w-5 text-zinc-500" aria-hidden />
-          </div>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="surface p-4">
+          <SectionTitle
+            eyebrow="Semana"
+            icon={CalendarClock}
+            title="Agenda dos proximos dias"
+            subtitle="Prazos, provas e eventos oficiais em ordem de chegada"
+          />
+          <WeekStrip events={upcomingEvents.slice(0, 10)} onSelect={onSelect} />
+        </div>
+
+        <div className="surface p-4">
+          <SectionTitle
+            eyebrow="Categorias"
+            icon={Filter}
+            title="Distribuicao"
+            subtitle="Leitura rapida do tipo de demanda"
+          />
           <div className="mt-4 grid gap-2">
-            {upcoming.map((event) => (
-              <EventRow key={event.id} event={event} compact onClick={() => onSelect(event.id)} />
+            {allCategories.map((category) => (
+              <CategoryBar
+                key={category}
+                category={category}
+                count={categories[category] ?? events.filter((event) => event.category === category).length}
+                total={Math.max(events.length, 1)}
+              />
             ))}
-            {!upcoming.length ? <EmptyState text="Nenhum evento futuro." /> : null}
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function CalendarView({
+  calendarMode,
+  canWrite,
+  events,
+  reminderOffset,
+  saving,
+  search,
+  selectedCategories,
+  selectedEvent,
+  selectedEventId,
+  setCalendarMode,
+  setReminderOffset,
+  setSearch,
+  toggleCategory,
+  onDelete,
+  onEdit,
+  onReminder,
+  onSelect,
+}: {
+  calendarMode: CalendarMode;
+  canWrite: boolean;
+  events: AcademicEvent[];
+  reminderOffset: string;
+  saving: boolean;
+  search: string;
+  selectedCategories: Category[];
+  selectedEvent: AcademicEvent | null;
+  selectedEventId: number | null;
+  setCalendarMode: (mode: CalendarMode) => void;
+  setReminderOffset: (value: string) => void;
+  setSearch: (value: string) => void;
+  toggleCategory: (category: Category) => void;
+  onDelete: (id: number) => void;
+  onEdit: (event: AcademicEvent) => void;
+  onReminder: () => void;
+  onSelect: (id: number) => void;
+}) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
+      <section className="surface min-w-0 p-4">
+        <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
+          <SectionTitle
+            eyebrow="Cronograma"
+            icon={CalendarDays}
+            title="Linha do tempo academica"
+            subtitle={`${events.length} eventos dentro dos filtros atuais`}
+          />
+          <div className="flex gap-2">
+            <SegmentedButton active={calendarMode === "list"} onClick={() => setCalendarMode("list")} icon={ListChecks} label="Agenda" />
+            <SegmentedButton active={calendarMode === "calendar"} onClick={() => setCalendarMode("calendar")} icon={CalendarDays} label="Grade" />
+          </div>
+        </div>
+
+        <Filters
+          search={search}
+          selectedCategories={selectedCategories}
+          setSearch={setSearch}
+          toggleCategory={toggleCategory}
+        />
+
+        {calendarMode === "list" ? (
+          <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
+            {events.map((event, index) => (
+              <EventRow
+                key={event.id}
+                event={event}
+                selected={selectedEventId === event.id}
+                separated={index < events.length - 1}
+                onClick={() => onSelect(event.id)}
+              />
+            ))}
+            {!events.length ? <EmptyState text="Nenhum evento encontrado." /> : null}
+          </div>
+        ) : (
+          <CalendarGrid events={events} selectedEventId={selectedEventId} onSelect={onSelect} />
+        )}
+      </section>
+
+      <EventDetail
+        canWrite={canWrite}
+        event={selectedEvent}
+        reminderOffset={reminderOffset}
+        saving={saving}
+        setReminderOffset={setReminderOffset}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onReminder={onReminder}
+      />
     </div>
   );
 }
@@ -775,8 +1080,8 @@ function DashboardView({
 function ManageView({
   canWrite,
   context,
-  eventForm,
   editingEventId,
+  eventForm,
   saving,
   setEventForm,
   onCancel,
@@ -784,8 +1089,8 @@ function ManageView({
 }: {
   canWrite: boolean;
   context: AcademicContext | null;
-  eventForm: EventFormState;
   editingEventId: number | null;
+  eventForm: EventFormState;
   saving: boolean;
   setEventForm: (updater: (form: EventFormState) => EventFormState) => void;
   onCancel: () => void;
@@ -793,12 +1098,14 @@ function ManageView({
 }) {
   if (!canWrite) {
     return (
-      <section className="border border-zinc-200 bg-white p-6 shadow-sm">
-        <ShieldCheck className="h-8 w-8 text-emerald-700" aria-hidden />
-        <h2 className="mt-4 text-xl font-semibold tracking-normal">Gestao docente</h2>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-600">
-          Seu perfil visualiza eventos e configura lembretes. A criacao e alteracao de datas fica com
-          professores e administradores.
+      <section className="surface p-6">
+        <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+          <ShieldCheck className="h-6 w-6" aria-hidden />
+        </span>
+        <h2 className="mt-4 text-2xl font-semibold tracking-normal">Gestao docente</h2>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+          Seu perfil pode visualizar eventos e configurar lembretes. A criacao e alteracao de datas
+          fica com professores e administradores.
         </p>
       </section>
     );
@@ -806,27 +1113,23 @@ function ManageView({
 
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <form className="border border-zinc-200 bg-white p-4 shadow-sm" onSubmit={onSave}>
-        <div className="flex flex-col gap-2 border-b border-zinc-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-emerald-700">Gestao docente</p>
-            <h2 className="text-xl font-semibold tracking-normal">
-              {editingEventId ? "Editar evento" : "Novo evento"}
-            </h2>
-          </div>
+      <form className="surface p-4" onSubmit={onSave}>
+        <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
+          <SectionTitle
+            eyebrow="Gestao docente"
+            icon={Edit3}
+            title={editingEventId ? "Editar evento" : "Novo evento"}
+            subtitle="Eventos docentes aparecem imediatamente para alunos da turma"
+          />
           {editingEventId ? (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
-            >
-              <X className="h-4 w-4" aria-hidden />
+            <button type="button" onClick={onCancel} className="btn-secondary w-fit">
+              <Plus className="h-4 w-4" aria-hidden />
               Novo
             </button>
           ) : null}
         </div>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
           <Field label="Titulo" className="md:col-span-2">
             <input
               className="input"
@@ -920,7 +1223,7 @@ function ManageView({
           </Field>
           <Field label="Descricao" className="md:col-span-2">
             <textarea
-              className="input min-h-28 resize-y py-3"
+              className="input min-h-32 resize-y py-3"
               value={eventForm.description}
               onChange={(event) =>
                 setEventForm((form) => ({ ...form, description: event.target.value }))
@@ -929,24 +1232,24 @@ function ManageView({
           </Field>
         </div>
 
-        <button
-          className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
-          disabled={saving}
-          type="submit"
-        >
+        <button className="btn-primary mt-5" disabled={saving} type="submit">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Salvar evento
         </button>
       </form>
 
-      <aside className="border border-zinc-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-emerald-700">Vinculos</p>
-        <h3 className="mt-1 text-lg font-semibold tracking-normal">Turmas ministradas</h3>
+      <aside className="surface p-4">
+        <SectionTitle
+          eyebrow="Vinculos"
+          icon={Users}
+          title="Turmas ministradas"
+          subtitle="Escopo permitido para criacao de eventos"
+        />
         <div className="mt-4 grid gap-2">
           {(context?.teachingAssignments ?? []).map((assignment) => (
-            <div key={assignment.id} className="border border-zinc-200 bg-zinc-50 p-3 text-sm">
-              <p className="font-semibold text-zinc-900">{assignment.subject?.name}</p>
-              <p className="mt-1 text-zinc-600">{assignment.academicClass?.name}</p>
+            <div key={assignment.id} className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="font-semibold text-slate-950">{assignment.subject?.name}</p>
+              <p className="mt-1 text-slate-600">{assignment.academicClass?.name}</p>
             </div>
           ))}
           {!context?.teachingAssignments.length ? <EmptyState text="Sem vinculos docentes." /> : null}
@@ -957,57 +1260,66 @@ function ManageView({
 }
 
 function EventDetail({
-  event,
   canWrite,
-  saving,
+  event,
   reminderOffset,
+  saving,
   setReminderOffset,
-  onReminder,
-  onEdit,
   onDelete,
+  onEdit,
+  onReminder,
 }: {
-  event: AcademicEvent | null;
   canWrite: boolean;
-  saving: boolean;
+  event: AcademicEvent | null;
   reminderOffset: string;
+  saving: boolean;
   setReminderOffset: (value: string) => void;
-  onReminder: () => void;
-  onEdit: (event: AcademicEvent) => void;
   onDelete: (id: number) => void;
+  onEdit: (event: AcademicEvent) => void;
+  onReminder: () => void;
 }) {
   if (!event) {
-    return <EmptyState text="Selecione um evento." />;
+    return (
+      <aside className="surface grid min-h-80 place-items-center p-6 text-center">
+        <div>
+          <PanelRightOpen className="mx-auto h-8 w-8 text-slate-400" aria-hidden />
+          <p className="mt-3 text-sm font-medium text-slate-600">Selecione um evento para ver os detalhes.</p>
+        </div>
+      </aside>
+    );
   }
 
   return (
-    <aside className="border border-zinc-200 bg-white p-4 shadow-sm">
+    <aside className="surface h-fit p-4 xl:sticky xl:top-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <span className={`inline-flex border px-2 py-1 text-xs font-semibold ${categoryMeta[event.category].color}`}>
+          <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${categoryMeta[event.category].pill}`}>
             {categoryMeta[event.category].short}
           </span>
-          <h2 className="mt-3 text-xl font-semibold tracking-normal">{event.title}</h2>
+          <h2 className="mt-3 text-2xl font-semibold leading-tight tracking-normal text-slate-950">
+            {event.title}
+          </h2>
+          <p className="mt-2 text-sm text-slate-500">{event.source === "teacher" ? "Evento docente" : "Evento oficial"}</p>
         </div>
-        <ChevronRight className="h-5 w-5 shrink-0 text-zinc-400" aria-hidden />
+        <span className={`mt-1 h-3 w-3 rounded-full ${categoryMeta[event.category].accent}`} aria-hidden />
       </div>
 
-      <dl className="mt-5 grid gap-3 text-sm">
+      <dl className="mt-6 grid gap-3 text-sm">
         <InfoLine icon={CalendarDays} label="Data" value={formatDate(event.startsAt)} />
-        <InfoLine icon={BookOpen} label="Disciplina" value={event.subject?.name ?? "Evento oficial"} />
+        <InfoLine icon={BookOpen} label="Disciplina" value={event.subject?.name ?? "Institucional"} />
         <InfoLine icon={Users} label="Turma" value={event.academicClass?.name ?? "Todos"} />
         <InfoLine icon={UserRound} label="Responsavel" value={event.teacher?.fullName ?? "Institucional"} />
         <InfoLine icon={ListChecks} label="Pontuacao" value={event.points === null ? "Nao informada" : `${event.points} pts`} />
       </dl>
 
-      <div className="mt-5 border-t border-zinc-200 pt-4">
-        <p className="text-sm leading-6 text-zinc-700">
+      <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <p className="text-sm leading-6 text-slate-700">
           {event.description ?? "Sem descricao complementar."}
         </p>
       </div>
 
-      <div className="mt-5 border-t border-zinc-200 pt-4">
-        <label className="grid gap-1.5 text-sm font-medium text-zinc-700">
-          Lembrete
+      <div className="mt-5 border-t border-slate-200 pt-4">
+        <Field label="Lembrete">
           <select
             className="input"
             value={reminderOffset}
@@ -1019,30 +1331,21 @@ function EventDetail({
             <option value="2880">2 dias antes</option>
             <option value="10080">1 semana antes</option>
           </select>
-        </label>
-        <button
-          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-60"
-          disabled={saving}
-          onClick={onReminder}
-          type="button"
-        >
+        </Field>
+        <button className="btn-secondary mt-3 w-full justify-center" disabled={saving} onClick={onReminder} type="button">
           <Bell className="h-4 w-4" aria-hidden />
           Salvar lembrete
         </button>
       </div>
 
       {canWrite ? (
-        <div className="mt-5 flex gap-2 border-t border-zinc-200 pt-4">
-          <button
-            className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
-            onClick={() => onEdit(event)}
-            type="button"
-          >
+        <div className="mt-5 grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
+          <button className="btn-secondary justify-center" onClick={() => onEdit(event)} type="button">
             <Edit3 className="h-4 w-4" aria-hidden />
             Editar
           </button>
           <button
-            className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 transition hover:bg-red-50"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
             onClick={() => onDelete(event.id)}
             type="button"
           >
@@ -1057,20 +1360,29 @@ function EventDetail({
 
 function RemindersView({ reminders }: { reminders: Reminder[] }) {
   return (
-    <section className="border border-zinc-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
-        <div>
-          <p className="text-sm font-medium text-emerald-700">Lembretes</p>
-          <h2 className="text-xl font-semibold tracking-normal">Alertas configurados</h2>
-        </div>
-        <Mail className="h-5 w-5 text-zinc-500" aria-hidden />
-      </div>
-      <div className="mt-4 grid gap-2">
-        {reminders.map((reminder) => (
-          <div key={reminder.id} className="grid gap-2 border border-zinc-200 bg-zinc-50 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
+    <section className="surface p-4">
+      <SectionTitle
+        eyebrow="Lembretes"
+        icon={Mail}
+        title="Central de alertas"
+        subtitle="Notificacoes configuradas para prazos proximos"
+      />
+      <div className="mt-5 overflow-hidden rounded-lg border border-slate-200 bg-white">
+        {reminders.map((reminder, index) => (
+          <div
+            key={reminder.id}
+            className={cx(
+              "grid gap-2 p-4 sm:grid-cols-[1fr_auto] sm:items-center",
+              index < reminders.length - 1 ? "border-b border-slate-200" : ""
+            )}
+          >
             <div>
-              <p className="font-semibold text-zinc-900">{reminder.academicEvent?.title ?? `Evento #${reminder.academicEventId}`}</p>
-              <p className="mt-1 text-sm text-zinc-600">{formatDate(reminder.sendAt)} por {reminder.channel}</p>
+              <p className="font-semibold text-slate-950">
+                {reminder.academicEvent?.title ?? `Evento #${reminder.academicEventId}`}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                {formatDate(reminder.sendAt)} por {reminder.channel}
+              </p>
             </div>
             <span className="inline-flex w-fit items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
               <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
@@ -1085,42 +1397,51 @@ function RemindersView({ reminders }: { reminders: Reminder[] }) {
 }
 
 function SyncView({
+  events,
   isAdmin,
   saving,
-  events,
   onImport,
 }: {
+  events: AcademicEvent[];
   isAdmin: boolean;
   saving: boolean;
-  events: AcademicEvent[];
   onImport: () => void;
 }) {
   const officialCount = events.filter((event) => event.source === "imported" || event.officialPriority).length;
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[1fr_320px]">
-      <div className="border border-zinc-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-emerald-700">Sincronizacao institucional</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-normal">Calendario da reitoria</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
-          Datas oficiais entram como eventos prioritarios e aparecem para todos os usuarios.
-        </p>
-        <button
-          className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={!isAdmin || saving}
-          onClick={onImport}
-          type="button"
-        >
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="surface p-5">
+        <SectionTitle
+          eyebrow="Sincronizacao"
+          icon={RefreshCw}
+          title="Calendario oficial da reitoria"
+          subtitle="Datas institucionais entram como prioridade e aparecem para todos os usuarios"
+        />
+        <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <StatusTile label="Fonte" value="IFMS" />
+            <StatusTile label="Prioridade" value="Oficial" />
+            <StatusTile label="Eventos" value={String(officialCount)} />
+          </div>
+        </div>
+        <button className="btn-primary mt-5" disabled={!isAdmin || saving} onClick={onImport} type="button">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           Importar calendario
         </button>
       </div>
-      <div className="border border-zinc-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-zinc-500">Eventos oficiais</p>
-        <p className="mt-2 text-4xl font-semibold tracking-normal">{officialCount}</p>
-        <p className="mt-2 text-sm text-zinc-600">
-          {isAdmin ? "Acesso de importacao habilitado." : "Importacao restrita a administradores."}
-        </p>
+
+      <div className="surface p-4">
+        <SectionTitle
+          eyebrow="Permissao"
+          icon={ShieldCheck}
+          title={isAdmin ? "Acesso liberado" : "Restrito ao admin"}
+          subtitle={isAdmin ? "Voce pode importar datas oficiais." : "Use uma conta admin para sincronizar."}
+        />
+        <div className="mt-5 rounded-lg bg-slate-950 p-4 text-white">
+          <p className="text-sm text-slate-300">Eventos oficiais atuais</p>
+          <p className="mt-3 text-5xl font-semibold tracking-normal">{officialCount}</p>
+        </div>
       </div>
     </section>
   );
@@ -1128,39 +1449,36 @@ function SyncView({
 
 function Filters({
   search,
-  setSearch,
   selectedCategories,
+  setSearch,
   toggleCategory,
 }: {
   search: string;
-  setSearch: (value: string) => void;
   selectedCategories: Category[];
+  setSearch: (value: string) => void;
   toggleCategory: (category: Category) => void;
 }) {
   return (
-    <div className="my-4 grid gap-3">
+    <div className="mt-4 grid gap-3">
       <label className="relative block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
         <input
-          className="h-10 w-full rounded-md border border-zinc-300 pl-9 pr-3 text-sm outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-          placeholder="Buscar por titulo, disciplina ou professor"
+          className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+          placeholder="Filtrar por titulo, disciplina, turma ou professor"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
       </label>
       <div className="flex flex-wrap gap-2">
-        <span className="inline-flex h-8 items-center gap-2 text-sm font-medium text-zinc-600">
-          <Filter className="h-4 w-4" aria-hidden />
-          Filtros
-        </span>
         {allCategories.map((category) => {
           const active = selectedCategories.includes(category);
           return (
             <button
               key={category}
-              className={`h-8 rounded-md border px-3 text-sm font-medium transition ${
-                active ? categoryMeta[category].color : "border-zinc-200 bg-white text-zinc-600"
-              }`}
+              className={cx(
+                "h-8 rounded-md border px-3 text-sm font-semibold transition",
+                active ? categoryMeta[category].pill : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              )}
               onClick={() => toggleCategory(category)}
               type="button"
             >
@@ -1174,81 +1492,162 @@ function Filters({
 }
 
 function EventRow({
+  compact,
   event,
   selected,
-  compact,
+  separated,
   onClick,
 }: {
+  compact?: boolean;
   event: AcademicEvent;
   selected?: boolean;
-  compact?: boolean;
+  separated?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`grid w-full gap-3 border p-3 text-left transition sm:grid-cols-[auto_1fr_auto] sm:items-center ${
-        selected ? "border-emerald-300 bg-emerald-50" : "border-zinc-200 bg-white hover:border-emerald-300"
-      }`}
+      className={cx(
+        "grid w-full gap-3 border-l-4 bg-white p-3 text-left transition sm:grid-cols-[auto_1fr_auto] sm:items-center",
+        categoryMeta[event.category].rail,
+        selected ? "bg-emerald-50/70" : "hover:bg-slate-50",
+        separated ? "border-b border-b-slate-200" : ""
+      )}
       onClick={onClick}
       type="button"
     >
-      <span className={`h-10 w-10 rounded-md ${categoryMeta[event.category].dot}`} aria-hidden />
+      <span className={`h-10 w-10 rounded-md ${categoryMeta[event.category].tint} flex items-center justify-center`}>
+        <CalendarClock className="h-4 w-4" aria-hidden />
+      </span>
       <span className="min-w-0">
-        <span className="block truncate font-semibold text-zinc-900">{event.title}</span>
-        <span className="mt-1 block truncate text-sm text-zinc-600">
-          {event.subject?.name ?? "Institucional"} {event.academicClass ? `- ${event.academicClass.name}` : ""}
+        <span className="block truncate font-semibold text-slate-950">{event.title}</span>
+        <span className="mt-1 block truncate text-sm text-slate-600">
+          {event.subject?.name ?? "Institucional"}
+          {event.academicClass ? ` - ${event.academicClass.name}` : ""}
         </span>
       </span>
-      <span className="flex items-center gap-2 text-sm font-medium text-zinc-700 sm:justify-end">
-        <Clock className="h-4 w-4 text-zinc-400" aria-hidden />
-        {compact ? formatShortDate(event.startsAt) : formatDate(event.startsAt)}
+      <span className="flex items-center gap-2 text-sm font-semibold text-slate-700 sm:justify-end">
+        <Clock className="h-4 w-4 text-slate-400" aria-hidden />
+        {compact ? relativeDue(event.startsAt) : formatDate(event.startsAt)}
       </span>
     </button>
   );
 }
 
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
+function CalendarGrid({
+  events,
+  selectedEventId,
+  onSelect,
 }: {
-  icon: typeof CalendarDays;
-  label: string;
-  value: string;
+  events: AcademicEvent[];
+  selectedEventId: number | null;
+  onSelect: (id: number) => void;
 }) {
+  const days = buildCalendarDays(events);
+
   return (
-    <div className="border border-zinc-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-zinc-600">{label}</p>
-        <Icon className="h-5 w-5 text-emerald-700" aria-hidden />
-      </div>
-      <p className="mt-4 text-3xl font-semibold tracking-normal">{value}</p>
+    <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+      {days.map((day) => (
+        <div key={day.key} className="min-h-40 rounded-lg border border-slate-200 bg-white p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">{day.label}</p>
+              <p className="text-xs text-slate-500">{day.events.length} eventos</p>
+            </div>
+            <span className="text-xs font-semibold text-slate-400">{day.weekday}</span>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {day.events.slice(0, 4).map((event) => (
+              <button
+                key={event.id}
+                className={cx(
+                  "rounded-md border px-2 py-2 text-left text-sm transition",
+                  selectedEventId === event.id
+                    ? "border-emerald-300 bg-emerald-50"
+                    : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                )}
+                onClick={() => onSelect(event.id)}
+                type="button"
+              >
+                <span className={`mr-2 inline-block h-2 w-2 rounded-full ${categoryMeta[event.category].accent}`} />
+                {event.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function NavButton({
-  active,
+function WeekStrip({ events, onSelect }: { events: AcademicEvent[]; onSelect: (id: number) => void }) {
+  if (!events.length) {
+    return <EmptyState text="Sem eventos futuros." />;
+  }
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
+      {events.map((event, index) => (
+        <EventRow
+          key={event.id}
+          compact
+          event={event}
+          separated={index < events.length - 1}
+          onClick={() => onSelect(event.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function InsightTile({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="bg-white p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-slate-500">{label}</p>
+        <Icon className="h-5 w-5 text-slate-400" aria-hidden />
+      </div>
+      <p className="mt-4 text-3xl font-semibold tracking-normal text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function CategoryBar({ category, count, total }: { category: Category; count: number; total: number }) {
+  const width = Math.max((count / total) * 100, count ? 12 : 2);
+  return (
+    <div>
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-medium text-slate-700">{categoryMeta[category].label}</span>
+        <span className="font-semibold text-slate-950">{count}</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${categoryMeta[category].accent}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({
+  eyebrow,
   icon: Icon,
-  label,
-  onClick,
+  subtitle,
+  title,
 }: {
-  active: boolean;
-  icon: typeof CalendarDays;
-  label: string;
-  onClick: () => void;
+  eyebrow: string;
+  icon: LucideIcon;
+  subtitle: string;
+  title: string;
 }) {
   return (
-    <button
-      className={`flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition ${
-        active ? "bg-emerald-700 text-white" : "text-zinc-700 hover:bg-zinc-100"
-      }`}
-      onClick={onClick}
-      type="button"
-    >
-      <Icon className="h-4 w-4" aria-hidden />
-      {label}
-    </button>
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-700">
+        <Icon className="h-4 w-4" aria-hidden />
+      </span>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-normal text-emerald-700">{eyebrow}</p>
+        <h2 className="mt-1 text-xl font-semibold tracking-normal text-slate-950">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      </div>
+    </div>
   );
 }
 
@@ -1259,17 +1658,18 @@ function SegmentedButton({
   onClick,
 }: {
   active: boolean;
-  icon: typeof ListChecks;
+  icon: LucideIcon;
   label: string;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium transition ${
+      className={cx(
+        "inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition",
         active
-          ? "border-emerald-700 bg-emerald-700 text-white"
-          : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-      }`}
+          ? "border-slate-950 bg-slate-950 text-white"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+      )}
       onClick={onClick}
       type="button"
     >
@@ -1279,41 +1679,17 @@ function SegmentedButton({
   );
 }
 
-function IconButton({
-  title,
-  disabled,
-  children,
-  onClick,
-}: {
-  title: string;
-  disabled?: boolean;
-  children: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className="flex h-9 w-9 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
-      disabled={disabled}
-      onClick={onClick}
-      title={title}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-}
-
 function Field({
-  label,
-  className,
   children,
+  className,
+  label,
 }: {
-  label: string;
+  children: ReactNode;
   className?: string;
-  children: React.ReactNode;
+  label: string;
 }) {
   return (
-    <label className={`grid gap-1.5 text-sm font-medium text-zinc-700 ${className ?? ""}`}>
+    <label className={`grid gap-1.5 text-sm font-semibold text-slate-700 ${className ?? ""}`}>
       {label}
       {children}
     </label>
@@ -1325,44 +1701,36 @@ function InfoLine({
   label,
   value,
 }: {
-  icon: typeof CalendarDays;
+  icon: LucideIcon;
   label: string;
   value: string;
 }) {
   return (
     <div className="grid grid-cols-[24px_92px_1fr] items-start gap-2">
-      <Icon className="mt-0.5 h-4 w-4 text-emerald-700" aria-hidden />
-      <dt className="text-zinc-500">{label}</dt>
-      <dd className="min-w-0 text-zinc-900">{value}</dd>
-    </div>
-  );
-}
-
-function StatusLine({ icon: Icon, text }: { icon: typeof CalendarDays; text: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <Icon className="h-5 w-5 text-emerald-200" aria-hidden />
-      <span>{text}</span>
+      <Icon className="mt-0.5 h-4 w-4 text-slate-400" aria-hidden />
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="min-w-0 text-slate-900">{value}</dd>
     </div>
   );
 }
 
 function Alert({
-  tone,
-  text,
   onClose,
+  text,
+  tone,
 }: {
-  tone: "success" | "danger";
-  text: string;
   onClose?: () => void;
+  text: string;
+  tone: "success" | "danger";
 }) {
   return (
     <div
-      className={`mb-4 flex items-center justify-between gap-3 border px-3 py-2 text-sm ${
+      className={cx(
+        "mb-4 flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm",
         tone === "success"
           ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "border-red-200 bg-red-50 text-red-700"
-      }`}
+          : "border-rose-200 bg-rose-50 text-rose-700"
+      )}
     >
       <span>{text}</span>
       {onClose ? (
@@ -1376,9 +1744,69 @@ function Alert({
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="border border-dashed border-zinc-300 bg-zinc-50 p-5 text-sm text-zinc-500">
+    <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
       {text}
     </div>
+  );
+}
+
+function StatusTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-white p-3">
+      <p className="text-xs font-semibold uppercase tracking-normal text-slate-400">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function PreviewMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-white/10 p-3">
+      <p className="text-xs text-emerald-100">{label}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-normal">{value}</p>
+    </div>
+  );
+}
+
+function viewEyebrow(view: View) {
+  const labels: Record<View, string> = {
+    dashboard: "Painel central",
+    calendar: "Cronograma unificado",
+    manage: "Operacao docente",
+    reminders: "Alertas pessoais",
+    sync: "Fonte institucional",
+  };
+  return labels[view];
+}
+
+function buildCalendarDays(events: AcademicEvent[]) {
+  const days = Array.from({ length: 14 }, (_, index) => {
+    const date = startOfDay(addDays(new Date(), index));
+    const key = date.toISOString().slice(0, 10);
+    const dayEvents = events.filter((event) => event.startsAt.slice(0, 10) === key);
+    return {
+      key,
+      events: dayEvents,
+      label: date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
+      weekday: date.toLocaleDateString("pt-BR", { weekday: "short" }),
+    };
+  });
+
+  const extraDays = events
+    .filter((event) => !days.some((day) => day.key === event.startsAt.slice(0, 10)))
+    .slice(0, 6)
+    .map((event) => {
+      const date = new Date(event.startsAt);
+      return {
+        key: event.startsAt.slice(0, 10),
+        events: events.filter((item) => item.startsAt.slice(0, 10) === event.startsAt.slice(0, 10)),
+        label: date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
+        weekday: date.toLocaleDateString("pt-BR", { weekday: "short" }),
+      };
+    });
+
+  return [...days, ...extraDays].filter(
+    (day, index, source) => source.findIndex((item) => item.key === day.key) === index
   );
 }
 
@@ -1395,11 +1823,27 @@ function formatDate(value: string) {
   });
 }
 
-function formatShortDate(value: string) {
-  return new Date(value).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "short",
+function formatTime(value: string) {
+  return new Date(value).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
+}
+
+function relativeDue(value: string) {
+  const diff = startOfDay(new Date(value)).getTime() - startOfDay(new Date()).getTime();
+  const days = Math.round(diff / (24 * 60 * 60 * 1000));
+
+  if (days < 0) {
+    return `${Math.abs(days)}d atrasado`;
+  }
+  if (days === 0) {
+    return "hoje";
+  }
+  if (days === 1) {
+    return "amanha";
+  }
+  return `em ${days} dias`;
 }
 
 function toDateTimeLocal(value: Date) {
@@ -1412,6 +1856,14 @@ function addDays(value: Date, days: number) {
   return new Date(value.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Algo saiu fora do esperado.";
+}
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
 }
