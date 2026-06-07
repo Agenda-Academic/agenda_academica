@@ -1,4 +1,9 @@
+import AcademicEvent from '#models/academic_event'
+import Reminder from '#models/reminder'
+import User from '#models/user'
+import ReminderDeliveryService from '#services/reminder_delivery_service'
 import { test } from '@japa/runner'
+import { DateTime } from 'luxon'
 
 type ApiEnvelope<T> = {
   data: T
@@ -104,6 +109,31 @@ test.group('Academic API', () => {
       (response.body() as unknown as ApiEnvelope<{ events: { officialPriority: boolean }[] }>).data
         .events[0]?.officialPriority,
       true
+    )
+  })
+
+  test('delivery service sends due reminders once', async ({ assert }) => {
+    const student = await User.findByOrFail('email', 'jonathan@agenda.test')
+    const event = await AcademicEvent.query().where('title', 'Feriado municipal').firstOrFail()
+    const reminder = await Reminder.create({
+      userId: student.id,
+      academicEventId: event.id,
+      channel: 'email',
+      offsetMinutes: 60,
+      sendAt: DateTime.now().minus({ minutes: 5 }),
+      enabled: true,
+    })
+
+    const result = await ReminderDeliveryService.sendDue({ now: DateTime.now() })
+    await reminder.refresh()
+
+    assert.isAtLeast(result.sentCount, 1)
+    assert.isNotNull(reminder.sentAt)
+
+    const secondRun = await ReminderDeliveryService.sendDue({ now: DateTime.now() })
+    assert.equal(
+      secondRun.deliveries.some((delivery) => delivery.reminderId === reminder.id),
+      false
     )
   })
 })

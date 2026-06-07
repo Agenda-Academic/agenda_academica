@@ -46,3 +46,15 @@ Cada pacote tambem pode ser executado separadamente:
 npm run dev:backend
 npm run dev:frontend
 ```
+
+## Rotinas Operacionais
+
+```bash
+cd backend
+node ace calendar:sync-official
+node ace calendar:sync-official --source=./calendario-oficial.json
+node ace reminders:send-due
+node ace reminders:send-due --dry-run
+```
+
+O formato aceito pela sincronizacao e um JSON com `sourceName` e `events`, ou diretamente um array de eventos institucionais.
