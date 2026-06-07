@@ -1,5 +1,9 @@
 import { test } from '@japa/runner'
 
+type ApiEnvelope<T> = {
+  data: T
+}
+
 async function loginAs(client: any, email: string) {
   const response = await client.post('/api/v1/auth/login').json({
     email,
@@ -7,7 +11,7 @@ async function loginAs(client: any, email: string) {
   })
 
   response.assertStatus(200)
-  return response.body().data.token as string
+  return (response.body() as ApiEnvelope<{ token: string }>).data.token
 }
 
 test.group('Academic API', () => {
@@ -20,11 +24,14 @@ test.group('Academic API', () => {
       .qs({ category: 'exam,assignment' })
 
     events.assertStatus(200)
-    assert.isAtLeast(events.body().data.length, 2)
+    assert.isAtLeast((events.body() as ApiEnvelope<unknown[]>).data.length, 2)
 
     const dashboard = await client.get('/api/v1/dashboard').bearerToken(token)
     dashboard.assertStatus(200)
-    assert.isAtLeast(dashboard.body().data.upcoming.length, 1)
+    assert.isAtLeast(
+      (dashboard.body() as ApiEnvelope<{ upcoming: unknown[] }>).data.upcoming.length,
+      1
+    )
   })
 
   test('student cannot create academic events', async ({ client }) => {
@@ -58,17 +65,21 @@ test.group('Academic API', () => {
     })
 
     created.assertStatus(201)
-    assert.equal(created.body().data.title, 'Seminario de requisitos')
+    const createdBody = created.body() as ApiEnvelope<{ id: number; title: string }>
+    assert.equal(createdBody.data.title, 'Seminario de requisitos')
 
     const studentToken = await loginAs(client, 'jonathan@agenda.test')
     const reminder = await client.post('/api/v1/reminders').bearerToken(studentToken).json({
-      academicEventId: created.body().data.id,
+      academicEventId: createdBody.data.id,
       channel: 'email',
       offsetMinutes: 1440,
     })
 
     reminder.assertStatus(201)
-    assert.equal(reminder.body().data.academicEventId, created.body().data.id)
+    assert.equal(
+      (reminder.body() as ApiEnvelope<{ academicEventId: number }>).data.academicEventId,
+      createdBody.data.id
+    )
   })
 
   test('admin can import official calendar events', async ({ client, assert }) => {
@@ -89,6 +100,10 @@ test.group('Academic API', () => {
       })
 
     response.assertStatus(201)
-    assert.equal(response.body().data.events[0].officialPriority, true)
+    assert.equal(
+      (response.body() as unknown as ApiEnvelope<{ events: { officialPriority: boolean }[] }>).data
+        .events[0]?.officialPriority,
+      true
+    )
   })
 })
