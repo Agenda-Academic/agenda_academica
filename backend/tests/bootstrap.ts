@@ -51,6 +51,18 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
  */
 export const configureSuite: Config['configureSuite'] = (suite) => {
   if (['browser', 'functional', 'e2e'].includes(suite.name)) {
-    return suite.setup(() => testUtils.httpServer().start())
+    return suite.setup(async () => {
+      const rollback = await testUtils.db().migrate()
+      const truncate = await testUtils.db().truncate()
+      await truncate()
+      await testUtils.db().seed()
+      const stopServer = await testUtils.httpServer().start()
+
+      return async () => {
+        await stopServer()
+        await truncate()
+        await rollback()
+      }
+    })
   }
 }
