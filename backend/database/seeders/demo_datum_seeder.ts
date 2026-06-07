@@ -42,8 +42,8 @@ export default class extends BaseSeeder {
         notificationChannel: 'email',
       },
       {
-        fullName: 'Jonathan Patrocinio',
-        email: 'jonathan@agenda.test',
+        fullName: 'Diogo Queiroz da Silva',
+        email: 'diogo@agenda.test',
         password: 'password123',
         role: 'student',
         registration: 'ALU-001',

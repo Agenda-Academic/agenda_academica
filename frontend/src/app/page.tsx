@@ -100,7 +100,7 @@ const roleLabels = {
 };
 
 const demoAccounts = [
-  { label: "Aluno", email: "jonathan@agenda.test", password: "password123" },
+  { label: "Aluno", email: "diogo@agenda.test", password: "password123" },
   { label: "Professor", email: "apio@agenda.test", password: "password123" },
   { label: "Admin", email: "admin@agenda.test", password: "password123" },
 ];
