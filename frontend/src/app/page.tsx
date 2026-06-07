@@ -142,6 +142,15 @@ const navItems: Array<{ view: View; label: string; icon: LucideIcon }> = [
   { view: "sync", label: "Sincronizacao", icon: RefreshCw },
 ];
 
+const primaryButton =
+  "inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-slate-950";
+
+const secondaryButton =
+  "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50";
+
+const iconButton =
+  "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950";
+
 type EventFormState = {
   title: string;
   description: string;
@@ -652,8 +661,8 @@ function LoginScreen({
   onPickDemo: (email: string, password: string) => void;
 }) {
   return (
-    <main className="min-h-screen bg-login px-4 py-5 text-slate-950 sm:px-6 lg:px-8">
-      <section className="mx-auto grid min-h-[calc(100vh-2.5rem)] max-w-6xl overflow-hidden rounded-lg border border-white/70 bg-white/82 shadow-2xl shadow-slate-900/10 backdrop-blur xl:grid-cols-[1.08fr_0.92fr]">
+    <main className="min-h-screen bg-login px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
+      <section className="mx-auto grid min-h-[680px] max-w-6xl overflow-hidden rounded-lg border border-white/70 bg-white/90 shadow-2xl shadow-slate-900/10 backdrop-blur xl:grid-cols-[1fr_0.95fr]">
         <div className="relative flex min-h-[520px] flex-col justify-between overflow-hidden bg-slate-950 p-6 text-white sm:p-8">
           <div className="absolute inset-0 opacity-80 [background:linear-gradient(135deg,#0f172a_0%,#064e3b_42%,#312e81_100%)]" />
           <div className="absolute inset-x-0 bottom-0 h-44 bg-[linear-gradient(180deg,transparent,rgba(15,23,42,0.96))]" />
@@ -668,13 +677,28 @@ function LoginScreen({
               </div>
             </div>
 
-            <div className="mt-12 max-w-xl">
+            <div className="mt-10 max-w-xl">
               <p className="text-sm font-medium uppercase tracking-normal text-emerald-100">
                 Fonte unica de verdade
               </p>
-              <h2 className="mt-3 text-4xl font-semibold leading-tight tracking-normal sm:text-5xl">
+              <h2 className="mt-3 text-4xl font-semibold leading-tight tracking-normal">
                 Veja o que importa hoje, esta semana e no calendario oficial.
               </h2>
+            </div>
+
+            <div className="mt-8 grid gap-3 text-sm text-emerald-50">
+              <div className="flex items-center gap-3">
+                <CalendarDays className="h-4 w-4 text-emerald-200" aria-hidden />
+                Prazos docentes e datas institucionais no mesmo fluxo
+              </div>
+              <div className="flex items-center gap-3">
+                <Bell className="h-4 w-4 text-emerald-200" aria-hidden />
+                Lembretes pessoais antes de provas, trabalhos e eventos
+              </div>
+              <div className="flex items-center gap-3">
+                <Users className="h-4 w-4 text-emerald-200" aria-hidden />
+                Visao por perfil para aluno, professor e administracao
+              </div>
             </div>
           </div>
 
@@ -721,7 +745,7 @@ function LoginScreen({
 
             {error ? <Alert tone="danger" text={error} /> : null}
 
-            <button className="btn-primary mt-5 w-full" disabled={loading} type="submit">
+            <button className={cx(primaryButton, "mt-5 w-full")} disabled={loading} type="submit">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <UserRound className="h-4 w-4" aria-hidden />}
               Entrar
             </button>
@@ -822,11 +846,11 @@ function Sidebar({
       </div>
 
       <div className="mt-3 flex gap-2">
-        <button className="btn-secondary flex-1" onClick={onRefresh} disabled={refreshing} type="button">
+        <button className={cx(secondaryButton, "flex-1")} onClick={onRefresh} disabled={refreshing} type="button">
           {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           Atualizar
         </button>
-        <button className="icon-button" onClick={onLogout} title="Sair" type="button">
+        <button className={iconButton} onClick={onLogout} title="Sair" type="button">
           <LogOut className="h-4 w-4" aria-hidden />
         </button>
       </div>
@@ -920,7 +944,7 @@ function DashboardView({
                     : "Quando a agenda receber novos eventos, o proximo compromisso aparece aqui."}
                 </p>
               </div>
-              <button className="btn-primary w-fit" type="button" onClick={onOpenCalendar}>
+              <button className={cx(primaryButton, "w-fit")} type="button" onClick={onOpenCalendar}>
                 <CalendarDays className="h-4 w-4" aria-hidden />
                 Abrir cronograma
               </button>
@@ -1122,7 +1146,7 @@ function ManageView({
             subtitle="Eventos docentes aparecem imediatamente para alunos da turma"
           />
           {editingEventId ? (
-            <button type="button" onClick={onCancel} className="btn-secondary w-fit">
+            <button type="button" onClick={onCancel} className={cx(secondaryButton, "w-fit")}>
               <Plus className="h-4 w-4" aria-hidden />
               Novo
             </button>
@@ -1232,7 +1256,7 @@ function ManageView({
           </Field>
         </div>
 
-        <button className="btn-primary mt-5" disabled={saving} type="submit">
+        <button className={cx(primaryButton, "mt-5")} disabled={saving} type="submit">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Salvar evento
         </button>
@@ -1332,7 +1356,7 @@ function EventDetail({
             <option value="10080">1 semana antes</option>
           </select>
         </Field>
-        <button className="btn-secondary mt-3 w-full justify-center" disabled={saving} onClick={onReminder} type="button">
+        <button className={cx(secondaryButton, "mt-3 w-full")} disabled={saving} onClick={onReminder} type="button">
           <Bell className="h-4 w-4" aria-hidden />
           Salvar lembrete
         </button>
@@ -1340,7 +1364,7 @@ function EventDetail({
 
       {canWrite ? (
         <div className="mt-5 grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
-          <button className="btn-secondary justify-center" onClick={() => onEdit(event)} type="button">
+          <button className={secondaryButton} onClick={() => onEdit(event)} type="button">
             <Edit3 className="h-4 w-4" aria-hidden />
             Editar
           </button>
@@ -1410,7 +1434,7 @@ function SyncView({
   const officialCount = events.filter((event) => event.source === "imported" || event.officialPriority).length;
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
       <div className="surface p-5">
         <SectionTitle
           eyebrow="Sincronizacao"
@@ -1418,17 +1442,22 @@ function SyncView({
           title="Calendario oficial da reitoria"
           subtitle="Datas institucionais entram como prioridade e aparecem para todos os usuarios"
         />
-        <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <StatusTile label="Fonte" value="IFMS" />
-            <StatusTile label="Prioridade" value="Oficial" />
-            <StatusTile label="Eventos" value={String(officialCount)} />
-          </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <StatusTile label="Fonte" value="IFMS" />
+          <StatusTile label="Prioridade" value="Oficial" />
+          <StatusTile label="Eventos" value={String(officialCount)} />
         </div>
-        <button className="btn-primary mt-5" disabled={!isAdmin || saving} onClick={onImport} type="button">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Importar calendario
-        </button>
+        {isAdmin ? (
+          <button className={cx(primaryButton, "mt-5")} disabled={saving} onClick={onImport} type="button">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Importar calendario
+          </button>
+        ) : (
+          <div className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-500">
+            <ShieldCheck className="h-4 w-4" aria-hidden />
+            Importacao restrita ao admin
+          </div>
+        )}
       </div>
 
       <div className="surface p-4">
@@ -1438,9 +1467,9 @@ function SyncView({
           title={isAdmin ? "Acesso liberado" : "Restrito ao admin"}
           subtitle={isAdmin ? "Voce pode importar datas oficiais." : "Use uma conta admin para sincronizar."}
         />
-        <div className="mt-5 rounded-lg bg-slate-950 p-4 text-white">
-          <p className="text-sm text-slate-300">Eventos oficiais atuais</p>
-          <p className="mt-3 text-5xl font-semibold tracking-normal">{officialCount}</p>
+        <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm font-medium text-slate-500">Eventos oficiais atuais</p>
+          <p className="mt-3 text-5xl font-semibold tracking-normal text-slate-950">{officialCount}</p>
         </div>
       </div>
     </section>
@@ -1752,8 +1781,8 @@ function EmptyState({ text }: { text: string }) {
 
 function StatusTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-white p-3">
-      <p className="text-xs font-semibold uppercase tracking-normal text-slate-400">{label}</p>
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">{label}</p>
       <p className="mt-2 text-lg font-semibold text-slate-950">{value}</p>
     </div>
   );
