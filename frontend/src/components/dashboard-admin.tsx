@@ -17,7 +17,7 @@ import {
 import { formatDate, formatFullDate } from "@/lib/format";
 import { allCategories } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, CalendarImport } from "@/lib/types";
-import { CategoryBar, EventList, InsightTile } from "./dashboard-bits";
+import { CategoryBreakdown, EventList, InsightTile } from "./dashboard-bits";
 import { EmptyState, SectionTitle, primaryButton, secondaryButton } from "./ui";
 
 export function AdminDashboard({
@@ -188,15 +188,14 @@ export function AdminDashboard({
               title="Distribuição geral"
               subtitle="Todos os eventos do período, por tipo"
             />
-            <div className="mt-4 grid gap-2.5">
-              {allCategories.map((category) => (
-                <CategoryBar
-                  key={category}
-                  category={category}
-                  count={events.filter((event) => event.category === category).length}
-                  total={Math.max(events.length, 1)}
-                />
-              ))}
+            <div className="mt-4">
+              <CategoryBreakdown
+                counts={allCategories.map((category) => ({
+                  category,
+                  count: events.filter((event) => event.category === category).length,
+                }))}
+                emptyText="Nenhum evento cadastrado no período."
+              />
             </div>
           </div>
         </div>

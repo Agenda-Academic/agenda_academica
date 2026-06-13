@@ -14,7 +14,7 @@ import {
 import { cx, formatDate, formatFullDate, relativeDue } from "@/lib/format";
 import { allCategories, categoryMeta } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, Dashboard, Reminder } from "@/lib/types";
-import { CategoryBar, EventList, InsightTile } from "./dashboard-bits";
+import { CategoryBreakdown, EventList, InsightTile } from "./dashboard-bits";
 import { EmptyState, SectionTitle, primaryButton } from "./ui";
 
 export function StudentDashboard({
@@ -175,17 +175,16 @@ export function StudentDashboard({
               title="Distribuição"
               subtitle="O que vem pela frente, por tipo"
             />
-            <div className="mt-4 grid gap-2.5">
-              {allCategories.map((category) => (
-                <CategoryBar
-                  key={category}
-                  category={category}
-                  count={
-                    categories[category] ?? events.filter((event) => event.category === category).length
-                  }
-                  total={Math.max(events.length, 1)}
-                />
-              ))}
+            <div className="mt-4">
+              <CategoryBreakdown
+                counts={allCategories.map((category) => ({
+                  category,
+                  count:
+                    categories[category] ??
+                    events.filter((event) => event.category === category).length,
+                }))}
+                emptyText="Sem eventos futuros para distribuir."
+              />
             </div>
           </div>
         </div>

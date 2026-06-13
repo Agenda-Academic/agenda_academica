@@ -1,6 +1,6 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
+import { PieChart, type LucideIcon } from "lucide-react";
 import { cx } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, Category } from "@/lib/types";
@@ -30,28 +30,56 @@ export function InsightTile({
   );
 }
 
-export function CategoryBar({
-  category,
-  count,
-  total,
+export function CategoryBreakdown({
+  counts,
+  emptyText = "Nenhum evento no período.",
 }: {
-  category: Category;
-  count: number;
-  total: number;
+  counts: Array<{ category: Category; count: number }>;
+  emptyText?: string;
 }) {
-  const width = Math.max((count / total) * 100, count ? 10 : 2);
+  const present = counts
+    .filter((item) => item.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const total = present.reduce((sum, item) => sum + item.count, 0);
+
+  if (!total) {
+    return <EmptyState icon={PieChart} text={emptyText} />;
+  }
+
   return (
     <div>
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-slate-700">{categoryMeta[category].label}</span>
-        <span className="font-semibold text-slate-950">{count}</span>
+      {/* Barra proporcional segmentada por categoria */}
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+        {present.map(({ category, count }) => (
+          <div
+            key={category}
+            className={cx("h-full transition-all", categoryMeta[category].accent)}
+            style={{ width: `${(count / total) * 100}%` }}
+            title={`${categoryMeta[category].label}: ${count}`}
+          />
+        ))}
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={cx("h-full rounded-full transition-all", categoryMeta[category].accent)}
-          style={{ width: `${width}%` }}
-        />
-      </div>
+
+      {/* Legenda apenas com o que existe */}
+      <ul className="mt-4 grid gap-2">
+        {present.map(({ category, count }) => (
+          <li key={category} className="flex items-center justify-between gap-2 text-sm">
+            <span className="flex min-w-0 items-center gap-2">
+              <span
+                className={cx("h-2.5 w-2.5 shrink-0 rounded-full", categoryMeta[category].accent)}
+                aria-hidden
+              />
+              <span className="truncate text-slate-600">{categoryMeta[category].label}</span>
+            </span>
+            <span className="shrink-0 font-semibold text-slate-950">
+              {count}
+              <span className="ml-1 text-xs font-medium text-slate-400">
+                {Math.round((count / total) * 100)}%
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
