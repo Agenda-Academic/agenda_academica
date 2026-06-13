@@ -287,11 +287,6 @@ export default function Home() {
       .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
   }, [events, referenceNow]);
 
-  const attentionEvents = useMemo(() => {
-    const source = dashboard?.important?.length ? dashboard.important : upcomingEvents.slice(0, 3);
-    return source.slice(0, 4);
-  }, [dashboard, upcomingEvents]);
-
   const officialUpcoming = useMemo(
     () =>
       upcomingEvents.filter(
@@ -763,11 +758,9 @@ export default function Home() {
             <>
           {activeView === "dashboard" && user.role === "student" ? (
             <StudentDashboard
-              attentionEvents={attentionEvents}
               context={context}
               dashboard={dashboard}
               events={events}
-              lastLoadedAt={lastLoadedAt}
               reminders={reminders}
               upcomingEvents={upcomingEvents}
               onOpenCalendar={() => setActiveView("calendar")}

@@ -1,41 +1,35 @@
 "use client";
 
 import {
-  AlertTriangle,
   Bell,
   BookOpen,
   CalendarClock,
   CalendarDays,
   Filter,
   GraduationCap,
-  Inbox,
   Sparkles,
   Target,
   Trophy,
 } from "lucide-react";
-import { cx, formatDate, formatFullDate, formatTime, relativeDue } from "@/lib/format";
+import { cx, formatDate, formatFullDate, relativeDue } from "@/lib/format";
 import { allCategories, categoryMeta } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, Dashboard, Reminder } from "@/lib/types";
 import { CategoryBar, EventList, InsightTile } from "./dashboard-bits";
 import { EmptyState, SectionTitle, primaryButton } from "./ui";
 
 export function StudentDashboard({
-  attentionEvents,
   context,
   dashboard,
   events,
-  lastLoadedAt,
   reminders,
   upcomingEvents,
   onOpenCalendar,
   onOpenReminders,
   onSelect,
 }: {
-  attentionEvents: AcademicEvent[];
   context: AcademicContext | null;
   dashboard: Dashboard | null;
   events: AcademicEvent[];
-  lastLoadedAt: Date | null;
   reminders: Reminder[];
   upcomingEvents: AcademicEvent[];
   onOpenCalendar: () => void;
@@ -52,99 +46,83 @@ export function StudentDashboard({
 
   return (
     <div className="grid gap-4">
-      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="surface overflow-hidden">
-          <div className="border-b border-slate-200/80 p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="max-w-2xl">
-                <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">
-                  <Sparkles className="h-4 w-4" aria-hidden />
-                  {formatFullDate(new Date())}
-                </span>
-                <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-tight text-slate-950">
-                  {nextEvent ? nextEvent.title : "Você está em dia com os prazos"}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {nextEvent
-                    ? `${categoryMeta[nextEvent.category].short} · ${relativeDue(nextEvent.startsAt)} · ${formatDate(nextEvent.startsAt)}${nextEvent.location ? ` · ${nextEvent.location}` : ""}`
-                    : "Quando seus professores publicarem novos prazos, eles aparecem aqui."}
-                </p>
-              </div>
-              <button className={cx(primaryButton, "w-fit")} type="button" onClick={onOpenCalendar}>
-                <CalendarDays className="h-4 w-4" aria-hidden />
-                Ver cronograma
-              </button>
+      {/* Hero em largura total */}
+      <section className="surface overflow-hidden">
+        <div className="border-b border-slate-200/80 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">
+                <Sparkles className="h-4 w-4" aria-hidden />
+                {formatFullDate(new Date())}
+              </span>
+              <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-tight text-slate-950">
+                {nextEvent ? nextEvent.title : "Você está em dia com os prazos"}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {nextEvent
+                  ? `${categoryMeta[nextEvent.category].short} · ${relativeDue(nextEvent.startsAt)} · ${formatDate(nextEvent.startsAt)}${nextEvent.location ? ` · ${nextEvent.location}` : ""}`
+                  : "Quando seus professores publicarem novos prazos, eles aparecem aqui."}
+              </p>
             </div>
-          </div>
-
-          <div className="grid gap-px bg-slate-200/80 sm:grid-cols-2 md:grid-cols-4">
-            <InsightTile
-              icon={Target}
-              label="Próximos 30 dias"
-              value={String(dashboard?.metrics.upcomingCount ?? upcomingEvents.length)}
-            />
-            <InsightTile icon={BookOpen} label="Provas à frente" value={String(upcomingExams.length)} />
-            <InsightTile icon={Bell} label="Lembretes ativos" value={String(pendingReminders.length)} />
-            <InsightTile
-              icon={Trophy}
-              label="Pontos em jogo"
-              value={pointsAtStake ? `${pointsAtStake}` : "—"}
-              hint="pontuação informativa"
-            />
+            <button className={cx(primaryButton, "w-fit shrink-0")} type="button" onClick={onOpenCalendar}>
+              <CalendarDays className="h-4 w-4" aria-hidden />
+              Ver cronograma
+            </button>
           </div>
         </div>
 
-        <div className="surface p-4">
-          <SectionTitle
-            eyebrow="Agora"
-            icon={AlertTriangle}
-            title="Fila de atenção"
-            subtitle={
-              lastLoadedAt ? `Atualizado às ${formatTime(lastLoadedAt.toISOString())}` : "Aguardando dados"
-            }
+        <div className="grid gap-px bg-slate-200/80 sm:grid-cols-2 lg:grid-cols-4">
+          <InsightTile
+            icon={Target}
+            label="Próximos 30 dias"
+            value={String(dashboard?.metrics.upcomingCount ?? upcomingEvents.length)}
           />
-          <div className="mt-4">
-            <EventList
-              events={attentionEvents}
-              hideClass
-              emptyIcon={Inbox}
-              emptyText="Sem alertas importantes."
-              emptyHint="Você está em dia."
-              onSelect={onSelect}
-            />
-          </div>
+          <InsightTile icon={BookOpen} label="Provas à frente" value={String(upcomingExams.length)} />
+          <InsightTile icon={Bell} label="Lembretes ativos" value={String(pendingReminders.length)} />
+          <InsightTile
+            icon={Trophy}
+            label="Pontos em jogo"
+            value={pointsAtStake ? `${pointsAtStake}` : "—"}
+            hint="pontuação informativa"
+          />
         </div>
       </section>
 
-      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      {/* Corpo: timeline principal + trilho de apoio */}
+      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="surface p-4">
           <SectionTitle
-            eyebrow="Semana"
+            eyebrow="Sua turma"
             icon={CalendarClock}
-            title="Meus próximos compromissos"
-            subtitle="Prazos e datas oficiais da sua turma em ordem cronológica"
+            title="Próximos compromissos"
+            subtitle="Prazos, provas e datas oficiais em ordem cronológica"
           />
           <div className="mt-4">
             <EventList
               events={upcomingEvents}
               hideClass
-              limit={8}
+              limit={10}
               emptyIcon={CalendarDays}
               emptyText="Sem eventos futuros."
+              emptyHint="Quando houver novos prazos, eles aparecem aqui."
               onSelect={onSelect}
             />
           </div>
         </div>
 
         <div className="grid content-start gap-4">
-          {myClass ? (
-            <div className="surface p-4">
-              <SectionTitle
-                eyebrow="Matrícula"
-                icon={GraduationCap}
-                title={myClass.name}
-                subtitle={myClass.course?.name ?? "Curso"}
-              />
+          <div className="surface p-4">
+            <SectionTitle
+              eyebrow="Matrícula"
+              icon={GraduationCap}
+              title={myClass?.name ?? "Sem turma vinculada"}
+              subtitle={
+                myClass
+                  ? (myClass.course?.name ?? "Curso")
+                  : "Fale com a secretaria para vincular sua matrícula"
+              }
+            />
+            {myClass ? (
               <div className="mt-4 flex flex-wrap gap-1.5 text-xs font-semibold">
                 <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-slate-600">
                   {myClass.period}
@@ -156,17 +134,8 @@ export function StudentDashboard({
                   {myClass.year}/{myClass.semester}
                 </span>
               </div>
-            </div>
-          ) : (
-            <div className="surface p-4">
-              <SectionTitle
-                eyebrow="Matrícula"
-                icon={GraduationCap}
-                title="Sem turma vinculada"
-                subtitle="Fale com a secretaria para vincular sua matrícula"
-              />
-            </div>
-          )}
+            ) : null}
+          </div>
 
           <div className="surface p-4">
             <SectionTitle
