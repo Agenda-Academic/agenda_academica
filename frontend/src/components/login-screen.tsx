@@ -122,16 +122,6 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
               </div>
             </div>
           </div>
-
-          <div className="relative mt-10 rounded-xl border border-white/15 bg-white/10 p-4 backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200">
-              Regra institucional
-            </p>
-            <p className="mt-2 text-sm leading-6 text-emerald-50">
-              Datas oficiais da reitoria têm prioridade sobre eventos locais. Professores gerenciam
-              apenas as turmas que ministram.
-            </p>
-          </div>
         </div>
 
         <div className="flex items-center justify-center p-5 sm:p-8">
