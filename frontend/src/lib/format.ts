@@ -144,8 +144,12 @@ export function monthTitle(year: number, month: number) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+const honorifics = new Set(["prof.", "prof", "profa.", "profa", "dr.", "dra.", "sr.", "sra."]);
+
 export function firstName(value: string) {
-  return value.split(" ")[0] ?? value;
+  const parts = value.trim().split(/\s+/);
+  // Pula títulos ("Prof. Apio" → "Apio") para a saudação soar natural.
+  return parts.find((part) => !honorifics.has(part.toLowerCase())) ?? parts[0] ?? value;
 }
 
 export function errorMessage(error: unknown) {

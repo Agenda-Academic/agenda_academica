@@ -28,12 +28,18 @@ import { Field, InfoLine, dangerButton, secondaryButton } from "./ui";
 export function EventRow({
   compact,
   event,
+  hideClass,
+  mine,
   selected,
   separated,
   onClick,
 }: {
   compact?: boolean;
   event: AcademicEvent;
+  /** Oculta o nome da turma (visão de aluno, que só tem uma). */
+  hideClass?: boolean;
+  /** Marca eventos publicados pelo próprio usuário (visão docente). */
+  mine?: boolean;
   selected?: boolean;
   separated?: boolean;
   onClick: () => void;
@@ -75,13 +81,18 @@ export function EventRow({
               {statusMeta[event.status].label}
             </span>
           ) : null}
+          {mine ? (
+            <span className="inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+              Sua publicação
+            </span>
+          ) : null}
           {event.officialPriority || event.source !== "teacher" ? (
             <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-blue-500" aria-hidden />
           ) : null}
         </span>
         <span className="mt-1 block truncate text-sm text-slate-600">
           {event.subject?.name ?? "Institucional"}
-          {event.academicClass ? ` · ${event.academicClass.name}` : ""}
+          {!hideClass && event.academicClass ? ` · ${event.academicClass.name}` : ""}
           {event.points !== null ? ` · ${event.points} pts` : ""}
         </span>
       </span>

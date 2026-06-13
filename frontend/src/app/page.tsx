@@ -4,7 +4,9 @@ import { CalendarPlus, CheckCircle2, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AppShell, type View } from "@/components/app-shell";
 import { CalendarView, type CalendarMode } from "@/components/calendar-view";
-import { DashboardView } from "@/components/dashboard-view";
+import { AdminDashboard } from "@/components/dashboard-admin";
+import { StudentDashboard } from "@/components/dashboard-student";
+import { TeacherDashboard } from "@/components/dashboard-teacher";
 import { LoginScreen } from "@/components/login-screen";
 import {
   ManageView,
@@ -63,12 +65,28 @@ import type {
 
 const SESSION_KEY = "agenda-academica-session";
 
-const viewEyebrows: Record<View, string> = {
-  dashboard: "Painel central",
-  calendar: "Cronograma unificado",
-  manage: "Operação docente",
-  reminders: "Alertas pessoais",
-  sync: "Fonte institucional",
+const viewEyebrows: Record<"student" | "teacher" | "admin", Record<View, string>> = {
+  student: {
+    dashboard: "Minha agenda",
+    calendar: "Cronograma da turma",
+    manage: "Gestão",
+    reminders: "Meus alertas",
+    sync: "Fonte institucional",
+  },
+  teacher: {
+    dashboard: "Painel docente",
+    calendar: "Cronograma das turmas",
+    manage: "Gestão de eventos",
+    reminders: "Meus alertas",
+    sync: "Fonte institucional",
+  },
+  admin: {
+    dashboard: "Visão institucional",
+    calendar: "Cronograma geral",
+    manage: "Eventos oficiais",
+    reminders: "Meus alertas",
+    sync: "Calendário oficial",
+  },
 };
 
 export default function Home() {
@@ -274,6 +292,15 @@ export default function Home() {
     return source.slice(0, 4);
   }, [dashboard, upcomingEvents]);
 
+  const officialUpcoming = useMemo(
+    () =>
+      upcomingEvents.filter(
+        (event) =>
+          event.officialPriority || event.source === "official" || event.source === "imported"
+      ),
+    [upcomingEvents]
+  );
+
   const canManageEvent = useCallback(
     (event: AcademicEvent) => {
       if (!user) {
@@ -396,6 +423,16 @@ export default function Home() {
 
   function openNewEvent() {
     resetEventForm();
+    setActiveView("manage");
+  }
+
+  function openNewEventFor(academicClassId: number, subjectId: number) {
+    setEditingEventId(null);
+    setEventForm({
+      ...createInitialEventForm(),
+      academicClassId: String(academicClassId),
+      subjectId: String(subjectId),
+    });
     setActiveView("manage");
   }
 
@@ -667,7 +704,6 @@ export default function Home() {
       <AppShell
         activeView={activeView}
         canWrite={canWrite}
-        lastLoadedAt={lastLoadedAt}
         refreshing={loading}
         user={user}
         onLogout={handleLogout}
@@ -677,7 +713,7 @@ export default function Home() {
       >
         <header className="surface flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-sm font-medium text-emerald-700">{viewEyebrows[activeView]}</p>
+            <p className="text-sm font-medium text-emerald-700">{viewEyebrows[user.role][activeView]}</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
               Olá, {firstName(user.fullName ?? user.email)}
             </h1>
@@ -725,8 +761,8 @@ export default function Home() {
             </div>
           ) : (
             <>
-          {activeView === "dashboard" ? (
-            <DashboardView
+          {activeView === "dashboard" && user.role === "student" ? (
+            <StudentDashboard
               attentionEvents={attentionEvents}
               context={context}
               dashboard={dashboard}
@@ -740,10 +776,39 @@ export default function Home() {
             />
           ) : null}
 
+          {activeView === "dashboard" && user.role === "teacher" ? (
+            <TeacherDashboard
+              context={context}
+              manageableEvents={manageableEvents}
+              officialUpcoming={officialUpcoming}
+              referenceNow={referenceNow}
+              upcomingEvents={upcomingEvents}
+              onNewEvent={openNewEvent}
+              onNewEventFor={openNewEventFor}
+              onOpenManage={() => setActiveView("manage")}
+              onSelect={selectEvent}
+            />
+          ) : null}
+
+          {activeView === "dashboard" && user.role === "admin" ? (
+            <AdminDashboard
+              context={context}
+              events={events}
+              imports={imports}
+              officialUpcoming={officialUpcoming}
+              upcomingEvents={upcomingEvents}
+              onNewEvent={openNewEvent}
+              onOpenSync={() => setActiveView("sync")}
+              onSelect={selectEvent}
+            />
+          ) : null}
+
           {activeView === "calendar" ? (
             <CalendarView
               calendarMode={calendarMode}
               canManageEvent={canManageEvent}
+              classes={context?.catalog.classes ?? []}
+              role={user.role}
               events={filteredEvents}
               reminderOffset={reminderOffset}
               saving={saving}

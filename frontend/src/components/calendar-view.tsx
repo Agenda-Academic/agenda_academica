@@ -8,6 +8,7 @@ import {
   History,
   Inbox,
   ListChecks,
+  Megaphone,
   Search,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -19,7 +20,7 @@ import {
   weekdayLabels,
 } from "@/lib/format";
 import { allCategories, categoryMeta } from "@/lib/meta";
-import type { AcademicEvent, Category } from "@/lib/types";
+import type { AcademicClass, AcademicEvent, Category, UserRole } from "@/lib/types";
 import { EmptyDetail, EventDetailContent, EventRow } from "./event-bits";
 import { EmptyState, Modal, SectionTitle, SegmentedButton, iconButton, secondaryButton } from "./ui";
 
@@ -247,8 +248,10 @@ function MonthCalendar({
 export function CalendarView({
   calendarMode,
   canManageEvent,
+  classes,
   events,
   reminderOffset,
+  role,
   saving,
   search,
   selectedCategories,
@@ -267,8 +270,10 @@ export function CalendarView({
 }: {
   calendarMode: CalendarMode;
   canManageEvent: (event: AcademicEvent) => boolean;
+  classes: AcademicClass[];
   events: AcademicEvent[];
   reminderOffset: string;
+  role: UserRole;
   saving: boolean;
   search: string;
   selectedCategories: Category[];
@@ -286,17 +291,33 @@ export function CalendarView({
   onSetStatus: (event: AcademicEvent, status: "scheduled" | "completed" | "cancelled") => void;
 }) {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("upcoming");
+  const [mineOnly, setMineOnly] = useState(false);
+  const [classFilter, setClassFilter] = useState("all");
+
+  const scopedEvents = useMemo(() => {
+    let scoped = events;
+    if (role === "teacher" && mineOnly) {
+      scoped = scoped.filter(canManageEvent);
+    }
+    if (role === "admin" && classFilter !== "all") {
+      scoped =
+        classFilter === "official"
+          ? scoped.filter((event) => !event.academicClassId)
+          : scoped.filter((event) => event.academicClassId === Number(classFilter));
+    }
+    return scoped;
+  }, [events, role, mineOnly, classFilter, canManageEvent]);
 
   const listEvents = useMemo(() => {
     if (timeFilter === "all") {
-      return events;
+      return scopedEvents;
     }
     const todayStart = startOfDay(new Date()).getTime();
-    return events.filter((event) => {
+    return scopedEvents.filter((event) => {
       const reference = new Date(event.endsAt ?? event.startsAt).getTime();
       return timeFilter === "upcoming" ? reference >= todayStart : reference < todayStart;
     });
-  }, [events, timeFilter]);
+  }, [scopedEvents, timeFilter]);
 
   const detailContent = selectedEvent ? (
     <EventDetailContent
@@ -320,7 +341,13 @@ export function CalendarView({
           <SectionTitle
             eyebrow="Cronograma"
             icon={CalendarDays}
-            title="Linha do tempo acadêmica"
+            title={
+              role === "admin"
+                ? "Cronograma institucional"
+                : role === "teacher"
+                  ? "Cronograma das suas turmas"
+                  : "Cronograma da sua turma"
+            }
             subtitle={
               calendarMode === "list"
                 ? `${listEvents.length} evento${listEvents.length === 1 ? "" : "s"} dentro dos filtros atuais`
@@ -353,6 +380,47 @@ export function CalendarView({
           showTimeFilter={calendarMode === "list"}
         />
 
+        {role === "teacher" ? (
+          <div className="mt-3">
+            <button
+              className={cx(
+                "inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition",
+                mineOnly
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+              )}
+              aria-pressed={mineOnly}
+              onClick={() => setMineOnly((current) => !current)}
+              type="button"
+            >
+              <Megaphone className="h-3.5 w-3.5" aria-hidden />
+              Somente minhas publicações
+            </button>
+          </div>
+        ) : null}
+
+        {role === "admin" && classes.length ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label className="text-sm font-semibold text-slate-600" htmlFor="class-filter">
+              Turma
+            </label>
+            <select
+              id="class-filter"
+              className="input h-9 min-h-0 w-auto"
+              value={classFilter}
+              onChange={(event) => setClassFilter(event.target.value)}
+            >
+              <option value="all">Todas as turmas</option>
+              <option value="official">Somente institucionais</option>
+              {classes.map((academicClass) => (
+                <option key={academicClass.id} value={academicClass.id}>
+                  {academicClass.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+
         {calendarMode === "list" ? (
           listEvents.length ? (
             <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -360,6 +428,8 @@ export function CalendarView({
                 <EventRow
                   key={event.id}
                   event={event}
+                  hideClass={role === "student"}
+                  mine={role === "teacher" && canManageEvent(event)}
                   selected={selectedEventId === event.id}
                   separated={index < listEvents.length - 1}
                   onClick={() => onSelect(event.id)}
@@ -376,7 +446,11 @@ export function CalendarView({
             </div>
           )
         ) : (
-          <MonthCalendar events={events} selectedEventId={selectedEventId} onSelect={onSelect} />
+          <MonthCalendar
+            events={scopedEvents}
+            selectedEventId={selectedEventId}
+            onSelect={onSelect}
+          />
         )}
       </section>
 
