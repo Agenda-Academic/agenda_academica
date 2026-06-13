@@ -36,13 +36,15 @@ export default class RemindersController {
 
     const offsetMinutes = payload.offsetMinutes ?? user.defaultReminderMinutes
     const channel = payload.channel ?? user.notificationChannel
+    // Um lembrete por usuario+evento: trocar o canal atualiza o registro
+    // existente em vez de criar um segundo lembrete.
     const reminder = await Reminder.updateOrCreate(
       {
         userId: user.id,
         academicEventId: event.id,
-        channel,
       },
       {
+        channel,
         offsetMinutes,
         sendAt: reminderSendAt(event.startsAt, offsetMinutes),
         enabled: payload.enabled ?? true,

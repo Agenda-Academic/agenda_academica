@@ -13,7 +13,8 @@ export default class DashboardController {
     const upcomingQuery = AcademicEvent.query()
       .where('startsAt', '>=', now.toSQL({ includeOffset: false })!)
       .where('startsAt', '<=', horizon.toSQL({ includeOffset: false })!)
-      .where('status', 'scheduled')
+      // Eventos "changed" continuam ativos; so cancelados/concluidos saem.
+      .whereNotIn('status', ['cancelled', 'completed'])
       .preload('subject')
       .preload('teacher')
       .preload('academicClass', (classQuery) => classQuery.preload('course'))

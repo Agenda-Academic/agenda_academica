@@ -2,10 +2,12 @@ import AcademicEvent from '#models/academic_event'
 import Reminder from '#models/reminder'
 import type User from '#models/user'
 import AcademicAccessService from '#services/academic_access_service'
-import { parseIsoDateTime } from '#services/date_time_service'
+import { parseIsoDateTime, reminderSendAt } from '#services/date_time_service'
 import { createAcademicEventValidator, updateAcademicEventValidator } from '#validators/academic'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { DateTime } from 'luxon'
+
+const ADMIN_ONLY_CATEGORIES = ['institutional', 'holiday', 'recess']
 
 export default class AcademicEventsController {
   async index({ auth, request, response }: HttpContext) {
@@ -92,6 +94,12 @@ export default class AcademicEventsController {
       return response.forbidden({ message: 'Alunos nao podem criar eventos academicos.' })
     }
 
+    if (user.role === 'teacher' && ADMIN_ONLY_CATEGORIES.includes(payload.category)) {
+      return response.forbidden({
+        message: 'Categorias institucionais sao restritas a administracao.',
+      })
+    }
+
     if (
       !(await AcademicAccessService.teacherCanManage(
         user,
@@ -146,11 +154,29 @@ export default class AcademicEventsController {
     }
 
     const payload = await request.validateUsing(updateAcademicEventValidator)
+
+    if (
+      user.role === 'teacher' &&
+      payload.category !== undefined &&
+      ADMIN_ONLY_CATEGORIES.includes(payload.category)
+    ) {
+      return response.forbidden({
+        message: 'Categorias institucionais sao restritas a administracao.',
+      })
+    }
+
     const targetClassId =
       payload.academicClassId === undefined ? event.academicClassId : payload.academicClassId
     const targetSubjectId = payload.subjectId === undefined ? event.subjectId : payload.subjectId
+    const changingScope =
+      targetClassId !== event.academicClassId || targetSubjectId !== event.subjectId
 
-    if (!(await AcademicAccessService.teacherCanManage(user, targetClassId, targetSubjectId))) {
+    // O vinculo com a turma de destino so precisa ser revalidado quando o
+    // evento muda de turma/disciplina; o dono pode editar o proprio evento.
+    if (
+      changingScope &&
+      !(await AcademicAccessService.teacherCanManage(user, targetClassId, targetSubjectId))
+    ) {
       return response.forbidden({
         message: 'Professor so pode mover eventos para turmas que ministra.',
       })
@@ -176,6 +202,17 @@ export default class AcademicEventsController {
       endsAt: endsAt === undefined ? event.endsAt : endsAt,
     })
     await event.save()
+
+    if (startsAt) {
+      // Reposiciona lembretes ja configurados para a nova data do evento.
+      const reminders = await Reminder.query()
+        .where('academicEventId', event.id)
+        .whereNull('sentAt')
+      for (const reminder of reminders) {
+        reminder.sendAt = reminderSendAt(event.startsAt, reminder.offsetMinutes)
+        await reminder.save()
+      }
+    }
 
     const stored = await this.findWithRelations(event.id)
     return { data: stored?.serialize() }

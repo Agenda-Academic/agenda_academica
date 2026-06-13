@@ -19,7 +19,8 @@ export type User = {
   registration: string | null;
   defaultReminderMinutes: number;
   notificationChannel: "email" | "push";
-  initials: string;
+  /** Presente nas respostas de conta (transformer); ausente em relações como event.teacher. */
+  initials?: string;
 };
 
 export type Course = {
@@ -122,4 +123,15 @@ export type AcademicContext = {
 export type Session = {
   token: string;
   user: User;
+};
+
+export type CalendarImport = {
+  id: number;
+  sourceName: string;
+  sourceUrl: string | null;
+  importedById: number | null;
+  importedAt: string;
+  status: string;
+  totalEvents: number;
+  checksum: string | null;
 };

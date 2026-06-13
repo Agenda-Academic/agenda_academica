@@ -15,7 +15,9 @@ const dbConfig = defineConfig({
       client: 'better-sqlite3',
 
       connection: {
-        filename: app.tmpPath('db.sqlite3'),
+        // Banco separado para testes: a suite trunca tabelas e reverte
+        // migracoes, o que apagaria os dados de desenvolvimento.
+        filename: app.tmpPath(app.inTest ? 'test.sqlite3' : 'db.sqlite3'),
       },
 
       /**

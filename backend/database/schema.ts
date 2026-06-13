@@ -8,18 +8,7 @@ import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
 export class AcademicClassSchema extends BaseModel {
-  static $columns = [
-    'active',
-    'courseId',
-    'createdAt',
-    'id',
-    'name',
-    'period',
-    'semester',
-    'shift',
-    'updatedAt',
-    'year',
-  ] as const
+  static $columns = ['active', 'courseId', 'createdAt', 'id', 'name', 'period', 'semester', 'shift', 'updatedAt', 'year'] as const
   $columns = AcademicClassSchema.$columns
   @column()
   declare active: boolean
@@ -44,28 +33,7 @@ export class AcademicClassSchema extends BaseModel {
 }
 
 export class AcademicEventSchema extends BaseModel {
-  static $columns = [
-    'academicClassId',
-    'calendarImportId',
-    'category',
-    'color',
-    'createdAt',
-    'createdById',
-    'description',
-    'endsAt',
-    'id',
-    'location',
-    'officialPriority',
-    'points',
-    'source',
-    'sourceExternalId',
-    'startsAt',
-    'status',
-    'subjectId',
-    'teacherId',
-    'title',
-    'updatedAt',
-  ] as const
+  static $columns = ['academicClassId', 'calendarImportId', 'category', 'color', 'createdAt', 'createdById', 'description', 'endsAt', 'id', 'location', 'officialPriority', 'points', 'source', 'sourceExternalId', 'startsAt', 'status', 'subjectId', 'teacherId', 'title', 'updatedAt'] as const
   $columns = AcademicEventSchema.$columns
   @column()
   declare academicClassId: number | null
@@ -110,18 +78,7 @@ export class AcademicEventSchema extends BaseModel {
 }
 
 export class AuthAccessTokenSchema extends BaseModel {
-  static $columns = [
-    'abilities',
-    'createdAt',
-    'expiresAt',
-    'hash',
-    'id',
-    'lastUsedAt',
-    'name',
-    'tokenableId',
-    'type',
-    'updatedAt',
-  ] as const
+  static $columns = ['abilities', 'createdAt', 'expiresAt', 'hash', 'id', 'lastUsedAt', 'name', 'tokenableId', 'type', 'updatedAt'] as const
   $columns = AuthAccessTokenSchema.$columns
   @column()
   declare abilities: string
@@ -146,19 +103,7 @@ export class AuthAccessTokenSchema extends BaseModel {
 }
 
 export class CalendarImportSchema extends BaseModel {
-  static $columns = [
-    'checksum',
-    'createdAt',
-    'id',
-    'importedAt',
-    'importedById',
-    'rawPayload',
-    'sourceName',
-    'sourceUrl',
-    'status',
-    'totalEvents',
-    'updatedAt',
-  ] as const
+  static $columns = ['checksum', 'createdAt', 'id', 'importedAt', 'importedById', 'rawPayload', 'sourceName', 'sourceUrl', 'status', 'totalEvents', 'updatedAt'] as const
   $columns = CalendarImportSchema.$columns
   @column()
   declare checksum: string | null
@@ -221,18 +166,7 @@ export class EnrollmentSchema extends BaseModel {
 }
 
 export class ReminderSchema extends BaseModel {
-  static $columns = [
-    'academicEventId',
-    'channel',
-    'createdAt',
-    'enabled',
-    'id',
-    'offsetMinutes',
-    'sendAt',
-    'sentAt',
-    'updatedAt',
-    'userId',
-  ] as const
+  static $columns = ['academicEventId', 'channel', 'createdAt', 'enabled', 'id', 'offsetMinutes', 'sendAt', 'sentAt', 'updatedAt', 'userId'] as const
   $columns = ReminderSchema.$columns
   @column()
   declare academicEventId: number
@@ -257,15 +191,7 @@ export class ReminderSchema extends BaseModel {
 }
 
 export class SubjectSchema extends BaseModel {
-  static $columns = [
-    'active',
-    'code',
-    'createdAt',
-    'id',
-    'name',
-    'updatedAt',
-    'workloadHours',
-  ] as const
+  static $columns = ['active', 'code', 'createdAt', 'id', 'name', 'updatedAt', 'workloadHours'] as const
   $columns = SubjectSchema.$columns
   @column()
   declare active: boolean
@@ -284,14 +210,7 @@ export class SubjectSchema extends BaseModel {
 }
 
 export class TeachingAssignmentSchema extends BaseModel {
-  static $columns = [
-    'academicClassId',
-    'createdAt',
-    'id',
-    'subjectId',
-    'teacherId',
-    'updatedAt',
-  ] as const
+  static $columns = ['academicClassId', 'createdAt', 'id', 'subjectId', 'teacherId', 'updatedAt'] as const
   $columns = TeachingAssignmentSchema.$columns
   @column()
   declare academicClassId: number
@@ -308,18 +227,7 @@ export class TeachingAssignmentSchema extends BaseModel {
 }
 
 export class UserSchema extends BaseModel {
-  static $columns = [
-    'createdAt',
-    'defaultReminderMinutes',
-    'email',
-    'fullName',
-    'id',
-    'notificationChannel',
-    'password',
-    'registration',
-    'role',
-    'updatedAt',
-  ] as const
+  static $columns = ['createdAt', 'defaultReminderMinutes', 'email', 'fullName', 'id', 'notificationChannel', 'password', 'registration', 'role', 'updatedAt'] as const
   $columns = UserSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

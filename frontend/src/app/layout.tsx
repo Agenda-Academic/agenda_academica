@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Agenda Academica",
-  description: "Agenda academica digital para prazos, provas, trabalhos e eventos oficiais.",
+  title: "Agenda Acadêmica",
+  description: "Agenda acadêmica digital para prazos, provas, trabalhos e eventos oficiais.",
 };
 
 export default function RootLayout({
