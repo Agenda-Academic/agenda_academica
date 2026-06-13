@@ -52,7 +52,7 @@ export function StudentDashboard({
 
   return (
     <div className="grid gap-4">
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="surface overflow-hidden">
           <div className="border-b border-slate-200/80 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -116,7 +116,7 @@ export function StudentDashboard({
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="surface p-4">
           <SectionTitle
             eyebrow="Semana"
