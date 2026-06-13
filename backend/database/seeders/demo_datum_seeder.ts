@@ -1,21 +1,27 @@
 import { BaseSeeder } from '@adonisjs/lucid/seeders'
 import AcademicClass from '#models/academic_class'
 import AcademicEvent from '#models/academic_event'
-import CalendarImport from '#models/calendar_import'
 import Course from '#models/course'
 import Enrollment from '#models/enrollment'
-import Reminder from '#models/reminder'
 import Subject from '#models/subject'
 import TeachingAssignment from '#models/teaching_assignment'
 import User from '#models/user'
-import { reminderSendAt } from '#services/date_time_service'
 import { DateTime } from 'luxon'
+
+/** Dia letivo às `hour` horas (America/Sao_Paulo), normalizado para UTC. */
+function classDay(days: number, hour: number, minute = 0) {
+  return DateTime.now()
+    .setZone('America/Sao_Paulo')
+    .startOf('day')
+    .plus({ days, hours: hour, minutes: minute })
+    .toUTC()
+}
 
 export default class extends BaseSeeder {
   async run() {
-    const [admin, teacher, secondTeacher, student] = await User.createMany([
+    const [, teacher, secondTeacher, student] = await User.createMany([
       {
-        fullName: 'Coordenacao Academica',
+        fullName: 'Coordenação Acadêmica',
         email: 'admin@agenda.test',
         password: 'password123',
         role: 'admin',
@@ -54,23 +60,23 @@ export default class extends BaseSeeder {
 
     const course = await Course.create({
       code: 'TADS',
-      name: 'Tecnologia em Analise e Desenvolvimento de Sistemas',
-      campus: 'Tres Lagoas',
+      name: 'Tecnologia em Análise e Desenvolvimento de Sistemas',
+      campus: 'Três Lagoas',
     })
 
     const academicClass = await AcademicClass.create({
       courseId: course.id,
-      name: 'TADS 3',
-      period: '3o periodo',
+      name: 'TADS 4',
+      period: '4º período',
       year: DateTime.now().year,
       semester: 1,
       shift: 'noturno',
     })
 
     const [math, dataStructures, softwareEngineering] = await Subject.createMany([
-      { code: 'MAT-301', name: 'Matematica', workloadHours: 80 },
-      { code: 'ED-301', name: 'Estrutura de Dados', workloadHours: 80 },
-      { code: 'ES-301', name: 'Engenharia de Software', workloadHours: 80 },
+      { code: 'MAT-401', name: 'Matemática', workloadHours: 80 },
+      { code: 'ED-401', name: 'Estrutura de Dados', workloadHours: 80 },
+      { code: 'ES-401', name: 'Engenharia de Software', workloadHours: 80 },
     ])
 
     await Enrollment.create({
@@ -93,27 +99,16 @@ export default class extends BaseSeeder {
       },
     ])
 
-    const officialImport = await CalendarImport.create({
-      sourceName: 'Calendario oficial IFMS',
-      sourceUrl: 'https://www.ifms.edu.br/',
-      importedById: admin.id,
-      importedAt: DateTime.now(),
-      status: 'completed',
-      totalEvents: 2,
-      checksum: 'demo-2026-01',
-      rawPayload: null,
-    })
-
-    const now = DateTime.now().startOf('day')
-    const events = await AcademicEvent.createMany([
+    await AcademicEvent.createMany([
       {
-        title: 'Prova bimestral de Matematica',
+        title: 'Prova de Matemática',
         description:
-          'Conteudo: funcoes, matrizes e revisao da lista 2. Pontuacao apenas informativa.',
+          'Conteúdo: funções, matrizes e revisão da lista 2. Pontuação apenas informativa.',
         category: 'exam',
         source: 'teacher',
-        startsAt: now.plus({ days: 5, hours: 19 }),
+        startsAt: classDay(4, 19),
         points: 10,
+        location: 'Sala 12 · Bloco B',
         color: '#dc2626',
         academicClassId: academicClass.id,
         subjectId: math.id,
@@ -121,25 +116,13 @@ export default class extends BaseSeeder {
         createdById: teacher.id,
       },
       {
-        title: 'Entrega do trabalho de Engenharia de Software',
-        description: 'Documento de requisitos e prototipo navegavel no Figma.',
-        category: 'assignment',
+        title: 'Prova de Estrutura de Dados',
+        description: 'Conteúdo: pilhas, filas, listas encadeadas e árvores binárias.',
+        category: 'exam',
         source: 'teacher',
-        startsAt: now.plus({ days: 8, hours: 23, minutes: 59 }),
-        points: 5,
-        color: '#7c3aed',
-        academicClassId: academicClass.id,
-        subjectId: softwareEngineering.id,
-        teacherId: teacher.id,
-        createdById: teacher.id,
-      },
-      {
-        title: 'Lista pratica de Estrutura de Dados',
-        description: 'Exercicios sobre pilhas, filas e listas encadeadas.',
-        category: 'activity',
-        source: 'teacher',
-        startsAt: now.plus({ days: 3, hours: 20 }),
-        points: 2,
+        startsAt: classDay(9, 19),
+        points: 10,
+        location: 'Laboratório 3',
         color: '#0891b2',
         academicClassId: academicClass.id,
         subjectId: dataStructures.id,
@@ -147,39 +130,19 @@ export default class extends BaseSeeder {
         createdById: secondTeacher.id,
       },
       {
-        title: 'Feriado municipal',
-        description: 'Data oficial importada do calendario institucional.',
-        category: 'holiday',
-        source: 'imported',
-        startsAt: now.plus({ days: 12 }),
-        color: '#16a34a',
-        calendarImportId: officialImport.id,
-        createdById: admin.id,
-        officialPriority: true,
-      },
-      {
-        title: 'Recesso academico',
-        description: 'Periodo sem aulas conforme calendario da reitoria.',
-        category: 'recess',
-        source: 'imported',
-        startsAt: now.plus({ days: 20 }),
-        endsAt: now.plus({ days: 22 }),
-        color: '#2563eb',
-        calendarImportId: officialImport.id,
-        createdById: admin.id,
-        officialPriority: true,
+        title: 'Prova de Engenharia de Software',
+        description: 'Conteúdo: requisitos, UML e processos ágeis. Consulta liberada ao material.',
+        category: 'exam',
+        source: 'teacher',
+        startsAt: classDay(15, 19),
+        points: 10,
+        location: 'Sala 7 · Bloco A',
+        color: '#7c3aed',
+        academicClassId: academicClass.id,
+        subjectId: softwareEngineering.id,
+        teacherId: teacher.id,
+        createdById: teacher.id,
       },
     ])
-
-    await Reminder.createMany(
-      events.slice(0, 3).map((event) => ({
-        userId: student.id,
-        academicEventId: event.id,
-        channel: 'email',
-        offsetMinutes: student.defaultReminderMinutes,
-        sendAt: reminderSendAt(event.startsAt, student.defaultReminderMinutes),
-        enabled: true,
-      }))
-    )
   }
 }

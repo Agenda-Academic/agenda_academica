@@ -114,7 +114,7 @@ test.group('Academic API', () => {
 
   test('delivery service sends due reminders once', async ({ assert }) => {
     const student = await User.findByOrFail('email', 'diogo@agenda.test')
-    const event = await AcademicEvent.query().where('title', 'Feriado municipal').firstOrFail()
+    const event = await AcademicEvent.query().orderBy('startsAt', 'asc').firstOrFail()
     const reminder = await Reminder.create({
       userId: student.id,
       academicEventId: event.id,
