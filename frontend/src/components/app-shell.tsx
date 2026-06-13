@@ -164,8 +164,8 @@ export function AppShell({
 
   return (
     <main className="min-h-screen bg-app text-slate-950">
-      {/* Top bar (mobile/tablet) */}
-      <header className="surface sticky top-0 z-40 mx-3 mt-3 flex items-center justify-between gap-3 px-3 py-2.5 lg:hidden">
+      {/* Top bar (mobile) */}
+      <header className="surface sticky top-0 z-40 mx-3 mt-3 flex items-center justify-between gap-3 px-3 py-2.5 md:hidden">
         <Brand />
         <div className="flex items-center gap-2">
           <button
@@ -192,10 +192,10 @@ export function AppShell({
         </div>
       </header>
 
-      {/* Drawer (mobile/tablet) */}
+      {/* Drawer (mobile) */}
       {drawerOpen ? (
         <div
-          className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-sm animate-fade-in lg:hidden"
+          className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-sm animate-fade-in md:hidden"
           role="dialog"
           aria-modal="true"
           aria-label="Menu de navegação"
@@ -236,9 +236,9 @@ export function AppShell({
         </div>
       ) : null}
 
-      <div className="mx-auto grid max-w-[1500px] gap-4 px-3 py-3 sm:px-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-6">
-        {/* Sidebar (desktop) */}
-        <aside className="surface sticky top-3 z-30 hidden h-fit max-h-[calc(100vh-1.5rem)] flex-col gap-4 overflow-y-auto overflow-x-hidden p-3 lg:flex">
+      <div className="mx-auto grid max-w-[1500px] gap-4 px-3 py-3 sm:px-5 md:grid-cols-[260px_minmax(0,1fr)] md:px-6">
+        {/* Sidebar fixa (tablet/desktop) */}
+        <aside className="surface sticky top-3 z-30 hidden h-fit max-h-[calc(100vh-1.5rem)] flex-col gap-4 overflow-y-auto overflow-x-hidden p-3 md:flex">
           <div className="border-b border-slate-200/80 px-2 pb-4 pt-1">
             <Brand />
           </div>
