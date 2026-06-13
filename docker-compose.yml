@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    image: agenda-academica-backend
+    container_name: agenda-backend
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+      HOST: 0.0.0.0
+      PORT: "3333"
+      NODE_ENV: production
+      LOG_LEVEL: info
+      SESSION_DRIVER: cookie
+      # Chave local de desenvolvimento (não usar em produção real)
+      APP_KEY: KZhIeqOSezS9RiifRcT5JAXX/lOXBnzX
+      APP_URL: http://localhost:3333
+      # Permite o frontend (origem cruzada) chamar a API
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "3333:3333"
+    volumes:
+      # Persiste o banco SQLite entre reinícios
+      - backend-data:/app/tmp
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3333/api/v1
+    image: agenda-academica-frontend
+    container_name: agenda-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  backend-data:

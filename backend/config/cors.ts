@@ -7,6 +7,15 @@ import { defineConfig } from '@adonisjs/cors'
  *
  * https://docs.adonisjs.com/guides/security/cors
  */
+/**
+ * Allowlist de origens para produção, lida de CORS_ORIGIN
+ * (separada por vírgula). Ex.: "http://localhost:3000,https://app.exemplo.br".
+ */
+const allowlist = (process.env.CORS_ORIGIN ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
 const corsConfig = defineConfig({
   /**
    * Enable or disable CORS handling globally.
@@ -15,10 +24,9 @@ const corsConfig = defineConfig({
 
   /**
    * In development, allow every origin to simplify local front/backend setup.
-   * In production, keep an explicit allowlist (empty by default, so no
-   * cross-origin browser access is allowed until configured).
+   * In production, use the CORS_ORIGIN allowlist (empty blocks all).
    */
-  origin: app.inDev ? true : [],
+  origin: app.inDev ? true : allowlist,
 
   /**
    * HTTP methods accepted for cross-origin requests.
