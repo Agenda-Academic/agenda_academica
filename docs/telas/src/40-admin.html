@@ -1,0 +1,252 @@
+
+<section class="g-sec" id="sec-admin">
+  <header class="g-sec-head">
+    <span class="n">04</span>
+    <h2>Administração</h2>
+    <p>A coordenação é responsável pelas datas oficiais: importa o calendário da reitoria, cria eventos institucionais com prioridade e tem visão global de todas as turmas, disciplinas e importações.</p>
+  </header>
+  <div class="g-frames">
+
+    <!-- ===================== TELA 9 · PAINEL DA ADMINISTRAÇÃO ===================== -->
+    <figure class="frame" id="tela-painel-admin">
+      <figcaption><span class="g-tag">Tela 9</span><b>Painel da administração</b> Situação do calendário oficial, próximas datas institucionais, atividade por turma e histórico de importações.<span class="g-rfs"><span class="g-rf">RF05</span><span class="g-rf">RF09</span></span></figcaption>
+      <div class="screen desk" data-name="Tela 9 · Painel da administração">
+        <div class="app">
+          <aside class="side">
+            <div class="brand"><span class="mark"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 10v6"/><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span><div><p class="brand-name">Agenda Acadêmica</p><p class="brand-sub">IFMS · Três Lagoas</p></div></div>
+            <nav aria-label="Navegação principal"><p class="nav-label">Menu</p><div class="navlist">
+              <a class="nav on" href="#tela-painel-admin" aria-current="page"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>Painel</a>
+              <a class="nav" href="#tela-calendario"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>Cronograma</a>
+              <a class="nav" href="#tela-gestao"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Gestão</a>
+              <a class="nav" href="#tela-lembretes"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Lembretes</a>
+              <a class="nav" href="#tela-sincronizacao"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Sincronização</a>
+            </div></nav>
+            <div class="side-foot">
+              <div class="semestre" aria-label="Semestre 2026/1, semana 18 de 20"><div class="row1"><span>Semestre 2026/1</span><b>sem. 18 de 20</b></div><div class="bar"><span style="width:90%"></span></div></div>
+              <div class="ucard"><span class="avatar">CA</span><div style="min-width:0"><p class="uname">Coordenação</p><p class="urole">Admin · ADM-001</p></div><a class="ubtn" href="#tela-perfil" aria-label="Configurações do perfil"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg></a></div>
+              <a class="nav" href="#tela-entrar"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sair da conta</a>
+              <p class="sync"><span class="ok"></span>Sincronizado hoje, 07:42</p>
+            </div>
+          </aside>
+
+          <main class="content">
+            <header class="top">
+              <div><p class="eyebrow">Quinta-feira, 25 de junho de 2026</p><h1 class="h1">Olá, Coordenação</h1></div>
+              <div class="top-actions">
+                <label class="search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" type="search" placeholder="Buscar evento ou turma" aria-label="Buscar"><span class="kbd">Ctrl K</span></label>
+                <a class="btn btn-s" href="#tela-gestao" style="min-height:46px"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Evento oficial</a>
+              </div>
+            </header>
+
+            <section class="hero" aria-label="Calendário oficial">
+              <span class="datebig" style="padding:0;gap:0"><svg class="i" viewBox="0 0 24 24" style="width:48px;height:48px;stroke-width:1.6" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg></span>
+              <div class="hero-body">
+                <div class="hero-kicker"><span class="eyebrow">Calendário oficial</span><span class="pill" style="background:rgb(var(--accent-rgb) / .16);color:var(--accent)"><span class="dot" style="background:var(--accent)"></span>Em dia</span></div>
+                <h2 class="hero-title">Visão institucional do semestre 2026/1</h2>
+                <div class="hero-meta">
+                  <span><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>Última sincronização em 13 jun, 10:24</span>
+                  <span><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>Calendário oficial 2026/1 · 6 eventos</span>
+                </div>
+                <div class="hero-actions">
+                  <a class="btn btn-lime" href="#tela-sincronizacao"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 13v8l-4-4"/><path d="m12 21 4-4"/><path d="M4.39 15.27A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.44 8.28"/></svg>Sincronizar calendário</a>
+                  <a class="btn btn-ghost" href="#tela-gestao"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Novo evento oficial</a>
+                </div>
+              </div>
+              <div class="countdown"><p class="eyebrow">Próxima data oficial</p><b>29 jun</b><small>Semana acadêmica</small></div>
+            </section>
+
+            <div class="kpis">
+              <div class="card kpi"><div class="kpi-top"><p class="kpi-label">Eventos futuros</p><span class="kpi-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span></div><p class="kpi-val">14</p><p class="kpi-hint">em todas as turmas</p></div>
+              <div class="card kpi"><div class="kpi-top"><p class="kpi-label">Datas oficiais</p><span class="kpi-ico" style="background:#DBEAFE;color:#1E40AF"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg></span></div><p class="kpi-val">6</p><p class="kpi-hint">com prioridade institucional</p></div>
+              <div class="card kpi"><div class="kpi-top"><p class="kpi-label">Turmas ativas</p><span class="kpi-ico" style="background:#EDE9FE;color:#5B21B6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span></div><p class="kpi-val">4</p><p class="kpi-hint">2 cursos no campus</p></div>
+              <div class="card kpi"><div class="kpi-top"><p class="kpi-label">Disciplinas ativas</p><span class="kpi-ico" style="background:#E0F2FE;color:#075985"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span></div><p class="kpi-val">11</p><p class="kpi-hint">com docentes atribuídos</p></div>
+            </div>
+
+            <div class="row">
+              <div class="col-main">
+                <section class="card pad" aria-labelledby="h-ofic-adm">
+                  <div class="head"><div><p class="eyebrow">Reitoria</p><h2 class="h2" id="h-ofic-adm">Próximas datas oficiais</h2><p class="sub">O que toda a comunidade acadêmica vê com prioridade</p></div><a class="btn btn-s btn-sm" href="#tela-calendario">Ver no cronograma</a></div>
+                  <div style="margin-top:12px">
+                    <a data-ev="semana" class="ev" href="#tela-calendario"><span class="ev-date"><span class="dw">Seg</span><span class="dn">29</span></span><span class="ev-body"><span class="ev-title" style="display:block">Semana acadêmica</span><span class="ev-meta"><span class="pill c-inst">Institucional</span><span>29 jun – 3 jul · Auditório Central · todas as turmas</span></span></span><span class="ev-when"><span class="ev-time" style="display:block">Dia todo</span><span class="ev-rel" style="display:block">em 4 dias</span></span></a>
+                    <a data-ev="ajuste" class="ev" href="#tela-calendario"><span class="ev-date"><span class="dw">Qui</span><span class="dn">02</span></span><span class="ev-body"><span class="ev-title" style="display:block">Prazo final de ajuste de matrícula</span><span class="ev-meta"><span class="pill c-inst">Institucional</span><span>Secretaria acadêmica · todas as turmas</span></span></span><span class="ev-when"><span class="ev-time" style="display:block">18:00</span><span class="ev-rel" style="display:block">em 7 dias</span></span></a>
+                    <a data-ev="recesso" class="ev" href="#tela-calendario"><span class="ev-date"><span class="dw">Seg</span><span class="dn">20</span></span><span class="ev-body"><span class="ev-title" style="display:block">Recesso escolar</span><span class="ev-meta"><span class="pill c-rec">Recesso</span><span>20 – 31 jul · sem aulas</span></span></span><span class="ev-when"><span class="ev-time" style="display:block">Dia todo</span><span class="ev-rel" style="display:block">em 25 dias</span></span></a>
+                    <a class="ev" href="#tela-calendario"><span class="ev-date"><span class="dw">Seg</span><span class="dn">03</span></span><span class="ev-body"><span class="ev-title" style="display:block">Início do semestre letivo 2026/2</span><span class="ev-meta"><span class="pill c-inst">Institucional</span><span>3 de agosto · todas as turmas</span></span></span><span class="ev-when"><span class="ev-time" style="display:block">07:00</span><span class="ev-rel" style="display:block">em 39 dias</span></span></a>
+                    <a class="ev" href="#tela-calendario"><span class="ev-date"><span class="dw">Seg</span><span class="dn">07</span></span><span class="ev-body"><span class="ev-title" style="display:block">Independência do Brasil</span><span class="ev-meta"><span class="pill c-fer">Feriado</span><span>7 de setembro · nacional</span></span></span><span class="ev-when"><span class="ev-time" style="display:block">Dia todo</span><span class="ev-rel" style="display:block">em 74 dias</span></span></a>
+                    <a class="ev" href="#tela-calendario"><span class="ev-date"><span class="dw">Seg</span><span class="dn">12</span></span><span class="ev-body"><span class="ev-title" style="display:block">Nossa Senhora Aparecida</span><span class="ev-meta"><span class="pill c-fer">Feriado</span><span>12 de outubro · nacional</span></span></span><span class="ev-when"><span class="ev-time" style="display:block">Dia todo</span><span class="ev-rel" style="display:block">em 109 dias</span></span></a>
+                  </div>
+                </section>
+
+                <section class="card pad" aria-labelledby="h-turmas">
+                  <div class="head"><div><p class="eyebrow">Turmas</p><h2 class="h2" id="h-turmas">Atividade por turma</h2><p class="sub">Eventos futuros publicados em cada turma</p></div></div>
+                  <div style="margin-top:16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+                    <div style="padding:16px;border-radius:16px;border:1px solid var(--line-2);background:var(--surface-2)">
+                      <div style="display:flex;justify-content:space-between;gap:10px"><div><p style="font-size:15.5px;font-weight:700">TADS 4</p><p class="sub" style="font-size:13px">TADS · 4º período · Noturno</p></div><p class="disp" style="font-size:28px;font-weight:700">8</p></div>
+                      <div class="stack" style="margin-top:14px;height:8px"><span class="d-prova" style="flex:3"></span><span class="d-trab" style="flex:1"></span><span class="d-ativ" style="flex:1"></span><span class="d-inst" style="flex:2"></span><span class="d-rec" style="flex:1"></span></div>
+                    </div>
+                    <div style="padding:16px;border-radius:16px;border:1px solid var(--line-2);background:var(--surface-2)">
+                      <div style="display:flex;justify-content:space-between;gap:10px"><div><p style="font-size:15.5px;font-weight:700">TADS 2</p><p class="sub" style="font-size:13px">TADS · 2º período · Noturno</p></div><p class="disp" style="font-size:28px;font-weight:700">3</p></div>
+                      <div class="stack" style="margin-top:14px;height:8px"><span class="d-prova" style="flex:1"></span><span class="d-ativ" style="flex:1"></span><span class="d-inst" style="flex:1"></span><span style="flex:5;background:transparent"></span></div>
+                    </div>
+                    <div style="padding:16px;border-radius:16px;border:1px solid var(--line-2);background:var(--surface-2)">
+                      <div style="display:flex;justify-content:space-between;gap:10px"><div><p style="font-size:15.5px;font-weight:700">TADS 6</p><p class="sub" style="font-size:13px">TADS · 6º período · Noturno</p></div><p class="disp" style="font-size:28px;font-weight:700">2</p></div>
+                      <div class="stack" style="margin-top:14px;height:8px"><span class="d-trab" style="flex:1"></span><span class="d-inst" style="flex:1"></span><span style="flex:6;background:transparent"></span></div>
+                    </div>
+                    <div style="padding:16px;border-radius:16px;border:1px solid var(--line-2);background:var(--surface-2)">
+                      <div style="display:flex;justify-content:space-between;gap:10px"><div><p style="font-size:15.5px;font-weight:700">INF 3A</p><p class="sub" style="font-size:13px">Técnico Integrado em Informática · Matutino</p></div><p class="disp" style="font-size:28px;font-weight:700">1</p></div>
+                      <div class="stack" style="margin-top:14px;height:8px"><span class="d-extra" style="flex:1"></span><span style="flex:7;background:transparent"></span></div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="col-side">
+                <section class="card pad" aria-labelledby="h-imp">
+                  <div class="head"><div><p class="eyebrow">Sincronização</p><h2 class="h2" id="h-imp">Importações recentes</h2><p class="sub">3 registros no histórico</p></div></div>
+                  <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+                    <a class="mini" href="#tela-sincronizacao"><span class="mini-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg></span><span><span class="mini-t" style="display:block">Calendário oficial 2026/1</span><span class="mini-s" style="display:block">13 jun, 10:24 · 6 eventos · URL do IFMS</span></span></a>
+                    <a class="mini" href="#tela-sincronizacao"><span class="mini-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg></span><span><span class="mini-t" style="display:block">Calendário 2026/1 — versão inicial</span><span class="mini-s" style="display:block">2 fev, 09:10 · 18 eventos · JSON</span></span></a>
+                    <a class="mini" href="#tela-sincronizacao"><span class="mini-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg></span><span><span class="mini-t" style="display:block">Calendário de demonstração</span><span class="mini-s" style="display:block">28 jan, 16:42 · 4 eventos · demonstração</span></span></a>
+                  </div>
+                  <a class="link" href="#tela-sincronizacao" style="margin-top:16px">Abrir sincronização<svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+                </section>
+
+                <section class="card pad" aria-labelledby="h-dist-adm">
+                  <div class="head"><div><p class="eyebrow">Categorias</p><h2 class="h2" id="h-dist-adm">Distribuição geral</h2><p class="sub">Todos os eventos do semestre, por tipo</p></div></div>
+                  <div class="stack" style="margin-top:18px" role="img" aria-label="Provas 9, Trabalhos 6, Atividades 7, Extracurriculares 2, Institucionais 5, Feriados 4, Recessos 2">
+                    <span class="d-prova" style="flex:9"></span><span class="d-ativ" style="flex:7"></span><span class="d-trab" style="flex:6"></span><span class="d-inst" style="flex:5"></span><span class="d-fer" style="flex:4"></span><span class="d-extra" style="flex:2"></span><span class="d-rec" style="flex:2"></span>
+                  </div>
+                  <ul class="legend">
+                    <li><span><span class="dot d-prova"></span>Provas</span><b>9</b></li>
+                    <li><span><span class="dot d-ativ"></span>Atividades</span><b>7</b></li>
+                    <li><span><span class="dot d-trab"></span>Trabalhos</span><b>6</b></li>
+                    <li><span><span class="dot d-inst"></span>Institucionais</span><b>5</b></li>
+                    <li><span><span class="dot d-fer"></span>Feriados</span><b>4</b></li>
+                    <li><span><span class="dot d-extra"></span>Extracurriculares</span><b>2</b></li>
+                    <li><span><span class="dot d-rec"></span>Recessos</span><b>2</b></li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </figure>
+
+    <!-- =================== TELA 10 · SINCRONIZAÇÃO DO CALENDÁRIO =================== -->
+    <figure class="frame" id="tela-sincronizacao">
+      <figcaption><span class="g-tag">Tela 10</span><b>Sincronização do calendário oficial</b> Importação de demonstração ou por JSON com validação prévia, regra de prioridade e histórico.<span class="g-rfs"><span class="g-rf">RF09</span><span class="g-rf">RF11</span></span></figcaption>
+      <div class="screen desk" data-name="Tela 10 · Sincronização do calendário oficial">
+        <div class="app">
+          <aside class="side">
+            <div class="brand"><span class="mark"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 10v6"/><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span><div><p class="brand-name">Agenda Acadêmica</p><p class="brand-sub">IFMS · Três Lagoas</p></div></div>
+            <nav aria-label="Navegação principal"><p class="nav-label">Menu</p><div class="navlist">
+              <a class="nav" href="#tela-painel-admin"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>Painel</a>
+              <a class="nav" href="#tela-calendario"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>Cronograma</a>
+              <a class="nav" href="#tela-gestao"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Gestão</a>
+              <a class="nav" href="#tela-lembretes"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Lembretes</a>
+              <a class="nav on" href="#tela-sincronizacao" aria-current="page"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Sincronização</a>
+            </div></nav>
+            <div class="side-foot">
+              <div class="semestre" aria-label="Semestre 2026/1, semana 18 de 20"><div class="row1"><span>Semestre 2026/1</span><b>sem. 18 de 20</b></div><div class="bar"><span style="width:90%"></span></div></div>
+              <div class="ucard"><span class="avatar">CA</span><div style="min-width:0"><p class="uname">Coordenação</p><p class="urole">Admin · ADM-001</p></div><a class="ubtn" href="#tela-perfil" aria-label="Configurações do perfil"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg></a></div>
+              <a class="nav" href="#tela-entrar"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sair da conta</a>
+              <p class="sync"><span class="ok"></span>Sincronizado hoje, 07:42</p>
+            </div>
+          </aside>
+
+          <main class="content">
+            <header class="top">
+              <div><p class="eyebrow">Calendário oficial da reitoria</p><h1 class="h1">Sincronização</h1></div>
+              <div class="top-actions">
+                <label class="search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" type="search" placeholder="Buscar evento ou turma" aria-label="Buscar"><span class="kbd">Ctrl K</span></label>
+              </div>
+            </header>
+
+            <div class="kpis">
+              <div class="card kpi"><p class="eyebrow">Fonte</p><p class="disp" style="margin-top:10px;font-size:24px;font-weight:700">IFMS · Reitoria</p><p class="kpi-hint">calendário letivo oficial</p></div>
+              <div class="card kpi"><p class="eyebrow">Última importação</p><p class="disp" data-f="last-imp" style="margin-top:10px;font-size:24px;font-weight:700">13 jun, 10:24</p><p class="kpi-hint" data-f="last-imp-hint">há 12 dias</p></div>
+              <div class="card kpi"><p class="eyebrow">Eventos oficiais</p><p class="disp" style="margin-top:10px;font-size:24px;font-weight:700">6 futuros</p><p class="kpi-hint">visíveis para todas as turmas</p></div>
+              <div class="card kpi" style="background:var(--brand-50);border-color:var(--brand-200)"><p class="eyebrow" style="color:var(--brand-ink)">Situação</p><p class="disp" style="margin-top:10px;font-size:24px;font-weight:700;color:var(--brand);display:flex;align-items:center;gap:8px"><svg class="i" viewBox="0 0 24 24" style="width:22px;height:22px" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>Em dia</p><p class="kpi-hint" style="color:var(--brand-ink)">nenhuma pendência de importação</p></div>
+            </div>
+
+            <div class="row">
+              <div class="col-main">
+                <section class="card pad" aria-labelledby="h-imp-demo" style="display:flex;flex-wrap:wrap;align-items:center;gap:18px">
+                  <span class="kpi-ico" style="width:52px;height:52px;border-radius:15px"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 13v8l-4-4"/><path d="m12 21 4-4"/><path d="M4.39 15.27A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.44 8.28"/></svg></span>
+                  <div style="flex:1 1 320px;min-width:0"><p class="eyebrow">Opção 1</p><h2 class="h2" id="h-imp-demo" style="margin-top:4px">Importação de demonstração</h2><p class="sub">Carrega um conjunto de datas institucionais de exemplo para testes e apresentações.</p></div>
+                  <button class="btn btn-p" type="button" data-act="import-demo"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 13v8l-4-4"/><path d="m12 21 4-4"/><path d="M4.39 15.27A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.44 8.28"/></svg><span>Importar calendário de demonstração</span></button>
+                </section>
+
+                <section class="card pad" aria-labelledby="h-imp-json">
+                  <div class="head">
+                    <div style="display:flex;align-items:flex-start;gap:18px">
+                      <span class="kpi-ico" style="width:52px;height:52px;border-radius:15px;background:#EDE9FE;color:#5B21B6"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1"/><path d="M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1"/></svg></span>
+                      <div><p class="eyebrow">Opção 2</p><h2 class="h2" id="h-imp-json" style="margin-top:4px">Importar JSON personalizado</h2><p class="sub">Cole o calendário exportado pela reitoria. Os dados são validados antes de gravar.</p></div>
+                    </div>
+                  </div>
+                  <label class="lbl" for="s-json" style="margin-top:18px">Conteúdo JSON <span class="hint mono" style="font-size:12px">{ "sourceName", "events": [...] }</span></label>
+                  <textarea class="input mono" id="s-json" rows="11" style="font-size:12.5px;line-height:1.65;background:var(--ink);color:var(--on-night);border-color:var(--ink)">{
+  "sourceName": "Calendário oficial 2026/2",
+  "events": [
+    { "title": "Início do semestre letivo",
+      "category": "institutional", "startsAt": "2026-08-03T07:00" },
+    { "title": "Independência do Brasil",
+      "category": "holiday", "startsAt": "2026-09-07" },
+    { "title": "Recesso de fim de ano",
+      "category": "recess", "startsAt": "2026-12-21", "endsAt": "2027-01-31" }
+  ]
+}</textarea>
+                  <div class="callout green" data-f="json-status" style="margin-top:12px;align-items:center"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg><span data-f="json-msg"><b>JSON válido.</b> 3 eventos prontos para importar: 1 institucional, 1 feriado e 1 recesso.</span></div>
+                  <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:10px">
+                    <button class="btn btn-p" type="button" data-act="import-json"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>Validar e importar JSON</button>
+                    <button class="btn btn-s" type="button" data-act="clear-json">Limpar</button>
+                  </div>
+                </section>
+              </div>
+
+              <div class="col-side">
+                <section class="card pad" aria-labelledby="h-perm">
+                  <div style="display:flex;align-items:flex-start;gap:14px">
+                    <span class="kpi-ico" style="background:var(--night);color:var(--accent)"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg></span>
+                    <div><p class="eyebrow">Permissão</p><h2 class="h2" id="h-perm" style="margin-top:4px">Acesso liberado</h2><p class="sub">Somente a administração pode importar datas oficiais.</p></div>
+                  </div>
+                </section>
+                <section class="card pad" aria-labelledby="h-prio">
+                  <p class="eyebrow">Regra de prioridade</p>
+                  <p class="disp" style="margin-top:12px;font-size:56px;font-weight:700;line-height:1">6</p>
+                  <p id="h-prio" style="margin-top:6px;font-size:14.5px;font-weight:650">eventos oficiais atuais</p>
+                  <p class="sub" style="font-size:13.5px">Datas oficiais prevalecem sobre eventos locais quando houver conflito e aparecem para toda a comunidade.</p>
+                </section>
+                <section class="card pad" aria-labelledby="h-fmt">
+                  <p class="eyebrow">Referência</p>
+                  <h2 class="h2" id="h-fmt">Campos aceitos</h2>
+                  <dl class="info" style="margin-top:14px;font-size:13px;gap:10px 14px">
+                    <dt class="mono" style="font-size:12px">title</dt><dd>Título do evento</dd>
+                    <dt class="mono" style="font-size:12px">category</dt><dd>institutional, holiday ou recess</dd>
+                    <dt class="mono" style="font-size:12px">startsAt</dt><dd>Data/hora de início (AAAA-MM-DD)</dd>
+                    <dt class="mono" style="font-size:12px">endsAt</dt><dd>Término <span class="muted" style="font-weight:500">· opcional</span></dd>
+                  </dl>
+                </section>
+              </div>
+            </div>
+
+            <section class="card" aria-labelledby="h-hist" style="overflow:hidden">
+              <div class="head" style="padding:22px 24px 18px"><div><p class="eyebrow">Histórico</p><h2 class="h2" id="h-hist">Importações realizadas</h2><p class="sub">Registro das sincronizações com a fonte institucional</p></div></div>
+              <div style="overflow-x:auto">
+                <table class="tbl">
+                  <thead><tr><th scope="col">Fonte</th><th scope="col">Data</th><th scope="col">Eventos</th><th scope="col">Origem</th><th scope="col">Situação</th></tr></thead>
+                  <tbody data-f="hist">
+                    <tr><td class="t">Calendário oficial 2026/1</td><td>13 jun 2026, 10:24</td><td>6</td><td class="mono" style="font-size:12.5px">https://www.ifms.edu.br/calendario</td><td><span class="pill st-conc">Concluída</span></td></tr>
+                    <tr><td class="t">Calendário 2026/1 — versão inicial</td><td>2 fev 2026, 09:10</td><td>18</td><td>JSON colado</td><td><span class="pill st-conc">Concluída</span></td></tr>
+                    <tr><td class="t">Calendário de demonstração</td><td>28 jan 2026, 16:42</td><td>4</td><td>Demonstração</td><td><span class="pill st-conc">Concluída</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+    </figure>
+
+  </div>
+</section>

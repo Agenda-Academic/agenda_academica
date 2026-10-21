@@ -1,0 +1,114 @@
+
+<section class="g-sec" id="sec-estados">
+  <header class="g-sec-head">
+    <span class="n">07</span>
+    <h2>Estados e feedback</h2>
+    <p>Como a interface responde quando algo dá certo, dá errado, está carregando ou não tem nada para mostrar — os momentos que normalmente ficam de fora de um protótipo.</p>
+  </header>
+  <div class="g-frames">
+    <figure class="frame" id="tela-estados">
+      <figcaption><span class="g-tag">Estados</span><b>Estados e feedback</b> Confirmações, erros, carregamento, telas vazias e permissões.<span class="g-rfs"><span class="g-rf">RNF01</span><span class="g-rf">RNF04</span></span></figcaption>
+      <div class="screen guide" data-name="Estados e feedback">
+        <div style="padding:56px 64px 64px;background:var(--bg)">
+          <p class="eyebrow">Feedback do sistema</p>
+          <h3 class="disp" style="margin-top:8px;font-size:44px;font-weight:700;line-height:1">Estados e feedback</h3>
+          <p class="sub" style="margin-top:10px;max-width:680px;font-size:15px">Toda ação tem resposta visível; todo erro diz o que fazer em seguida; nenhuma lista vazia fica em branco.</p>
+
+          <div style="margin-top:32px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px">
+
+            <div class="card state">
+              <p class="eyebrow">Sucesso</p><p class="state-t">Lembrete ativado</p>
+              <div class="stage">
+                <div class="toast-demo ok">
+                  <span class="t-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
+                  <span style="flex:1;min-width:0"><b style="display:block;font-size:14px">Lembrete ativado</b><span style="display:block;margin-top:2px;font-size:12.5px;color:var(--on-night)">Aviso hoje às 19:00, por e-mail.</span></span>
+                  <span style="font-size:13px;font-weight:700;color:var(--accent)">Desfazer</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card state">
+              <p class="eyebrow">Erro recuperável</p><p class="state-t">Falha ao salvar</p>
+              <div class="stage">
+                <div class="toast-demo err">
+                  <span class="t-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
+                  <span style="flex:1;min-width:0"><b style="display:block;font-size:14px">Não deu para salvar o lembrete</b><span style="display:block;margin-top:2px;font-size:12.5px;color:var(--ink-3)">Sem conexão com o servidor.</span></span>
+                  <span style="font-size:13px;font-weight:700;color:var(--brand)">Tentar de novo</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card state">
+              <p class="eyebrow">Carregando</p><p class="state-t">Lista do cronograma</p>
+              <div class="stage" style="align-items:stretch;flex-direction:column;gap:10px;padding:18px">
+                <div class="sk-row"><span class="sk" style="width:46px;height:46px;border-radius:12px"></span><span style="flex:1;display:flex;flex-direction:column;gap:8px"><span class="sk" style="width:70%;height:12px"></span><span class="sk" style="width:45%;height:10px"></span></span></div>
+                <div class="sk-row"><span class="sk" style="width:46px;height:46px;border-radius:12px"></span><span style="flex:1;display:flex;flex-direction:column;gap:8px"><span class="sk" style="width:60%;height:12px"></span><span class="sk" style="width:35%;height:10px"></span></span></div>
+                <div class="sk-row"><span class="sk" style="width:46px;height:46px;border-radius:12px"></span><span style="flex:1;display:flex;flex-direction:column;gap:8px"><span class="sk" style="width:75%;height:12px"></span><span class="sk" style="width:40%;height:10px"></span></span></div>
+              </div>
+            </div>
+
+            <div class="card state">
+              <p class="eyebrow">Vazio</p><p class="state-t">Nenhum lembrete pendente</p>
+              <div class="stage" style="flex-direction:column;text-align:center;gap:6px;padding:22px">
+                <span class="empty-ico"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+                <b style="margin-top:6px;font-size:15px">Tudo em dia por aqui</b>
+                <span class="sub" style="margin:0;font-size:13px">Abra um evento no cronograma e ative um lembrete pessoal.</span>
+                <span class="btn btn-s btn-sm" style="margin-top:8px">Abrir cronograma</span>
+              </div>
+            </div>
+
+            <div class="card state">
+              <p class="eyebrow">Filtro sem resultado</p><p class="state-t">Busca e categorias</p>
+              <div class="stage" style="flex-direction:column;text-align:center;gap:6px;padding:22px">
+                <span class="empty-ico"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
+                <b style="margin-top:6px;font-size:15px">Nada para “recesso” em Provas</b>
+                <span class="sub" style="margin:0;font-size:13px">Tente outra palavra ou mostre todas as categorias.</span>
+                <span class="btn btn-s btn-sm" style="margin-top:8px">Limpar filtros</span>
+              </div>
+            </div>
+
+            <div class="card state">
+              <p class="eyebrow">Permissão</p><p class="state-t">Acesso restrito</p>
+              <div class="stage" style="flex-direction:column;text-align:center;gap:6px;padding:22px">
+                <span class="empty-ico" style="background:#DBEAFE;color:#1E40AF"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                <b style="margin-top:6px;font-size:15px">Só a coordenação importa datas oficiais</b>
+                <span class="sub" style="margin:0;font-size:13px">Você continua vendo o calendário oficial no cronograma.</span>
+              </div>
+            </div>
+
+            <div class="card state">
+              <p class="eyebrow">Validação</p><p class="state-t">Erro no login</p>
+              <div class="stage" style="flex-direction:column;align-items:stretch;gap:10px;padding:18px">
+                <div><span class="lbl">E-mail</span><span class="input" style="display:flex;align-items:center">diogo@agenda.test</span></div>
+                <div><span class="lbl">Senha</span><span class="input" style="display:flex;align-items:center;border-color:#E11D48;box-shadow:0 0 0 4px rgba(225,29,72,.12)">••••••••</span></div>
+                <span style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#B4234A"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>E-mail ou senha incorretos.</span>
+              </div>
+            </div>
+
+            <div class="card state">
+              <p class="eyebrow">Ação destrutiva</p><p class="state-t">Confirmar exclusão</p>
+              <div class="stage" style="padding:18px">
+                <div style="width:100%;padding:18px;border-radius:18px;background:#fff;box-shadow:0 16px 40px rgb(var(--night-rgb) / .16)">
+                  <b style="display:block;font-size:16px">Excluir “Prova de Matemática — P2”?</b>
+                  <span class="sub" style="display:block;font-size:13px">Os alunos da TADS 4 deixam de ver o evento e os lembretes ligados a ele são apagados.</span>
+                  <span style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px"><span class="btn btn-s btn-sm">Cancelar</span><span class="btn btn-sm" style="background:#BE123C;color:#fff">Excluir evento</span></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card state">
+              <p class="eyebrow">Sessão</p><p class="state-t">Sessão expirada</p>
+              <div class="stage" style="flex-direction:column;text-align:center;gap:6px;padding:22px">
+                <span class="empty-ico" style="background:#FEF3C7;color:#92400E"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
+                <b style="margin-top:6px;font-size:15px">Sua sessão expirou</b>
+                <span class="sub" style="margin:0;font-size:13px">Por segurança, entre de novo. Você volta para a mesma tela.</span>
+                <span class="btn btn-p btn-sm" style="margin-top:8px">Entrar de novo</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+</section>

@@ -1,0 +1,134 @@
+
+<footer class="g-foot">
+  <span>Agenda Acadêmica · IFMS Campus Três Lagoas · Documentação de Produto de Software 2026</span>
+  <span>Next.js + AdonisJS · Dados fictícios de demonstração</span>
+</footer>
+
+<div class="g-pager" role="navigation" aria-label="Navegação da apresentação">
+  <button class="g-btn" type="button" id="prevBtn" aria-label="Tela anterior">←</button>
+  <span id="pagerLabel">1 / 16</span>
+  <button class="g-btn" type="button" id="nextBtn" aria-label="Próxima tela">→</button>
+  <button class="g-btn" type="button" id="exitBtn">Sair</button>
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var body = document.body;
+  var frames = Array.prototype.slice.call(document.querySelectorAll('.frame'));
+  var zoomVal = document.getElementById('zoomVal');
+  var pagerLabel = document.getElementById('pagerLabel');
+  var mode = 'fit';
+  var manual = 1;
+  var cur = 0;
+
+  function vw() { return document.documentElement.clientWidth || window.innerWidth; }
+  function vh() { return document.documentElement.clientHeight || window.innerHeight; }
+  function fitZoom() { return Math.min(1, Math.max(0.2, (vw() - (vw() < 700 ? 32 : 56)) / 1440)); }
+
+  function applyZoom() {
+    var present = body.classList.contains('present');
+    var z = present ? fitZoom() : (mode === 'fit' ? fitZoom() : manual);
+    var zm = present
+      ? Math.min(1.15, Math.max(0.4, (vh() - 150) / 864))
+      : Math.min(1, Math.max(0.5, (vw() - 40) / 412));
+    root.style.setProperty('--z', z.toFixed(3));
+    root.style.setProperty('--zm', zm.toFixed(3));
+    zoomVal.textContent = Math.round(z * 100) + '%';
+  }
+
+  function setZoom(next) {
+    mode = 'manual';
+    manual = Math.min(1.5, Math.max(0.25, Math.round(next * 20) / 20));
+    applyZoom();
+  }
+
+  document.getElementById('zoomIn').addEventListener('click', function () { setZoom((mode === 'fit' ? fitZoom() : manual) + 0.1); });
+  document.getElementById('zoomOut').addEventListener('click', function () { setZoom((mode === 'fit' ? fitZoom() : manual) - 0.1); });
+  document.getElementById('zoomFit').addEventListener('click', function () { mode = 'fit'; applyZoom(); });
+  window.addEventListener('resize', applyZoom);
+
+  function label(i) {
+    var cap = frames[i].querySelector('figcaption b');
+    return (i + 1) + ' / ' + frames.length + (cap ? ' · ' + cap.textContent : '');
+  }
+
+  function show(i) {
+    cur = (i + frames.length) % frames.length;
+    frames.forEach(function (f, k) { f.classList.toggle('cur', k === cur); });
+    document.querySelectorAll('.g-sec').forEach(function (sec) { sec.classList.toggle('cur-sec', sec.contains(frames[cur])); });
+    pagerLabel.textContent = label(cur);
+    window.scrollTo(0, 0);
+  }
+
+  function indexOfId(id) {
+    for (var k = 0; k < frames.length; k++) { if (frames[k].id === id) { return k; } }
+    return -1;
+  }
+
+  function enterPresent(startId) {
+    body.classList.add('present');
+    var k = startId ? indexOfId(startId) : -1;
+    if (k < 0) {
+      // começa pela tela mais visível na galeria
+      var best = 0, bestDist = Infinity;
+      frames.forEach(function (f, n) {
+        var d = Math.abs(f.getBoundingClientRect().top);
+        if (d < bestDist) { bestDist = d; best = n; }
+      });
+      k = best;
+    }
+    applyZoom();
+    show(k);
+  }
+
+  function exitPresent() {
+    var id = frames[cur].id;
+    body.classList.remove('present');
+    frames.forEach(function (f) { f.classList.remove('cur'); });
+    document.querySelectorAll('.g-sec').forEach(function (sec) { sec.classList.remove('cur-sec'); });
+    applyZoom();
+    var el = document.getElementById(id);
+    if (el) { el.scrollIntoView({ block: 'start' }); }
+  }
+
+  document.getElementById('presentBtn').addEventListener('click', function () {
+    if (body.classList.contains('present')) { exitPresent(); } else { enterPresent(); }
+  });
+  document.getElementById('prevBtn').addEventListener('click', function () { show(cur - 1); });
+  document.getElementById('nextBtn').addEventListener('click', function () { show(cur + 1); });
+  document.getElementById('exitBtn').addEventListener('click', exitPresent);
+
+  document.addEventListener('keydown', function (e) {
+    if (!body.classList.contains('present')) { return; }
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') { return; }
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); show(cur + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(cur - 1); }
+    else if (e.key === 'Escape') { exitPresent(); }
+  });
+
+  // links entre telas: no modo apresentação trocam a tela exibida
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('a[href^="#tela-"], a[href="#guia-visual"]') : null;
+    if (!a) { return; }
+    var id = a.getAttribute('href').slice(1);
+    var k = indexOfId(id);
+    if (k < 0) { return; }
+    e.preventDefault();
+    if (body.classList.contains('present')) { show(k); }
+    else { frames[k].scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+
+  // formulários e botões das telas são apenas demonstrativos
+  document.addEventListener('submit', function (e) { e.preventDefault(); });
+
+
+  applyZoom();
+  if (location.hash && location.hash.indexOf('#tela-') === 0 && /present/.test(location.search)) {
+    enterPresent(location.hash.slice(1));
+  }
+})();
+</script>
+</body>
+</html>
