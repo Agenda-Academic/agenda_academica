@@ -7,7 +7,6 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
-  Clock,
   Edit3,
   ListChecks,
   Loader2,
@@ -20,20 +19,19 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { cx, formatDate, formatDateLong, relativeDue } from "@/lib/format";
+import { cx, dateParts, daysUntil, formatDateLong, formatTime, isAllDay, relativeDue } from "@/lib/format";
 import { categoryMeta, reminderOffsetLabel, reminderOptions, sourceLabels, statusMeta } from "@/lib/meta";
 import type { AcademicEvent } from "@/lib/types";
 import { Field, InfoLine, dangerButton, secondaryButton } from "./ui";
 
 export function EventRow({
-  compact,
   event,
   hideClass,
   mine,
   selected,
-  separated,
   onClick,
 }: {
+  /** Mantido por compatibilidade: a linha sempre mostra a data relativa. */
   compact?: boolean;
   event: AcademicEvent;
   /** Oculta o nome da turma (visão de aluno, que só tem uma). */
@@ -46,59 +44,44 @@ export function EventRow({
 }) {
   const meta = categoryMeta[event.category];
   const cancelled = event.status === "cancelled";
+  const official = event.officialPriority || event.source !== "teacher";
+  const parts = dateParts(event.startsAt);
+  const days = daysUntil(event.startsAt);
+  const details = [
+    event.subject?.name,
+    !hideClass ? event.academicClass?.name : null,
+    event.location,
+    event.points !== null ? `${event.points} pts` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <button
-      className={cx(
-        "grid w-full gap-3 border-l-4 bg-white p-3 text-left transition sm:grid-cols-[auto_1fr_auto] sm:items-center",
-        meta.rail,
-        selected ? "bg-emerald-50/70" : "hover:bg-slate-50",
-        separated ? "border-b border-b-slate-200" : ""
-      )}
-      onClick={onClick}
-      type="button"
-    >
-      <span className={cx("flex h-10 w-10 items-center justify-center rounded-lg", meta.tint)}>
-        <CalendarClock className="h-4 w-4" aria-hidden />
+    <button className={cx("ev", selected && "sel")} onClick={onClick} type="button">
+      <span className="ev-date">
+        <span className="dw">{parts.weekday}</span>
+        <span className="dn">{parts.day}</span>
       </span>
-      <span className="min-w-0">
-        <span className="flex flex-wrap items-center gap-2">
-          <span
-            className={cx(
-              "truncate font-semibold",
-              cancelled ? "text-slate-400 line-through" : "text-slate-950"
-            )}
-          >
-            {event.title}
-          </span>
+      <span className="ev-body">
+        <span className={cx("ev-title block", cancelled && "text-faint line-through")}>{event.title}</span>
+        <span className="ev-meta">
+          <span className={cx("pill", meta.tint)}>{meta.short}</span>
+          {official ? (
+            <span className="pill prio">
+              <ShieldCheck className="h-3 w-3" aria-hidden />
+              Oficial
+            </span>
+          ) : null}
           {event.status !== "scheduled" ? (
-            <span
-              className={cx(
-                "inline-flex rounded-md border px-1.5 py-0.5 text-[11px] font-semibold",
-                statusMeta[event.status].pill
-              )}
-            >
-              {statusMeta[event.status].label}
-            </span>
+            <span className={cx("pill", statusMeta[event.status].pill)}>{statusMeta[event.status].label}</span>
           ) : null}
-          {mine ? (
-            <span className="inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800">
-              Sua publicação
-            </span>
-          ) : null}
-          {event.officialPriority || event.source !== "teacher" ? (
-            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-blue-500" aria-hidden />
-          ) : null}
-        </span>
-        <span className="mt-1 block truncate text-sm text-slate-600">
-          {event.subject?.name ?? "Institucional"}
-          {!hideClass && event.academicClass ? ` · ${event.academicClass.name}` : ""}
-          {event.points !== null ? ` · ${event.points} pts` : ""}
+          {mine ? <span className="pill st-conc">Sua publicação</span> : null}
+          {details ? <span className="min-w-0 truncate">{details}</span> : null}
         </span>
       </span>
-      <span className="flex items-center gap-2 text-sm font-semibold text-slate-700 sm:justify-end">
-        <Clock className="h-4 w-4 text-slate-400" aria-hidden />
-        {compact ? relativeDue(event.startsAt) : formatDate(event.startsAt)}
+      <span className="ev-when">
+        <span className="ev-time block">{isAllDay(event.startsAt) ? "Dia todo" : formatTime(event.startsAt)}</span>
+        <span className={cx("ev-rel block", days >= 0 && days <= 1 && "soon")}>{relativeDue(event.startsAt)}</span>
       </span>
     </button>
   );

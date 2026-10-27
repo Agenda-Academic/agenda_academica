@@ -1,31 +1,46 @@
 "use client";
 
-import { PieChart, type LucideIcon } from "lucide-react";
-import { cx } from "@/lib/format";
+import { ArrowRight, Bell, Clock, MapPin, PieChart, Trophy, UserRound, type LucideIcon } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { countdown, cx, dateParts, groupByWeek, isAllDay, relativeDue, formatTime } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, Category } from "@/lib/types";
 import { EventRow } from "./event-bits";
 import { EmptyState } from "./ui";
 
+/** Card de indicador (KPI) do Figma. */
 export function InsightTile({
   icon: Icon,
   label,
   value,
+  unit,
   hint,
+  tone,
+  children,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
-  hint?: string;
+  unit?: string;
+  hint?: ReactNode;
+  /** Cor do ícone: classe de categoria (ex.: "c-prova"). Padrão: verde da marca. */
+  tone?: string;
+  children?: ReactNode;
 }) {
   return (
-    <div className="bg-white p-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-        <Icon className="h-5 w-5 shrink-0 text-slate-400" aria-hidden />
+    <div className="card kpi">
+      <div className="kpi-top">
+        <p className="kpi-label">{label}</p>
+        <span className={cx("kpi-ico", tone)}>
+          <Icon className="h-[18px] w-[18px]" aria-hidden />
+        </span>
       </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
-      {hint ? <p className="mt-1 truncate text-xs text-slate-400">{hint}</p> : null}
+      <p className="kpi-val">
+        {value}
+        {unit ? <small>{unit}</small> : null}
+      </p>
+      {children}
+      {hint ? <p className="kpi-hint">{hint}</p> : null}
     </div>
   );
 }
@@ -37,9 +52,7 @@ export function CategoryBreakdown({
   counts: Array<{ category: Category; count: number }>;
   emptyText?: string;
 }) {
-  const present = counts
-    .filter((item) => item.count > 0)
-    .sort((a, b) => b.count - a.count);
+  const present = counts.filter((item) => item.count > 0).sort((a, b) => b.count - a.count);
   const total = present.reduce((sum, item) => sum + item.count, 0);
 
   if (!total) {
@@ -48,35 +61,26 @@ export function CategoryBreakdown({
 
   return (
     <div>
-      {/* Barra proporcional segmentada por categoria */}
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+      <div
+        className="stack"
+        role="img"
+        aria-label={present.map(({ category, count }) => `${categoryMeta[category].label} ${count}`).join(", ")}
+      >
         {present.map(({ category, count }) => (
-          <div
-            key={category}
-            className={cx("h-full transition-all", categoryMeta[category].accent)}
-            style={{ width: `${(count / total) * 100}%` }}
-            title={`${categoryMeta[category].label}: ${count}`}
-          />
+          <span key={category} className={categoryMeta[category].accent} style={{ flex: count }} />
         ))}
       </div>
-
-      {/* Legenda apenas com o que existe */}
-      <ul className="mt-4 grid gap-2">
+      <ul className="legend">
         {present.map(({ category, count }) => (
-          <li key={category} className="flex items-center justify-between gap-2 text-sm">
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                className={cx("h-2.5 w-2.5 shrink-0 rounded-full", categoryMeta[category].accent)}
-                aria-hidden
-              />
-              <span className="truncate text-slate-600">{categoryMeta[category].label}</span>
+          <li key={category}>
+            <span>
+              <span className={cx("dot", categoryMeta[category].accent)} aria-hidden />
+              {categoryMeta[category].label}
             </span>
-            <span className="shrink-0 font-semibold text-slate-950">
+            <b>
               {count}
-              <span className="ml-1 text-xs font-medium text-slate-400">
-                {Math.round((count / total) * 100)}%
-              </span>
-            </span>
+              <small>{Math.round((count / total) * 100)}%</small>
+            </b>
           </li>
         ))}
       </ul>
@@ -89,16 +93,22 @@ export function EventList({
   emptyIcon,
   emptyText,
   events,
+  grouped,
   hideClass,
   limit,
+  mineId,
   onSelect,
 }: {
   emptyHint?: string;
   emptyIcon: LucideIcon;
   emptyText: string;
   events: AcademicEvent[];
+  /** Separa em "Esta semana", "Próxima semana" e "Mais adiante". */
+  grouped?: boolean;
   hideClass?: boolean;
   limit?: number;
+  /** Marca como "Sua publicação" os eventos deste professor. */
+  mineId?: number;
   onSelect: (id: number) => void;
 }) {
   const visible = limit ? events.slice(0, limit) : events;
@@ -107,18 +117,176 @@ export function EventList({
     return <EmptyState icon={emptyIcon} text={emptyText} hint={emptyHint} />;
   }
 
+  const row = (event: AcademicEvent) => (
+    <EventRow
+      key={event.id}
+      event={event}
+      hideClass={hideClass}
+      mine={mineId !== undefined && event.teacherId === mineId}
+      onClick={() => onSelect(event.id)}
+    />
+  );
+
+  if (!grouped) {
+    return <div className="grid gap-0.5">{visible.map(row)}</div>;
+  }
+
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      {visible.map((event, index) => (
-        <EventRow
-          key={event.id}
-          compact
-          event={event}
-          hideClass={hideClass}
-          separated={index < visible.length - 1}
-          onClick={() => onSelect(event.id)}
+    <div>
+      {groupByWeek(visible).map((group) => (
+        <div key={group.label}>
+          <p className="ev-group">{group.label}</p>
+          <div className="grid gap-0.5">{group.items.map(row)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Contagem regressiva que se atualiza sozinha. */
+function Countdown({ startsAt }: { startsAt: string }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return <b>{countdown(startsAt, now)}</b>;
+}
+
+/** Destaque azul do próximo compromisso, com bloco de data e contagem regressiva. */
+export function NextEventHero({
+  event,
+  emptyTitle = "Você está em dia com os prazos",
+  emptyText = "Quando novos prazos forem publicados, eles aparecem aqui.",
+  kicker = "Próximo compromisso",
+  primaryLabel = "Ver detalhes",
+  secondary,
+  onOpen,
+  onEmptyAction,
+}: {
+  event: AcademicEvent | null;
+  emptyTitle?: string;
+  emptyText?: string;
+  kicker?: string;
+  primaryLabel?: string;
+  secondary?: { label: string; icon?: LucideIcon; onClick: () => void };
+  onOpen: (id: number) => void;
+  onEmptyAction?: { label: string; onClick: () => void };
+}) {
+  if (!event) {
+    return (
+      <section className="hero h-full" aria-label={kicker}>
+        <div className="hero-body">
+          <p className="eyebrow text-accent">{kicker}</p>
+          <h2 className="hero-title">{emptyTitle}</h2>
+          <p className="mt-3 text-sm text-on-night">{emptyText}</p>
+          {onEmptyAction ? (
+            <div className="hero-actions">
+              <button className="btn btn-p" onClick={onEmptyAction.onClick} type="button">
+                {onEmptyAction.label}
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
+
+  const meta = categoryMeta[event.category];
+  const parts = dateParts(event.startsAt);
+  const when = `${relativeDue(event.startsAt).replace(/^./, (c) => c.toUpperCase())}${isAllDay(event.startsAt) ? " · dia todo" : `, ${formatTime(event.startsAt)}`}`;
+  const SecondaryIcon = secondary?.icon ?? Bell;
+
+  return (
+    <section className="hero h-full" aria-label={kicker}>
+      <div className="datebig">
+        <span className="dw">{parts.weekday}</span>
+        <span className="dn">{parts.day}</span>
+        <span className="mo">{parts.month}</span>
+      </div>
+      <div className="hero-body">
+        <div className="hero-kicker">
+          <span className="eyebrow">{kicker}</span>
+          <span className={cx("pill", meta.tint)}>{meta.short}</span>
+        </div>
+        <h2 className="hero-title">{event.title}</h2>
+        <div className="hero-meta">
+          <span>
+            <Clock className="h-[15px] w-[15px]" aria-hidden />
+            {when}
+          </span>
+          {event.location ? (
+            <span>
+              <MapPin className="h-[15px] w-[15px]" aria-hidden />
+              {event.location}
+            </span>
+          ) : null}
+          {event.teacher?.fullName ? (
+            <span>
+              <UserRound className="h-[15px] w-[15px]" aria-hidden />
+              {event.teacher.fullName}
+            </span>
+          ) : null}
+          {event.points !== null ? (
+            <span>
+              <Trophy className="h-[15px] w-[15px]" aria-hidden />
+              {event.points} pts (informativa)
+            </span>
+          ) : null}
+        </div>
+        <div className="hero-actions">
+          <button className="btn btn-p" onClick={() => onOpen(event.id)} type="button">
+            {primaryLabel}
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </button>
+          {secondary ? (
+            <button className="btn btn-ghost" onClick={secondary.onClick} type="button">
+              <SecondaryIcon className="h-4 w-4" aria-hidden />
+              {secondary.label}
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <div className="countdown">
+        <p className="eyebrow">
+          <span className="live" aria-hidden />
+          Faltam
+        </p>
+        <Countdown startsAt={event.startsAt} />
+        <small>até o início</small>
+      </div>
+    </section>
+  );
+}
+
+/** Barras por semana (próximas cinco) para o KPI de 30 dias. */
+export function WeekSpark({ events }: { events: AcademicEvent[] }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weeks = [0, 0, 0, 0, 0];
+  for (const event of events) {
+    const index = Math.floor((new Date(event.startsAt).getTime() - today.getTime()) / (7 * 86400000));
+    if (index >= 0 && index < weeks.length) {
+      weeks[index] += 1;
+    }
+  }
+  const max = Math.max(...weeks, 1);
+  const peak = weeks.indexOf(max);
+  return (
+    <div className="flex h-10 items-end gap-1" role="img" aria-label={`Compromissos por semana: ${weeks.join(", ")}`}>
+      {weeks.map((count, index) => (
+        <span
+          key={index}
+          className={cx("w-2.5 rounded-[3px]", index === peak && count ? "bg-brand" : "bg-brand-100")}
+          style={{ height: `${Math.max((count / max) * 100, 8)}%` }}
         />
       ))}
     </div>
   );
+}
+
+export function dateChip(value: string) {
+  const parts = dateParts(value);
+  return `${parts.weekday.toLowerCase()} ${parts.day}`;
 }
