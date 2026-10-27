@@ -22,7 +22,7 @@ import {
 import { allCategories, categoryMeta } from "@/lib/meta";
 import type { AcademicClass, AcademicEvent, Category, UserRole } from "@/lib/types";
 import { EmptyDetail, EventDetailContent, EventRow } from "./event-bits";
-import { EmptyState, Modal, SectionTitle, SegmentedButton, iconButton, secondaryButton } from "./ui";
+import { EmptyState, Modal, SectionTitle, Segmented, SegmentedButton, iconButton, secondaryButton } from "./ui";
 
 export type CalendarMode = "list" | "month";
 type TimeFilter = "upcoming" | "past" | "all";
@@ -354,7 +354,7 @@ export function CalendarView({
                 : "Visão mensal com todas as categorias filtradas"
             }
           />
-          <div className="flex gap-2">
+          <Segmented label="Modo de visualização">
             <SegmentedButton
               active={calendarMode === "list"}
               onClick={() => setCalendarMode("list")}
@@ -367,7 +367,7 @@ export function CalendarView({
               icon={CalendarRange}
               label="Calendário"
             />
-          </div>
+          </Segmented>
         </div>
 
         <Filters
