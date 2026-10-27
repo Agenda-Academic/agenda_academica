@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, CheckCircle2, Loader2, Search } from "lucide-react";
+import { CalendarPlus, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AppShell, type View } from "@/components/app-shell";
 import { CalendarView, type CalendarMode } from "@/components/calendar-view";
@@ -48,7 +48,6 @@ import {
   cx,
   errorMessage,
   firstName,
-  formatTime,
   startOfDay,
   toDateTimeLocal,
 } from "@/lib/format";
@@ -698,30 +697,30 @@ export default function Home() {
     <>
       <AppShell
         activeView={activeView}
+        badges={{ reminders: reminders.filter((reminder) => reminder.enabled && !reminder.sentAt).length }}
         canWrite={canWrite}
         refreshing={loading}
+        updatedAt={lastLoadedAt}
         user={user}
         onLogout={handleLogout}
         onNavigate={setActiveView}
         onOpenProfile={() => setProfileOpen(true)}
         onRefresh={() => void refresh()}
       >
-        <header className="surface flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm font-medium text-emerald-700">{viewEyebrows[user.role][activeView]}</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
-              Olá, {firstName(user.fullName ?? user.email)}
-            </h1>
+        <header className="top">
+          <div className="min-w-0">
+            <p className="eyebrow">{viewEyebrows[user.role][activeView]}</p>
+            <h1 className="h1">Olá, {firstName(user.fullName ?? user.email)}</h1>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label className="relative block sm:w-72">
+          <div className="top-actions w-full sm:w-auto">
+            <label className="relative flex w-full items-center sm:w-[340px]">
               <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                className="pointer-events-none absolute left-3.5 h-[18px] w-[18px] text-muted"
                 aria-hidden
               />
               <input
-                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                className="input pl-[42px]"
                 placeholder="Buscar evento, disciplina ou professor"
                 aria-label="Buscar evento, disciplina ou professor"
                 value={search}
@@ -738,18 +737,11 @@ export default function Home() {
                 <CalendarPlus className="h-4 w-4" aria-hidden />
                 Novo evento
               </button>
-            ) : (
-              <span className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
-                {lastLoadedAt
-                  ? `Atualizado ${formatTime(lastLoadedAt.toISOString())}`
-                  : "Sem dados ainda"}
-              </span>
-            )}
+            ) : null}
           </div>
         </header>
 
-        <div className="mt-4">
+        <div>
           {loading && !lastLoadedAt ? (
             <div className="surface grid min-h-64 place-items-center p-6">
               <Spinner label="Carregando dados da agenda…" />
