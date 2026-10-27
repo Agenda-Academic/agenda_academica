@@ -168,7 +168,7 @@ export function EventDetailContent({
         <span className={cx("mt-1 h-3 w-3 shrink-0 rounded-full", meta.accent)} aria-hidden />
       </div>
 
-      <dl className="mt-6 grid gap-3 text-sm">
+      <dl className="info mt-6">
         <InfoLine icon={CalendarDays} label="Início" value={formatDateLong(event.startsAt)} />
         {event.endsAt ? (
           <InfoLine icon={CalendarClock} label="Término" value={formatDateLong(event.endsAt)} />
