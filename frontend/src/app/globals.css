@@ -734,6 +734,12 @@ button:disabled {
     background: var(--brand-50);
     color: var(--brand);
   }
+  /* ícone do indicador na cor da categoria */
+  .kpi-ico.c-prova { background: #ffe4e8; color: #9f1239; }
+  .kpi-ico.c-trab { background: #ede9fe; color: #5b21b6; }
+  .kpi-ico.c-ativ { background: #e0f2fe; color: #075985; }
+  .kpi-ico.c-extra { background: #fef3c7; color: #92400e; }
+  .kpi-ico.c-inst { background: #dbeafe; color: #1e40af; }
   .kpi-val {
     margin-top: 14px;
     font-family: var(--disp);

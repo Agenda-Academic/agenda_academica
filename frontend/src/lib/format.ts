@@ -159,3 +159,64 @@ export function errorMessage(error: unknown) {
 export function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
+
+/* ------------------------------------------------------------------ */
+/* Peças de data do visual do Figma                                    */
+/* ------------------------------------------------------------------ */
+
+const shortWeekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const shortMonths = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+/** "Sex", "26", "Jun" — blocos de data das listas e do destaque. */
+export function dateParts(value: string) {
+  const date = new Date(value);
+  return {
+    weekday: shortWeekdays[date.getDay()],
+    day: String(date.getDate()).padStart(2, "0"),
+    month: shortMonths[date.getMonth()],
+  };
+}
+
+/** Dias corridos entre hoje e a data (negativo = passado). */
+export function daysUntil(value: string) {
+  const diff = startOfDay(new Date(value)).getTime() - startOfDay(new Date()).getTime();
+  return Math.round(diff / (24 * 60 * 60 * 1000));
+}
+
+/** Evento sem horário (começa à meia-noite), como feriados e semanas acadêmicas. */
+export function isAllDay(value: string) {
+  const date = new Date(value);
+  return date.getHours() === 0 && date.getMinutes() === 0;
+}
+
+/** "1d 11h 18m" até o início. */
+export function countdown(value: string, now = new Date()) {
+  const ms = new Date(value).getTime() - now.getTime();
+  if (ms <= 0) {
+    return "agora";
+  }
+  const minutes = Math.floor(ms / 60000);
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const rest = minutes % 60;
+  return `${days ? `${days}d ` : ""}${hours}h ${String(rest).padStart(2, "0")}m`;
+}
+
+/** Agrupa eventos futuros em "Esta semana", "Próxima semana · 29 jun – 5 jul" e "Mais adiante". */
+export function groupByWeek<T extends { startsAt: string }>(items: T[], now = new Date()) {
+  const today = startOfDay(now);
+  const nextWeekStart = addDays(today, 7 - today.getDay());
+  const nextWeekEnd = addDays(nextWeekStart, 6);
+  const range = `${nextWeekStart.getDate()} ${shortMonths[nextWeekStart.getMonth()].toLowerCase()} – ${nextWeekEnd.getDate()} ${shortMonths[nextWeekEnd.getMonth()].toLowerCase()}`;
+  const groups: Array<{ label: string; items: T[] }> = [
+    { label: "Esta semana", items: [] },
+    { label: `Próxima semana · ${range}`, items: [] },
+    { label: "Mais adiante", items: [] },
+  ];
+  for (const item of items) {
+    const day = startOfDay(new Date(item.startsAt));
+    const index = day < nextWeekStart ? 0 : day <= nextWeekEnd ? 1 : 2;
+    groups[index].items.push(item);
+  }
+  return groups.filter((group) => group.items.length);
+}
