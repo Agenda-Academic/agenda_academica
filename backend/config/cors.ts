@@ -10,11 +10,24 @@ import { defineConfig } from '@adonisjs/cors'
 /**
  * Allowlist de origens para produção, lida de CORS_ORIGIN
  * (separada por vírgula). Ex.: "http://localhost:3000,https://app.exemplo.br".
+ * Um "*" vale por qualquer trecho sem barra, para aceitar os endereços de
+ * prévia do Vercel: "https://agenda-academica-*.vercel.app".
  */
 const allowlist = (process.env.CORS_ORIGIN ?? '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean)
+  .map(
+    (origin) =>
+      new RegExp(
+        '^' +
+          origin
+            .split('*')
+            .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+            .join('[^/]*') +
+          '$'
+      )
+  )
 
 const corsConfig = defineConfig({
   /**
@@ -26,7 +39,7 @@ const corsConfig = defineConfig({
    * In development, allow every origin to simplify local front/backend setup.
    * In production, use the CORS_ORIGIN allowlist (empty blocks all).
    */
-  origin: app.inDev ? true : allowlist,
+  origin: app.inDev ? true : (requestOrigin) => allowlist.some((pattern) => pattern.test(requestOrigin)),
 
   /**
    * HTTP methods accepted for cross-origin requests.
