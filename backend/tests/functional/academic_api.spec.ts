@@ -2,6 +2,7 @@ import AcademicEvent from '#models/academic_event'
 import Reminder from '#models/reminder'
 import User from '#models/user'
 import ReminderDeliveryService from '#services/reminder_delivery_service'
+import testUtils from '@adonisjs/core/services/test_utils'
 import { test } from '@japa/runner'
 import { DateTime } from 'luxon'
 
@@ -19,7 +20,12 @@ async function loginAs(client: any, email: string) {
   return (response.body() as ApiEnvelope<{ token: string }>).data.token
 }
 
-test.group('Academic API', () => {
+test.group('Academic API', (group) => {
+  // Cada teste roda numa transação revertida ao final: assim eventos e
+  // lembretes criados por um teste não vazam para os seguintes (o seed usa
+  // datas relativas a "hoje", mas os payloads aqui usam datas fixas).
+  group.each.setup(() => testUtils.db().withGlobalTransaction())
+
   test('student can see own academic timeline and dashboard', async ({ client, assert }) => {
     const token = await loginAs(client, 'diogo@agenda.test')
 
