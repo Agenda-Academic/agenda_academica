@@ -5,6 +5,11 @@ set -e
 DB_DIR="/app/tmp"
 mkdir -p "$DB_DIR"
 
+# No Render a URL pública chega em RENDER_EXTERNAL_URL; vale como APP_URL se ele não foi definido
+if [ -z "${APP_URL:-}" ] && [ -n "${RENDER_EXTERNAL_URL:-}" ]; then
+  export APP_URL="$RENDER_EXTERNAL_URL"
+fi
+
 echo "[entrypoint] aplicando migrations..."
 node ace migration:run --force
 
