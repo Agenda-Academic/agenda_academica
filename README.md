@@ -80,6 +80,26 @@ node ace db:seed
 > Datas: o backend normaliza datas para UTC ao gravar; entradas sem offset são
 > interpretadas como `America/Sao_Paulo`. O frontend sempre envia ISO com offset.
 
+## Deploy (Vercel + Render)
+
+O front (Next.js) fica no **Vercel** e a API (AdonisJS) no **Render**, os dois no plano grátis. Os dois
+publicam sozinhos a cada push na `main`.
+
+1. **API no Render:** em [dashboard.render.com](https://dashboard.render.com), **New › Blueprint**, escolha este
+   repositório e confirme. O `render.yaml` cria o serviço `agenda-academica-api` com a chave `APP_KEY` gerada
+   pelo próprio Render. Quando terminar, copie o endereço do serviço (algo como
+   `https://agenda-academica-api.onrender.com`) e abra-o: deve aparecer `"status": "ok"`.
+2. **Front no Vercel:** em [vercel.com/new](https://vercel.com/new), importe este repositório, chame o projeto
+   de `agenda-academica`, troque **Root Directory** para `frontend` e crie a variável
+   `NEXT_PUBLIC_API_URL` = endereço da API + `/api/v1`. Clique em **Deploy**.
+3. **Ligar os dois:** o Render já aceita chamadas de `https://agenda-academica*.vercel.app`. Se o projeto no
+   Vercel tiver outro nome, ajuste `CORS_ORIGIN` em **Environment** no serviço do Render.
+
+Para entrar, use as [contas de demonstração](#contas-de-demonstração-seed).
+
+> No plano grátis do Render a API dorme depois de uns 15 minutos sem acesso e o primeiro acesso leva até um
+> minuto. O banco é SQLite e não fica salvo: toda vez que a API reinicia, ele volta com os dados de demonstração.
+
 ## Testes
 
 ```bash
