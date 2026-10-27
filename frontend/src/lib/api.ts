@@ -54,6 +54,18 @@ export async function apiFetch<T>(path: string, token?: string, options: Request
   return (await response.json()) as T;
 }
 
+/**
+ * Chama a raiz da API só para acordá-la: no plano grátis do Render o servidor
+ * dorme sem acesso e leva até um minuto para voltar. A resposta não importa.
+ */
+export function wakeApi() {
+  try {
+    void fetch(new URL("/", API_URL), { mode: "no-cors", cache: "no-store" }).catch(() => undefined);
+  } catch {
+    // API_URL relativa: a API está no mesmo servidor e não precisa ser acordada.
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Autenticação e conta                                                */
 /* ------------------------------------------------------------------ */

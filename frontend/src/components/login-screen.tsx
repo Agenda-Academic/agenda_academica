@@ -12,8 +12,8 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { useState, type FormEvent } from "react";
-import { login, signup } from "@/lib/api";
+import { useEffect, useState, type FormEvent } from "react";
+import { login, signup, wakeApi } from "@/lib/api";
 import { cx, errorMessage } from "@/lib/format";
 import { demoAccounts } from "@/lib/meta";
 import type { Session } from "@/lib/types";
@@ -37,7 +37,20 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Acorda a API enquanto a pessoa ainda está lendo a tela de login.
+  useEffect(() => {
+    wakeApi();
+  }, []);
+
+  // Se a resposta demorar, avisa que o servidor está voltando do repouso.
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setTimeout(() => setSlow(true), 4000);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -65,6 +78,7 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
       setError(errorMessage(err));
     } finally {
       setLoading(false);
+      setSlow(false);
     }
   }
 
@@ -292,6 +306,12 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
               )}
               {mode === "login" ? "Entrar" : "Criar conta e entrar"}
             </button>
+
+            {loading && slow ? (
+              <p role="status" className="mt-3 text-center text-xs text-slate-500">
+                O servidor estava em repouso e está voltando. No primeiro acesso isso leva até um minuto.
+              </p>
+            ) : null}
 
             {mode === "login" ? (
               <div className="mt-6">
