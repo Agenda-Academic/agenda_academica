@@ -1,0 +1,32 @@
+# Blueprint do Render: cria a API (AdonisJS) a partir deste repositório.
+# No painel do Render: New > Blueprint > escolher o repositório.
+# O front (Next.js) vai para o Vercel; ver a seção "Deploy" do README.
+services:
+  - type: web
+    name: agenda-academica-api
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - backend/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: TZ
+        value: UTC
+      - key: LOG_LEVEL
+        value: info
+      - key: SESSION_DRIVER
+        value: cookie
+      # Chave gerada pelo Render na criação; nunca reaproveitar a do docker-compose
+      - key: APP_KEY
+        generateValue: true
+      # Endereço do front no Vercel; o "*" cobre o domínio final e as prévias
+      - key: CORS_ORIGIN
+        value: https://agenda-academica*.vercel.app
