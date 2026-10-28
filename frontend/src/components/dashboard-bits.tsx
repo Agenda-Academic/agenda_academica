@@ -104,6 +104,8 @@ export function EventList({
   hideClass,
   limit,
   mineId,
+  isMine,
+  selectedId,
   onSelect,
 }: {
   emptyHint?: string;
@@ -116,6 +118,8 @@ export function EventList({
   limit?: number;
   /** Marca como "Sua publicação" os eventos deste professor. */
   mineId?: number;
+  isMine?: (event: AcademicEvent) => boolean;
+  selectedId?: number | null;
   onSelect: (id: number) => void;
 }) {
   const visible = limit ? events.slice(0, limit) : events;
@@ -129,7 +133,8 @@ export function EventList({
       key={event.id}
       event={event}
       hideClass={hideClass}
-      mine={mineId !== undefined && event.teacherId === mineId}
+      mine={isMine ? isMine(event) : mineId !== undefined && event.teacherId === mineId}
+      selected={selectedId === event.id}
       onClick={() => onSelect(event.id)}
     />
   );

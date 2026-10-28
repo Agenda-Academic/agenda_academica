@@ -714,6 +714,7 @@ export default function Home() {
           </div>
 
           <div className="top-actions w-full sm:w-auto">
+            {activeView !== "calendar" ? (
             <label className="relative flex w-full items-center sm:w-[340px]">
               <Search
                 className="pointer-events-none absolute left-3.5 h-[18px] w-[18px] text-muted"
@@ -726,12 +727,14 @@ export default function Home() {
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value);
-                  if (activeView !== "calendar" && event.target.value.trim()) {
+                  // ao digitar, leva para o cronograma, onde a busca filtra a lista
+                  if (event.target.value.trim()) {
                     setActiveView("calendar");
                   }
                 }}
               />
             </label>
+            ) : null}
             {canWrite ? (
               <button className={cx(primaryButton, "shrink-0")} onClick={openNewEvent} type="button">
                 <CalendarPlus className="h-4 w-4" aria-hidden />
@@ -790,6 +793,7 @@ export default function Home() {
 
           {activeView === "calendar" ? (
             <CalendarView
+              allEvents={events}
               calendarMode={calendarMode}
               canManageEvent={canManageEvent}
               classes={context?.catalog.classes ?? []}
@@ -802,6 +806,7 @@ export default function Home() {
               selectedEvent={selectedEvent}
               selectedEventId={selectedEventId}
               setCalendarMode={setCalendarMode}
+              setCategories={setSelectedCategories}
               setReminderOffset={setReminderOffset}
               setSearch={setSearch}
               toggleCategory={toggleCategory}
