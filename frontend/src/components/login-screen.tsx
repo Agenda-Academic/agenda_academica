@@ -1,8 +1,11 @@
 "use client";
 
 import {
+  AlertCircle,
   Bell,
+  BookOpen,
   CalendarDays,
+  Check,
   Eye,
   EyeOff,
   GraduationCap,
@@ -90,69 +93,70 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
   const passwordType = showPassword ? "text" : "password";
 
   return (
-    <main className="min-h-screen bg-login px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
-      <section className="mx-auto grid max-w-6xl overflow-hidden rounded-2xl border border-white/70 bg-white/90 shadow-2xl shadow-slate-900/10 backdrop-blur xl:grid-cols-[1fr_0.95fr]">
-        <div className="relative hidden min-h-[560px] flex-col justify-between overflow-hidden bg-slate-950 p-8 text-white xl:flex">
-          <div className="absolute inset-0 opacity-80 [background:linear-gradient(135deg,#0f172a_0%,#064e3b_42%,#312e81_100%)]" />
-          <div className="absolute inset-x-0 bottom-0 h-44 bg-[linear-gradient(180deg,transparent,rgba(15,23,42,0.96))]" />
+    <main className="flex min-h-screen items-center bg-login px-4 py-6 text-ink sm:px-6 lg:px-8">
+      <section className="card rise mx-auto grid w-full max-w-6xl overflow-hidden !rounded-[28px] xl:grid-cols-[1fr_0.95fr]">
+        <div className="relative hidden min-h-[600px] flex-col justify-between overflow-hidden bg-night p-10 text-white xl:flex">
+          {/* círculos suaves ao fundo, sem degradê pesado */}
+          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-night-3/50" />
+          <div className="pointer-events-none absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-night-2/60" />
           <div className="relative">
             <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-emerald-800 shadow-lg shadow-emerald-950/20">
-                <GraduationCap className="h-6 w-6" aria-hidden />
+              <span className="mark">
+                <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
               </span>
               <div>
-                <p className="text-sm text-emerald-100">Agenda Acadêmica</p>
-                <h1 className="text-2xl font-semibold">Painel de prazos do semestre</h1>
+                <p className="brand-name">Agenda Acadêmica</p>
+                <p className="brand-sub">IFMS · Três Lagoas</p>
               </div>
             </div>
 
             <div className="mt-12 max-w-xl">
-              <p className="text-sm font-medium uppercase tracking-wide text-emerald-200">
-                Fonte única de verdade
-              </p>
-              <h2 className="mt-3 text-4xl font-semibold leading-tight">
+              <p className="eyebrow !text-accent">Fonte única de verdade</p>
+              <h1 className="disp mt-3 text-[44px] font-bold leading-[1.05]">
                 Veja o que importa hoje, esta semana e no calendário oficial.
-              </h2>
+              </h1>
             </div>
 
-            <div className="mt-10 grid gap-4 text-sm text-emerald-50">
+            <div className="mt-10 grid gap-4 text-[14.5px] text-on-night">
               <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
-                  <CalendarDays className="h-4 w-4 text-emerald-200" aria-hidden />
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                  <CalendarDays className="h-4 w-4 text-accent" aria-hidden />
                 </span>
                 Prazos docentes e datas institucionais no mesmo fluxo
               </div>
               <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
-                  <Bell className="h-4 w-4 text-emerald-200" aria-hidden />
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                  <Bell className="h-4 w-4 text-accent" aria-hidden />
                 </span>
                 Lembretes pessoais antes de provas, trabalhos e eventos
               </div>
               <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
-                  <Users className="h-4 w-4 text-emerald-200" aria-hidden />
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                  <Users className="h-4 w-4 text-accent" aria-hidden />
                 </span>
                 Visão por perfil para aluno, professor e administração
               </div>
             </div>
           </div>
+
+          <p className="relative flex items-center gap-2 border-t border-white/10 pt-5 text-[13px] text-on-night-2">
+            <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
+            Ambiente de demonstração: os dados voltam ao padrão sempre que o servidor reinicia.
+          </p>
         </div>
 
         <div className="flex items-center justify-center p-5 sm:p-8">
           <form className="w-full max-w-md" onSubmit={handleSubmit}>
             <div className="mb-6 flex items-center gap-3 xl:hidden">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white">
-                <GraduationCap className="h-5 w-5" aria-hidden />
+              <span className="mark">
+                <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
               </span>
-              <p className="text-lg font-semibold">Agenda Acadêmica</p>
+              <p className="brand-name text-ink">Agenda Acadêmica</p>
             </div>
 
-            <div className="mb-6 grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-50 p-1 text-sm font-semibold">
+            <div className="seg mb-7 grid w-full grid-cols-2">
               <button
-                className={cx(
-                  "flex h-10 items-center justify-center gap-2 rounded-lg transition",
-                  mode === "login" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                )}
+                className={cx(mode === "login" && "on")}
                 aria-pressed={mode === "login"}
                 onClick={() => switchMode("login")}
                 type="button"
@@ -161,10 +165,7 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
                 Entrar
               </button>
               <button
-                className={cx(
-                  "flex h-10 items-center justify-center gap-2 rounded-lg transition",
-                  mode === "signup" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                )}
+                className={cx(mode === "signup" && "on")}
                 aria-pressed={mode === "signup"}
                 onClick={() => switchMode("signup")}
                 type="button"
@@ -174,10 +175,10 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
               </button>
             </div>
 
-            <h2 className="text-3xl font-semibold tracking-tight">
+            <h2 className="disp text-[30px] font-bold leading-tight">
               {mode === "login" ? "Entrar na agenda" : "Criar minha conta"}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 text-[14.5px] leading-6 text-muted">
               {mode === "login"
                 ? "Acesse com sua conta ou use um dos perfis de demonstração abaixo."
                 : "Crie uma conta para acompanhar prazos e configurar lembretes."}
@@ -259,7 +260,7 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
                     required
                   />
                   <button
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition hover:bg-surface-2 hover:text-ink"
                     onClick={() => setShowPassword((current) => !current)}
                     title={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     type="button"
@@ -288,12 +289,10 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
             </div>
 
             {error ? (
-              <div
-                role="alert"
-                className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700"
-              >
+              <p role="alert" className="callout rose pop mt-4">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                 {error}
-              </div>
+              </p>
             ) : null}
 
             <button className={cx(primaryButton, "mt-5 h-11 w-full")} disabled={loading} type="submit">
@@ -308,45 +307,54 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
             </button>
 
             {loading && slow ? (
-              <p role="status" className="mt-3 text-center text-xs text-slate-500">
+              <p role="status" className="mt-3 text-center text-xs text-muted">
                 O servidor estava em repouso e está voltando. No primeiro acesso isso leva até um minuto.
               </p>
             ) : null}
 
             {mode === "login" ? (
-              <div className="mt-6">
-                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <div className="mt-7">
+                <p className="eyebrow flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4" aria-hidden />
                   Contas de demonstração
                 </p>
-                <div className="mt-3 grid gap-2">
-                  {demoAccounts.map((account) => (
-                    <button
-                      key={account.email}
-                      type="button"
-                      title={`Usar conta ${account.label}`}
-                      onClick={() => setLoginForm({ email: account.email, password: account.password })}
-                      className={cx(
-                        "flex items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-left transition",
-                        loginForm.email === account.email
-                          ? "border-emerald-300 bg-emerald-50"
-                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                      )}
-                    >
-                      <span>
-                        <span className="block text-sm font-semibold text-slate-950">{account.label}</span>
-                        <span className="mt-0.5 block text-xs text-slate-500">{account.description}</span>
-                      </span>
-                      <span
+                <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
+                  {demoAccounts.map((account, index) => {
+                    const on = loginForm.email === account.email;
+                    const Icon = [GraduationCap, BookOpen, ShieldCheck][index % 3];
+                    const tone = ["bg-brand-50 text-brand", "bg-[#EDE9FE] text-[#5B21B6]", "bg-[#DBEAFE] text-[#1E40AF]"][index % 3];
+                    return (
+                      <button
+                        key={account.email}
+                        type="button"
+                        title={`Usar conta ${account.label}`}
+                        aria-pressed={on}
+                        onClick={() => setLoginForm({ email: account.email, password: account.password })}
+                        // no celular vira linha (ícone, texto, check); a partir de sm, cartão com o texto embaixo
                         className={cx(
-                          "text-xs font-semibold",
-                          loginForm.email === account.email ? "text-emerald-700" : "text-slate-400"
+                          "grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border p-3.5 text-left transition hover:-translate-y-0.5 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-2.5",
+                          on ? "border-brand bg-brand-50 shadow-[inset_0_0_0_1px_var(--brand)]" : "border-line-strong bg-white hover:border-[var(--line-hover)]"
                         )}
                       >
-                        {loginForm.email === account.email ? "Selecionada" : "Usar"}
-                      </span>
-                    </button>
-                  ))}
+                        <span
+                          className={cx(
+                            "flex h-[34px] w-[34px] items-center justify-center rounded-[10px] sm:row-start-1",
+                            on ? "bg-white text-brand" : tone
+                          )}
+                        >
+                          <Icon className="h-[18px] w-[18px]" aria-hidden />
+                        </span>
+                        <span className="min-w-0 sm:col-span-2 sm:row-start-2">
+                          <span className="block text-[14.5px] font-bold">{account.label}</span>
+                          <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-3">{account.description}</span>
+                        </span>
+                        <Check
+                          className={cx("h-4 w-4 text-brand transition-opacity sm:col-start-2 sm:row-start-1", on ? "opacity-100" : "opacity-0")}
+                          aria-hidden
+                        />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ) : null}
