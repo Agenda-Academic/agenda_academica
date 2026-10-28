@@ -1,28 +1,12 @@
 "use client";
 
-import {
-  CheckCircle2,
-  CloudDownload,
-  FileJson,
-  History,
-  Loader2,
-  RefreshCw,
-  ShieldCheck,
-} from "lucide-react";
-import { useState } from "react";
+import { Building2, CheckCircle2, CloudDownload, FileJson, History, Loader2, ShieldCheck } from "lucide-react";
+import { useMemo, useState, type CSSProperties } from "react";
 import type { CalendarImportInput } from "@/lib/api";
 import { cx, formatDate } from "@/lib/format";
 import type { AcademicEvent, CalendarImport } from "@/lib/types";
-import { EmptyState, Field, SectionTitle, primaryButton, secondaryButton } from "./ui";
-
-function StatusTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
+import { InsightTile, delay } from "./dashboard-bits";
+import { EmptyState, Field, SectionTitle } from "./ui";
 
 const exampleJson = `{
   "sourceName": "Calendário oficial 2026/1",
@@ -81,135 +65,161 @@ export function SyncView({
     setJsonText("");
   }
 
+  // Validação ao vivo do JSON colado, como no protótipo.
+  const jsonStatus = useMemo(() => {
+    if (!jsonText.trim()) {
+      return { tone: "muted", text: 'Formato: { "sourceName": "...", "events": [ ... ] } ou só a lista de eventos.' };
+    }
+    try {
+      const parsed = JSON.parse(jsonText);
+      const list = Array.isArray(parsed) ? parsed : parsed?.events;
+      if (!Array.isArray(list) || !list.length) {
+        return { tone: "err", text: 'Falta a lista "events" com ao menos um evento.' };
+      }
+      return { tone: "ok", text: `JSON válido · ${list.length} evento${list.length === 1 ? "" : "s"} pronto${list.length === 1 ? "" : "s"} para importar.` };
+    } catch {
+      return { tone: "err", text: "JSON inválido. Confira vírgulas, aspas e chaves." };
+    }
+  }, [jsonText]);
+
   return (
-    <div className="grid gap-4">
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-        <div className="surface p-5">
+    <div className="grid gap-5">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <InsightTile icon={Building2} label="Fonte" value="IFMS" hint="calendário da reitoria" order={0} />
+        <InsightTile
+          icon={History}
+          label="Última importação"
+          value={lastImport ? formatDate(lastImport.importedAt) : "Nunca"}
+          tone="c-ativ"
+          hint={lastImport ? lastImport.sourceName : "nenhuma sincronização ainda"}
+          order={1}
+        />
+        <InsightTile icon={ShieldCheck} label="Datas oficiais" value={String(officialCount)} tone="c-inst" hint="prevalecem sobre eventos locais" order={2} />
+      </div>
+
+      <div className="board" style={{ "--row": "530px" } as CSSProperties}>
+        <section className="card pad rise" style={delay(3)} aria-label="Importar calendário">
           <SectionTitle
             eyebrow="Sincronização"
-            icon={RefreshCw}
             title="Calendário oficial da reitoria"
-            subtitle="Datas institucionais entram como prioridade e aparecem para todos os usuários"
+            subtitle="Datas institucionais entram com prioridade e aparecem para todos os usuários."
           />
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <StatusTile label="Fonte" value="IFMS" />
-            <StatusTile
-              label="Última importação"
-              value={lastImport ? formatDate(lastImport.importedAt) : "Nunca"}
-            />
-            <StatusTile label="Eventos oficiais" value={String(officialCount)} />
-          </div>
-
           {isAdmin ? (
-            <div className="mt-5 grid gap-4">
-              <div className="flex flex-wrap gap-2">
-                <button className={primaryButton} disabled={saving} onClick={onImportDemo} type="button">
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <CloudDownload className="h-4 w-4" aria-hidden />
-                  )}
-                  Importar calendário de demonstração
+            <div className="scroll mt-4 flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-3.5 rounded-2xl border border-line-2 bg-surface-2 p-4">
+                <span className="kpi-ico">
+                  <CloudDownload className="h-[18px] w-[18px]" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-bold">Calendário de demonstração</p>
+                  <p className="sub !mt-0.5">Datas institucionais de exemplo para testes e apresentações.</p>
+                </div>
+                <button className="btn btn-p" disabled={saving} onClick={onImportDemo} type="button">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" aria-hidden />}
+                  Importar
                 </button>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                <Field
-                  label="Importar JSON personalizado"
-                  hint='formato: { "sourceName", "events": [...] }'
-                >
+              <div className="rounded-2xl border border-line-2 bg-surface-2 p-4">
+                <Field label="Importar JSON personalizado" hint="cole o arquivo da reitoria">
                   <textarea
-                    className="input min-h-36 resize-y py-3 font-mono text-xs"
+                    className="input min-h-36 font-mono text-xs"
                     value={jsonText}
-                    onChange={(event) => setJsonText(event.target.value)}
+                    onChange={(event) => {
+                      setJsonText(event.target.value);
+                      setJsonError(null);
+                    }}
                     placeholder={exampleJson}
                     spellCheck={false}
                   />
                 </Field>
-                {jsonError ? (
-                  <p
-                    role="alert"
-                    className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700"
-                  >
-                    {jsonError}
-                  </p>
-                ) : null}
-                <button
-                  className={cx(secondaryButton, "mt-3")}
-                  disabled={saving || !jsonText.trim()}
-                  onClick={submitJson}
-                  type="button"
+                <p
+                  role={jsonError ? "alert" : "status"}
+                  className={cx(
+                    "field-help flex items-center gap-1.5",
+                    (jsonError || jsonStatus.tone === "err") && "font-semibold text-[#B4234A]",
+                    !jsonError && jsonStatus.tone === "ok" && "font-semibold text-brand-ink"
+                  )}
                 >
-                  <FileJson className="h-4 w-4" aria-hidden />
-                  Validar e importar JSON
-                </button>
+                  {!jsonError && jsonStatus.tone === "ok" ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : null}
+                  {jsonError ?? jsonStatus.text}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button className="btn btn-s" disabled={saving || jsonStatus.tone !== "ok"} onClick={submitJson} type="button">
+                    <FileJson className="h-4 w-4" aria-hidden />
+                    Validar e importar JSON
+                  </button>
+                  {jsonText ? (
+                    <button className="btn btn-s" onClick={() => setJsonText("")} type="button">
+                      Limpar
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
           ) : (
-            <div className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-500">
-              <ShieldCheck className="h-4 w-4" aria-hidden />
-              Importação restrita à administração
-            </div>
+            <p className="callout amber mt-4">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              Importação restrita à administração. Você continua vendo o calendário oficial no cronograma.
+            </p>
           )}
-        </div>
+        </section>
 
-        <div className="surface h-fit p-4">
+        <section className="card pad rise" style={delay(4)} aria-label="Permissão">
           <SectionTitle
             eyebrow="Permissão"
-            icon={ShieldCheck}
-            title={isAdmin ? "Acesso liberado" : "Restrito ao admin"}
-            subtitle={
-              isAdmin
-                ? "Você pode importar datas oficiais."
-                : "Use uma conta de administração para sincronizar."
-            }
+            title={isAdmin ? "Acesso liberado" : "Restrito à administração"}
+            subtitle={isAdmin ? "Você pode importar datas oficiais." : "Use uma conta de administração para sincronizar."}
           />
-          <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-medium text-slate-500">Eventos oficiais atuais</p>
-            <p className="mt-3 text-5xl font-semibold tracking-tight text-slate-950">{officialCount}</p>
-            <p className="mt-2 text-xs leading-5 text-slate-500">
-              Datas oficiais prevalecem sobre eventos locais quando houver conflito.
-            </p>
+          <div className="scroll mt-4">
+            <div className="rounded-2xl bg-night p-5 text-white">
+              <p className="eyebrow !text-on-night-2">Eventos oficiais atuais</p>
+              <p className="disp mt-2 text-[56px] font-bold leading-none text-accent">{officialCount}</p>
+              <p className="mt-3 text-[13px] leading-5 text-on-night">
+                Datas oficiais prevalecem sobre eventos locais quando houver conflito.
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
       {isAdmin ? (
-        <section className="surface p-4">
-          <SectionTitle
-            eyebrow="Histórico"
-            icon={History}
-            title="Importações realizadas"
-            subtitle="Registro das sincronizações com a fonte institucional"
-          />
+        <section className="card pad rise" style={delay(5)} aria-label="Importações realizadas">
+          <SectionTitle eyebrow="Histórico" title="Importações realizadas" subtitle="Registro das sincronizações com a fonte institucional" />
           {imports.length ? (
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
-              {imports.map((item, index) => (
-                <div
-                  key={item.id}
-                  className={cx(
-                    "grid gap-2 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center",
-                    index < imports.length - 1 ? "border-b border-slate-200" : ""
-                  )}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-slate-950">{item.sourceName}</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {formatDate(item.importedAt)} · {item.totalEvents} evento
-                      {item.totalEvents === 1 ? "" : "s"}
-                      {item.sourceUrl ? ` · ${item.sourceUrl}` : ""}
-                    </p>
-                  </div>
-                  <span className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                    {item.status === "completed" ? "Concluída" : item.status}
-                  </span>
-                </div>
-              ))}
+            <div className="scroll mt-4 max-h-[420px] overflow-x-auto rounded-2xl border border-line">
+              <table className="tbl min-w-[620px]">
+                <thead className="sticky top-0 z-10">
+                  <tr>
+                    <th>Fonte</th>
+                    <th>Data</th>
+                    <th>Eventos</th>
+                    <th>Situação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {imports.map((item) => (
+                    <tr key={item.id} className="transition hover:bg-surface-2">
+                      <td>
+                        <p className="t">{item.sourceName}</p>
+                        {item.sourceUrl ? <p className="s truncate">{item.sourceUrl}</p> : null}
+                      </td>
+                      <td className="whitespace-nowrap">{formatDate(item.importedAt)}</td>
+                      <td>{item.totalEvents}</td>
+                      <td>
+                        <span className="pill st-conc">
+                          <CheckCircle2 className="h-3 w-3" aria-hidden />
+                          {item.status === "completed" ? "Concluída" : item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="mt-4">
-              <EmptyState icon={History} text="Nenhuma importação registrada ainda." />
+              <EmptyState icon={History} text="Nenhuma importação registrada ainda." hint="Importe o calendário de demonstração para testar." />
             </div>
           )}
         </section>
