@@ -779,6 +779,14 @@ button:disabled {
     border: 1.5px solid currentColor;
     font-weight: 700;
   }
+  /* chip escolhido ganha a cor da sua categoria */
+  .chip.c-prova { background: #ffe4e8; color: #9f1239; }
+  .chip.c-trab { background: #ede9fe; color: #5b21b6; }
+  .chip.c-ativ { background: #e0f2fe; color: #075985; }
+  .chip.c-extra { background: #fef3c7; color: #92400e; }
+  .chip.c-inst { background: #dbeafe; color: #1e40af; }
+  .chip.c-fer { background: #d1fae5; color: #065f46; }
+  .chip.c-rec { background: #ecfccb; color: #3f6212; }
 
   /* indicadores */
   .kpis {
