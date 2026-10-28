@@ -514,6 +514,22 @@ button:disabled {
   .pop {
     animation: pop 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
+  /* esqueleto de carregamento: bloco cinza com brilho passando */
+  .skel {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    border-radius: 10px;
+    background: var(--line-2);
+  }
+  .skel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.75), transparent);
+    animation: shimmer 1.3s ease-in-out infinite;
+  }
   /* vazio ocupa o card inteiro, centralizado */
   .scroll > .empty-inline {
     min-height: 100%;
@@ -1511,6 +1527,12 @@ button:disabled {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
   }
 }
 
