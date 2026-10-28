@@ -1,22 +1,10 @@
 "use client";
 
-import {
-  BookOpen,
-  CalendarClock,
-  CalendarDays,
-  CalendarPlus,
-  GraduationCap,
-  Megaphone,
-  Plus,
-  ShieldCheck,
-  Sparkles,
-  Users,
-} from "lucide-react";
-import { cx, formatDate, formatFullDate, relativeDue } from "@/lib/format";
-import { categoryMeta } from "@/lib/meta";
+import { BookOpen, CalendarDays, CalendarPlus, LayoutGrid, Megaphone, Plus, ShieldCheck, Users } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { AcademicContext, AcademicEvent } from "@/lib/types";
-import { EventList, InsightTile } from "./dashboard-bits";
-import { EmptyState, SectionTitle, primaryButton, secondaryButton } from "./ui";
+import { EventList, InsightTile, NextEventHero, delay } from "./dashboard-bits";
+import { EmptyState, SectionTitle } from "./ui";
 
 export function TeacherDashboard({
   context,
@@ -47,104 +35,88 @@ export function TeacherDashboard({
       event.status !== "completed"
   );
   const nextMine = myUpcoming[0] ?? null;
-  const classCount = new Set(assignments.map((assignment) => assignment.academicClassId)).size;
+  const classes = [
+    ...new Map(
+      assignments
+        .filter((assignment) => assignment.academicClass)
+        .map((assignment) => [assignment.academicClassId, assignment.academicClass!] as const)
+    ).values(),
+  ];
+  const term = classes[0] ? `${classes[0].year}/${classes[0].semester}` : null;
 
   function upcomingCountFor(academicClassId: number, subjectId: number) {
-    return myUpcoming.filter(
-      (event) => event.academicClassId === academicClassId && event.subjectId === subjectId
-    ).length;
+    return myUpcoming.filter((event) => event.academicClassId === academicClassId && event.subjectId === subjectId)
+      .length;
   }
 
   return (
-    <div className="grid gap-4">
-      <section className="surface overflow-hidden">
-        <div className="border-b border-slate-200/80 p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">
-                <Sparkles className="h-4 w-4" aria-hidden />
-                {formatFullDate(new Date())}
-              </span>
-              <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-tight text-slate-950">
-                {nextMine
-                  ? `Próxima publicação: ${nextMine.title}`
-                  : "Nenhum prazo publicado à frente"}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {nextMine
-                  ? `${categoryMeta[nextMine.category].short} · ${relativeDue(nextMine.startsAt)} · ${formatDate(nextMine.startsAt)} · ${nextMine.academicClass?.name ?? ""}`
-                  : "Publique provas, trabalhos e atividades para as turmas que você ministra."}
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <button className={primaryButton} type="button" onClick={onNewEvent}>
-                <CalendarPlus className="h-4 w-4" aria-hidden />
-                Novo evento
-              </button>
-              <button className={secondaryButton} type="button" onClick={onOpenManage}>
-                Gestão
-              </button>
-            </div>
-          </div>
-        </div>
+    <div className="grid gap-5">
+      <div className="rise" style={delay(0)}>
+      <NextEventHero
+        event={nextMine}
+        kicker={nextMine?.category === "exam" ? "Sua próxima avaliação" : "Sua próxima publicação"}
+        primaryLabel="Ver e editar"
+        secondary={{ label: "Abrir gestão", icon: LayoutGrid, onClick: onOpenManage }}
+        emptyTitle="Nenhum prazo publicado à frente"
+        emptyText="Publique provas, trabalhos e atividades para as turmas que você ministra."
+        onOpen={onSelect}
+        onEmptyAction={{ label: "Novo evento", onClick: onNewEvent }}
+      />
+      </div>
 
-        <div className="grid gap-px bg-slate-200/80 sm:grid-cols-2 md:grid-cols-4">
-          <InsightTile
-            icon={Megaphone}
-            label="Publicações futuras"
-            value={String(myUpcoming.length)}
-          />
-          <InsightTile icon={Users} label="Turmas" value={String(classCount)} />
-          <InsightTile icon={BookOpen} label="Disciplinas" value={String(assignments.length)} />
-          <InsightTile
-            icon={ShieldCheck}
-            label="Datas oficiais à frente"
-            value={String(officialUpcoming.length)}
-          />
-        </div>
-      </section>
+      <div className="kpis">
+        <InsightTile icon={Megaphone} label="Publicações futuras" order={2} value={String(myUpcoming.length)} hint="nas suas disciplinas" />
+        <InsightTile
+          icon={Users}
+          label="Turmas" order={3}
+          value={String(classes.length)}
+          tone="c-ativ"
+          hint={classes.map((academicClass) => academicClass.name).join(" · ") || "sem vínculo"}
+        />
+        <InsightTile
+          icon={BookOpen}
+          label="Disciplinas" order={4}
+          value={String(assignments.length)}
+          tone="c-trab"
+          hint={term ? `no semestre ${term}` : "sem vínculo"}
+        />
+        <InsightTile
+          icon={ShieldCheck}
+          label="Datas oficiais à frente" order={5}
+          value={String(officialUpcoming.length)}
+          tone="c-inst"
+          hint="evite marcar provas nelas"
+        />
+      </div>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="grid content-start gap-4">
-          <div className="surface p-4">
-            <SectionTitle
-              eyebrow="Docência"
-              icon={GraduationCap}
-              title="Minhas turmas e disciplinas"
-              subtitle="Crie eventos direto na disciplina certa"
-            />
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      {/* Pares de cards na mesma linha, com rolagem interna */}
+      <div className="board" style={{ "--row": "390px" } as CSSProperties}>
+        <section className="card pad rise" style={delay(6)} aria-label="Minhas turmas e disciplinas">
+          <SectionTitle eyebrow="Docência" title="Minhas turmas e disciplinas" subtitle="Crie eventos direto na disciplina certa" />
+          <div className="scroll mt-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               {assignments.map((assignment) => {
                 const count = upcomingCountFor(assignment.academicClassId, assignment.subjectId);
                 return (
-                  <div
-                    key={assignment.id}
-                    className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
-                  >
+                  <div key={assignment.id} className="flex flex-col gap-3.5 rounded-2xl border border-line-2 bg-surface-2 p-4 transition hover:border-brand-200 hover:bg-brand-50">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-950">
-                        {assignment.subject?.name ?? "Disciplina"}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {assignment.academicClass?.name}
-                        {assignment.academicClass?.shift
-                          ? ` · ${assignment.academicClass.shift}`
-                          : ""}
-                      </p>
-                      <p className="mt-2 text-xs font-semibold text-slate-500">
-                        {count
-                          ? `${count} evento${count === 1 ? "" : "s"} à frente`
-                          : "Sem eventos futuros"}
+                      <p className="truncate text-[15.5px] font-bold">{assignment.subject?.name ?? "Disciplina"}</p>
+                      <p className="sub !mt-1">
+                        {[assignment.academicClass?.name, assignment.academicClass?.shift, assignment.subject?.code]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
                     </div>
+                    <p className="flex items-center gap-2 text-[13px] font-semibold text-ink-3">
+                      <span className={count ? "dot d-prova" : "dot bg-line-strong"} aria-hidden />
+                      {count ? `${count} evento${count === 1 ? "" : "s"} à frente` : "Sem eventos futuros"}
+                    </p>
                     <button
-                      className={cx(secondaryButton, "h-9 min-h-0 w-fit px-3")}
-                      onClick={() =>
-                        onNewEventFor(assignment.academicClassId, assignment.subjectId)
-                      }
+                      className="btn btn-s btn-sm w-fit"
+                      onClick={() => onNewEventFor(assignment.academicClassId, assignment.subjectId)}
                       type="button"
                     >
-                      <Plus className="h-3.5 w-3.5" aria-hidden />
+                      <Plus className="h-[15px] w-[15px]" aria-hidden />
                       Evento
                     </button>
                   </div>
@@ -152,74 +124,45 @@ export function TeacherDashboard({
               })}
               {!assignments.length ? (
                 <div className="sm:col-span-2">
-                  <EmptyState
-                    icon={Users}
-                    text="Sem vínculos docentes."
-                    hint="Solicite à administração o vínculo com suas turmas."
-                  />
+                  <EmptyState icon={Users} text="Sem vínculos docentes." hint="Solicite à administração o vínculo com suas turmas." />
                 </div>
               ) : null}
             </div>
           </div>
+        </section>
 
-          <div className="surface p-4">
-            <SectionTitle
-              eyebrow="Publicações"
-              icon={CalendarClock}
-              title="Meus próximos eventos"
-              subtitle="O que suas turmas vão encontrar na agenda"
-            />
-            <div className="mt-4">
-              <EventList
-                events={myUpcoming}
-                limit={6}
-                emptyIcon={CalendarPlus}
-                emptyText="Nenhum evento publicado ainda."
-                emptyHint="Use os atalhos das disciplinas acima para publicar o primeiro."
-                onSelect={onSelect}
-              />
-            </div>
+        <section className="card pad rise" style={delay(7)} aria-label="Datas oficiais à frente">
+          <SectionTitle eyebrow="Instituição" title="Datas oficiais à frente" subtitle="Feriados e prazos que afetam suas aulas" />
+          <div className="scroll mt-3.5">
+            <EventList events={officialUpcoming} emptyIcon={CalendarDays} emptyText="Nenhuma data oficial próxima." onSelect={onSelect} />
           </div>
-        </div>
+        </section>
 
-        <div className="grid content-start gap-4">
-          <div className="surface p-4">
-            <SectionTitle
-              eyebrow="Instituição"
-              icon={ShieldCheck}
-              title="Datas oficiais à frente"
-              subtitle="Feriados e prazos da reitoria que afetam suas aulas"
-            />
-            <div className="mt-4">
-              <EventList
-                events={officialUpcoming}
-                limit={5}
-                emptyIcon={CalendarDays}
-                emptyText="Nenhuma data oficial próxima."
-                onSelect={onSelect}
-              />
-            </div>
+        <section className="card pad rise" style={delay(8)} aria-label="Meus próximos eventos">
+          <div className="head">
+            <SectionTitle eyebrow="Publicações" title="Meus próximos eventos" subtitle="O que suas turmas vão encontrar na agenda" />
+            <button className="btn btn-s btn-sm" onClick={onOpenManage} type="button">
+              Ver todos na gestão
+            </button>
           </div>
+          <div className="scroll mt-3.5">
+            <EventList
+              events={myUpcoming}
+              emptyIcon={CalendarPlus}
+              emptyText="Nenhum evento publicado ainda."
+              emptyHint="Use os atalhos das disciplinas para publicar o primeiro."
+              onSelect={onSelect}
+            />
+          </div>
+        </section>
 
-          <div className="surface p-4">
-            <SectionTitle
-              eyebrow="Turmas"
-              icon={CalendarDays}
-              title="Agenda geral das turmas"
-              subtitle="Inclui eventos de outros professores"
-            />
-            <div className="mt-4">
-              <EventList
-                events={upcomingEvents}
-                limit={5}
-                emptyIcon={CalendarDays}
-                emptyText="Sem eventos futuros nas suas turmas."
-                onSelect={onSelect}
-              />
-            </div>
+        <section className="card pad rise" style={delay(9)} aria-label="Agenda geral das turmas">
+          <SectionTitle eyebrow="Turmas" title="Agenda geral das turmas" subtitle="Inclui eventos de outros professores" />
+          <div className="scroll mt-3.5">
+            <EventList events={upcomingEvents} emptyIcon={CalendarDays} emptyText="Sem eventos futuros nas suas turmas." onSelect={onSelect} />
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
