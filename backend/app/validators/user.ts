@@ -5,7 +5,7 @@ import vine from '@vinejs/vine'
  */
 const email = () => vine.string().email().maxLength(254)
 const password = () => vine.string().minLength(8).maxLength(32)
-const notificationChannel = () => vine.enum(['email', 'push'])
+const notificationChannel = () => vine.enum(['email'])
 
 /**
  * Validator to use when performing self-signup

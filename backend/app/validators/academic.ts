@@ -42,7 +42,7 @@ export const updateAcademicEventValidator = vine.create({
 
 export const reminderValidator = vine.create({
   academicEventId: vine.number(),
-  channel: vine.enum(['email', 'push']).optional(),
+  channel: vine.enum(['email']).optional(),
   offsetMinutes: vine.number().min(15).max(10080).optional(),
   enabled: vine.boolean().optional(),
 })
