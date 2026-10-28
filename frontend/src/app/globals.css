@@ -398,6 +398,9 @@ button:disabled {
     background: #fff;
     border: 1px solid var(--line);
     border-radius: 20px;
+    /* sombra suave puxada para o azul (mesmo padrão do galasales) */
+    box-shadow: 0 8px 18px -14px rgb(23 50 92 / 0.28);
+    container-type: inline-size;
   }
   .pad {
     padding: 24px;
@@ -451,6 +454,85 @@ button:disabled {
   .col > .grow {
     flex: 1;
   }
+  /* grade de cards: na mesma linha, todos começam e terminam juntos;
+     o que não cabe rola dentro do card */
+  .board {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .board > .card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+  @media (min-width: 1200px) {
+    .board {
+      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-auto-rows: var(--row, 400px);
+    }
+    .board > .tall {
+      grid-row: span 2;
+    }
+  }
+  .scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0 -8px;
+    padding: 0 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+    /* sombras que só aparecem quando há mais conteúdo para rolar */
+    background:
+      linear-gradient(#fff 30%, rgb(255 255 255 / 0)) top / 100% 28px no-repeat local,
+      linear-gradient(rgb(255 255 255 / 0), #fff 70%) bottom / 100% 28px no-repeat local,
+      radial-gradient(farthest-side at 50% 0, rgb(var(--shadow-rgb) / 0.12), transparent) top / 100% 10px no-repeat scroll,
+      radial-gradient(farthest-side at 50% 100%, rgb(var(--shadow-rgb) / 0.12), transparent) bottom / 100% 10px no-repeat scroll;
+  }
+  @media (max-width: 1199px) {
+    .board .scroll {
+      max-height: 420px;
+    }
+  }
+  .card.lift:hover,
+  .kpi:hover {
+    transform: translateY(-2px);
+    border-color: #c9d4e8;
+    box-shadow: 0 18px 30px -18px rgb(23 50 92 / 0.45);
+  }
+
+  /* entrada suave dos blocos, um após o outro (--i = ordem). "backwards" para o hover
+     continuar funcionando depois da animação. */
+  .rise {
+    animation: rise 0.42s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation-delay: min(calc(var(--i, 0) * 55ms), 500ms);
+  }
+  /* troca de tela: o conteúdo assenta sem deslocar */
+  .pop {
+    animation: pop 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  /* vazio ocupa o card inteiro, centralizado */
+  .scroll > .empty-inline {
+    min-height: 100%;
+    justify-content: center;
+  }
+  /* em coluna estreita a linha de evento fica compacta */
+  @container (max-width: 400px) {
+    .ev {
+      gap: 12px;
+      padding: 10px 8px;
+    }
+    .ev-meta .det {
+      display: none;
+    }
+    .ev-when {
+      min-width: 0;
+    }
+  }
+
   .divider {
     height: 1px;
     background: var(--line-2);
@@ -906,12 +988,14 @@ button:disabled {
     align-items: center;
     gap: 16px;
     width: 100%;
+    min-width: 0;
     padding: 12px;
     border-radius: 14px;
     text-align: left;
   }
   .ev:hover {
     background: var(--surface-2);
+    transform: translateX(3px);
   }
   .ev.sel {
     background: var(--brand-50);
@@ -952,9 +1036,14 @@ button:disabled {
   .ev-title {
     font-size: 15px;
     font-weight: 650;
-    white-space: nowrap;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
+  }
+  .ev-meta > span {
+    max-width: 100%;
   }
   .ev-meta {
     margin-top: 6px;
@@ -1028,6 +1117,7 @@ button:disabled {
     align-items: flex-start;
     gap: 12px;
     width: 100%;
+    min-width: 0;
     padding: 12px;
     border-radius: 14px;
     border: 1px solid var(--line-2);
@@ -1342,10 +1432,6 @@ button:disabled {
       color 0.16s ease,
       opacity 0.2s ease;
   }
-  .kpi:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 28px rgb(var(--shadow-rgb) / 0.08);
-  }
   .btn:active:not(:disabled),
   .chip:active,
   .ib:active:not(:disabled),
@@ -1398,6 +1484,28 @@ button:disabled {
   }
 }
 
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes live {
   0% {
     box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0.55);
@@ -1432,6 +1540,7 @@ button:disabled {
   *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.001ms !important;
   }
 }

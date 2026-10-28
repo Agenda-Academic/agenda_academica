@@ -1,11 +1,12 @@
 "use client";
 
 import { ArrowRight, Bell, BookOpen, CalendarDays, Mail, Smartphone, Target, Trophy } from "lucide-react";
+import type { CSSProperties } from "react";
 import { formatDate } from "@/lib/format";
 import { allCategories, reminderOffsetLabel } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, Dashboard, Reminder } from "@/lib/types";
-import { CategoryBreakdown, EventList, InsightTile, NextEventHero, WeekSpark, dateChip } from "./dashboard-bits";
-import { EmptyState, SectionTitle } from "./ui";
+import { CategoryBreakdown, EventList, InsightTile, NextEventHero, WeekSpark, dateChip, delay } from "./dashboard-bits";
+import { SectionTitle } from "./ui";
 
 export function StudentDashboard({
   context,
@@ -59,7 +60,8 @@ export function StudentDashboard({
   return (
     <div className="grid gap-5">
       {/* Destaque + turma */}
-      <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="rise" style={delay(0)}>
         <NextEventHero
           event={nextEvent}
           onOpen={onSelect}
@@ -72,8 +74,9 @@ export function StudentDashboard({
           }
           onEmptyAction={{ label: "Ver cronograma", onClick: onOpenCalendar }}
         />
+        </div>
 
-        <section className="card pad flex flex-col" aria-label="Sua turma">
+        <section className="card pad rise flex flex-col" style={delay(1)} aria-label="Sua turma">
           <p className="eyebrow">Sua turma</p>
           <h2 className="disp mt-2 text-[34px] font-bold leading-none">{myClass?.name ?? "Sem turma"}</h2>
           <p className="sub">
@@ -109,6 +112,7 @@ export function StudentDashboard({
         <InsightTile
           icon={Target}
           label="Próximos 30 dias"
+          order={2}
           value={String(thirtyDays)}
           hint={thirtyDays === 1 ? "compromisso no período" : "compromissos no período"}
         >
@@ -116,7 +120,8 @@ export function StudentDashboard({
             <WeekSpark events={upcomingEvents} />
           </div>
         </InsightTile>
-        <InsightTile icon={BookOpen} label="Provas à frente" value={String(upcomingExams.length)} tone="c-prova">
+        <InsightTile icon={BookOpen} label="Provas à frente"
+          order={3} value={String(upcomingExams.length)} tone="c-prova">
           {upcomingExams.length ? (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {upcomingExams.slice(0, 4).map((event) => (
@@ -132,6 +137,7 @@ export function StudentDashboard({
         <InsightTile
           icon={Bell}
           label="Lembretes ativos"
+          order={4}
           value={String(pendingReminders.length)}
           tone="c-ativ"
           hint={
@@ -154,6 +160,7 @@ export function StudentDashboard({
         <InsightTile
           icon={Trophy}
           label="Pontos em jogo"
+          order={5}
           value={pointsAtStake ? String(pointsAtStake) : "—"}
           unit={pointsAtStake ? "pts" : undefined}
           tone="c-extra"
@@ -177,8 +184,9 @@ export function StudentDashboard({
       </div>
 
       {/* Linha do tempo + apoio: as duas colunas terminam na mesma linha */}
-      <div className="cols">
-        <section className="card pad h-full" aria-label="Próximos compromissos">
+      {/* Linha do tempo à esquerda (duas linhas) e apoio à direita: tudo alinhado, com rolagem interna */}
+      <div className="board" style={{ "--row": "310px" } as CSSProperties}>
+        <section className="card pad tall rise" style={delay(6)} aria-label="Próximos compromissos">
           <div className="head">
             <SectionTitle
               eyebrow="Linha do tempo"
@@ -190,12 +198,11 @@ export function StudentDashboard({
               Ver cronograma
             </button>
           </div>
-          <div className="mt-3.5">
+          <div className="scroll mt-3.5">
             <EventList
               events={upcomingEvents}
               grouped
               hideClass
-              limit={12}
               emptyIcon={CalendarDays}
               emptyText="Sem eventos futuros."
               emptyHint="Quando houver novos prazos, eles aparecem aqui."
@@ -204,57 +211,59 @@ export function StudentDashboard({
           </div>
         </section>
 
-        <div className="col">
-          <section className="card pad" aria-label="Próximos lembretes">
-            <SectionTitle
-              eyebrow="Alertas"
-              title="Próximos lembretes"
-              subtitle={`${pendingReminders.length} aguardando envio`}
-            />
-            <div className="mt-4 flex flex-col gap-2">
-              {pendingReminders.slice(0, 3).map((reminder) => (
-                <button key={reminder.id} className="mini" onClick={onOpenReminders} type="button">
-                  <span className="mini-ico">
-                    <Bell className="h-[18px] w-[18px]" aria-hidden />
+        <section className="card pad rise" style={delay(7)} aria-label="Próximos lembretes">
+          <SectionTitle
+            eyebrow="Alertas"
+            title="Próximos lembretes"
+            subtitle={`${pendingReminders.length} aguardando envio`}
+          />
+          <div className="scroll mt-3.5 flex flex-col gap-2">
+            {pendingReminders.map((reminder) => (
+              <button key={reminder.id} className="mini" onClick={onOpenReminders} type="button">
+                <span className="mini-ico">
+                  <Bell className="h-[18px] w-[18px]" aria-hidden />
+                </span>
+                <span className="min-w-0">
+                  <span className="mini-t block truncate">
+                    {reminder.academicEvent?.title ?? `Evento #${reminder.academicEventId}`}
                   </span>
-                  <span className="min-w-0">
-                    <span className="mini-t block truncate">
-                      {reminder.academicEvent?.title ?? `Evento #${reminder.academicEventId}`}
-                    </span>
-                    <span className="mini-s block">
-                      Envio {formatDate(reminder.sendAt)} · {reminderOffsetLabel(reminder.offsetMinutes)} ·{" "}
-                      {reminder.channel === "push" ? "Push" : "E-mail"}
-                    </span>
+                  <span className="mini-s block">
+                    Envio {formatDate(reminder.sendAt)} · {reminderOffsetLabel(reminder.offsetMinutes)} ·{" "}
+                    {reminder.channel === "push" ? "Push" : "E-mail"}
                   </span>
-                </button>
-              ))}
-              {!pendingReminders.length ? (
-                <EmptyState icon={Bell} text="Nenhum lembrete pendente." hint="Abra um evento e ative um lembrete pessoal." />
-              ) : null}
-            </div>
-            <button className="link mt-4" onClick={onOpenReminders} type="button">
-              Gerenciar lembretes
-              <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
-            </button>
-          </section>
+                </span>
+              </button>
+            ))}
+            {!pendingReminders.length ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-line-strong bg-surface-2 px-4 py-5 text-center">
+                <Bell className="h-5 w-5 text-brand" aria-hidden />
+                <p className="mt-1 text-sm font-bold">Nenhum lembrete pendente</p>
+                <p className="text-[12.5px] text-muted">Abra um evento e ative um lembrete.</p>
+              </div>
+            ) : null}
+          </div>
+          <button className="link mt-3" onClick={onOpenReminders} type="button">
+            Gerenciar lembretes
+            <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
+          </button>
+        </section>
 
-          <section className="card pad grow" aria-label="O que vem pela frente">
-            <SectionTitle
-              eyebrow="Categorias"
-              title="O que vem pela frente"
-              subtitle={`${thirtyDays} ${thirtyDays === 1 ? "compromisso" : "compromissos"} nos próximos 30 dias`}
+        <section className="card pad rise" style={delay(8)} aria-label="O que vem pela frente">
+          <SectionTitle
+            eyebrow="Categorias"
+            title="O que vem pela frente"
+            subtitle={`${thirtyDays} ${thirtyDays === 1 ? "compromisso" : "compromissos"} nos próximos 30 dias`}
+          />
+          <div className="scroll mt-4">
+            <CategoryBreakdown
+              counts={allCategories.map((category) => ({
+                category,
+                count: categories[category] ?? events.filter((event) => event.category === category).length,
+              }))}
+              emptyText="Sem eventos futuros para distribuir."
             />
-            <div className="mt-[18px]">
-              <CategoryBreakdown
-                counts={allCategories.map((category) => ({
-                  category,
-                  count: categories[category] ?? events.filter((event) => event.category === category).length,
-                }))}
-                emptyText="Sem eventos futuros para distribuir."
-              />
-            </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
     </div>
   );

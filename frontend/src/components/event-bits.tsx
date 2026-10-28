@@ -76,7 +76,7 @@ export function EventRow({
             <span className={cx("pill", statusMeta[event.status].pill)}>{statusMeta[event.status].label}</span>
           ) : null}
           {mine ? <span className="pill st-conc">Sua publicação</span> : null}
-          {details ? <span className="min-w-0 truncate">{details}</span> : null}
+          {details ? <span className="det min-w-0 truncate">{details}</span> : null}
         </span>
       </span>
       <span className="ev-when">
