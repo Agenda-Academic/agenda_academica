@@ -182,7 +182,7 @@ export function ManageView({
             ) : null}
           </div>
 
-          <div className="scroll mt-5">
+          <div className="scroll free mt-5">
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Título" className="md:col-span-2" hint="mín. 3 caracteres">
                 <input

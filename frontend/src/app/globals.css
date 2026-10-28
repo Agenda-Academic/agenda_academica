@@ -492,8 +492,9 @@ button:disabled {
       radial-gradient(farthest-side at 50% 0, rgb(var(--shadow-rgb) / 0.12), transparent) top / 100% 10px no-repeat scroll,
       radial-gradient(farthest-side at 50% 100%, rgb(var(--shadow-rgb) / 0.12), transparent) bottom / 100% 10px no-repeat scroll;
   }
+  /* empilhado, os cards de lista seguem com rolagem; formulário (.free) cresce inteiro */
   @media (max-width: 1199px) {
-    .board .scroll {
+    .board .scroll:not(.free) {
       max-height: 420px;
     }
   }
@@ -725,11 +726,16 @@ button:disabled {
   .seg {
     display: inline-flex;
     gap: 2px;
+    max-width: 100%;
     padding: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
     border-radius: 13px;
     background: var(--seg-bg);
   }
   .seg button {
+    flex-shrink: 0;
+    white-space: nowrap;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -752,6 +758,19 @@ button:disabled {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+  }
+  /* no celular os filtros de categoria ficam numa linha só, com rolagem lateral */
+  @media (max-width: 639px) {
+    .chips.chips-row {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+    }
+    .chips.chips-row > * {
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
   }
   .chip {
     display: inline-flex;
