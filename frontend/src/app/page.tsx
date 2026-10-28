@@ -842,6 +842,7 @@ export default function Home() {
               saving={saving}
               onDelete={removeReminder}
               onOpenEvent={selectEvent}
+              onOpenProfile={() => setProfileOpen(true)}
             />
           ) : null}
 
