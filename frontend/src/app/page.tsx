@@ -547,7 +547,7 @@ export default function Home() {
     try {
       await saveReminder(session.token, {
         academicEventId: selectedEvent.id,
-        channel: session.user.notificationChannel,
+        channel: "email",
         offsetMinutes: Number(reminderOffset),
         enabled: true,
       });
@@ -659,7 +659,6 @@ export default function Home() {
       const updated = await updateProfile(session.token, {
         fullName: form.fullName.trim() || null,
         defaultReminderMinutes: Number(form.defaultReminderMinutes),
-        notificationChannel: form.notificationChannel,
       });
       const nextSession = { ...session, user: updated };
       setSession(nextSession);

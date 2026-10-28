@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Bell, BookOpen, CalendarDays, Mail, Smartphone, Target, Trophy } from "lucide-react";
+import { ArrowRight, Bell, BookOpen, CalendarDays, Mail, Target, Trophy } from "lucide-react";
 import type { CSSProperties } from "react";
 import { formatDate } from "@/lib/format";
 import { allCategories, reminderOffsetLabel } from "@/lib/meta";
@@ -30,7 +30,6 @@ export function StudentDashboard({
   const nextEvent = upcomingEvents[0] ?? null;
   const categories = dashboard?.metrics.categories ?? {};
   const pendingReminders = reminders.filter((reminder) => reminder.enabled && !reminder.sentAt);
-  const byEmail = pendingReminders.filter((reminder) => reminder.channel === "email").length;
   const upcomingExams = upcomingEvents.filter((event) => event.category === "exam");
   const pointsAtStake = upcomingEvents.reduce((sum, event) => sum + (event.points ?? 0), 0);
   const myClass = context?.enrollments[0]?.academicClass ?? null;
@@ -142,15 +141,9 @@ export function StudentDashboard({
           tone="c-ativ"
           hint={
             pendingReminders.length ? (
-              <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                <span className="inline-flex items-center gap-1.5">
-                  <Mail className="h-[15px] w-[15px]" aria-hidden />
-                  {byEmail} por e-mail
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Smartphone className="h-[15px] w-[15px]" aria-hidden />
-                  {pendingReminders.length - byEmail} push
-                </span>
+              <span className="mt-1 inline-flex items-center gap-1.5">
+                <Mail className="h-[15px] w-[15px]" aria-hidden />
+                aguardando envio por e-mail
               </span>
             ) : (
               "nenhum aguardando envio"
@@ -228,8 +221,7 @@ export function StudentDashboard({
                     {reminder.academicEvent?.title ?? `Evento #${reminder.academicEventId}`}
                   </span>
                   <span className="mini-s block">
-                    Envio {formatDate(reminder.sendAt)} · {reminderOffsetLabel(reminder.offsetMinutes)} ·{" "}
-                    {reminder.channel === "push" ? "Push" : "E-mail"}
+                    Envio {formatDate(reminder.sendAt)} · {reminderOffsetLabel(reminder.offsetMinutes)}
                   </span>
                 </span>
               </button>

@@ -107,7 +107,7 @@ export async function getProfile(token: string) {
 export type ProfileInput = {
   fullName?: string | null;
   defaultReminderMinutes?: number;
-  notificationChannel?: "email" | "push";
+  notificationChannel?: "email";
 };
 
 export async function updateProfile(token: string, input: ProfileInput) {
@@ -189,7 +189,7 @@ export async function getReminders(token: string) {
 
 export type ReminderInput = {
   academicEventId: number;
-  channel?: "email" | "push";
+  channel?: "email";
   offsetMinutes?: number;
   enabled?: boolean;
 };

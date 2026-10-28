@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Bell, BellOff, CalendarClock, CheckCircle2, Clock, Mail, Send, Smartphone } from "lucide-react";
+import { ArrowRight, Bell, BellOff, CalendarClock, CheckCircle2, Clock, Mail, Send } from "lucide-react";
 import { useState, type CSSProperties } from "react";
 import { cx, formatDate, relativeDue } from "@/lib/format";
 import { categoryMeta, reminderOffsetLabel } from "@/lib/meta";
@@ -57,8 +57,8 @@ function ReminderRow({
             {reminderOffsetLabel(reminder.offsetMinutes)}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            {reminder.channel === "push" ? <Smartphone className="h-3.5 w-3.5" aria-hidden /> : <Mail className="h-3.5 w-3.5" aria-hidden />}
-            {reminder.channel === "push" ? "Push" : "E-mail"}
+            <Mail className="h-3.5 w-3.5" aria-hidden />
+            E-mail
           </span>
         </div>
       </div>
@@ -82,7 +82,7 @@ function ReminderRow({
 const steps = [
   { title: "Abra um evento", text: "No cronograma ou no painel, toque na prova, entrega ou data oficial que importa para você." },
   { title: "Escolha a antecedência", text: "De 15 minutos a 7 dias antes. O canal segue o padrão do seu perfil." },
-  { title: "Receba o aviso", text: "No horário do aviso, o sistema registra o lembrete como enviado. O disparo por e-mail e push está previsto." },
+  { title: "Receba o aviso", text: "No horário do aviso, o sistema registra o lembrete como enviado. O disparo por e-mail está previsto." },
 ];
 
 export function RemindersView({

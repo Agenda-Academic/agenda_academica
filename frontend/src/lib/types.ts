@@ -18,7 +18,7 @@ export type User = {
   role: UserRole;
   registration: string | null;
   defaultReminderMinutes: number;
-  notificationChannel: "email" | "push";
+  notificationChannel: "email";
   /** Presente nas respostas de conta (transformer); ausente em relações como event.teacher. */
   initials?: string;
 };
@@ -73,7 +73,7 @@ export type Reminder = {
   id: number;
   userId: number;
   academicEventId: number;
-  channel: "email" | "push";
+  channel: "email";
   offsetMinutes: number;
   sendAt: string;
   sentAt: string | null;

@@ -1,8 +1,7 @@
 "use client";
 
-import { Loader2, Mail, Save, Smartphone } from "lucide-react";
+import { Loader2, Mail, Save } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { cx } from "@/lib/format";
 import { reminderOptions, roleLabels } from "@/lib/meta";
 import type { User } from "@/lib/types";
 import { Field, Modal } from "./ui";
@@ -10,7 +9,6 @@ import { Field, Modal } from "./ui";
 export type ProfileFormState = {
   fullName: string;
   defaultReminderMinutes: string;
-  notificationChannel: "email" | "push";
 };
 
 export function ProfileModal({
@@ -27,18 +25,12 @@ export function ProfileModal({
   const [form, setForm] = useState<ProfileFormState>({
     fullName: user.fullName ?? "",
     defaultReminderMinutes: String(user.defaultReminderMinutes),
-    notificationChannel: user.notificationChannel,
   });
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     onSave(form);
   }
-
-  const channels = [
-    { value: "email" as const, label: "E-mail", detail: user.email, icon: Mail },
-    { value: "push" as const, label: "Push", detail: "Aviso no celular", icon: Smartphone },
-  ];
 
   return (
     <Modal onClose={onClose} title="Configurações do perfil">
@@ -83,33 +75,16 @@ export function ProfileModal({
           </Field>
 
           <div className="grid gap-2">
-            <span className="lbl">Canal de notificação</span>
-            <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label="Canal de notificação">
-              {channels.map((channel) => {
-                const on = form.notificationChannel === channel.value;
-                return (
-                  <button
-                    key={channel.value}
-                    className={cx("opt", on && "on")}
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => setForm({ ...form, notificationChannel: channel.value })}
-                    type="button"
-                  >
-                    <span className="radio" aria-hidden />
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-1.5 text-sm font-bold">
-                        <channel.icon className="h-4 w-4" aria-hidden />
-                        {channel.label}
-                      </span>
-                      <span className="mt-0.5 block truncate text-xs text-muted">{channel.detail}</span>
-                    </span>
-                  </button>
-                );
-              })}
+            <span className="lbl">Avisos</span>
+            <div className="flex items-center gap-3 rounded-2xl border border-line-2 bg-surface-2 px-4 py-3">
+              <Mail className="h-4 w-4 shrink-0 text-brand" aria-hidden />
+              <span className="min-w-0">
+                <span className="block text-sm font-bold">Por e-mail</span>
+                <span className="block truncate text-xs text-muted">{user.email}</span>
+              </span>
             </div>
             <p className="field-help !mt-1">
-              O envio por e-mail e push está previsto. Hoje o sistema registra o lembrete no horário do aviso.
+              O envio por e-mail está previsto. Hoje o sistema registra o lembrete no horário do aviso.
             </p>
           </div>
         </div>
