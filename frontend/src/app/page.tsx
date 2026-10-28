@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, Loader2, Search } from "lucide-react";
+import { CalendarPlus, GraduationCap, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AppShell, type View } from "@/components/app-shell";
 import { CalendarView, type CalendarMode } from "@/components/calendar-view";
@@ -18,6 +18,7 @@ import { RemindersView } from "@/components/reminders-view";
 import { SyncView } from "@/components/sync-view";
 import {
   ConfirmDialog,
+  PageSkeleton,
   Spinner,
   ToastStack,
   primaryButton,
@@ -205,6 +206,8 @@ export default function Home() {
         const parsed = JSON.parse(stored) as Session;
         if (active) {
           setSession(parsed);
+          // com a sessão salva já mostra a casca e o esqueleto enquanto os dados chegam
+          setBooting(false);
         }
         await loadAll(parsed);
       })
@@ -675,10 +678,12 @@ export default function Home() {
   /* ---------------------------------------------------------------- */
   if (booting) {
     return (
-      <main className="grid min-h-screen place-items-center bg-app text-slate-700">
-        <div className="surface flex items-center gap-3 px-5 py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-emerald-700" aria-hidden />
-          <span className="text-sm font-medium">Carregando agenda…</span>
+      <main className="grid min-h-screen place-items-center bg-app text-ink">
+        <div className="pop flex flex-col items-center gap-4" role="status">
+          <span className="mark">
+            <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
+          </span>
+          <Spinner label="Carregando agenda…" />
         </div>
       </main>
     );
@@ -744,11 +749,10 @@ export default function Home() {
           </div>
         </header>
 
-        <div>
+        {/* a chave reinicia a animação a cada troca de tela */}
+        <div key={activeView} className="pop">
           {loading && !lastLoadedAt ? (
-            <div className="surface grid min-h-64 place-items-center p-6">
-              <Spinner label="Carregando dados da agenda…" />
-            </div>
+            <PageSkeleton />
           ) : (
             <>
           {activeView === "dashboard" && user.role === "student" ? (
