@@ -161,7 +161,7 @@ function FilterBar({
         </span>
       </div>
 
-      <div className="chips items-center">
+      <div className="chips chips-row items-center">
         <button
           className={cx("chip", allSelected && "all")}
           aria-pressed={allSelected}
@@ -415,7 +415,7 @@ export function CalendarView({
                   ? "Cronograma das suas turmas"
                   : "Cronograma da sua turma"
             }
-            subtitle={calendarMode === "list" ? "Toque num evento para ver os detalhes ao lado" : "Visão mensal com as categorias filtradas"}
+            subtitle={calendarMode === "list" ? "Toque num evento para ver os detalhes" : "Visão mensal com as categorias filtradas"}
           />
           <Segmented label="Modo de visualização">
             <SegmentedButton active={calendarMode === "list"} onClick={() => setCalendarMode("list")} icon={ListChecks} label="Agenda" />
