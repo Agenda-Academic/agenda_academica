@@ -1,12 +1,17 @@
 "use client";
 
 import { ArrowRight, Bell, Clock, MapPin, PieChart, Trophy, UserRound, type LucideIcon } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { countdown, cx, dateParts, groupByWeek, isAllDay, relativeDue, formatTime } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, Category } from "@/lib/types";
 import { EventRow } from "./event-bits";
 import { EmptyState } from "./ui";
+
+/** Atraso da entrada suave (classe "rise"): blocos aparecem em sequência. */
+export function delay(order: number) {
+  return { "--i": order } as CSSProperties;
+}
 
 /** Card de indicador (KPI) do Figma. */
 export function InsightTile({
@@ -16,8 +21,10 @@ export function InsightTile({
   unit,
   hint,
   tone,
+  order = 0,
   children,
 }: {
+  order?: number;
   icon: LucideIcon;
   label: string;
   value: string;
@@ -28,7 +35,7 @@ export function InsightTile({
   children?: ReactNode;
 }) {
   return (
-    <div className="card kpi">
+    <div className="card kpi rise" style={delay(order)}>
       <div className="kpi-top">
         <p className="kpi-label">{label}</p>
         <span className={cx("kpi-ico", tone)}>
