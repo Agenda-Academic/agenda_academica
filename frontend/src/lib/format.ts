@@ -152,8 +152,15 @@ export function firstName(value: string) {
   return parts.find((part) => !honorifics.has(part.toLowerCase())) ?? parts[0] ?? value;
 }
 
+// Mensagens padrão da API em inglês que chegam direto para a pessoa.
+const apiMessages: Record<string, string> = {
+  "Invalid user credentials": "E-mail ou senha incorretos.",
+  "Unauthorized access": "Sua sessão expirou. Entre novamente.",
+};
+
 export function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Algo deu errado. Tente novamente.";
+  if (!(error instanceof Error)) return "Algo deu errado. Tente novamente.";
+  return apiMessages[error.message] ?? error.message;
 }
 
 export function cx(...classes: Array<string | false | null | undefined>) {
