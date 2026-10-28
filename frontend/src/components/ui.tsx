@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, Check, Info, Loader2, X, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { cx } from "@/lib/format";
 
 /* ------------------------------------------------------------------ */
@@ -117,6 +117,63 @@ export function Spinner({ label }: { label?: string }) {
       <Loader2 className="h-4 w-4 animate-spin text-brand" aria-hidden />
       {label}
     </span>
+  );
+}
+
+/** Esqueleto do painel (destaque, KPIs e dois cards) enquanto os dados chegam. */
+export function PageSkeleton() {
+  // no plano gratuito a API dorme; se demorar, explica a espera
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="pop grid gap-5" role="status">
+      <span className="sr-only">Carregando dados da agenda…</span>
+      {slow ? (
+        <p className="callout blue pop">
+          <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" aria-hidden />
+          O servidor estava em repouso e está voltando. No primeiro acesso isso leva até um minuto.
+        </p>
+      ) : null}
+      <div className="card pad grid gap-3">
+        <span className="skel h-3 w-28" />
+        <span className="skel h-8 w-2/3" />
+        <span className="skel h-4 w-1/2" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className="card pad flex items-center gap-3.5">
+            <span className="skel h-11 w-11 shrink-0 !rounded-xl" />
+            <span className="grid flex-1 gap-2">
+              <span className="skel h-3 w-20" />
+              <span className="skel h-6 w-14" />
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        {[0, 1].map((card) => (
+          <div key={card} className="card pad grid content-start gap-4">
+            <span className="grid gap-2">
+              <span className="skel h-3 w-24" />
+              <span className="skel h-5 w-48" />
+            </span>
+            {[0, 1, 2, 3].map((row) => (
+              <span key={row} className="flex items-center gap-3">
+                <span className="skel h-12 w-12 shrink-0 !rounded-xl" />
+                <span className="grid flex-1 gap-2">
+                  <span className="skel h-3.5 w-3/4" />
+                  <span className="skel h-3 w-1/2" />
+                </span>
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
