@@ -103,6 +103,7 @@ export const statusMeta: Record<EventStatus, { label: string; pill: string }> = 
 };
 
 export const reminderOptions = [
+  { value: "15", label: "15 minutos antes" },
   { value: "30", label: "30 minutos antes" },
   { value: "60", label: "1 hora antes" },
   { value: "180", label: "3 horas antes" },
@@ -111,7 +112,17 @@ export const reminderOptions = [
   { value: "1440", label: "1 dia antes" },
   { value: "2880", label: "2 dias antes" },
   { value: "4320", label: "3 dias antes" },
-  { value: "10080", label: "1 semana antes" },
+  { value: "10080", label: "7 dias antes" },
+];
+
+/** Atalhos de antecedência no detalhe do evento (mesmos do Figma). */
+export const reminderChips = [
+  { value: "15", label: "15 min" },
+  { value: "60", label: "1 hora" },
+  { value: "180", label: "3 horas" },
+  { value: "1440", label: "1 dia" },
+  { value: "2880", label: "2 dias" },
+  { value: "10080", label: "7 dias" },
 ];
 
 export function reminderOffsetLabel(minutes: number) {

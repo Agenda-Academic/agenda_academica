@@ -19,10 +19,11 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { useState } from "react";
 import { cx, dateParts, daysUntil, formatDateLong, formatTime, isAllDay, relativeDue } from "@/lib/format";
-import { categoryMeta, reminderOffsetLabel, reminderOptions, sourceLabels, statusMeta } from "@/lib/meta";
+import { categoryMeta, reminderChips, reminderOffsetLabel, sourceLabels, statusMeta } from "@/lib/meta";
 import type { AcademicEvent } from "@/lib/types";
-import { Field, InfoLine, dangerButton, secondaryButton } from "./ui";
+import { InfoLine } from "./ui";
 
 export function EventRow({
   event,
@@ -112,58 +113,47 @@ export function EventDetailContent({
 }) {
   const meta = categoryMeta[event.category];
   const reminder = event.reminder ?? null;
+  const official = event.officialPriority || event.source !== "teacher";
+  // horário de referência fixado na montagem (render precisa ser puro)
+  const [now] = useState(() => Date.now());
+  const past = new Date(event.endsAt ?? event.startsAt).getTime() < now;
+  const sendAt = new Date(new Date(event.startsAt).getTime() - Number(reminderOffset) * 60000);
+  const sendPassed = sendAt.getTime() < now;
+  const chips = reminderChips.some((chip) => chip.value === reminderOffset)
+    ? reminderChips
+    : [{ value: reminderOffset, label: reminderOffsetLabel(Number(reminderOffset)).replace(" antes", "") }, ...reminderChips];
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={cx("inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold", meta.pill)}>
-              {meta.short}
-            </span>
-            {event.status !== "scheduled" ? (
-              <span
-                className={cx(
-                  "inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold",
-                  statusMeta[event.status].pill
-                )}
-              >
-                {statusMeta[event.status].label}
-              </span>
-            ) : null}
-            {event.officialPriority || event.source !== "teacher" ? (
-              <span className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-                Oficial
-              </span>
-            ) : null}
-          </div>
-          <h2
-            className={cx(
-              "mt-3 text-2xl font-semibold leading-tight tracking-tight",
-              event.status === "cancelled" ? "text-slate-400 line-through" : "text-slate-950"
-            )}
-          >
-            {event.title}
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">{sourceLabels[event.source]}</p>
-        </div>
-        <span className={cx("mt-1 h-3 w-3 shrink-0 rounded-full", meta.accent)} aria-hidden />
-      </div>
-
-      <dl className="info mt-6">
-        <InfoLine icon={CalendarDays} label="Início" value={formatDateLong(event.startsAt)} />
-        {event.endsAt ? (
-          <InfoLine icon={CalendarClock} label="Término" value={formatDateLong(event.endsAt)} />
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={cx("pill", meta.tint)}>{meta.short}</span>
+        {event.status !== "scheduled" ? (
+          <span className={cx("pill", statusMeta[event.status].pill)}>{statusMeta[event.status].label}</span>
         ) : null}
+        {official ? (
+          <span className="pill prio">
+            <ShieldCheck className="h-3 w-3" aria-hidden />
+            Oficial
+          </span>
+        ) : null}
+      </div>
+      <h2
+        className={cx(
+          "disp mt-3 text-[26px] font-bold leading-tight",
+          event.status === "cancelled" && "text-faint line-through"
+        )}
+      >
+        {event.title}
+      </h2>
+      <p className="sub">{sourceLabels[event.source]}</p>
+
+      <dl className="info mt-5">
+        <InfoLine icon={CalendarDays} label="Início" value={formatDateLong(event.startsAt)} />
+        {event.endsAt ? <InfoLine icon={CalendarClock} label="Término" value={formatDateLong(event.endsAt)} /> : null}
         <InfoLine icon={MapPin} label="Local" value={event.location ?? "Não informado"} />
         <InfoLine icon={BookOpen} label="Disciplina" value={event.subject?.name ?? "Institucional"} />
-        <InfoLine icon={Users} label="Turma" value={event.academicClass?.name ?? "Todos"} />
-        <InfoLine
-          icon={UserRound}
-          label="Responsável"
-          value={event.teacher?.fullName ?? "Institucional"}
-        />
+        <InfoLine icon={Users} label="Turma" value={event.academicClass?.name ?? "Todas"} />
+        <InfoLine icon={UserRound} label="Responsável" value={event.teacher?.fullName ?? "Institucional"} />
         <InfoLine
           icon={ListChecks}
           label="Pontuação"
@@ -171,98 +161,97 @@ export function EventDetailContent({
         />
       </dl>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <p className="text-sm leading-6 text-slate-700">
-          {event.description ?? "Sem descrição complementar."}
-        </p>
-      </div>
+      <p className="callout past mt-5">{event.description ?? "Sem descrição complementar."}</p>
 
-      <div className="mt-5 border-t border-slate-200 pt-4">
-        <Field
-          label="Lembrete pessoal"
-          hint={reminder ? `ativo · ${reminderOffsetLabel(reminder.offsetMinutes)}` : "nenhum configurado"}
-        >
-          <select
-            className="input"
-            value={reminderOffset}
-            onChange={(eventTarget) => setReminderOffset(eventTarget.target.value)}
-          >
-            {reminderOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <div className={cx("mt-3 grid gap-2", reminder ? "grid-cols-[1fr_auto]" : "")}>
+      <div className="mt-5 rounded-2xl border border-line bg-surface-2 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[15px] font-bold">Lembrete pessoal</p>
+          <span className={cx("pill", reminder ? "st-conc" : "st-ag")}>
+            {reminder ? (
+              <>
+                <CheckCircle2 className="h-3 w-3" aria-hidden />
+                Ativo
+              </>
+            ) : (
+              "Desligado"
+            )}
+          </span>
+        </div>
+        <p className="lbl mt-4 mb-2">Antecedência</p>
+        <div className="chips" role="group" aria-label="Antecedência do lembrete">
+          {chips.map((chip) => (
+            <button
+              key={chip.value}
+              className={cx("chip", reminderOffset === chip.value && "all")}
+              aria-pressed={reminderOffset === chip.value}
+              onClick={() => setReminderOffset(chip.value)}
+              type="button"
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+        <p className={cx("field-help mt-3", (past || sendPassed) && "font-semibold text-[#B4234A]")}>
+          {past
+            ? "O evento já aconteceu — não há lembrete a enviar."
+            : sendPassed
+              ? "Esse horário de aviso já passou. Escolha uma antecedência menor."
+              : `Você será avisado ${formatDateLong(sendAt.toISOString())}, pelo canal do seu perfil.`}
+        </p>
+        <div className="mt-3.5 flex gap-2.5">
           <button
-            className={cx(secondaryButton, "w-full")}
-            disabled={saving}
+            className="btn btn-p flex-1"
+            disabled={saving || past || sendPassed}
             onClick={onSaveReminder}
             type="button"
           >
-            <Bell className="h-4 w-4" aria-hidden />
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Bell className="h-4 w-4" aria-hidden />}
             {reminder ? "Atualizar lembrete" : "Ativar lembrete"}
           </button>
           {reminder ? (
             <button
-              className={cx(secondaryButton, "text-rose-600 hover:text-rose-700")}
+              className="btn btn-danger px-3.5"
               disabled={saving}
               onClick={() => onRemoveReminder(event)}
               title="Remover lembrete"
+              aria-label="Remover lembrete"
               type="button"
             >
-              <BellOff className="h-4 w-4" aria-hidden />
+              <BellOff className="h-[18px] w-[18px]" aria-hidden />
             </button>
           ) : null}
         </div>
       </div>
 
       {canManage ? (
-        <div className="mt-5 grid gap-2 border-t border-slate-200 pt-4">
-          <div className="grid grid-cols-2 gap-2">
-            <button className={secondaryButton} onClick={() => onEdit(event)} type="button">
+        <div className="mt-5 grid gap-2.5 border-t border-line-2 pt-5">
+          <p className="eyebrow">Gestão do evento</p>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button className="btn btn-s" onClick={() => onEdit(event)} type="button">
               <Edit3 className="h-4 w-4" aria-hidden />
               Editar
             </button>
-            <button className={dangerButton} onClick={() => onDelete(event)} type="button">
+            {event.status === "scheduled" || event.status === "changed" ? (
+              <button className="btn btn-s" disabled={saving} onClick={() => onSetStatus(event, "completed")} type="button">
+                <CheckCircle2 className="h-4 w-4 text-brand" aria-hidden />
+                Concluir
+              </button>
+            ) : (
+              <button className="btn btn-s" disabled={saving} onClick={() => onSetStatus(event, "scheduled")} type="button">
+                <RotateCcw className="h-4 w-4" aria-hidden />
+                Reativar
+              </button>
+            )}
+            {event.status === "scheduled" || event.status === "changed" ? (
+              <button className="btn btn-s" disabled={saving} onClick={() => onSetStatus(event, "cancelled")} type="button">
+                <X className="h-4 w-4 text-[#B4234A]" aria-hidden />
+                Cancelar evento
+              </button>
+            ) : null}
+            <button className="btn btn-danger" onClick={() => onDelete(event)} type="button">
               <Trash2 className="h-4 w-4" aria-hidden />
               Excluir
             </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {event.status === "scheduled" || event.status === "changed" ? (
-              <>
-                <button
-                  className={cx(secondaryButton, "text-emerald-700")}
-                  disabled={saving}
-                  onClick={() => onSetStatus(event, "completed")}
-                  type="button"
-                >
-                  <CheckCircle2 className="h-4 w-4" aria-hidden />
-                  Concluir
-                </button>
-                <button
-                  className={cx(secondaryButton, "text-rose-600")}
-                  disabled={saving}
-                  onClick={() => onSetStatus(event, "cancelled")}
-                  type="button"
-                >
-                  <X className="h-4 w-4" aria-hidden />
-                  Cancelar
-                </button>
-              </>
-            ) : (
-              <button
-                className={cx(secondaryButton, "col-span-2")}
-                disabled={saving}
-                onClick={() => onSetStatus(event, "scheduled")}
-                type="button"
-              >
-                <RotateCcw className="h-4 w-4" aria-hidden />
-                Reagendar como ativo
-              </button>
-            )}
           </div>
         </div>
       ) : null}
@@ -272,13 +261,14 @@ export function EventDetailContent({
 
 export function EmptyDetail() {
   return (
-    <div className="grid min-h-72 place-items-center p-6 text-center">
-      <div>
-        <PanelRightOpen className="mx-auto h-8 w-8 text-slate-400" aria-hidden />
-        <p className="mt-3 text-sm font-medium text-slate-600">
-          Selecione um evento para ver os detalhes.
-        </p>
-      </div>
+    <div className="flex h-full min-h-72 flex-col items-center justify-center gap-2 p-6 text-center">
+      <span className="empty-ico">
+        <PanelRightOpen className="h-6 w-6" aria-hidden />
+      </span>
+      <p className="mt-2 text-[15px] font-bold">Selecione um evento</p>
+      <p className="max-w-[240px] text-[13px] leading-5 text-muted">
+        Os detalhes, o lembrete pessoal e as ações aparecem aqui.
+      </p>
     </div>
   );
 }
