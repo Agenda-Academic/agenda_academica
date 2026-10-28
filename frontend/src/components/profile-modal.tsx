@@ -5,7 +5,7 @@ import { useState, type FormEvent } from "react";
 import { cx } from "@/lib/format";
 import { reminderOptions, roleLabels } from "@/lib/meta";
 import type { User } from "@/lib/types";
-import { Field, Modal, primaryButton } from "./ui";
+import { Field, Modal } from "./ui";
 
 export type ProfileFormState = {
   fullName: string;
@@ -35,23 +35,29 @@ export function ProfileModal({
     onSave(form);
   }
 
+  const channels = [
+    { value: "email" as const, label: "E-mail", detail: user.email, icon: Mail },
+    { value: "push" as const, label: "Push", detail: "Aviso no celular", icon: Smartphone },
+  ];
+
   return (
     <Modal onClose={onClose} title="Configurações do perfil">
       <form onSubmit={handleSubmit}>
-        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-sm font-bold text-emerald-800 shadow-sm">
+        <div className="flex items-center gap-3.5 rounded-2xl border border-line-2 bg-surface-2 p-4">
+          <span className="disp flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-night text-[15px] font-bold text-accent">
             {user.initials ?? (user.fullName ?? user.email).slice(0, 2).toUpperCase()}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-950">{user.email}</p>
-            <p className="text-xs text-slate-500">
-              {roleLabels[user.role]}
-              {user.registration ? ` · ${user.registration}` : ""}
-            </p>
+            <p className="truncate text-[15px] font-bold">{user.fullName ?? user.email}</p>
+            <p className="truncate text-[13px] text-muted">{user.email}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="pill st-ag">{roleLabels[user.role]}</span>
+              {user.registration ? <span className="pill st-ag">{user.registration}</span> : null}
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4">
+        <div className="mt-5 grid gap-4">
           <Field label="Nome completo">
             <input
               className="input"
@@ -62,7 +68,7 @@ export function ProfileModal({
             />
           </Field>
 
-          <Field label="Lembrete padrão" hint="usado ao ativar lembretes novos">
+          <Field label="Lembrete padrão" hint="usado ao ativar novos lembretes">
             <select
               className="input"
               value={form.defaultReminderMinutes}
@@ -76,48 +82,47 @@ export function ProfileModal({
             </select>
           </Field>
 
-          <Field label="Canal de notificação">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                className={cx(
-                  "flex h-11 items-center justify-center gap-2 rounded-lg border text-sm font-semibold transition",
-                  form.notificationChannel === "email"
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                )}
-                aria-pressed={form.notificationChannel === "email"}
-                onClick={() => setForm({ ...form, notificationChannel: "email" })}
-                type="button"
-              >
-                <Mail className="h-4 w-4" aria-hidden />
-                E-mail
-              </button>
-              <button
-                className={cx(
-                  "flex h-11 items-center justify-center gap-2 rounded-lg border text-sm font-semibold transition",
-                  form.notificationChannel === "push"
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                )}
-                aria-pressed={form.notificationChannel === "push"}
-                onClick={() => setForm({ ...form, notificationChannel: "push" })}
-                type="button"
-              >
-                <Smartphone className="h-4 w-4" aria-hidden />
-                Push
-              </button>
+          <div className="grid gap-2">
+            <span className="lbl">Canal de notificação</span>
+            <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label="Canal de notificação">
+              {channels.map((channel) => {
+                const on = form.notificationChannel === channel.value;
+                return (
+                  <button
+                    key={channel.value}
+                    className={cx("opt", on && "on")}
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setForm({ ...form, notificationChannel: channel.value })}
+                    type="button"
+                  >
+                    <span className="radio" aria-hidden />
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-1.5 text-sm font-bold">
+                        <channel.icon className="h-4 w-4" aria-hidden />
+                        {channel.label}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-muted">{channel.detail}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          </Field>
+            <p className="field-help !mt-1">
+              O envio por e-mail e push está previsto. Hoje o sistema registra o lembrete no horário do aviso.
+            </p>
+          </div>
         </div>
 
-        <button className={cx(primaryButton, "mt-5 w-full")} disabled={saving} type="submit">
-          {saving ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <Save className="h-4 w-4" aria-hidden />
-          )}
-          Salvar preferências
-        </button>
+        <div className="mt-6 flex justify-end gap-2.5 border-t border-line-2 pt-5">
+          <button className="btn btn-s" onClick={onClose} type="button">
+            Cancelar
+          </button>
+          <button className="btn btn-p" disabled={saving} type="submit">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}
+            Salvar preferências
+          </button>
+        </div>
       </form>
     </Modal>
   );
