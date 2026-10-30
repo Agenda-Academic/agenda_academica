@@ -165,7 +165,7 @@ function Countdown({ startsAt }: { startsAt: string }) {
   return <b>{countdown(startsAt, now)}</b>;
 }
 
-/** Destaque azul do próximo compromisso, com bloco de data e contagem regressiva. */
+/** Destaque do próximo compromisso (card branco com faixa verde), com bloco de data e contagem regressiva. */
 export function NextEventHero({
   event,
   emptyTitle = "Você está em dia com os prazos",
@@ -189,9 +189,9 @@ export function NextEventHero({
     return (
       <section className="hero h-full" aria-label={kicker}>
         <div className="hero-body">
-          <p className="eyebrow text-accent">{kicker}</p>
+          <p className="eyebrow text-brand">{kicker}</p>
           <h2 className="hero-title">{emptyTitle}</h2>
-          <p className="mt-3 text-sm text-on-night">{emptyText}</p>
+          <p className="mt-3 text-sm text-ink-3">{emptyText}</p>
           {onEmptyAction ? (
             <div className="hero-actions">
               <button className="btn btn-p" onClick={onEmptyAction.onClick} type="button">
@@ -207,7 +207,7 @@ export function NextEventHero({
 
   const meta = categoryMeta[event.category];
   const parts = dateParts(event.startsAt);
-  const when = `${relativeDue(event.startsAt).replace(/^./, (c) => c.toUpperCase())}${isAllDay(event.startsAt) ? " · dia todo" : `, ${formatTime(event.startsAt)}`}`;
+  const when = `${relativeDue(event.startsAt).replace(/^./, (c) => c.toUpperCase())}${isAllDay(event.startsAt) ? ", dia todo" : `, ${formatTime(event.startsAt)}`}`;
   const SecondaryIcon = secondary?.icon ?? Bell;
 
   return (
@@ -253,7 +253,7 @@ export function NextEventHero({
             <ArrowRight className="h-4 w-4" aria-hidden />
           </button>
           {secondary ? (
-            <button className="btn btn-ghost" onClick={secondary.onClick} type="button">
+            <button className="btn btn-s" onClick={secondary.onClick} type="button">
               <SecondaryIcon className="h-4 w-4" aria-hidden />
               {secondary.label}
             </button>
