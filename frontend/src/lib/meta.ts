@@ -83,7 +83,7 @@ export const adminOnlyCategories: Category[] = ["institutional", "holiday", "rec
 
 export const roleLabels: Record<UserRole, string> = {
   student: "Aluno",
-  teacher: "Professor",
+  teacher: "Docente",
   admin: "Administração",
 };
 
@@ -151,7 +151,7 @@ export const demoAccounts = [
   {
     label: "Professor",
     description: "Cria e gerencia eventos das suas turmas",
-    email: "apio@agenda.test",
+    email: "maraisa@agenda.test",
     password: "password123",
   },
   {

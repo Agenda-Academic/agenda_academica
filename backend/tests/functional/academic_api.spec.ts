@@ -63,7 +63,7 @@ test.group('Academic API', (group) => {
     client,
     assert,
   }) => {
-    const teacherToken = await loginAs(client, 'apio@agenda.test')
+    const teacherToken = await loginAs(client, 'maraisa@agenda.test')
 
     const created = await client.post('/api/v1/events').bearerToken(teacherToken).json({
       title: 'Seminario de requisitos',

@@ -8,13 +8,11 @@ import TeachingAssignment from '#models/teaching_assignment'
 import User from '#models/user'
 import { DateTime } from 'luxon'
 
-/** Dia letivo às `hour` horas (America/Sao_Paulo), normalizado para UTC. */
+/** Dia letivo às `hour` horas (America/Sao_Paulo), normalizado para UTC; sábado e domingo vão para a segunda. */
 function classDay(days: number, hour: number, minute = 0) {
-  return DateTime.now()
-    .setZone('America/Sao_Paulo')
-    .startOf('day')
-    .plus({ days, hours: hour, minutes: minute })
-    .toUTC()
+  let day = DateTime.now().setZone('America/Sao_Paulo').startOf('day').plus({ days })
+  while (day.weekday > 5) day = day.plus({ days: 1 })
+  return day.plus({ hours: hour, minutes: minute }).toUTC()
 }
 
 export default class extends BaseSeeder {
@@ -30,8 +28,8 @@ export default class extends BaseSeeder {
         notificationChannel: 'email',
       },
       {
-        fullName: 'Prof. Apio Carniello',
-        email: 'apio@agenda.test',
+        fullName: 'Profa. Maraísa',
+        email: 'maraisa@agenda.test',
         password: 'password123',
         role: 'teacher',
         registration: 'DOC-001',
@@ -66,10 +64,10 @@ export default class extends BaseSeeder {
 
     const academicClass = await AcademicClass.create({
       courseId: course.id,
-      name: 'TADS 4',
-      period: '4º período',
+      name: 'TADS 5',
+      period: '5º período',
       year: DateTime.now().year,
-      semester: 1,
+      semester: 2,
       shift: 'noturno',
     })
 
@@ -108,7 +106,7 @@ export default class extends BaseSeeder {
         source: 'teacher',
         startsAt: classDay(4, 19),
         points: 10,
-        location: 'Sala 12 · Bloco B',
+        location: 'Sala 12, Bloco B',
         color: '#dc2626',
         academicClassId: academicClass.id,
         subjectId: math.id,
@@ -136,7 +134,7 @@ export default class extends BaseSeeder {
         source: 'teacher',
         startsAt: classDay(15, 19),
         points: 10,
-        location: 'Sala 7 · Bloco A',
+        location: 'Sala 7, Bloco A',
         color: '#7c3aed',
         academicClassId: academicClass.id,
         subjectId: softwareEngineering.id,

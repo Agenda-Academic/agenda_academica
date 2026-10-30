@@ -30,7 +30,9 @@ export default class User extends compose(UserSchema, withAuthFinder(hash)) {
   declare reminders: HasMany<typeof Reminder>
 
   get initials() {
-    const [first, last] = this.fullName ? this.fullName.split(' ') : this.email.split('@')
+    // "Prof." e "Profa." não entram nas iniciais
+    const words = this.fullName ? this.fullName.split(' ').filter((w) => !/^profa?\.$/i.test(w)) : this.email.split('@')
+    const [first, last] = words
     if (first && last) {
       return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
     }
