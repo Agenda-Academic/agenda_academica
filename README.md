@@ -1,52 +1,67 @@
 # Agenda Acadêmica
 
-Agenda Acadêmica Digital Unificada para centralizar datas, provas, trabalhos, atividades, eventos institucionais e lembretes da comunidade acadêmica.
+Trabalho do curso de TADS do IFMS, Campus Três Lagoas (2026). O sistema junta num lugar só as provas, os trabalhos,
+as atividades e as datas oficiais do campus, e avisa o aluno antes de cada prazo.
 
-## Escopo
+Sistema no ar: <https://agenda-academica-chi.vercel.app>. As contas de demonstração aparecem na tela de login.
 
-- Centralizar eventos acadêmicos em lista e calendário mensal.
-- Separar perfis de aluno, professor e administrador institucional.
-- Permitir que professores criem, editem, concluam, cancelem e removam eventos das turmas que ministram.
-- Permitir que alunos visualizem eventos, filtrem por categoria/período e configurem lembretes pessoais.
-- Importar datas oficiais da reitoria como fonte institucional prioritária.
-- Enviar notificações por e-mail e preparar suporte para push/app.
-- Manter o foco em organização temporal, sem calcular notas, médias ou frequência.
+## Equipe
 
-## Stack
+- Diogo Queiroz da Silva
+- Gabriel Alves Saran Audácio
+- Gabriel da Silva Marques
+- Jonathan Patrocinio dos Santos
+- Luis Felipe Andrade Dias
+- Railson Henrique Martins da Silva
 
-- `backend`: API em AdonisJS, banco SQLite em desenvolvimento e domínio acadêmico.
-- `frontend`: aplicação Next.js responsiva (mobile com drawer, desktop com sidebar) para dashboard, cronograma, calendário mensal, gestão docente, lembretes e sincronização.
+Professora: Profa. Maraísa.
 
-## Funcionalidades da interface
+## O que o sistema faz
 
-- **Login e cadastro** com contas de demonstração (aluno, professor e admin).
-- **Painel**: próximo compromisso em destaque, fila de atenção, agenda da semana, distribuição por categoria e lembretes pendentes.
-- **Cronograma**: lista com filtros (busca, categorias, próximos/passados/todos) e **calendário mensal** com navegação, eventos multi-dia e legenda.
-- **Detalhe do evento**: painel lateral no desktop e modal no mobile, com lembrete pessoal (criar/atualizar/remover) e ações de gestão (editar, excluir com confirmação, concluir/cancelar/reativar).
-- **Gestão docente**: formulário com escopo por vínculo (professor só vê as turmas/disciplinas que ministra; admin cria eventos oficiais sem turma) e lista "meus eventos".
-- **Lembretes**: central com pendentes e enviados, remoção e atalho para o evento.
-- **Sincronização (admin)**: importação de demonstração, importação de JSON personalizado e histórico de importações.
-- **Perfil**: nome, lembrete padrão e canal de notificação.
-- Toasts de feedback, sessão expirada com logout automático, acentuação PT-BR consistente.
+- O aluno vê no painel o próximo compromisso e os prazos das próximas semanas.
+- O cronograma mostra os eventos em lista ou em calendário mensal, com filtro por categoria e por período.
+- O aluno cria um lembrete pessoal para qualquer evento, de 15 minutos a 7 dias antes. O aviso é por e-mail: hoje o
+  lembrete fica registrado no horário certo e o envio do e-mail ainda está previsto.
+- O professor cadastra, edita, conclui, cancela e exclui eventos das turmas em que dá aula.
+- A administração importa o calendário oficial da reitoria, que tem prioridade sobre os eventos das turmas.
+- Cada perfil vê só o menu e as ações que lhe cabem, e a API confere a permissão antes de salvar.
+- O sistema não calcula notas, médias nem frequência. A pontuação das atividades é só informativa.
 
-## Contas de demonstração (seed)
+As telas foram desenhadas antes no Figma (protótipo clicável) e o front segue o mesmo visual.
 
-| Perfil    | E-mail              | Senha         |
-| --------- | ------------------- | ------------- |
-| Aluno     | `diogo@agenda.test` | `password123` |
-| Professor | `apio@agenda.test`  | `password123` |
-| Admin     | `admin@agenda.test` | `password123` |
+## Tecnologias
 
-## Requisitos Funcionais Mapeados
+- `frontend`: Next.js e React, publicado no Vercel.
+- `backend`: API REST em AdonisJS com banco SQLite, publicada no Render em Docker.
 
-- `RF01`: visualização de cronograma em lista e calendário.
-- `RF02`: filtros por provas, trabalhos, atividades e eventos oficiais.
-- `RF03`: sincronização/importação automática ou agendada do calendário institucional.
-- `RF04`: gestão docente de eventos por turma/disciplina.
-- `RF05`: tela de detalhes da atividade com professor, data, descrição e pontuação informativa.
-- `RF06`: lembretes configuráveis por usuário.
+## Contas de demonstração
 
-## Regras Principais
+| Perfil    | E-mail                | Senha         |
+| --------- | --------------------- | ------------- |
+| Aluno     | `diogo@agenda.test`   | `password123` |
+| Professor | `maraisa@agenda.test` | `password123` |
+| Admin     | `admin@agenda.test`   | `password123` |
+
+## Requisitos funcionais
+
+Mesma numeração do documento das telas (`docs/telas`).
+
+| RF     | Requisito                     | Telas                              |
+| ------ | ----------------------------- | ---------------------------------- |
+| `RF01` | Cadastro de conta             | Criar conta                        |
+| `RF02` | Autenticação                  | Entrar, sair da conta              |
+| `RF03` | Visualização do cronograma    | Agenda, calendário mensal, celular |
+| `RF04` | Filtragem de conteúdo         | Agenda, calendário mensal          |
+| `RF05` | Painel por perfil             | Painéis do aluno, professor e admin |
+| `RF06` | Gestão de eventos             | Gestão                             |
+| `RF07` | Detalhamento de evento        | Detalhe do evento                  |
+| `RF08` | Lembretes pessoais            | Detalhe do evento, lembretes       |
+| `RF09` | Sincronização institucional   | Sincronização                      |
+| `RF10` | Preferências do usuário       | Perfil                             |
+| `RF11` | Controle de acesso por perfil | Gestão, menu por perfil            |
+| `RF12` | Processamento de lembretes    | Lembretes                          |
+
+## Regras principais
 
 - Datas oficiais prevalecem sobre eventos locais quando houver conflito.
 - Alunos não alteram eventos oficiais nem eventos de professor.
@@ -85,7 +100,7 @@ node ace db:seed
 O front (Next.js) fica no **Vercel** e a API (AdonisJS) no **Render**, os dois no plano grátis. Os dois
 publicam sozinhos a cada push na `main`.
 
-1. **API no Render:** em [dashboard.render.com](https://dashboard.render.com), **New › Blueprint**, escolha este
+1. **API no Render:** em [dashboard.render.com](https://dashboard.render.com), **New > Blueprint**, escolha este
    repositório e confirme. O `render.yaml` cria o serviço `agenda-academica-api` com a chave `APP_KEY` gerada
    pelo próprio Render. Quando terminar, copie o endereço do serviço (algo como
    `https://agenda-academica-api.onrender.com`) e abra-o: deve aparecer `"status": "ok"`.
@@ -95,7 +110,7 @@ publicam sozinhos a cada push na `main`.
 3. **Ligar os dois:** o Render já aceita chamadas de `https://agenda-academica*.vercel.app`. Se o projeto no
    Vercel tiver outro nome, ajuste `CORS_ORIGIN` em **Environment** no serviço do Render.
 
-Para entrar, use as [contas de demonstração](#contas-de-demonstração-seed).
+Para entrar, use as [contas de demonstração](#contas-de-demonstração).
 
 > No plano grátis do Render a API dorme depois de uns 15 minutos sem acesso e o primeiro acesso leva até um
 > minuto. O banco é SQLite e não fica salvo: toda vez que a API reinicia, ele volta com os dados de demonstração.
@@ -109,7 +124,7 @@ npm test
 A suíte do backend usa um banco SQLite separado (`backend/tmp/test.sqlite3`),
 então rodar os testes não apaga os dados de desenvolvimento.
 
-## Rotinas Operacionais
+## Rotinas do servidor
 
 ```bash
 cd backend
