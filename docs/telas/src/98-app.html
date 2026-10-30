@@ -5,7 +5,7 @@
 (function () {
   'use strict';
 
-  var NOW0 = new Date(2026, 5, 25, 7, 42, 0).getTime();   // "hoje" do protótipo
+  var NOW0 = new Date(2026, 9, 29, 7, 42, 0).getTime();   // "hoje" do protótipo
   var T0 = Date.now();
   function now() { return new Date(NOW0 + (Date.now() - T0)); }
   function $(s, r) { return (r || document).querySelector(s); }
@@ -20,47 +20,47 @@
   var CLS2CAT = { 'c-prova': 'prova', 'c-trab': 'trab', 'c-ativ': 'ativ', 'c-extra': 'extra', 'c-inst': 'inst', 'c-fer': 'fer', 'c-rec': 'rec' };
   var ST = { ag: ['Agendado', 'st-ag'], alt: ['Alterado', 'st-alt'], conc: ['Concluído', 'st-conc'], canc: ['Cancelado', 'st-canc'] };
   var OFF = { '15 min': 15, '30 min': 30, '1 hora': 60, '3 horas': 180, '1 dia': 1440, '2 dias': 2880, '7 dias': 10080 };
-  var DOC_A = 'Evento docente · publicado por Prof. Apio Carniello';
-  var DOC_M = 'Evento docente · publicado por Profa. Marina Souza';
-  var OFIC = 'Calendário oficial · importado da reitoria em 13 jun';
+  var DOC_A = 'Evento docente, publicado por Profa. Maraísa';
+  var DOC_M = 'Evento docente, publicado por Profa. Marina Souza';
+  var OFIC = 'Calendário oficial, importado da reitoria em 17 out';
   function ev(t, cat, st, src, at, ini, fim, local, disc, turma, resp, pts, desc, meta, quando, rem) {
     return { t: t, cat: cat, st: st, src: src, at: at, ini: ini, fim: fim, local: local, disc: disc, turma: turma, resp: resp,
              pts: pts, desc: desc, meta: meta, quando: quando, rem: rem || { on: false, off: 1440, ch: 'E-mail' } };
   }
-  var T4 = 'TADS 4 · Noturno', TODAS = 'Todas as turmas', COORD = 'Coordenação Acadêmica', APIO = 'Prof. Apio Carniello', MARINA = 'Profa. Marina Souza';
+  var T4 = 'TADS 5, noturno', TODAS = 'Todas as turmas', COORD = 'Coordenação Acadêmica', APIO = 'Profa. Maraísa', MARINA = 'Profa. Marina Souza';
   var E = {
-    'es-prova': ev('Prova de Engenharia de Software', 'prova', 'ag', DOC_A, '2026-06-26T19:00', 'Sex, 26 de junho de 2026 · 19:00', 'Sex, 26 de junho · 21:30', 'Sala 7 · Bloco A', 'Engenharia de Software', T4, APIO, 10,
-      'Conteúdo: requisitos, UML (casos de uso, classes e sequência) e processo ágil. Consulta liberada ao material impresso.', '19:00 – 21:30 · Sala 7 · Bloco A · ' + APIO, 'sex, 26 jun · 19:00', { on: true, off: 1440, ch: 'E-mail' }),
-    'semana': ev('Semana acadêmica', 'inst', 'ag', OFIC, '2026-06-29T08:00', 'Seg, 29 de junho de 2026 · dia todo', 'Sex, 3 de julho', 'Auditório Central', 'Institucional', TODAS, COORD, null,
-      'Palestras, minicursos e apresentações de projetos. As aulas regulares ficam suspensas durante a semana.', 'Dia todo · 29 jun a 3 jul · Auditório Central', 'seg, 29 jun – sex, 3 jul'),
-    'mat-p2': ev('Prova de Matemática — P2', 'prova', 'ag', DOC_A, '2026-06-30T19:00', 'Ter, 30 de junho de 2026 · 19:00', 'Ter, 30 de junho · 21:30', 'Sala 12 · Bloco B', 'Matemática', T4, APIO, 10,
-      'Conteúdo: matrizes, determinantes e sistemas lineares. Traga calculadora científica.', '19:00 – 21:30 · Sala 12 · Bloco B · ' + APIO, 'ter, 30 jun · 19:00', { on: true, off: 2880, ch: 'Push' }),
-    'proj-s3': ev('Entrega do projeto integrador — Sprint 3', 'trab', 'alt', 'Evento docente · prazo alterado por Prof. Apio Carniello', '2026-07-01T23:59', 'Qua, 1º de julho de 2026 · 23:59', '—', 'Ambiente virtual (Moodle)', 'Engenharia de Software', T4, APIO, 15,
-      'Prazo adiado de 29/06 para 01/07 por causa da semana acadêmica. Entregar o repositório, o diagrama de classes atualizado e um vídeo de até 5 minutos.', '23:59 · Moodle · ' + APIO, 'qua, 1º jul · 23:59', { on: true, off: 1440, ch: 'E-mail' }),
-    'ajuste': ev('Prazo final de ajuste de matrícula', 'inst', 'ag', OFIC, '2026-07-02T18:00', 'Qui, 2 de julho de 2026 · 18:00', '—', 'Secretaria acadêmica', 'Institucional', TODAS, COORD, null,
-      'Último dia para incluir ou trancar disciplinas do semestre 2026/1 no sistema acadêmico.', '18:00 · Secretaria acadêmica', 'qui, 2 jul · 18:00'),
-    'avl': ev('Lista de exercícios: árvores AVL', 'ativ', 'ag', DOC_M, '2026-07-03T23:59', 'Sex, 3 de julho de 2026 · 23:59', '—', 'Ambiente virtual (Moodle)', 'Estrutura de Dados', T4, MARINA, 5,
-      'Implementar inserção e remoção com rebalanceamento. Entrega individual pelo Moodle.', '23:59 · Moodle · ' + MARINA, 'sex, 3 jul · 23:59'),
-    'ed-prova': ev('Prova de Estrutura de Dados', 'prova', 'ag', DOC_M, '2026-07-06T19:00', 'Seg, 6 de julho de 2026 · 19:00', 'Seg, 6 de julho · 21:30', 'Laboratório 3', 'Estrutura de Dados', T4, MARINA, 10,
-      'Prova prática no laboratório: listas, pilhas, filas e árvores.', '19:00 – 21:30 · Laboratório 3 · ' + MARINA, 'seg, 6 jul · 19:00'),
-    'recesso': ev('Recesso escolar', 'rec', 'ag', OFIC, '2026-07-20T00:00', 'Seg, 20 de julho de 2026', 'Sex, 31 de julho', '—', 'Institucional', TODAS, COORD, null,
-      'Sem aulas. O atendimento administrativo segue normalmente.', 'Dia todo · 20 a 31 jul', 'seg, 20 jul – sex, 31 jul'),
-    'mat-p1': ev('Prova de Matemática — P1', 'prova', 'conc', DOC_A, '2026-06-09T19:00', 'Ter, 9 de junho de 2026 · 19:00', 'Ter, 9 de junho · 21:30', 'Sala 12 · Bloco B', 'Matemática', T4, APIO, 10,
-      'Conteúdo: funções, limites e derivadas.', '19:00 – 21:30 · Sala 12 · Bloco B', 'ter, 9 jun · 19:00'),
-    'requisitos': ev('Relatório de requisitos', 'trab', 'conc', DOC_A, '2026-06-12T23:59', 'Sex, 12 de junho de 2026 · 23:59', '—', 'Ambiente virtual (Moodle)', 'Engenharia de Software', T4, APIO, 10,
-      'Documento de requisitos funcionais e não funcionais do projeto integrador.', '23:59 · Moodle', 'sex, 12 jun · 23:59'),
-    'aniversario': ev('Aniversário de Três Lagoas', 'fer', 'ag', OFIC, '2026-06-15T00:00', 'Seg, 15 de junho de 2026', '—', '—', 'Institucional', TODAS, COORD, null,
-      'Feriado municipal — sem aulas.', 'Dia todo · feriado municipal', 'seg, 15 jun'),
-    'seminario': ev('Seminário: padrões de projeto', 'ativ', 'conc', DOC_A, '2026-06-16T19:00', 'Ter, 16 de junho de 2026 · 19:00', 'Ter, 16 de junho · 21:30', 'Sala 7 · Bloco A', 'Engenharia de Software', T4, APIO, 5,
-      'Apresentação em dupla de um padrão de projeto com exemplo em código.', '19:00 – 21:30 · Sala 7 · Bloco A', 'ter, 16 jun · 19:00'),
-    'palestra': ev('Palestra: carreira em TI', 'extra', 'conc', 'Evento da coordenação do curso', '2026-06-18T20:00', 'Qui, 18 de junho de 2026 · 20:00', 'Qui, 18 de junho · 22:00', 'Auditório Central', 'Extracurricular', 'Turmas de TADS', 'Coordenação de TADS', null,
-      'Conversa com egressos sobre estágio, primeiro emprego e portfólio.', '20:00 – 22:00 · Auditório Central', 'qui, 18 jun · 20:00'),
-    'pilhas': ev('Lista de exercícios: pilhas e filas', 'ativ', 'conc', DOC_M, '2026-06-22T23:59', 'Seg, 22 de junho de 2026 · 23:59', '—', 'Ambiente virtual (Moodle)', 'Estrutura de Dados', T4, MARINA, 5,
-      'Exercícios de implementação com vetor e lista encadeada.', '23:59 · Moodle', 'seg, 22 jun · 23:59'),
-    'corpus': ev('Corpus Christi', 'fer', 'ag', OFIC, '2026-06-04T00:00', 'Qui, 4 de junho de 2026', '—', '—', 'Institucional', TODAS, COORD, null,
-      'Feriado nacional — sem aulas.', 'Dia todo · feriado nacional', 'qui, 4 jun'),
-    'ponto': ev('Ponto facultativo', 'rec', 'ag', OFIC, '2026-06-05T00:00', 'Sex, 5 de junho de 2026', '—', '—', 'Institucional', TODAS, COORD, null,
-      'Ponte do feriado de Corpus Christi — sem aulas.', 'Dia todo · ponte de feriado', 'sex, 5 jun')
+    'es-prova': ev('Prova de Engenharia de Software', 'prova', 'ag', DOC_A, '2026-10-30T19:00', 'Sex, 30 de outubro de 2026, 19:00', 'Sex, 30 de outubro, 21:30', 'Sala 7, Bloco A', 'Engenharia de Software', T4, APIO, 10,
+      'Conteúdo: requisitos, UML (casos de uso, classes e sequência) e processo ágil. Consulta liberada ao material impresso.', '19:00 às 21:30, Sala 7, Bloco A, ' + APIO, 'sex, 30 out, 19:00', { on: true, off: 1440, ch: 'E-mail' }),
+    'semana': ev('Feriado de Finados', 'fer', 'ag', OFIC, '2026-11-02T00:00', 'Seg, 2 de novembro de 2026', '-', '-', 'Institucional', TODAS, COORD, null,
+      'Feriado nacional, sem aulas.', 'Dia todo, feriado nacional', 'seg, 2 nov'),
+    'mat-p2': ev('Prova de Matemática (P2)', 'prova', 'ag', DOC_A, '2026-11-03T19:00', 'Ter, 3 de novembro de 2026, 19:00', 'Ter, 3 de novembro, 21:30', 'Sala 12, Bloco B', 'Matemática', T4, APIO, 10,
+      'Conteúdo: matrizes, determinantes e sistemas lineares. Traga calculadora científica.', '19:00 às 21:30, Sala 12, Bloco B, ' + APIO, 'ter, 3 nov, 19:00', { on: true, off: 2880, ch: 'E-mail' }),
+    'proj-s3': ev('Entrega da sprint 3 do projeto integrador', 'trab', 'alt', 'Evento docente, prazo alterado por Profa. Maraísa', '2026-11-04T23:59', 'Qua, 4 de novembro de 2026, 23:59', '-', 'Ambiente virtual (Moodle)', 'Engenharia de Software', T4, APIO, 15,
+      'Prazo adiado de 02/11 para 04/11 por causa do feriado de Finados. Entregar o repositório, o diagrama de classes atualizado e um vídeo de até 5 minutos.', '23:59, Moodle, ' + APIO, 'qua, 4 nov, 23:59', { on: true, off: 1440, ch: 'E-mail' }),
+    'ajuste': ev('Prazo final de trancamento de matrícula', 'inst', 'ag', OFIC, '2026-11-05T18:00', 'Qui, 5 de novembro de 2026, 18:00', '-', 'Secretaria acadêmica', 'Institucional', TODAS, COORD, null,
+      'Último dia para trancar disciplinas do semestre 2026/2 no sistema acadêmico.', '18:00, Secretaria acadêmica', 'qui, 5 nov, 18:00'),
+    'avl': ev('Lista de exercícios: árvores AVL', 'ativ', 'ag', DOC_M, '2026-11-06T23:59', 'Sex, 6 de novembro de 2026, 23:59', '-', 'Ambiente virtual (Moodle)', 'Estrutura de Dados', T4, MARINA, 5,
+      'Implementar inserção e remoção com rebalanceamento. Entrega individual pelo Moodle.', '23:59, Moodle, ' + MARINA, 'sex, 6 nov, 23:59'),
+    'ed-prova': ev('Prova de Estrutura de Dados', 'prova', 'ag', DOC_M, '2026-11-09T19:00', 'Seg, 9 de novembro de 2026, 19:00', 'Seg, 9 de novembro, 21:30', 'Laboratório 3', 'Estrutura de Dados', T4, MARINA, 10,
+      'Prova prática no laboratório: listas, pilhas, filas e árvores.', '19:00 às 21:30, Laboratório 3, ' + MARINA, 'seg, 9 nov, 19:00'),
+    'recesso': ev('Semana acadêmica', 'inst', 'ag', OFIC, '2026-11-23T08:00', 'Seg, 23 de novembro de 2026, dia todo', 'Sex, 27 de novembro', 'Auditório Central', 'Institucional', TODAS, COORD, null,
+      'Palestras, minicursos e apresentações de projetos. As aulas regulares ficam suspensas durante a semana.', 'Dia todo, 23 a 27 nov, Auditório Central', 'seg, 23 nov a sex, 27 nov'),
+    'mat-p1': ev('Prova de Matemática (P1)', 'prova', 'conc', DOC_A, '2026-10-13T19:00', 'Ter, 13 de outubro de 2026, 19:00', 'Ter, 13 de outubro, 21:30', 'Sala 12, Bloco B', 'Matemática', T4, APIO, 10,
+      'Conteúdo: funções, limites e derivadas.', '19:00 às 21:30, Sala 12, Bloco B', 'ter, 13 out, 19:00'),
+    'requisitos': ev('Relatório de requisitos', 'trab', 'conc', DOC_A, '2026-10-09T23:59', 'Sex, 9 de outubro de 2026, 23:59', '-', 'Ambiente virtual (Moodle)', 'Engenharia de Software', T4, APIO, 10,
+      'Documento de requisitos funcionais e não funcionais do projeto integrador.', '23:59, Moodle', 'sex, 9 out, 23:59'),
+    'aniversario': ev('Nossa Senhora Aparecida', 'fer', 'ag', OFIC, '2026-10-12T00:00', 'Seg, 12 de outubro de 2026', '-', '-', 'Institucional', TODAS, COORD, null,
+      'Feriado nacional, sem aulas.', 'Dia todo, feriado nacional', 'seg, 12 out'),
+    'seminario': ev('Seminário: padrões de projeto', 'ativ', 'conc', DOC_A, '2026-10-20T19:00', 'Ter, 20 de outubro de 2026, 19:00', 'Ter, 20 de outubro, 21:30', 'Sala 7, Bloco A', 'Engenharia de Software', T4, APIO, 5,
+      'Apresentação em dupla de um padrão de projeto com exemplo em código.', '19:00 às 21:30, Sala 7, Bloco A', 'ter, 20 out, 19:00'),
+    'palestra': ev('Palestra: carreira em TI', 'extra', 'conc', 'Evento da coordenação do curso', '2026-10-22T20:00', 'Qui, 22 de outubro de 2026, 20:00', 'Qui, 22 de outubro, 22:00', 'Auditório Central', 'Extracurricular', 'Turmas de TADS', 'Coordenação de TADS', null,
+      'Conversa com egressos sobre estágio, primeiro emprego e portfólio.', '20:00 às 22:00, Auditório Central', 'qui, 22 out, 20:00'),
+    'pilhas': ev('Lista de exercícios: pilhas e filas', 'ativ', 'conc', DOC_M, '2026-10-26T23:59', 'Seg, 26 de outubro de 2026, 23:59', '-', 'Ambiente virtual (Moodle)', 'Estrutura de Dados', T4, MARINA, 5,
+      'Exercícios de implementação com vetor e lista encadeada.', '23:59, Moodle', 'seg, 26 out, 23:59'),
+    'corpus': ev('Dia do Professor', 'fer', 'ag', OFIC, '2026-10-15T00:00', 'Qui, 15 de outubro de 2026', '-', '-', 'Institucional', TODAS, COORD, null,
+      'Feriado escolar, sem aulas.', 'Dia todo, feriado escolar', 'qui, 15 out'),
+    'ponto': ev('Ponto facultativo', 'rec', 'ag', OFIC, '2026-10-16T00:00', 'Sex, 16 de outubro de 2026', '-', '-', 'Institucional', TODAS, COORD, null,
+      'Ponte do Dia do Professor, sem aulas.', 'Dia todo, ponte de feriado', 'sex, 16 out')
   };
   var OFFICIAL = { semana: 1, ajuste: 1, recesso: 1, aniversario: 1, corpus: 1, ponto: 1 };
   function isPast(e) { return new Date(e.at).getTime() < NOW0; }
@@ -231,13 +231,13 @@
     $('[data-f="day-dn"]', scr).textContent = num;
     var btn = $('[data-f="day-btn"]', scr);
     if (!ids.length) {
-      $('[data-f="day-count"]', scr).textContent = 'Dia selecionado · sem eventos';
+      $('[data-f="day-count"]', scr).textContent = 'Dia selecionado, sem eventos';
       $('[data-f="day-title"]', scr).textContent = 'Nenhum compromisso neste dia';
       $('[data-f="day-meta"]', scr).innerHTML = '<span>Aproveite para adiantar as entregas da semana.</span>';
       btn.style.visibility = 'hidden';
     } else {
       var e = E[ids[0]];
-      $('[data-f="day-count"]', scr).textContent = 'Dia selecionado · ' + ids.length + (ids.length === 1 ? ' evento' : ' eventos');
+      $('[data-f="day-count"]', scr).textContent = 'Dia selecionado, ' + ids.length + (ids.length === 1 ? ' evento' : ' eventos');
       $('[data-f="day-title"]', scr).textContent = e.t + (ids.length > 1 ? ' e mais ' + (ids.length - 1) : '');
       $('[data-f="day-meta"]', scr).innerHTML = '<span class="pill ' + CAT[e.cat][1] + '">' + CAT[e.cat][0] + '</span><span>' + esc(e.meta) + '</span>';
       btn.style.visibility = '';
@@ -271,12 +271,12 @@
   function pickedChannel() { var b = $('button.on', f('rem-channel')); return b ? b.textContent.trim() : 'E-mail'; }
   function updateHelp() {
     var e = E[current];
-    if (isPast(e)) { f('rem-help').textContent = 'O evento já aconteceu — não há lembrete a enviar.'; return; }
+    if (isPast(e)) { f('rem-help').textContent = 'Esse evento já passou, não tem lembrete para enviar.'; return; }
     var send = new Date(new Date(e.at).getTime() - pickedOffset() * 6e4);
     if (send.getTime() <= now().getTime()) {
       f('rem-help').innerHTML = '<span style="color:#B4234A;font-weight:600">Esse horário de aviso já passou. Escolha uma antecedência menor.</span>';
     } else {
-      f('rem-help').textContent = 'Você será avisado ' + whenText(send) + ', por ' + (pickedChannel() === 'Push' ? 'notificação no celular' : 'e-mail') + '.';
+      f('rem-help').textContent = 'Você será avisado ' + whenText(send) + ', por e-mail.';
     }
   }
   function selectEvent(id, opts) {
@@ -292,19 +292,19 @@
     var wb = f('when-box'), at = new Date(e.at);
     if (isPast(e)) {
       wb.className = 'callout past';
-      wb.querySelector('span').innerHTML = '<b>Já aconteceu</b> · ' + esc(e.quando);
+      wb.querySelector('span').innerHTML = '<b>Já aconteceu</b>, ' + esc(e.quando);
     } else {
       wb.className = 'callout green';
       var dd = dayDiff(at, now());
       var head = dd === 0 ? 'Hoje' : dd === 1 ? 'Amanhã' : (WD[at.getDay()][0].toUpperCase() + WD[at.getDay()].slice(1) + ', ' + at.getDate() + ' de ' + MO[at.getMonth()]);
       var hour = (at.getHours() || at.getMinutes()) && e.ini.indexOf('dia todo') < 0 ? ' às ' + pad(at.getHours()) + ':' + pad(at.getMinutes()) : '';
-      wb.querySelector('span').innerHTML = '<b>' + head + hour + '</b> · faltam <span data-countdown-long="' + e.at + '">' + countdown(at - now(), true) + '</span>';
+      wb.querySelector('span').innerHTML = '<b>' + head + hour + '</b>, faltam <span data-countdown-long="' + e.at + '">' + countdown(at - now(), true) + '</span>';
     }
     ['inicio', 'fim', 'local', 'disc', 'turma', 'resp'].forEach(function (k) {
       var map = { inicio: 'ini', fim: 'fim', local: 'local', disc: 'disc', turma: 'turma', resp: 'resp' };
       f(k).textContent = e[map[k]];
     });
-    f('pts').innerHTML = e.pts == null ? 'Não se aplica' : e.pts + ' pts <span class="muted" style="font-weight:500">· apenas informativa</span>';
+    f('pts').innerHTML = e.pts == null ? 'Não se aplica' : e.pts + ' pts <span class="muted" style="font-weight:500">apenas informativa</span>';
     f('desc').textContent = e.desc;
     renderReminder(e);
     if (!(opts && opts.quiet)) { swap(detail); }
@@ -361,7 +361,7 @@
         when = when.charAt(0).toUpperCase() + when.slice(1);
         val.textContent = when; val.style.fontSize = when.length > 12 ? '28px' : '';
         hint.textContent = $('a', first).textContent;
-      } else { val.textContent = '—'; val.style.fontSize = ''; hint.textContent = 'nenhum lembrete pendente'; }
+      } else { val.textContent = '0'; val.style.fontSize = ''; hint.textContent = 'nenhum lembrete pendente'; }
     }
     var box = $('[data-sec="pend"]', lemb), list = box.querySelector('article') ? box.querySelector('article').parentNode : $('[data-sec="pend"] > div:last-child', lemb);
     var empty = $('.empty-inline', box);
@@ -429,11 +429,11 @@
     var d = parseIni($('#g-ini', gest).value);
     var local = $('#g-local', gest).value.trim();
     var hhmm = d ? pad(d.getHours()) + ':' + pad(d.getMinutes()) : '';
-    P('meta').textContent = [hhmm, local].filter(Boolean).join(' · ');
+    P('meta').textContent = [hhmm, local].filter(Boolean).join(', ');
     if (d) {
       var dw = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()];
       P('dw').textContent = dw; P('dn').textContent = pad(d.getDate());
-      P('week-h').textContent = hhmm + ' · este evento';
+      P('week-h').textContent = hhmm + ', este evento';
     }
     P('week').textContent = 'Novo: ' + (title ? title.charAt(0).toLowerCase() + title.slice(1) : 'sem título');
     var tur = $('#g-turma', gest), dis = $('#g-disc', gest);
@@ -446,11 +446,11 @@
   function rowFromForm() {
     var title = $('#g-titulo', gest).value.trim(), c = pickedCat();
     var d = parseIni($('#g-ini', gest).value);
-    var date = d ? (['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()] + ', ' + d.getDate() + ' ' + MO[d.getMonth()].slice(0, 3) + ' · ' + pad(d.getHours()) + ':' + pad(d.getMinutes())) : 'Data a definir';
+    var date = d ? (['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()] + ', ' + d.getDate() + ' ' + MO[d.getMonth()].slice(0, 3) + ', ' + pad(d.getHours()) + ':' + pad(d.getMinutes())) : 'Data a definir';
     var tur = $('#g-turma', gest), dis = $('#g-disc', gest), pts = $('#g-pts', gest).value.trim();
     var tr = document.createElement('tr');
     tr.innerHTML = '<td><p class="t">' + esc(title) + '</p><p class="s"><span class="pill ' + CAT[c][1] + '" style="height:20px;font-size:11px">' + CAT[c][0] + '</span> ' + (pts ? esc(pts) + ' pts' : 'sem pontuação') + '</p></td>' +
-      '<td>' + esc(tur.options[tur.selectedIndex].text.split(' · ')[0]) + ' · ' + esc(dis.options[dis.selectedIndex].text) + '</td><td>' + date + '</td><td><span class="pill st-ag">Agendado</span></td><td>' + ACT_FULL() + '</td>';
+      '<td>' + esc(tur.options[tur.selectedIndex].text.split(', ')[0]) + ', ' + esc(dis.options[dis.selectedIndex].text) + '</td><td>' + date + '</td><td><span class="pill st-ag">Agendado</span></td><td>' + ACT_FULL() + '</td>';
     return tr;
   }
   function exitEdit() {
@@ -471,13 +471,13 @@
     var bad = function (html) { box.className = 'callout rose'; msg.innerHTML = html; jsonState = { ok: false, data: null }; };
     var data;
     try { data = JSON.parse(txt); } catch (err) { bad('<b>JSON inválido.</b> ' + esc(err.message.replace(/^JSON\.parse: /, ''))); return; }
-    if (!data || typeof data.sourceName !== 'string' || !data.sourceName.trim()) { bad('<b>Falta o campo “sourceName”</b> com o nome da fonte.'); return; }
-    if (!Array.isArray(data.events) || !data.events.length) { bad('<b>A lista “events” está vazia</b> — inclua ao menos um evento.'); return; }
+    if (!data || typeof data.sourceName !== 'string' || !data.sourceName.trim()) { bad('<b>Falta o campo "sourceName"</b> com o nome da fonte.'); return; }
+    if (!Array.isArray(data.events) || !data.events.length) { bad('<b>A lista "events" está vazia</b>. Inclua ao menos um evento.'); return; }
     var allowed = { institutional: 'institucional', holiday: 'feriado', recess: 'recesso' }, count = {};
     for (var i = 0; i < data.events.length; i++) {
       var e = data.events[i] || {};
-      if (!e.title) { bad('<b>Evento ' + (i + 1) + ' sem “title”.</b>'); return; }
-      if (!allowed[e.category]) { bad('<b>Categoria inválida no evento ' + (i + 1) + '</b> (“' + esc(e.category) + '”). Use institutional, holiday ou recess.'); return; }
+      if (!e.title) { bad('<b>Evento ' + (i + 1) + ' sem "title".</b>'); return; }
+      if (!allowed[e.category]) { bad('<b>Categoria inválida no evento ' + (i + 1) + '</b> ("' + esc(e.category) + '"). Use institutional, holiday ou recess.'); return; }
       if (!/^\d{4}-\d{2}-\d{2}/.test(e.startsAt || '')) { bad('<b>Data inválida no evento ' + (i + 1) + '.</b> Use o formato AAAA-MM-DD.'); return; }
       count[allowed[e.category]] = (count[allowed[e.category]] || 0) + 1;
     }
@@ -489,10 +489,10 @@
   function addHist(name, n, origin) {
     var tb = $('[data-f="hist"]', sync), d = now();
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td class="t">' + esc(name) + '</td><td>25 jun 2026, ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + '</td><td>' + n + '</td><td>' + esc(origin) + '</td><td><span class="pill st-conc">Concluída</span></td>';
+    tr.innerHTML = '<td class="t">' + esc(name) + '</td><td>29 out 2026, ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + '</td><td>' + n + '</td><td>' + esc(origin) + '</td><td><span class="pill st-conc">Concluída</span></td>';
     tb.insertBefore(tr, tb.firstChild);
     flash(tr);
-    $('[data-f="last-imp"]', sync).textContent = '25 jun, ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    $('[data-f="last-imp"]', sync).textContent = '29 out, ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
     $('[data-f="last-imp-hint"]', sync).textContent = 'agora mesmo';
   }
 
@@ -519,7 +519,7 @@
     var input = $('input', pal), list = $('.pal-list', pal);
     palItems = buildItems(input.value);
     if (palAct >= palItems.length) { palAct = 0; }
-    if (!palItems.length) { list.innerHTML = '<div class="pal-empty">Nada encontrado para “' + esc(input.value) + '”.</div>'; return; }
+    if (!palItems.length) { list.innerHTML = '<div class="pal-empty">Nada encontrado para "' + esc(input.value) + '".</div>'; return; }
     var html = '', sec = '';
     palItems.forEach(function (it, i) {
       var s = it.kind === 'ev' ? (it.past ? 'Eventos passados' : 'Próximos eventos') : 'Telas do protótipo';
@@ -631,7 +631,7 @@
         e1.rem = { on: true, off: pickedOffset(), ch: pickedChannel() };
         renderReminder(e1); syncRowBell(current);
         var id1 = current;
-        toast(prev.on ? 'Lembrete atualizado' : 'Lembrete ativado', 'Aviso ' + whenText(send) + ', por ' + (e1.rem.ch === 'Push' ? 'push' : 'e-mail') + '.',
+        toast(prev.on ? 'Lembrete atualizado' : 'Lembrete ativado', 'Aviso ' + whenText(send) + ', por e-mail.',
               { undo: function () { E[id1].rem = prev; syncRowBell(id1); if (current === id1) { renderReminder(E[id1]); } } });
         return;
       }
@@ -691,7 +691,7 @@
           var tr = rowFromForm();
           tb.insertBefore(tr, tb.firstChild);
           flash(tr); countRows();
-          toast('Evento criado', 'A turma já vê “' + ti.value.trim() + '” na agenda.');
+          toast('Evento criado', 'A turma já vê "' + ti.value.trim() + '" na agenda.');
         }
         return;
       }
@@ -717,10 +717,10 @@
         } else if (lbl === 'Concluir') { setRowStatus(trow, 'conc'); toast('Evento concluído', title); }
         else if (lbl === 'Cancelar evento') {
           var before = rowStatus(trow); setRowStatus(trow, 'canc');
-          toast('Evento cancelado', 'Os alunos veem “' + title + '” como cancelado.', { undo: function () { setRowStatus(trow, before); } });
+          toast('Evento cancelado', 'Os alunos veem "' + title + '" como cancelado.', { undo: function () { setRowStatus(trow, before); } });
         } else if (lbl === 'Reativar') { setRowStatus(trow, 'ag'); toast('Evento reativado', title); }
         else if (lbl === 'Excluir') {
-          confirmBox('Excluir “' + title + '”?', 'Os alunos deixam de ver o evento e os lembretes ligados a ele são apagados.', 'Excluir evento', function () {
+          confirmBox('Excluir "' + title + '"?', 'Os alunos deixam de ver o evento e os lembretes ligados a ele são apagados.', 'Excluir evento', function () {
             var p = trow.parentNode, nx = trow.nextSibling;
             collapse(trow, countRows);
             toast('Evento excluído', title, { undo: function () { p.insertBefore(trow, nx && nx.parentNode === p ? nx : null); trow.style.cssText = ''; flash(trow); countRows(); } });
@@ -743,7 +743,7 @@
       var demoBtn = t.closest('[data-act="import-demo"]');
       if (demoBtn && !demoBtn.disabled) {
         var lab = $('span', demoBtn), old = lab.textContent, ico = $('svg', demoBtn);
-        demoBtn.disabled = true; lab.textContent = 'Importando…'; ico.style.display = 'none';
+        demoBtn.disabled = true; lab.textContent = 'Importando...'; ico.style.display = 'none';
         var sp = document.createElement('span'); sp.className = 'spin'; demoBtn.insertBefore(sp, lab);
         setTimeout(function () {
           sp.remove(); ico.style.display = ''; lab.textContent = old; demoBtn.disabled = false;
@@ -759,14 +759,14 @@
     if (opt) { setOn(opt); return; }
     if (t.closest('[data-act="save-pref"]')) {
       var sel = $('#p-lembrete'), chan = $('#tela-perfil .opt.on');
-      toast('Preferências salvas', 'Novos lembretes: ' + sel.options[sel.selectedIndex].text + ', por ' + (chan && /Push/.test(chan.textContent) ? 'push' : 'e-mail') + '.');
+      toast('Preferências salvas', 'Novos lembretes: ' + sel.options[sel.selectedIndex].text + ', por e-mail.');
     }
 
     // notificações
     var bell = t.closest('.ib[aria-label^="Notificações"]');
     if (bell) {
       var badge = $('.badge', bell);
-      toast('Lembrete para hoje', 'Prova de Engenharia de Software — aviso às 19:00.', { type: 'info' });
+      toast('Lembrete para hoje', 'Prova de Engenharia de Software, aviso às 19:00.', { type: 'info' });
       if (badge) { badge.remove(); bell.setAttribute('aria-label', 'Notificações'); }
       return;
     }

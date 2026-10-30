@@ -3,8 +3,8 @@ import base64, re, sys, urllib.request, pathlib
 
 src, out, fontdir = map(pathlib.Path, sys.argv[1:4])
 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
-css_url = ('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800'
-           '&family=Figtree:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap')
+css_url = ('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400..800'
+           '&family=JetBrains+Mono:wght@400;500&display=swap')
 css = urllib.request.urlopen(urllib.request.Request(css_url, headers={'User-Agent': UA}), timeout=30).read().decode()
 faces = []
 for comment, block in re.findall(r'/\*\s*([\w-]+)\s*\*/\s*(@font-face\s*\{[^}]*\})', css):

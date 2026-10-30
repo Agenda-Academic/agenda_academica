@@ -1,12 +1,12 @@
-// Liga o protótipo clicável no Figma ("Agenda Acadêmica — Telas").
+// Liga o protótipo clicável no Figma ("Agenda Acadêmica - Telas").
 // Rodar pelo use_figma do conector do Figma depois de cada nova importação das telas.
 // Acha as telas pelo nome e os botões pelo texto; pode rodar de novo sem duplicar nada:
 // apaga as seções 7, 8 e 9 e as ligações antigas antes de recriar.
 
 const page = figma.currentPage;
-const SEC_PERFIS = '7 · Protótipo — telas por perfil';
-const SEC_SOBRE = '8 · Protótipo — sobreposições e avisos';
-const SEC_COMP = '9 · Protótipo — componentes interativos';
+const SEC_PERFIS = '7 - Protótipo: telas por perfil';
+const SEC_SOBRE = '8 - Protótipo: sobreposições e avisos';
+const SEC_COMP = '9 - Protótipo: componentes interativos';
 const OURS = [SEC_PERFIS, SEC_SOBRE, SEC_COMP];
 
 // execução anterior: devolve os seletores interativos a quadros comuns e apaga as seções geradas
@@ -29,14 +29,14 @@ const F = name => {
   return f;
 };
 const S = {
-  capa: F('00 · Capa'), mapa: F('00 · Mapa de navegação'), req: F('00 · Requisitos × telas'),
-  entrar: F('01 · Entrar'), criar: F('01b · Criar conta'),
-  aPainel: F('02 · Painel do aluno'), cal: F('03 · Cronograma — calendário'),
-  agenda: F('04 · Cronograma — agenda e detalhe'), lemb: F('05 · Lembretes'), perfil: F('06 · Perfil e preferências'),
-  pPainel: F('07 · Painel do professor'), gestao: F('08 · Gestão de eventos'),
-  adm: F('09 · Painel da administração'), sync: F('10 · Sincronização do calendário'),
-  mPainel: F('Mobile · Painel'), mCrono: F('Mobile · Cronograma'), mDet: F('Mobile · Detalhe do evento'),
-  mMenu: F('Mobile · Menu'), guia: F('Guia visual'), estados: F('Estados e feedback'),
+  capa: F('00 - Capa'), mapa: F('00 - Mapa de navegação'), req: F('00 - Requisitos x telas'),
+  entrar: F('01 - Entrar'), criar: F('01b - Criar conta'),
+  aPainel: F('02 - Painel do aluno'), cal: F('03 - Cronograma (calendário)'),
+  agenda: F('04 - Cronograma (agenda e detalhe)'), lemb: F('05 - Lembretes'), perfil: F('06 - Perfil e preferências'),
+  pPainel: F('07 - Painel do professor'), gestao: F('08 - Gestão de eventos'),
+  adm: F('09 - Painel da administração'), sync: F('10 - Sincronização do calendário'),
+  mPainel: F('Mobile - Painel'), mCrono: F('Mobile - Cronograma'), mDet: F('Mobile - Detalhe do evento'),
+  mMenu: F('Mobile - Menu'), guia: F('Guia visual'), estados: F('Estados e feedback'),
 };
 
 // ligações antigas
@@ -203,23 +203,21 @@ function wrapChildren(card, kids, name) {
 const reminderCard = frame => frame.findOne(n => n.type === 'TEXT' && n.characters === 'Lembrete pessoal').parent.parent.parent;
 
 const OFFSETS = ['15 min', '1 hora', '3 horas', '1 dia', '2 dias', '7 dias'];
-// Prova de Engenharia de Software: sex, 26/06, 19:00 — "agora" do protótipo é qui, 25/06, 07:42
+// Prova de Engenharia de Software: sex, 30/10, 19:00; "agora" do protótipo é qui, 29/10, 07:42
 const WHEN = ['amanhã, às 18:45', 'amanhã, às 18:00', 'amanhã, às 16:00', 'hoje, às 19:00', null, null];
-const CHANNEL = ['e-mail', 'notificação no celular'];
 const sets = {};
 {
   const card = reminderCard(S.agenda);
-  const kids = card.children.slice(1, -1); // rótulos, antecedência, canal e texto de ajuda
-  const wrap = wrapChildren(card, kids, 'Lembrete · antecedência e canal');
+  const kids = card.children.slice(1, -1); // rótulos, antecedência e texto de ajuda
+  const wrap = wrapChildren(card, kids, 'Lembrete - antecedência');
   const semi = option(wrap, '1 dia').findOne(n => n.type === 'TEXT').fontName;
-  sets.agenda = await interactive(wrap, 'Lembrete · antecedência e canal (desktop)', [
+  sets.agenda = await interactive(wrap, 'Lembrete - antecedência (desktop)', [
     { name: 'Antecedência', options: OFFSETS, selected: '1 dia' },
-    { name: 'Canal', options: ['E-mail', 'Push'], selected: 'E-mail' },
-  ], (c, [a, ch]) => {
+  ], (c, [a]) => {
     const help = c.findOne(n => n.type === 'TEXT' && /^(Você será avisado|Esse horário)/.test(n.characters));
     if (!help) return;
     if (WHEN[a]) {
-      help.characters = 'Você será avisado ' + WHEN[a] + ', por ' + CHANNEL[ch] + '.';
+      help.characters = 'Você será avisado ' + WHEN[a] + ', por e-mail.';
     } else {
       help.characters = 'Esse horário de aviso já passou. Escolha uma antecedência menor.';
       help.fills = [{ type: 'SOLID', color: rgb(180, 35, 74) }];
@@ -232,16 +230,15 @@ const sets = {};
 }
 {
   const card = reminderCard(S.mDet);
-  const wrap = wrapChildren(card, card.children.slice(1, -1), 'Lembrete · antecedência e canal');
-  sets.mobile = await interactive(wrap, 'Lembrete · antecedência e canal (celular)', [
+  const wrap = wrapChildren(card, card.children.slice(1, -1), 'Lembrete - antecedência');
+  sets.mobile = await interactive(wrap, 'Lembrete - antecedência (celular)', [
     { name: 'Antecedência', options: ['1 hora', '1 dia', '2 dias', '7 dias'], selected: '1 dia' },
-    { name: 'Canal', options: ['E-mail', 'Push'], selected: 'E-mail' },
   ]);
 }
-sets.categoria = await interactive(groupOf(S.gestao, ['Prova', 'Trabalho']), 'Evento · categoria', [
+sets.categoria = await interactive(groupOf(S.gestao, ['Prova', 'Trabalho']), 'Evento - categoria', [
   { name: 'Categoria', options: ['Prova', 'Trabalho', 'Atividade', 'Extracurricular'], selected: 'Trabalho' },
 ]);
-sets.cadastro = await interactive(groupOf(S.criar, ['Aluno', 'Professor']), 'Cadastro · perfil', [
+sets.cadastro = await interactive(groupOf(S.criar, ['Aluno', 'Professor']), 'Cadastro - perfil', [
   { name: 'Perfil', options: ['Aluno', 'Professor'], selected: 'Aluno' },
 ]);
 {
@@ -278,15 +275,15 @@ function roleClone(src, role, name, active) {
 
 const secPerfis = newSection(SEC_PERFIS, bottom + 300);
 const P = {
-  cal: roleClone(S.cal, S.pPainel, '03 · Cronograma — calendário · Professor', 'Cronograma'),
-  agenda: roleClone(S.agenda, S.pPainel, '04 · Cronograma — agenda e detalhe · Professor', 'Cronograma'),
-  lemb: roleClone(S.lemb, S.pPainel, '05 · Lembretes · Professor', 'Lembretes'),
+  cal: roleClone(S.cal, S.pPainel, '03 - Cronograma (calendário) - Professor', 'Cronograma'),
+  agenda: roleClone(S.agenda, S.pPainel, '04 - Cronograma (agenda e detalhe) - Professor', 'Cronograma'),
+  lemb: roleClone(S.lemb, S.pPainel, '05 - Lembretes - Professor', 'Lembretes'),
 };
 const D = {
-  cal: roleClone(S.cal, S.adm, '03 · Cronograma — calendário · Administração', 'Cronograma'),
-  agenda: roleClone(S.agenda, S.adm, '04 · Cronograma — agenda e detalhe · Administração', 'Cronograma'),
-  gestao: roleClone(S.gestao, S.adm, '08 · Gestão de eventos · Administração', 'Gestão'),
-  lemb: roleClone(S.lemb, S.adm, '05 · Lembretes · Administração', 'Lembretes'),
+  cal: roleClone(S.cal, S.adm, '03 - Cronograma (calendário) - Administração', 'Cronograma'),
+  agenda: roleClone(S.agenda, S.adm, '04 - Cronograma (agenda e detalhe) - Administração', 'Cronograma'),
+  gestao: roleClone(S.gestao, S.adm, '08 - Gestão de eventos - Administração', 'Gestão'),
+  lemb: roleClone(S.lemb, S.adm, '05 - Lembretes - Administração', 'Lembretes'),
 };
 [P.cal, P.agenda, P.lemb].forEach((f, i) => place(secPerfis, f, 120 + i * 1560, 120));
 const rowD = 120 + Math.max(P.cal.height, P.agenda.height, P.lemb.height) + 160;
@@ -320,7 +317,10 @@ const tplToast = tplTitle.parent.parent.parent;
 const tplIcon = tplToast.children[0];
 const tplSub = tplToast.findOne(n => n.type === 'TEXT' && n.characters.startsWith('Aviso'));
 const tplUndo = tplToast.findOne(n => n.type === 'TEXT' && n.characters === 'Desfazer');
-const bellIcon = S.aPainel.findOne(n => n.name.startsWith('Button - Notificações')).findOne(n => n.name === 'Icon');
+// o sino vem do item "Lembretes" do menu (o topo com o sino saiu das telas)
+const bellLink = S.aPainel.findOne(n => n.name === 'Sidebar').findAll(n => n.type === 'FRAME' && n.name === 'Link')
+  .find(l => l.children.some(t => t.type === 'TEXT' && t.characters === 'Lembretes'));
+const bellIcon = bellLink.findOne(n => n.name === 'Icon');
 await loadFonts([tplTitle, tplSub, tplUndo]);
 
 function toastIcon(kind) {
@@ -373,7 +373,7 @@ const O = {};
 // perfil como sobreposição: abre por cima da tela de qualquer perfil
 {
   const dialog = S.perfil.findOne(n => n.name === 'Dialog');
-  const f = overlayFrame('Sobreposição · Perfil e preferências', 1440, 900);
+  const f = overlayFrame('Sobreposição - Perfil e preferências', 1440, 900);
   const bg = backdrop(f, dialog.parent.fills);
   const d = dialog.clone();
   f.appendChild(d);
@@ -394,24 +394,24 @@ async function perfilFor(name, swaps) {
   }
   return f;
 }
-O.perfilP = await perfilFor('Sobreposição · Perfil e preferências · Professor', {
-  'Diogo Queiroz da Silva': 'Apio Carniello', 'diogo@agenda.test': 'apio@agenda.test', 'DQ': 'AC', 'Aluno': 'Professor', 'ALU-001': 'DOC-001',
+O.perfilP = await perfilFor('Sobreposição - Perfil e preferências - Professor', {
+  'Diogo Queiroz da Silva': 'Maraísa', 'diogo@agenda.test': 'maraisa@agenda.test', 'DQ': 'MA', 'Aluno': 'Docente', 'ALU-001': 'DOC-001',
 });
-O.perfilD = await perfilFor('Sobreposição · Perfil e preferências · Administração', {
-  'Diogo Queiroz da Silva': 'Coordenação', 'diogo@agenda.test': 'admin@agenda.test', 'DQ': 'CA', 'Aluno': 'Administração', 'ALU-001': 'ADM-001', 'TADS 4': null,
+O.perfilD = await perfilFor('Sobreposição - Perfil e preferências - Administração', {
+  'Diogo Queiroz da Silva': 'Coordenação', 'diogo@agenda.test': 'admin@agenda.test', 'DQ': 'CA', 'Aluno': 'Administração', 'ALU-001': 'ADM-001', 'TADS 5': null,
 });
 // confirmação de exclusão
 {
-  const cardTitle = S.estados.findOne(n => n.type === 'TEXT' && n.characters.startsWith('Excluir “'));
+  const cardTitle = S.estados.findOne(n => n.type === 'TEXT' && n.characters.startsWith('Excluir "'));
   const card = cardTitle.parent.parent;
-  const f = overlayFrame('Sobreposição · Confirmar exclusão', 1440, 900);
+  const f = overlayFrame('Sobreposição - Confirmar exclusão', 1440, 900);
   const bg = backdrop(f, null);
   const c = card.clone();
   f.appendChild(c);
   c.rescale(1.2); // o cartão do quadro de estados é miniatura
   c.x = Math.round((1440 - c.width) / 2);
   c.y = Math.round((900 - c.height) / 2);
-  const title = c.findOne(n => n.type === 'TEXT' && n.characters.startsWith('Excluir “'));
+  const title = c.findOne(n => n.type === 'TEXT' && n.characters.startsWith('Excluir "'));
   await loadFonts([title]);
   title.characters = 'Excluir este evento?';
   O.confirm = f;
@@ -423,7 +423,7 @@ O.perfilD = await perfilFor('Sobreposição · Perfil e preferências · Adminis
   const drawer = S.mMenu.findOne(n => n.name === 'Navigation - Menu');
   const sibs = drawer.parent.children;
   const dim = sibs[sibs.indexOf(drawer) - 1];
-  const f = overlayFrame('Mobile · Sobreposição · Menu', 390, 844);
+  const f = overlayFrame('Mobile - Sobreposição - Menu', 390, 844);
   const bg = backdrop(f, dim && dim.width >= 380 ? dim.fills : null);
   const d = drawer.clone();
   f.appendChild(d);
@@ -434,19 +434,19 @@ O.perfilD = await perfilFor('Sobreposição · Perfil e preferências · Adminis
 }
 
 const T = {
-  lembUpd: toastOverlay('Aviso · Lembrete atualizado', 'Lembrete atualizado', 'Aviso hoje, às 19:00, por e-mail.', {}),
-  lembRem: toastOverlay('Aviso · Lembrete removido', 'Lembrete removido', 'Ele não aparece mais nos seus lembretes.', { undo: true }),
-  pref: toastOverlay('Aviso · Preferências salvas', 'Preferências salvas', 'Novos lembretes: 1 dia antes, por e-mail.', {}),
-  bell: toastOverlay('Aviso · Lembrete para hoje', 'Lembrete para hoje', 'Prova de Engenharia de Software — aviso às 19:00.', { kind: 'info' }),
-  criado: toastOverlay('Aviso · Evento criado', 'Evento criado', 'A turma já vê “Apresentação final do projeto integrador” na agenda.', {}),
-  conc: toastOverlay('Aviso · Evento concluído', 'Evento concluído', 'A turma vê o evento como concluído.', {}),
-  canc: toastOverlay('Aviso · Evento cancelado', 'Evento cancelado', 'Os alunos veem o evento como cancelado.', { undo: true }),
-  reat: toastOverlay('Aviso · Evento reativado', 'Evento reativado', 'O evento voltou para a agenda da turma.', {}),
-  excl: toastOverlay('Aviso · Evento excluído', 'Evento excluído', 'Os lembretes ligados a ele foram apagados.', { undo: true }),
-  demo: toastOverlay('Aviso · Importação concluída', 'Importação concluída', '4 datas de demonstração publicadas com prioridade.', {}),
-  json: toastOverlay('Aviso · Calendário importado', 'Calendário importado', '3 datas oficiais publicadas para todas as turmas.', {}),
-  mLembUpd: toastOverlay('Mobile · Aviso · Lembrete atualizado', 'Lembrete atualizado', 'Aviso hoje, às 19:00, por e-mail.', { mobile: true }),
-  mBell: toastOverlay('Mobile · Aviso · Lembrete para hoje', 'Lembrete para hoje', 'Prova de Engenharia de Software — aviso às 19:00.', { mobile: true, kind: 'info' }),
+  lembUpd: toastOverlay('Aviso - Lembrete atualizado', 'Lembrete atualizado', 'Aviso hoje, às 19:00, por e-mail.', {}),
+  lembRem: toastOverlay('Aviso - Lembrete removido', 'Lembrete removido', 'Ele não aparece mais nos seus lembretes.', { undo: true }),
+  pref: toastOverlay('Aviso - Preferências salvas', 'Preferências salvas', 'Novos lembretes: 1 dia antes, por e-mail.', {}),
+  bell: toastOverlay('Aviso - Lembrete para hoje', 'Lembrete para hoje', 'Prova de Engenharia de Software, aviso às 19:00.', { kind: 'info' }),
+  criado: toastOverlay('Aviso - Evento criado', 'Evento criado', 'A turma já vê "Apresentação final do projeto integrador" na agenda.', {}),
+  conc: toastOverlay('Aviso - Evento concluído', 'Evento concluído', 'A turma vê o evento como concluído.', {}),
+  canc: toastOverlay('Aviso - Evento cancelado', 'Evento cancelado', 'Os alunos veem o evento como cancelado.', { undo: true }),
+  reat: toastOverlay('Aviso - Evento reativado', 'Evento reativado', 'O evento voltou para a agenda da turma.', {}),
+  excl: toastOverlay('Aviso - Evento excluído', 'Evento excluído', 'Os lembretes ligados a ele foram apagados.', { undo: true }),
+  demo: toastOverlay('Aviso - Importação concluída', 'Importação concluída', '4 datas de demonstração publicadas com prioridade.', {}),
+  json: toastOverlay('Aviso - Calendário importado', 'Calendário importado', '3 datas oficiais publicadas para todas as turmas.', {}),
+  mLembUpd: toastOverlay('Mobile - Aviso - Lembrete atualizado', 'Lembrete atualizado', 'Aviso hoje, às 19:00, por e-mail.', { mobile: true }),
+  mBell: toastOverlay('Mobile - Aviso - Lembrete para hoje', 'Lembrete para hoje', 'Prova de Engenharia de Software, aviso às 19:00.', { mobile: true, kind: 'info' }),
 };
 
 [O.perfil, O.perfilP, O.perfilD, O.confirm].forEach((f, i) => place(secSobre, f, 120 + i * 1560, 120));
@@ -475,6 +475,7 @@ const nav = R => [
   [l => l.aria.startsWith('Configurações do perfil'), () => overlay(R.perfil)],
   [l => l.txt === 'Sair da conta', () => go(S.entrar)],
   [l => l.aria.startsWith('Notificações'), () => overlay(T.bell)],
+  [l => ['Novo evento', 'Evento oficial'].includes(l.txt), () => (R.gestao ? go(R.gestao) : null)],
 ];
 const RA = { painel: S.aPainel, cal: S.cal, agenda: S.agenda, lemb: S.lemb, perfil: O.perfil };
 const RP = { painel: S.pPainel, cal: P.cal, agenda: P.agenda, lemb: P.lemb, gestao: S.gestao, perfil: O.perfilP };
@@ -488,7 +489,7 @@ const scr = {
     [isEvent, () => go(R.agenda)],
   ],
   cal: R => [
-    [l => l.txt === 'Agenda' || l.txt === 'Abrir detalhes' || /^Sexta, 26/.test(l.aria), () => go(R.agenda)],
+    [l => l.txt === 'Agenda' || l.txt === 'Abrir detalhes' || /^Sexta, 30/.test(l.aria), () => go(R.agenda)],
   ],
   agenda: R => [
     [l => l.txt === 'Calendário', () => go(R.cal)],
@@ -644,12 +645,12 @@ secComp.y = secSobre.y + secSobre.height + 200;
 fitSection(secComp);
 
 page.flowStartingPoints = [
-  { nodeId: S.capa.id, name: '1 · Apresentação' },
-  { nodeId: S.entrar.id, name: '2 · Entrar e aluno' },
-  { nodeId: S.pPainel.id, name: '3 · Professor' },
-  { nodeId: S.adm.id, name: '4 · Administração' },
-  { nodeId: S.mPainel.id, name: '5 · Celular' },
-  { nodeId: S.guia.id, name: '6 · Guia visual e estados' },
+  { nodeId: S.capa.id, name: '1 - Apresentação' },
+  { nodeId: S.entrar.id, name: '2 - Entrar e aluno' },
+  { nodeId: S.pPainel.id, name: '3 - Professor' },
+  { nodeId: S.adm.id, name: '4 - Administração' },
+  { nodeId: S.mPainel.id, name: '5 - Celular' },
+  { nodeId: S.guia.id, name: '6 - Guia visual e estados' },
 ];
 
 return {

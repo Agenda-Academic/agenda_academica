@@ -3,49 +3,43 @@
   <header class="g-sec-head">
     <span class="n">02</span>
     <h2>Aluno</h2>
-    <p>O aluno acompanha a agenda da turma, filtra por categoria e configura lembretes pessoais. Não altera datas oficiais nem eventos de professores — o perfil é somente leitura, exceto pelos próprios lembretes.</p>
+    <p>O aluno acompanha a agenda da turma, filtra por categoria e configura lembretes pessoais. Não altera datas oficiais nem eventos dos professores, só os próprios lembretes.</p>
   </header>
   <div class="g-frames">
 
-    <!-- ========================= TELA 2 · PAINEL DO ALUNO ========================= -->
+    <!-- ========================= TELA 2, PAINEL DO ALUNO ========================= -->
     <figure class="frame" id="tela-painel-aluno">
       <figcaption><span class="g-tag">Tela 2</span><b>Painel do aluno</b> Próximo compromisso em destaque, indicadores do semestre, linha do tempo e lembretes pendentes.<span class="g-rfs"><span class="g-rf">RF05</span></span></figcaption>
-      <div class="screen desk" data-name="Tela 2 · Painel do aluno">
+      <div class="screen desk" data-name="Tela 2 - Painel do aluno">
         <div class="app">
           <aside class="side">
-            <div class="brand"><span class="mark"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 10v6"/><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span><div><p class="brand-name">Agenda Acadêmica</p><p class="brand-sub">IFMS · Três Lagoas</p></div></div>
+            <div class="brand"><span class="mark"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 10v6"/><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span><div><p class="brand-name">Agenda Acadêmica</p><p class="brand-sub">IFMS, Campus Três Lagoas</p></div></div>
+            <label class="search side-search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" type="search" placeholder="Buscar evento" aria-label="Buscar evento, disciplina ou professor"><span class="kbd">Ctrl K</span></label>
             <nav aria-label="Navegação principal"><p class="nav-label">Menu</p><div class="navlist">
               <a class="nav on" href="#tela-painel-aluno" aria-current="page"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>Painel</a>
               <a class="nav" href="#tela-calendario"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>Cronograma</a>
               <a class="nav" href="#tela-lembretes"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Lembretes<span class="count">3</span></a>
             </div></nav>
             <div class="side-foot">
-              <div class="semestre" aria-label="Semestre 2026/1, semana 18 de 20"><div class="row1"><span>Semestre 2026/1</span><b>sem. 18 de 20</b></div><div class="bar"><span style="width:90%"></span></div></div>
-              <div class="ucard"><span class="avatar">DQ</span><div style="min-width:0"><p class="uname">Diogo Queiroz</p><p class="urole">Aluno · ALU-001</p></div><a class="ubtn" href="#tela-perfil" aria-label="Configurações do perfil"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg></a></div>
+              <div class="semestre" aria-label="Semestre 2026/2, semana 13 de 20"><div class="row1"><span>Semestre 2026/2</span><b>semana 13 de 20</b></div><div class="bar"><span style="width:65%"></span></div></div>
+              <div class="ucard"><span class="avatar">DQ</span><div style="min-width:0"><p class="uname">Diogo Queiroz</p><p class="urole">Aluno, ALU-001</p></div><a class="ubtn" href="#tela-perfil" aria-label="Configurações do perfil"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg></a></div>
               <a class="nav" href="#tela-entrar"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sair da conta</a>
               <p class="sync"><span class="ok"></span>Sincronizado hoje, 07:42</p>
             </div>
           </aside>
 
           <main class="content">
-            <header class="top">
-              <div><p class="eyebrow">Quinta-feira, 25 de junho de 2026</p><h1 class="h1">Olá, Diogo</h1></div>
-              <div class="top-actions">
-                <label class="search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" type="search" placeholder="Buscar evento ou disciplina" aria-label="Buscar"><span class="kbd">Ctrl K</span></label>
-                <button class="ib" type="button" aria-label="Notificações, 1 nova"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="badge"></span></button>
-              </div>
-            </header>
 
             <div class="row stretch">
               <section class="hero" style="flex:999 1 600px;min-width:0" aria-label="Próximo compromisso">
-                <div class="datebig"><span class="dw">Sex</span><span class="dn">26</span><span class="mo">Jun</span></div>
+                <div class="datebig"><span class="dw">Sex</span><span class="dn">30</span><span class="mo">Out</span></div>
                 <div class="hero-body">
                   <div class="hero-kicker"><span class="eyebrow">Próximo compromisso</span><span class="pill c-prova">Prova</span></div>
                   <h2 class="hero-title">Prova de Engenharia de Software</h2>
                   <div class="hero-meta">
                     <span><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Amanhã, 19:00</span>
-                    <span><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>Sala 7 · Bloco A</span>
-                    <span><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Prof. Apio Carniello</span>
+                    <span><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>Sala 7, Bloco A</span>
+                    <span><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profa. Maraísa</span>
                     <span><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg>10 pts (informativa)</span>
                   </div>
                   <div class="hero-actions">
@@ -53,19 +47,18 @@
                     <a class="btn btn-ghost" href="#tela-lembretes"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Lembrete ativo</a>
                   </div>
                 </div>
-                <div class="countdown"><p class="eyebrow"><span class="live" aria-hidden="true"></span>Faltam</p><b data-countdown="2026-06-26T19:00">1d 11h 18m</b><small>até o início</small></div>
+                <div class="countdown"><p class="eyebrow"><span class="live" aria-hidden="true"></span>Faltam</p><b data-countdown="2026-10-30T19:00">1d 11h 18m</b><small>até o início</small></div>
               </section>
 
               <section class="card pad" style="flex:1 1 300px;min-width:0;display:flex;flex-direction:column" aria-label="Sua turma">
-                <p class="eyebrow">Sua turma</p>
-                <h2 class="disp" style="margin-top:8px;font-size:34px;font-weight:700;line-height:1">TADS 4</h2>
+                <h2 class="disp" style="margin-top:8px;font-size:34px;font-weight:700;line-height:1">TADS 5</h2>
                 <p class="sub">Tecnologia em Análise e Desenvolvimento de Sistemas</p>
-                <div class="chips" style="margin-top:14px;gap:6px"><span class="pill st-ag">4º período</span><span class="pill st-ag">Noturno</span><span class="pill st-ag">2026/1</span></div>
+                <div class="chips" style="margin-top:14px;gap:6px"><span class="pill st-ag">5º período</span><span class="pill st-ag">Noturno</span><span class="pill st-ag">2026/2</span></div>
                 <hr class="divider" style="margin:18px 0 14px">
                 <ul style="display:flex;flex-direction:column;gap:10px;font-size:13.5px">
-                  <li style="display:flex;justify-content:space-between;gap:10px"><span style="font-weight:600">Engenharia de Software</span><span class="muted">Prof. Apio</span></li>
-                  <li style="display:flex;justify-content:space-between;gap:10px"><span style="font-weight:600">Matemática</span><span class="muted">Prof. Apio</span></li>
-                  <li style="display:flex;justify-content:space-between;gap:10px"><span style="font-weight:600">Estrutura de Dados</span><span class="muted">Profa. Marina</span></li>
+                  <li style="display:flex;justify-content:space-between;gap:10px"><span style="font-weight:600">Eng. de Software</span><span class="muted" style="white-space:nowrap">Profa. Maraísa</span></li>
+                  <li style="display:flex;justify-content:space-between;gap:10px"><span style="font-weight:600">Matemática</span><span class="muted" style="white-space:nowrap">Profa. Maraísa</span></li>
+                  <li style="display:flex;justify-content:space-between;gap:10px"><span style="font-weight:600">Estrutura de Dados</span><span class="muted" style="white-space:nowrap">Profa. Marina</span></li>
                 </ul>
               </section>
             </div>
@@ -82,69 +75,69 @@
               <div class="card kpi">
                 <div class="kpi-top"><p class="kpi-label">Provas à frente</p><span class="kpi-ico" style="background:#FFE4E8;color:#9F1239"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg></span></div>
                 <p class="kpi-val">3</p>
-                <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px"><span class="pill c-prova" style="height:22px;font-size:11.5px">sex 26</span><span class="pill c-prova" style="height:22px;font-size:11.5px">ter 30</span><span class="pill c-prova" style="height:22px;font-size:11.5px">seg 06</span></div>
+                <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px"><span class="pill c-prova" style="height:22px;font-size:11.5px">sex 30</span><span class="pill c-prova" style="height:22px;font-size:11.5px">ter 03</span><span class="pill c-prova" style="height:22px;font-size:11.5px">seg 09</span></div>
               </div>
               <div class="card kpi">
                 <div class="kpi-top"><p class="kpi-label">Lembretes ativos</p><span class="kpi-ico" style="background:#E0F2FE;color:#075985"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span></div>
                 <p class="kpi-val" data-kpi="lembretes">3</p>
-                <p class="kpi-hint" style="display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:12px"><span style="display:inline-flex;align-items:center;gap:5px"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>2 por e-mail</span><span style="display:inline-flex;align-items:center;gap:5px"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>1 push</span></p>
+                <p class="kpi-hint" style="display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:12px"><span style="display:inline-flex;align-items:center;gap:5px"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>Todos por e-mail</span></p>
               </div>
               <div class="card kpi">
                 <div class="kpi-top"><p class="kpi-label">Pontos em jogo</p><span class="kpi-ico" style="background:#FEF3C7;color:#92400E"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg></span></div>
                 <p class="kpi-val">50<small>pts</small></p>
                 <div class="stack" style="margin-top:12px;height:8px" role="img" aria-label="Engenharia de Software 25, Estrutura de Dados 15, Matemática 10"><span style="flex:25;background:var(--brand)"></span><span style="flex:15;background:var(--brand-400)"></span><span style="flex:10;background:var(--brand-200)"></span></div>
-                <p class="kpi-hint" style="margin-top:8px">Eng. Software 25 · Estruturas 15 · Mat. 10</p>
+                <p class="kpi-hint" style="margin-top:8px">Eng. Software 25, Estruturas 15, Mat. 10</p>
               </div>
             </div>
 
             <div class="row">
               <section class="card pad col-main" aria-labelledby="h-prox-aluno">
                 <div class="head">
-                  <div><p class="eyebrow">Linha do tempo</p><h2 class="h2" id="h-prox-aluno">Próximos compromissos</h2><p class="sub">Provas, entregas e datas oficiais da TADS 4 em ordem cronológica</p></div>
+                  <div><h2 class="h2" id="h-prox-aluno" style="margin-top:0">Próximos compromissos</h2></div>
                   <a class="btn btn-s btn-sm" href="#tela-calendario"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>Ver cronograma</a>
                 </div>
                 <div style="margin-top:14px">
                   <p class="group">Esta semana</p>
                   <a data-ev="es-prova" class="ev" href="#tela-agenda">
-                    <span class="ev-date"><span class="dw">Sex</span><span class="dn">26</span></span>
-                    <span class="ev-body"><span class="ev-title" style="display:block">Prova de Engenharia de Software</span><span class="ev-meta"><span class="pill c-prova">Prova</span><span>Engenharia de Software · Sala 7 · Bloco A</span></span></span>
+                    <span class="ev-date"><span class="dw">Sex</span><span class="dn">30</span></span>
+                    <span class="ev-body"><span class="ev-title" style="display:block">Prova de Engenharia de Software</span><span class="ev-meta"><span class="pill c-prova">Prova</span><span>Engenharia de Software, Sala 7, Bloco A</span></span></span>
                     <span class="ev-when"><span class="ev-time" style="display:block">19:00</span><span class="ev-rel soon" style="display:block">amanhã</span></span>
                   </a>
-                  <p class="group">Próxima semana · 29 jun – 5 jul</p>
+                  <p class="group">Próxima semana, 2 nov a 8 nov</p>
                   <a data-ev="semana" class="ev" href="#tela-agenda">
-                    <span class="ev-date"><span class="dw">Seg</span><span class="dn">29</span></span>
-                    <span class="ev-body"><span class="ev-title" style="display:block">Semana acadêmica</span><span class="ev-meta"><span class="pill c-inst">Institucional</span><span class="pill prio"><svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>Oficial</span><span>Auditório Central · até 3 jul</span></span></span>
+                    <span class="ev-date"><span class="dw">Seg</span><span class="dn">02</span></span>
+                    <span class="ev-body"><span class="ev-title" style="display:block">Feriado de Finados</span><span class="ev-meta"><span class="pill c-fer">Feriado</span><span class="pill prio"><svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>Oficial</span><span>Sem aulas</span></span></span>
                     <span class="ev-when"><span class="ev-time" style="display:block">Dia todo</span><span class="ev-rel" style="display:block">em 4 dias</span></span>
                   </a>
                   <a data-ev="mat-p2" class="ev" href="#tela-agenda">
-                    <span class="ev-date"><span class="dw">Ter</span><span class="dn">30</span></span>
-                    <span class="ev-body"><span class="ev-title" style="display:block">Prova de Matemática — P2</span><span class="ev-meta"><span class="pill c-prova">Prova</span><span>Matemática · Sala 12 · Bloco B</span></span></span>
+                    <span class="ev-date"><span class="dw">Ter</span><span class="dn">03</span></span>
+                    <span class="ev-body"><span class="ev-title" style="display:block">Prova de Matemática (P2)</span><span class="ev-meta"><span class="pill c-prova">Prova</span><span>Matemática, Sala 12, Bloco B</span></span></span>
                     <span class="ev-when"><span class="ev-time" style="display:block">19:00</span><span class="ev-rel" style="display:block">em 5 dias</span></span>
                   </a>
                   <a data-ev="proj-s3" class="ev" href="#tela-agenda">
-                    <span class="ev-date"><span class="dw">Qua</span><span class="dn">01</span></span>
-                    <span class="ev-body"><span class="ev-title" style="display:block">Entrega do projeto integrador — Sprint 3</span><span class="ev-meta"><span class="pill c-trab">Trabalho</span><span>Engenharia de Software · Moodle</span></span></span>
+                    <span class="ev-date"><span class="dw">Qua</span><span class="dn">04</span></span>
+                    <span class="ev-body"><span class="ev-title" style="display:block">Entrega da sprint 3 do projeto integrador</span><span class="ev-meta"><span class="pill c-trab">Trabalho</span><span>Engenharia de Software, Moodle</span></span></span>
                     <span class="ev-when"><span class="ev-time" style="display:block">23:59</span><span class="ev-rel" style="display:block">em 6 dias</span></span>
                   </a>
                   <a data-ev="ajuste" class="ev" href="#tela-agenda">
-                    <span class="ev-date"><span class="dw">Qui</span><span class="dn">02</span></span>
-                    <span class="ev-body"><span class="ev-title" style="display:block">Prazo final de ajuste de matrícula</span><span class="ev-meta"><span class="pill c-inst">Institucional</span><span class="pill prio"><svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>Oficial</span><span>Secretaria acadêmica</span></span></span>
+                    <span class="ev-date"><span class="dw">Qui</span><span class="dn">05</span></span>
+                    <span class="ev-body"><span class="ev-title" style="display:block">Prazo final de trancamento de matrícula</span><span class="ev-meta"><span class="pill c-inst">Institucional</span><span class="pill prio"><svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>Oficial</span><span>Secretaria acadêmica</span></span></span>
                     <span class="ev-when"><span class="ev-time" style="display:block">18:00</span><span class="ev-rel" style="display:block">em 7 dias</span></span>
                   </a>
                   <a data-ev="avl" class="ev" href="#tela-agenda">
-                    <span class="ev-date"><span class="dw">Sex</span><span class="dn">03</span></span>
-                    <span class="ev-body"><span class="ev-title" style="display:block">Lista de exercícios: árvores AVL</span><span class="ev-meta"><span class="pill c-ativ">Atividade</span><span>Estrutura de Dados · Moodle</span></span></span>
+                    <span class="ev-date"><span class="dw">Sex</span><span class="dn">06</span></span>
+                    <span class="ev-body"><span class="ev-title" style="display:block">Lista de exercícios: árvores AVL</span><span class="ev-meta"><span class="pill c-ativ">Atividade</span><span>Estrutura de Dados, Moodle</span></span></span>
                     <span class="ev-when"><span class="ev-time" style="display:block">23:59</span><span class="ev-rel" style="display:block">em 8 dias</span></span>
                   </a>
                   <p class="group">Mais adiante</p>
                   <a data-ev="ed-prova" class="ev" href="#tela-agenda">
-                    <span class="ev-date"><span class="dw">Seg</span><span class="dn">06</span></span>
-                    <span class="ev-body"><span class="ev-title" style="display:block">Prova de Estrutura de Dados</span><span class="ev-meta"><span class="pill c-prova">Prova</span><span>Estrutura de Dados · Laboratório 3</span></span></span>
+                    <span class="ev-date"><span class="dw">Seg</span><span class="dn">09</span></span>
+                    <span class="ev-body"><span class="ev-title" style="display:block">Prova de Estrutura de Dados</span><span class="ev-meta"><span class="pill c-prova">Prova</span><span>Estrutura de Dados, Laboratório 3</span></span></span>
                     <span class="ev-when"><span class="ev-time" style="display:block">19:00</span><span class="ev-rel" style="display:block">em 11 dias</span></span>
                   </a>
                   <a data-ev="recesso" class="ev" href="#tela-agenda">
-                    <span class="ev-date"><span class="dw">Seg</span><span class="dn">20</span></span>
-                    <span class="ev-body"><span class="ev-title" style="display:block">Recesso escolar</span><span class="ev-meta"><span class="pill c-rec">Recesso</span><span class="pill prio"><svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>Oficial</span><span>até 31 jul · sem aulas</span></span></span>
+                    <span class="ev-date"><span class="dw">Seg</span><span class="dn">23</span></span>
+                    <span class="ev-body"><span class="ev-title" style="display:block">Semana acadêmica</span><span class="ev-meta"><span class="pill c-inst">Institucional</span><span class="pill prio"><svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>Oficial</span><span>Auditório Central, até 27 nov</span></span></span>
                     <span class="ev-when"><span class="ev-time" style="display:block">Dia todo</span><span class="ev-rel" style="display:block">em 25 dias</span></span>
                   </a>
                 </div>
@@ -152,26 +145,26 @@
 
               <div class="col-side">
                 <section class="card pad" aria-labelledby="h-lemb-aluno">
-                  <div class="head"><div><p class="eyebrow">Alertas</p><h2 class="h2" id="h-lemb-aluno">Próximos lembretes</h2><p class="sub">3 aguardando envio</p></div></div>
+                  <div class="head"><div><h2 class="h2" id="h-lemb-aluno" style="margin-top:0">Próximos lembretes</h2><p class="sub">3 aguardando envio</p></div></div>
                   <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-                    <a class="mini" href="#tela-lembretes"><span class="mini-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span><span><span class="mini-t" style="display:block">Prova de Engenharia de Software</span><span class="mini-s" style="display:block">Envio hoje, 19:00 · 1 dia antes · E-mail</span></span></a>
-                    <a class="mini" href="#tela-lembretes"><span class="mini-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span><span><span class="mini-t" style="display:block">Prova de Matemática — P2</span><span class="mini-s" style="display:block">Envio dom, 28 jun, 19:00 · 2 dias antes · Push</span></span></a>
-                    <a class="mini" href="#tela-lembretes"><span class="mini-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span><span><span class="mini-t" style="display:block">Entrega do projeto integrador</span><span class="mini-s" style="display:block">Envio ter, 30 jun, 23:59 · 1 dia antes · E-mail</span></span></a>
+                    <a class="mini" href="#tela-lembretes"><span class="mini-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span><span><span class="mini-t" style="display:block">Prova de Engenharia de Software</span><span class="mini-s" style="display:block">Envio hoje, 19:00, 1 dia antes</span></span></a>
+                    <a class="mini" href="#tela-lembretes"><span class="mini-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span><span><span class="mini-t" style="display:block">Prova de Matemática (P2)</span><span class="mini-s" style="display:block">Envio dom, 1º nov, 19:00, 2 dias antes</span></span></a>
+                    <a class="mini" href="#tela-lembretes"><span class="mini-ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span><span><span class="mini-t" style="display:block">Entrega do projeto integrador</span><span class="mini-s" style="display:block">Envio ter, 3 nov, 23:59, 1 dia antes</span></span></a>
                   </div>
                   <a class="link" href="#tela-lembretes" style="margin-top:16px">Gerenciar lembretes<svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
                 </section>
 
                 <section class="card pad" aria-labelledby="h-dist-aluno">
-                  <div class="head"><div><p class="eyebrow">Categorias</p><h2 class="h2" id="h-dist-aluno">O que vem pela frente</h2><p class="sub">8 compromissos nos próximos 30 dias</p></div></div>
-                  <div class="stack" style="margin-top:18px" role="img" aria-label="Provas 3, Institucionais 2, Trabalhos 1, Atividades 1, Recessos 1">
-                    <span class="d-prova" style="flex:3"></span><span class="d-inst" style="flex:2"></span><span class="d-trab" style="flex:1"></span><span class="d-ativ" style="flex:1"></span><span class="d-rec" style="flex:1"></span>
+                  <div class="head"><div><h2 class="h2" id="h-dist-aluno" style="margin-top:0">Por categoria</h2><p class="sub">8 compromissos nos próximos 30 dias</p></div></div>
+                  <div class="stack" style="margin-top:18px" role="img" aria-label="Provas 3, Institucionais 2, Feriados 1, Trabalhos 1, Atividades 1">
+                    <span class="d-prova" style="flex:3"></span><span class="d-inst" style="flex:2"></span><span class="d-fer" style="flex:1"></span><span class="d-trab" style="flex:1"></span><span class="d-ativ" style="flex:1"></span>
                   </div>
                   <ul class="legend">
                     <li><span><span class="dot d-prova"></span>Provas</span><b>3</b></li>
                     <li><span><span class="dot d-inst"></span>Institucionais</span><b>2</b></li>
+                    <li><span><span class="dot d-fer"></span>Feriados</span><b>1</b></li>
                     <li><span><span class="dot d-trab"></span>Trabalhos</span><b>1</b></li>
                     <li><span><span class="dot d-ativ"></span>Atividades</span><b>1</b></li>
-                    <li><span><span class="dot d-rec"></span>Recessos</span><b>1</b></li>
                   </ul>
                 </section>
               </div>

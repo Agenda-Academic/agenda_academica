@@ -1,11 +1,13 @@
 
-    <!-- ========================= TELA 8 · GESTÃO DE EVENTOS ========================= -->
+    <!-- ========================= TELA 8, GESTÃO DE EVENTOS ========================= -->
     <figure class="frame" id="tela-gestao">
       <figcaption><span class="g-tag">Tela 8</span><b>Gestão de eventos</b> Formulário de criação com escopo por vínculo docente, pré-visualização do que o aluno verá e a lista de eventos com ações de situação.<span class="g-rfs"><span class="g-rf">RF06</span><span class="g-rf">RF11</span></span></figcaption>
-      <div class="screen desk" data-name="Tela 8 · Gestão de eventos">
+      <div class="screen desk" data-name="Tela 8 - Gestão de eventos">
         <div class="app">
           <aside class="side">
-            <div class="brand"><span class="mark"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 10v6"/><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span><div><p class="brand-name">Agenda Acadêmica</p><p class="brand-sub">IFMS · Três Lagoas</p></div></div>
+            <div class="brand"><span class="mark"><svg class="i i-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 10v6"/><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span><div><p class="brand-name">Agenda Acadêmica</p><p class="brand-sub">IFMS, Campus Três Lagoas</p></div></div>
+            <label class="search side-search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" type="search" placeholder="Buscar evento" aria-label="Buscar evento, disciplina ou professor"><span class="kbd">Ctrl K</span></label>
+            <a class="btn btn-p side-new" href="#tela-gestao"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v4"/><path d="M10 16h4"/></svg>Novo evento</a>
             <nav aria-label="Navegação principal"><p class="nav-label">Menu</p><div class="navlist">
               <a class="nav" href="#tela-painel-professor"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>Painel</a>
               <a class="nav" href="#tela-calendario"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>Cronograma</a>
@@ -13,27 +15,20 @@
               <a class="nav" href="#tela-lembretes"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Lembretes</a>
             </div></nav>
             <div class="side-foot">
-              <div class="semestre" aria-label="Semestre 2026/1, semana 18 de 20"><div class="row1"><span>Semestre 2026/1</span><b>sem. 18 de 20</b></div><div class="bar"><span style="width:90%"></span></div></div>
-              <div class="ucard"><span class="avatar">AC</span><div style="min-width:0"><p class="uname">Apio Carniello</p><p class="urole">Professor · DOC-001</p></div><a class="ubtn" href="#tela-perfil" aria-label="Configurações do perfil"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg></a></div>
+              <div class="semestre" aria-label="Semestre 2026/2, semana 13 de 20"><div class="row1"><span>Semestre 2026/2</span><b>semana 13 de 20</b></div><div class="bar"><span style="width:65%"></span></div></div>
+              <div class="ucard"><span class="avatar">MA</span><div style="min-width:0"><p class="uname">Profa. Maraísa</p><p class="urole">Docente, DOC-001</p></div><a class="ubtn" href="#tela-perfil" aria-label="Configurações do perfil"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg></a></div>
               <a class="nav" href="#tela-entrar"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sair da conta</a>
               <p class="sync"><span class="ok"></span>Sincronizado hoje, 07:42</p>
             </div>
           </aside>
 
           <main class="content">
-            <header class="top">
-              <div><p class="eyebrow">Gestão docente</p><h1 class="h1">Eventos das suas turmas</h1></div>
-              <div class="top-actions">
-                <label class="search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" type="search" placeholder="Buscar evento ou disciplina" aria-label="Buscar"><span class="kbd">Ctrl K</span></label>
-                <button class="ib" type="button" aria-label="Notificações"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button>
-              </div>
-            </header>
 
             <div class="row">
               <form class="card col-main" aria-labelledby="h-novo" style="padding:0;gap:0;overflow:hidden">
                 <div style="padding:24px 26px 20px;border-bottom:1px solid var(--line-2);display:flex;align-items:flex-start;gap:14px">
                   <span class="kpi-ico" style="width:44px;height:44px;border-radius:13px"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="M3 10h18"/><path d="M16 19h6"/><path d="M19 16v6"/></svg></span>
-                  <div><p class="eyebrow" data-f="form-eyebrow">Novo evento</p><h2 class="h2" id="h-novo" data-f="form-title" style="margin-top:4px">Publicar para a turma</h2><p class="sub">Eventos docentes aparecem imediatamente para os alunos da turma.</p></div>
+                  <div><h2 class="h2" id="h-novo" data-f="form-title" style="margin-top:4px">Publicar para a turma</h2><p class="sub">Eventos docentes aparecem imediatamente para os alunos da turma.</p></div>
                 </div>
                 <div style="padding:22px 26px;display:flex;flex-direction:column;gap:20px">
                   <div>
@@ -56,17 +51,17 @@
                   <div class="grid2">
                     <div>
                       <label class="lbl" for="g-ini">Início</label>
-                      <div style="position:relative"><input class="input" id="g-ini" value="sex, 10/07/2026 · 19:00" style="padding-right:44px"><svg class="i" viewBox="0 0 24 24" style="position:absolute;right:14px;top:14px;color:var(--muted)" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div>
+                      <div style="position:relative"><input class="input" id="g-ini" value="sex, 13/11/2026, 19:00" style="padding-right:44px"><svg class="i" viewBox="0 0 24 24" style="position:absolute;right:14px;top:14px;color:var(--muted)" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div>
                     </div>
                     <div>
                       <label class="lbl" for="g-fim">Término <span class="hint">opcional</span></label>
-                      <div style="position:relative"><input class="input" id="g-fim" value="sex, 10/07/2026 · 22:00" style="padding-right:44px"><svg class="i" viewBox="0 0 24 24" style="position:absolute;right:14px;top:14px;color:var(--muted)" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+                      <div style="position:relative"><input class="input" id="g-fim" value="sex, 13/11/2026, 22:00" style="padding-right:44px"><svg class="i" viewBox="0 0 24 24" style="position:absolute;right:14px;top:14px;color:var(--muted)" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
                     </div>
                   </div>
                   <div class="grid2">
                     <div>
                       <label class="lbl" for="g-turma">Turma</label>
-                      <select class="input" id="g-turma"><option selected>TADS 4 · Noturno</option></select>
+                      <select class="input" id="g-turma"><option selected>TADS 5, Noturno</option></select>
                     </div>
                     <div>
                       <label class="lbl" for="g-disc">Disciplina</label>
@@ -82,7 +77,7 @@
                     <div>
                       <label class="lbl" for="g-pts">Pontuação informativa <span class="hint">opcional</span></label>
                       <input class="input" id="g-pts" value="20">
-                      <p class="field-help">Só para referência — o sistema não calcula notas.</p>
+                      <p class="field-help">Só para referência: o sistema não calcula notas.</p>
                     </div>
                   </div>
                   <div>
@@ -91,7 +86,7 @@
                   </div>
                 </div>
                 <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:16px 26px 22px;border-top:1px solid var(--line-2);background:var(--surface-2)">
-                  <p class="field-help" style="margin:0 auto 0 0">Os alunos da TADS 4 verão o evento assim que ele for criado.</p>
+                  <p class="field-help" style="margin:0 auto 0 0">Os alunos da TADS 5 verão o evento assim que ele for criado.</p>
                   <a class="btn btn-s" href="#tela-painel-professor">Cancelar</a>
                   <a class="btn btn-p" data-act="criar" href="#tela-painel-professor"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="M3 10h18"/><path d="M16 19h6"/><path d="M19 16v6"/></svg><span data-f="criar-label">Criar evento</span></a>
                 </div>
@@ -99,39 +94,36 @@
 
               <div class="col-side">
                 <section class="card pad" aria-labelledby="h-prev">
-                  <p class="eyebrow">Pré-visualização</p>
-                  <h2 class="h2" id="h-prev">Como os alunos verão</h2>
+                  <h2 class="h2" id="h-prev" style="margin-top:0">Como os alunos verão</h2>
                   <div style="margin-top:14px;padding:6px;border-radius:16px;border:1px dashed var(--brand-200);background:var(--brand-50)">
                     <div class="ev" style="background:#fff">
-                      <span class="ev-date"><span class="dw" data-p="dw">Sex</span><span class="dn" data-p="dn">10</span></span>
-                      <span class="ev-body"><span class="ev-title" data-p="title" style="display:block;white-space:normal">Apresentação final do projeto integrador</span><span class="ev-meta"><span class="pill c-trab" data-p="pill">Trabalho</span><span data-p="meta">19:00 · Auditório Central</span></span></span>
+                      <span class="ev-date"><span class="dw" data-p="dw">Sex</span><span class="dn" data-p="dn">13</span></span>
+                      <span class="ev-body"><span class="ev-title" data-p="title" style="display:block;white-space:normal">Apresentação final do projeto integrador</span><span class="ev-meta"><span class="pill c-trab" data-p="pill">Trabalho</span><span data-p="meta">19:00, Auditório Central</span></span></span>
                     </div>
                   </div>
                   <dl class="info" style="margin-top:16px;font-size:13.5px;gap:10px 14px">
                     <dt>Disciplina</dt><dd data-p="disc">Engenharia de Software</dd>
-                    <dt>Turma</dt><dd data-p="turma">TADS 4 · Noturno</dd>
+                    <dt>Turma</dt><dd data-p="turma">TADS 5, Noturno</dd>
                     <dt>Pontuação</dt><dd data-p="pts">20 pts (informativa)</dd>
                   </dl>
                 </section>
 
                 <section class="card pad" aria-labelledby="h-sem-g">
-                  <p class="eyebrow">Turma TADS 4</p>
-                  <h2 class="h2" id="h-sem-g">Semana de 6 a 10 jul</h2>
+                  <h2 class="h2" id="h-sem-g" style="margin-top:0">Semana de 9 a 13 nov</h2>
                   <ul style="margin-top:14px;display:flex;flex-direction:column">
-                    <li style="display:flex;align-items:flex-start;gap:14px;padding:10px 0;border-bottom:1px solid var(--line-2)"><span style="width:54px;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)">SEG 06</span><span style="flex:1;min-width:0"><span class="ce c-prova">Prova de Estrutura de Dados<span class="h">19:00 · Profa. Marina Souza</span></span></span></li>
-                    <li style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line-2)"><span style="width:54px;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)">TER 07</span><span class="muted" style="font-size:13px">Livre</span></li>
-                    <li style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line-2)"><span style="width:54px;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)">QUA 08</span><span class="muted" style="font-size:13px">Livre</span></li>
-                    <li style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line-2)"><span style="width:54px;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)">QUI 09</span><span class="muted" style="font-size:13px">Livre</span></li>
-                    <li style="display:flex;align-items:flex-start;gap:14px;padding:10px 0"><span style="width:54px;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--brand)">SEX 10</span><span style="flex:1;min-width:0"><span class="ce" style="background:#fff;border:1.5px dashed #7C3AED;color:#5B21B6"><span data-p="week">Novo: apresentação final</span><span class="h" data-p="week-h">19:00 · este evento</span></span></span></li>
+                    <li style="display:flex;align-items:flex-start;gap:14px;padding:10px 0;border-bottom:1px solid var(--line-2)"><span style="width:54px;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)">SEG 09</span><span style="flex:1;min-width:0"><span class="ce c-prova">Prova de Estrutura de Dados<span class="h">19:00, Profa. Marina Souza</span></span></span></li>
+                    <li style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line-2)"><span style="width:54px;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)">TER 10</span><span class="muted" style="font-size:13px">Livre</span></li>
+                    <li style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line-2)"><span style="width:54px;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)">QUA 11</span><span class="muted" style="font-size:13px">Livre</span></li>
+                    <li style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line-2)"><span style="width:54px;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)">QUI 12</span><span class="muted" style="font-size:13px">Livre</span></li>
+                    <li style="display:flex;align-items:flex-start;gap:14px;padding:10px 0"><span style="width:54px;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--brand)">SEX 13</span><span style="flex:1;min-width:0"><span class="ce" style="background:#fff;border:1.5px dashed #7C3AED;color:#5B21B6"><span data-p="week">Novo: apresentação final</span><span class="h" data-p="week-h">19:00, este evento</span></span></span></li>
                   </ul>
                 </section>
 
                 <section class="card pad" aria-labelledby="h-vinc">
-                  <p class="eyebrow">Vínculos</p>
-                  <h2 class="h2" id="h-vinc">Turmas ministradas</h2>
+                  <h2 class="h2" id="h-vinc" style="margin-top:0">Turmas ministradas</h2>
                   <ul style="margin-top:12px;display:flex;flex-direction:column;gap:8px;font-size:14px">
-                    <li style="display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2)"><b style="font-weight:650">Engenharia de Software</b><span class="muted">TADS 4</span></li>
-                    <li style="display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2)"><b style="font-weight:650">Matemática</b><span class="muted">TADS 4</span></li>
+                    <li style="display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2)"><b style="font-weight:650">Engenharia de Software</b><span class="muted">TADS 5</span></li>
+                    <li style="display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2)"><b style="font-weight:650">Matemática</b><span class="muted">TADS 5</span></li>
                   </ul>
                 </section>
               </div>
@@ -139,46 +131,46 @@
 
             <section class="card" aria-labelledby="h-gerencia" style="overflow:hidden">
               <div class="head" style="padding:22px 24px 18px;align-items:center">
-                <div><p class="eyebrow">Meus eventos</p><h2 class="h2" id="h-gerencia">Eventos que você gerencia</h2></div>
+                <div><h2 class="h2" id="h-gerencia" style="margin-top:0">Eventos que você gerencia</h2></div>
                 <div class="seg" data-status-seg role="group" aria-label="Filtrar por situação">
-                  <button class="on" type="button" aria-pressed="true" data-st="all">Todos · <span data-f="n-all">6</span></button>
-                  <button type="button" aria-pressed="false" data-st="fut">Futuros · <span data-f="n-fut">3</span></button>
-                  <button type="button" aria-pressed="false" data-st="conc">Concluídos · <span data-f="n-conc">2</span></button>
-                  <button type="button" aria-pressed="false" data-st="canc">Cancelados · <span data-f="n-canc">1</span></button>
+                  <button class="on" type="button" aria-pressed="true" data-st="all">Todos, <span data-f="n-all">6</span></button>
+                  <button type="button" aria-pressed="false" data-st="fut">Futuros, <span data-f="n-fut">3</span></button>
+                  <button type="button" aria-pressed="false" data-st="conc">Concluídos, <span data-f="n-conc">2</span></button>
+                  <button type="button" aria-pressed="false" data-st="canc">Cancelados, <span data-f="n-canc">1</span></button>
                 </div>
               </div>
               <div style="overflow-x:auto">
                 <table class="tbl">
-                  <thead><tr><th scope="col">Evento</th><th scope="col">Turma · disciplina</th><th scope="col">Data</th><th scope="col">Situação</th><th scope="col" style="text-align:right">Ações</th></tr></thead>
+                  <thead><tr><th scope="col">Evento</th><th scope="col">Turma, disciplina</th><th scope="col">Data</th><th scope="col">Situação</th><th scope="col" style="text-align:right">Ações</th></tr></thead>
                   <tbody data-f="gestao-rows">
                     <tr>
                       <td><p class="t">Prova de Engenharia de Software</p><p class="s"><span class="pill c-prova" style="height:20px;font-size:11px">Prova</span> 10 pts</p></td>
-                      <td>TADS 4 · Engenharia de Software</td><td>Sex, 26 jun · 19:00</td><td><span class="pill st-ag">Agendado</span></td>
+                      <td>TADS 5, Engenharia de Software</td><td>Sex, 30 out, 19:00</td><td><span class="pill st-ag">Agendado</span></td>
                       <td><div class="acts"><button class="ib sm" type="button" aria-label="Editar"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button class="ib sm" type="button" aria-label="Concluir"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg></button><button class="ib sm" type="button" aria-label="Cancelar evento"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg></button><button class="ib sm" type="button" aria-label="Excluir" style="color:#B4234A"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button></div></td>
                     </tr>
                     <tr>
-                      <td><p class="t">Prova de Matemática — P2</p><p class="s"><span class="pill c-prova" style="height:20px;font-size:11px">Prova</span> 10 pts</p></td>
-                      <td>TADS 4 · Matemática</td><td>Ter, 30 jun · 19:00</td><td><span class="pill st-ag">Agendado</span></td>
+                      <td><p class="t">Prova de Matemática (P2)</p><p class="s"><span class="pill c-prova" style="height:20px;font-size:11px">Prova</span> 10 pts</p></td>
+                      <td>TADS 5, Matemática</td><td>Ter, 3 nov, 19:00</td><td><span class="pill st-ag">Agendado</span></td>
                       <td><div class="acts"><button class="ib sm" type="button" aria-label="Editar"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button class="ib sm" type="button" aria-label="Concluir"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg></button><button class="ib sm" type="button" aria-label="Cancelar evento"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg></button><button class="ib sm" type="button" aria-label="Excluir" style="color:#B4234A"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button></div></td>
                     </tr>
                     <tr>
-                      <td><p class="t">Entrega do projeto integrador — Sprint 3</p><p class="s"><span class="pill c-trab" style="height:20px;font-size:11px">Trabalho</span> 15 pts · prazo adiado de 29/06</p></td>
-                      <td>TADS 4 · Engenharia de Software</td><td>Qua, 1º jul · 23:59</td><td><span class="pill st-alt">Alterado</span></td>
+                      <td><p class="t">Entrega da sprint 3 do projeto integrador</p><p class="s"><span class="pill c-trab" style="height:20px;font-size:11px">Trabalho</span> 15 pts, prazo adiado de 02/11</p></td>
+                      <td>TADS 5, Engenharia de Software</td><td>Qua, 4 nov, 23:59</td><td><span class="pill st-alt">Alterado</span></td>
                       <td><div class="acts"><button class="ib sm" type="button" aria-label="Editar"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button class="ib sm" type="button" aria-label="Concluir"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg></button><button class="ib sm" type="button" aria-label="Cancelar evento"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg></button><button class="ib sm" type="button" aria-label="Excluir" style="color:#B4234A"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button></div></td>
                     </tr>
                     <tr style="background:var(--surface-2)">
                       <td><p class="t" style="color:var(--ink-3)">Aula de revisão para a P2</p><p class="s"><span class="pill c-ativ" style="height:20px;font-size:11px">Atividade</span> sem pontuação</p></td>
-                      <td class="muted">TADS 4 · Matemática</td><td class="muted"><s>Seg, 29 jun · 19:00</s></td><td><span class="pill st-canc">Cancelado</span></td>
+                      <td class="muted">TADS 5, Matemática</td><td class="muted"><s>Seg, 2 nov, 19:00</s></td><td><span class="pill st-canc">Cancelado</span></td>
                       <td><div class="acts"><button class="btn btn-s btn-sm" type="button"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Reativar</button><button class="ib sm" type="button" aria-label="Excluir" style="color:#B4234A"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button></div></td>
                     </tr>
                     <tr style="background:var(--surface-2)">
                       <td><p class="t" style="color:var(--ink-3)">Seminário: padrões de projeto</p><p class="s"><span class="pill c-ativ" style="height:20px;font-size:11px">Atividade</span> 5 pts</p></td>
-                      <td class="muted">TADS 4 · Engenharia de Software</td><td class="muted">Ter, 16 jun · 19:00</td><td><span class="pill st-conc">Concluído</span></td>
+                      <td class="muted">TADS 5, Engenharia de Software</td><td class="muted">Ter, 20 out, 19:00</td><td><span class="pill st-conc">Concluído</span></td>
                       <td><div class="acts"><button class="btn btn-s btn-sm" type="button"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Reativar</button><button class="ib sm" type="button" aria-label="Excluir" style="color:#B4234A"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button></div></td>
                     </tr>
                     <tr style="background:var(--surface-2)">
                       <td><p class="t" style="color:var(--ink-3)">Relatório de requisitos</p><p class="s"><span class="pill c-trab" style="height:20px;font-size:11px">Trabalho</span> 10 pts</p></td>
-                      <td class="muted">TADS 4 · Engenharia de Software</td><td class="muted">Sex, 12 jun · 23:59</td><td><span class="pill st-conc">Concluído</span></td>
+                      <td class="muted">TADS 5, Engenharia de Software</td><td class="muted">Sex, 9 out, 23:59</td><td><span class="pill st-conc">Concluído</span></td>
                       <td><div class="acts"><button class="btn btn-s btn-sm" type="button"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Reativar</button><button class="ib sm" type="button" aria-label="Excluir" style="color:#B4234A"><svg class="i i-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button></div></td>
                     </tr>
                   </tbody>
