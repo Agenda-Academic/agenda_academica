@@ -55,7 +55,7 @@ export function EventRow({
     event.points !== null ? `${event.points} pts` : null,
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join(", ");
 
   return (
     <button className={cx("ev", selected && "sel")} onClick={onClick} type="button">
@@ -193,10 +193,10 @@ export function EventDetailContent({
         </div>
         <p className={cx("field-help mt-3", (past || sendPassed) && "font-semibold text-[#B4234A]")}>
           {past
-            ? "O evento já aconteceu — não há lembrete a enviar."
+            ? "Esse evento já passou, não tem lembrete para enviar."
             : sendPassed
               ? "Esse horário de aviso já passou. Escolha uma antecedência menor."
-              : `Você será avisado ${formatDateLong(sendAt.toISOString())}, pelo canal do seu perfil.`}
+              : `Você será avisado ${formatDateLong(sendAt.toISOString())}, por e-mail.`}
         </p>
         <div className="mt-3.5 flex gap-2.5">
           <button

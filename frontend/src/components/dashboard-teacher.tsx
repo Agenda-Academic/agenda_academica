@@ -71,7 +71,7 @@ export function TeacherDashboard({
           label="Turmas" order={3}
           value={String(classes.length)}
           tone="c-ativ"
-          hint={classes.map((academicClass) => academicClass.name).join(" · ") || "sem vínculo"}
+          hint={classes.map((academicClass) => academicClass.name).join(", ") || "sem vínculo"}
         />
         <InsightTile
           icon={BookOpen}
@@ -92,7 +92,7 @@ export function TeacherDashboard({
       {/* Pares de cards na mesma linha, com rolagem interna */}
       <div className="board" style={{ "--row": "390px" } as CSSProperties}>
         <section className="card pad rise" style={delay(6)} aria-label="Minhas turmas e disciplinas">
-          <SectionTitle eyebrow="Docência" title="Minhas turmas e disciplinas" subtitle="Crie eventos direto na disciplina certa" />
+          <SectionTitle title="Minhas turmas e disciplinas" />
           <div className="scroll mt-4">
             <div className="grid gap-3 sm:grid-cols-2">
               {assignments.map((assignment) => {
@@ -104,7 +104,7 @@ export function TeacherDashboard({
                       <p className="sub !mt-1">
                         {[assignment.academicClass?.name, assignment.academicClass?.shift, assignment.subject?.code]
                           .filter(Boolean)
-                          .join(" · ")}
+                          .join(", ")}
                       </p>
                     </div>
                     <p className="flex items-center gap-2 text-[13px] font-semibold text-ink-3">
@@ -132,7 +132,7 @@ export function TeacherDashboard({
         </section>
 
         <section className="card pad rise" style={delay(7)} aria-label="Datas oficiais à frente">
-          <SectionTitle eyebrow="Instituição" title="Datas oficiais à frente" subtitle="Feriados e prazos que afetam suas aulas" />
+          <SectionTitle title="Datas oficiais à frente" />
           <div className="scroll mt-3.5">
             <EventList events={officialUpcoming} emptyIcon={CalendarDays} emptyText="Nenhuma data oficial próxima." onSelect={onSelect} />
           </div>
@@ -140,7 +140,7 @@ export function TeacherDashboard({
 
         <section className="card pad rise" style={delay(8)} aria-label="Meus próximos eventos">
           <div className="head">
-            <SectionTitle eyebrow="Publicações" title="Meus próximos eventos" subtitle="O que suas turmas vão encontrar na agenda" />
+            <SectionTitle title="Meus próximos eventos" />
             <button className="btn btn-s btn-sm" onClick={onOpenManage} type="button">
               Ver todos na gestão
             </button>
@@ -157,7 +157,7 @@ export function TeacherDashboard({
         </section>
 
         <section className="card pad rise" style={delay(9)} aria-label="Agenda geral das turmas">
-          <SectionTitle eyebrow="Turmas" title="Agenda geral das turmas" subtitle="Inclui eventos de outros professores" />
+          <SectionTitle title="Agenda geral das turmas" subtitle="Inclui eventos de outros professores" />
           <div className="scroll mt-3.5">
             <EventList events={upcomingEvents} emptyIcon={CalendarDays} emptyText="Sem eventos futuros nas suas turmas." onSelect={onSelect} />
           </div>

@@ -55,7 +55,7 @@ export function AdminDashboard({
           <p className="hero-meta">
             <span>
               {lastImport
-                ? `Última sincronização em ${formatDate(lastImport.importedAt)} · ${lastImport.sourceName}`
+                ? `Última sincronização em ${formatDate(lastImport.importedAt)}, ${lastImport.sourceName}`
                 : "O calendário oficial ainda não foi importado neste período."}
             </span>
           </p>
@@ -64,7 +64,7 @@ export function AdminDashboard({
               <CloudDownload className="h-4 w-4" aria-hidden />
               Sincronizar calendário
             </button>
-            <button className="btn btn-ghost" onClick={onNewEvent} type="button">
+            <button className="btn btn-s" onClick={onNewEvent} type="button">
               <CalendarPlus className="h-4 w-4" aria-hidden />
               Novo evento oficial
             </button>
@@ -87,7 +87,7 @@ export function AdminDashboard({
       {/* Pares de cards na mesma linha, com rolagem interna */}
       <div className="board" style={{ "--row": "390px" } as CSSProperties}>
         <section className="card pad rise" style={delay(6)} aria-label="Próximas datas oficiais">
-          <SectionTitle eyebrow="Reitoria" title="Próximas datas oficiais" subtitle="O que toda a comunidade acadêmica vê com prioridade" />
+          <SectionTitle title="Próximas datas oficiais" />
           <div className="scroll mt-3.5">
             <EventList
               events={officialUpcoming}
@@ -101,7 +101,6 @@ export function AdminDashboard({
 
         <section className="card pad rise" style={delay(7)} aria-label="Importações recentes">
           <SectionTitle
-            eyebrow="Sincronização"
             title="Importações recentes"
             subtitle={`${imports.length} registro${imports.length === 1 ? "" : "s"} no histórico`}
           />
@@ -114,7 +113,7 @@ export function AdminDashboard({
                 <span className="min-w-0">
                   <span className="mini-t block truncate">{item.sourceName}</span>
                   <span className="mini-s block">
-                    {formatDate(item.importedAt)} · {item.totalEvents} evento{item.totalEvents === 1 ? "" : "s"}
+                    {formatDate(item.importedAt)}, {item.totalEvents} evento{item.totalEvents === 1 ? "" : "s"}
                   </span>
                 </span>
               </button>
@@ -130,7 +129,7 @@ export function AdminDashboard({
         </section>
 
         <section className="card pad rise" style={delay(8)} aria-label="Atividade por turma">
-          <SectionTitle eyebrow="Turmas" title="Atividade por turma" subtitle="Eventos futuros publicados em cada turma" />
+          <SectionTitle title="Atividade por turma" />
           <div className="scroll mt-4">
             <div className="grid gap-3 sm:grid-cols-2">
               {classes.map((academicClass) => {
@@ -139,7 +138,7 @@ export function AdminDashboard({
                   <div key={academicClass.id} className="rounded-2xl border border-line-2 bg-surface-2 p-4">
                     <p className="truncate text-[15.5px] font-bold">{academicClass.name}</p>
                     <p className="sub !mt-1">
-                      {[academicClass.course?.code, academicClass.period, academicClass.shift].filter(Boolean).join(" · ")}
+                      {[academicClass.course?.code, academicClass.period, academicClass.shift].filter(Boolean).join(", ")}
                     </p>
                     <p className="mt-3 flex items-center gap-2 text-[13px] font-semibold text-ink-3">
                       <span className={count ? "dot bg-brand" : "dot bg-line-strong"} aria-hidden />
@@ -158,7 +157,7 @@ export function AdminDashboard({
         </section>
 
         <section className="card pad rise" style={delay(9)} aria-label="Distribuição geral">
-          <SectionTitle eyebrow="Categorias" title="Distribuição geral" subtitle="Todos os eventos do período, por tipo" />
+          <SectionTitle title="Distribuição geral" />
           <div className="scroll mt-4">
             <CategoryBreakdown
               counts={allCategories.map((category) => ({

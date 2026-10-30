@@ -148,7 +148,7 @@ const honorifics = new Set(["prof.", "prof", "profa.", "profa", "dr.", "dra.", "
 
 export function firstName(value: string) {
   const parts = value.trim().split(/\s+/);
-  // Pula títulos ("Prof. Apio" → "Apio") para a saudação soar natural.
+  // Pula títulos ("Profa. Maraísa" → "Maraísa") para a saudação soar natural.
   return parts.find((part) => !honorifics.has(part.toLowerCase())) ?? parts[0] ?? value;
 }
 
@@ -209,15 +209,15 @@ export function countdown(value: string, now = new Date()) {
   return `${days ? `${days}d ` : ""}${hours}h ${String(rest).padStart(2, "0")}m`;
 }
 
-/** Agrupa eventos futuros em "Esta semana", "Próxima semana · 29 jun – 5 jul" e "Mais adiante". */
+/** Agrupa eventos futuros em "Esta semana", "Próxima semana, 29 jun a 5 jul" e "Mais adiante". */
 export function groupByWeek<T extends { startsAt: string }>(items: T[], now = new Date()) {
   const today = startOfDay(now);
   const nextWeekStart = addDays(today, 7 - today.getDay());
   const nextWeekEnd = addDays(nextWeekStart, 6);
-  const range = `${nextWeekStart.getDate()} ${shortMonths[nextWeekStart.getMonth()].toLowerCase()} – ${nextWeekEnd.getDate()} ${shortMonths[nextWeekEnd.getMonth()].toLowerCase()}`;
+  const range = `${nextWeekStart.getDate()} ${shortMonths[nextWeekStart.getMonth()].toLowerCase()} a ${nextWeekEnd.getDate()} ${shortMonths[nextWeekEnd.getMonth()].toLowerCase()}`;
   const groups: Array<{ label: string; items: T[] }> = [
     { label: "Esta semana", items: [] },
-    { label: `Próxima semana · ${range}`, items: [] },
+    { label: `Próxima semana, ${range}`, items: [] },
     { label: "Mais adiante", items: [] },
   ];
   for (const item of items) {

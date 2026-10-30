@@ -76,8 +76,7 @@ export function StudentDashboard({
         </div>
 
         <section className="card pad rise flex flex-col" style={delay(1)} aria-label="Sua turma">
-          <p className="eyebrow">Sua turma</p>
-          <h2 className="disp mt-2 text-[34px] font-bold leading-none">{myClass?.name ?? "Sem turma"}</h2>
+          <h2 className="disp text-[34px] font-bold leading-none">{myClass?.name ?? "Sem turma"}</h2>
           <p className="sub">
             {myClass ? (myClass.course?.name ?? "Curso") : "Fale com a secretaria para vincular sua matrícula."}
           </p>
@@ -154,12 +153,12 @@ export function StudentDashboard({
           icon={Trophy}
           label="Pontos em jogo"
           order={5}
-          value={pointsAtStake ? String(pointsAtStake) : "—"}
+          value={pointsAtStake ? String(pointsAtStake) : "0"}
           unit={pointsAtStake ? "pts" : undefined}
           tone="c-extra"
           hint={
             pointsBySubject.length
-              ? pointsBySubject.map(([name, points]) => `${name} ${points}`).join(" · ")
+              ? pointsBySubject.map(([name, points]) => `${name} ${points}`).join(", ")
               : "pontuação informativa"
           }
         >
@@ -181,11 +180,7 @@ export function StudentDashboard({
       <div className="board" style={{ "--row": "310px" } as CSSProperties}>
         <section className="card pad tall rise" style={delay(6)} aria-label="Próximos compromissos">
           <div className="head">
-            <SectionTitle
-              eyebrow="Linha do tempo"
-              title="Próximos compromissos"
-              subtitle={`Provas, entregas e datas oficiais${myClass ? ` da ${myClass.name}` : ""} em ordem cronológica`}
-            />
+            <SectionTitle title="Próximos compromissos" />
             <button className="btn btn-s btn-sm" onClick={onOpenCalendar} type="button">
               <CalendarDays className="h-[15px] w-[15px]" aria-hidden />
               Ver cronograma
@@ -206,7 +201,6 @@ export function StudentDashboard({
 
         <section className="card pad rise" style={delay(7)} aria-label="Próximos lembretes">
           <SectionTitle
-            eyebrow="Alertas"
             title="Próximos lembretes"
             subtitle={`${pendingReminders.length} aguardando envio`}
           />
@@ -221,7 +215,7 @@ export function StudentDashboard({
                     {reminder.academicEvent?.title ?? `Evento #${reminder.academicEventId}`}
                   </span>
                   <span className="mini-s block">
-                    Envio {formatDate(reminder.sendAt)} · {reminderOffsetLabel(reminder.offsetMinutes)}
+                    Envio {formatDate(reminder.sendAt)}, {reminderOffsetLabel(reminder.offsetMinutes)}
                   </span>
                 </span>
               </button>
@@ -240,10 +234,9 @@ export function StudentDashboard({
           </button>
         </section>
 
-        <section className="card pad rise" style={delay(8)} aria-label="O que vem pela frente">
+        <section className="card pad rise" style={delay(8)} aria-label="Por categoria">
           <SectionTitle
-            eyebrow="Categorias"
-            title="O que vem pela frente"
+            title="Por categoria"
             subtitle={`${thirtyDays} ${thirtyDays === 1 ? "compromisso" : "compromissos"} nos próximos 30 dias`}
           />
           <div className="scroll mt-4">

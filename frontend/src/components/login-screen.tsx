@@ -95,26 +95,23 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
   return (
     <main className="flex min-h-screen items-center bg-login px-4 py-6 text-ink sm:px-6 lg:px-8">
       <section className="card rise mx-auto grid w-full max-w-6xl overflow-hidden !rounded-[28px] xl:grid-cols-[1fr_0.95fr]">
-        <div className="relative hidden min-h-[600px] flex-col justify-between overflow-hidden bg-night p-10 text-white xl:flex">
-          {/* círculos suaves ao fundo, sem degradê pesado */}
-          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-night-3/50" />
-          <div className="pointer-events-none absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-night-2/60" />
-          <div className="relative">
+        <div className="hidden min-h-[600px] flex-col justify-between bg-night p-10 text-white xl:flex">
+          <div>
             <div className="flex items-center gap-3">
               <span className="mark">
                 <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
               </span>
               <div>
                 <p className="brand-name">Agenda Acadêmica</p>
-                <p className="brand-sub">IFMS · Três Lagoas</p>
+                <p className="brand-sub">IFMS, Campus Três Lagoas</p>
               </div>
             </div>
 
             <div className="mt-12 max-w-xl">
-              <p className="eyebrow !text-accent">Fonte única de verdade</p>
-              <h1 className="disp mt-3 text-[44px] font-bold leading-[1.05]">
-                Veja o que importa hoje, esta semana e no calendário oficial.
-              </h1>
+              <h1 className="disp text-[44px] font-bold leading-[1.05]">Agenda acadêmica unificada do campus</h1>
+              <p className="mt-4 text-[15.5px] leading-7 text-on-night">
+                Centraliza provas, trabalhos, atividades, datas oficiais e lembretes de alunos, professores e coordenação.
+              </p>
             </div>
 
             <div className="mt-10 grid gap-4 text-[14.5px] text-on-night">
@@ -139,7 +136,7 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
             </div>
           </div>
 
-          <p className="relative flex items-center gap-2 border-t border-white/10 pt-5 text-[13px] text-on-night-2">
+          <p className="flex items-center gap-2 border-t border-white/10 pt-5 text-[13px] text-on-night-2">
             <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
             Ambiente de demonstração: os dados voltam ao padrão sempre que o servidor reinicia.
           </p>
@@ -176,11 +173,11 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
             </div>
 
             <h2 className="disp text-[30px] font-bold leading-tight">
-              {mode === "login" ? "Entrar na agenda" : "Criar minha conta"}
+              {mode === "login" ? "Entrar" : "Criar minha conta"}
             </h2>
             <p className="mt-2 text-[14.5px] leading-6 text-muted">
               {mode === "login"
-                ? "Acesse com sua conta ou use um dos perfis de demonstração abaixo."
+                ? "Use seu e-mail ou escolha uma conta de demonstração."
                 : "Crie uma conta para acompanhar prazos e configurar lembretes."}
             </p>
 

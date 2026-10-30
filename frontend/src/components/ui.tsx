@@ -131,7 +131,7 @@ export function PageSkeleton() {
 
   return (
     <div className="pop grid gap-5" role="status">
-      <span className="sr-only">Carregando dados da agenda…</span>
+      <span className="sr-only">Carregando dados da agenda...</span>
       {slow ? (
         <p className="callout blue pop">
           <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" aria-hidden />
@@ -181,20 +181,16 @@ export function PageSkeleton() {
 /* Seções                                                              */
 /* ------------------------------------------------------------------ */
 
-/** Cabeçalho de card: rótulo pequeno, título e subtítulo, como no Figma. */
+/** Cabeçalho de card: título e subtítulo opcional, como no Figma. */
 export function SectionTitle({
-  eyebrow,
   subtitle,
   title,
 }: {
-  eyebrow: string;
-  icon?: LucideIcon;
   subtitle?: string;
   title: string;
 }) {
   return (
     <div className="min-w-0">
-      <p className="eyebrow">{eyebrow}</p>
       <h2 className="h2">{title}</h2>
       {subtitle ? <p className="sub">{subtitle}</p> : null}
     </div>

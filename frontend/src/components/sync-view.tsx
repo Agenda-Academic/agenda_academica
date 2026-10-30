@@ -9,7 +9,7 @@ import { InsightTile, delay } from "./dashboard-bits";
 import { EmptyState, Field, SectionTitle } from "./ui";
 
 const exampleJson = `{
-  "sourceName": "Calendário oficial 2026/1",
+  "sourceName": "Calendário oficial 2026/2",
   "events": [
     {
       "title": "Início do semestre letivo",
@@ -76,7 +76,7 @@ export function SyncView({
       if (!Array.isArray(list) || !list.length) {
         return { tone: "err", text: 'Falta a lista "events" com ao menos um evento.' };
       }
-      return { tone: "ok", text: `JSON válido · ${list.length} evento${list.length === 1 ? "" : "s"} pronto${list.length === 1 ? "" : "s"} para importar.` };
+      return { tone: "ok", text: `JSON válido: ${list.length} evento${list.length === 1 ? "" : "s"} pronto${list.length === 1 ? "" : "s"} para importar.` };
     } catch {
       return { tone: "err", text: "JSON inválido. Confira vírgulas, aspas e chaves." };
     }
@@ -100,7 +100,6 @@ export function SyncView({
       <div className="board" style={{ "--row": "530px" } as CSSProperties}>
         <section className="card pad rise" style={delay(3)} aria-label="Importar calendário">
           <SectionTitle
-            eyebrow="Sincronização"
             title="Calendário oficial da reitoria"
             subtitle="Datas institucionais entram com prioridade e aparecem para todos os usuários."
           />
@@ -167,7 +166,6 @@ export function SyncView({
 
         <section className="card pad rise" style={delay(4)} aria-label="Permissão">
           <SectionTitle
-            eyebrow="Permissão"
             title={isAdmin ? "Acesso liberado" : "Restrito à administração"}
             subtitle={isAdmin ? "Você pode importar datas oficiais." : "Use uma conta de administração para sincronizar."}
           />
@@ -185,7 +183,7 @@ export function SyncView({
 
       {isAdmin ? (
         <section className="card pad rise" style={delay(5)} aria-label="Importações realizadas">
-          <SectionTitle eyebrow="Histórico" title="Importações realizadas" subtitle="Registro das sincronizações com a fonte institucional" />
+          <SectionTitle title="Importações realizadas" subtitle="Registro das sincronizações com a fonte institucional" />
           {imports.length ? (
             <div className="scroll mt-4 max-h-[420px] overflow-x-auto rounded-2xl border border-line">
               <table className="tbl min-w-[620px]">

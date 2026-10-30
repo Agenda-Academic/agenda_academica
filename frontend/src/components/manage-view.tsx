@@ -166,7 +166,6 @@ export function ManageView({
         <form className="card pad tall rise" style={delay(0)} onSubmit={onSave} aria-label="Formulário do evento">
           <div className="head">
             <SectionTitle
-              eyebrow={editingEventId ? "Editando" : "Novo evento"}
               title={editingEventId ? "Editar evento" : isAdmin ? "Publicar data oficial" : "Publicar para a turma"}
               subtitle={
                 isAdmin
@@ -192,7 +191,7 @@ export function ManageView({
                   minLength={3}
                   maxLength={140}
                   required
-                  placeholder="Ex.: Prova de Matemática — P2"
+                  placeholder="Ex.: Prova de Matemática (P2)"
                 />
               </Field>
 
@@ -263,7 +262,7 @@ export function ManageView({
                   {classOptions.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
-                      {item.course?.code ? ` · ${item.course.code}` : ""}
+                      {item.course?.code ? ` (${item.course.code})` : ""}
                     </option>
                   ))}
                 </select>
@@ -328,7 +327,7 @@ export function ManageView({
 
         {/* Prévia */}
         <section className="card pad rise" style={delay(1)} aria-label="Prévia">
-          <SectionTitle eyebrow="Prévia" title="Como a turma vai ver" subtitle="Atualiza enquanto você preenche." />
+          <SectionTitle title="Como a turma vai ver" subtitle="Atualiza enquanto você preenche." />
           <div className="scroll mt-4">
             <div className="rounded-2xl border border-dashed border-line-strong bg-surface-2 p-1.5">
               <EventRow event={preview} onClick={() => undefined} />
@@ -345,7 +344,6 @@ export function ManageView({
         {/* Vínculos */}
         <section className="card pad rise" style={delay(2)} aria-label="Vínculos">
           <SectionTitle
-            eyebrow="Vínculos"
             title={isAdmin ? "Visão institucional" : "Turmas ministradas"}
             subtitle={isAdmin ? "Você publica para qualquer turma" : "Onde você pode publicar"}
           />
@@ -359,7 +357,7 @@ export function ManageView({
                   <span className="min-w-0">
                     <span className="mini-t block">{academicClass.name}</span>
                     <span className="mini-s block">
-                      {[academicClass.course?.code, academicClass.period, academicClass.shift].filter(Boolean).join(" · ")}
+                      {[academicClass.course?.code, academicClass.period, academicClass.shift].filter(Boolean).join(", ")}
                     </span>
                   </span>
                 </div>
@@ -373,7 +371,7 @@ export function ManageView({
                   <span className="min-w-0">
                     <span className="mini-t block truncate">{assignment.subject?.name}</span>
                     <span className="mini-s block">
-                      {[assignment.academicClass?.name, assignment.academicClass?.course?.code].filter(Boolean).join(" · ")}
+                      {[assignment.academicClass?.name, assignment.academicClass?.course?.code].filter(Boolean).join(", ")}
                     </span>
                   </span>
                 </div>
@@ -389,15 +387,14 @@ export function ManageView({
       <section className="card pad rise flex flex-col" style={delay(3)} aria-label="Eventos que você gerencia">
         <div className="head">
           <SectionTitle
-            eyebrow="Meus eventos"
             title={isAdmin ? "Eventos da instituição" : "Eventos que você gerencia"}
             subtitle={`${manageableEvents.length} evento${manageableEvents.length === 1 ? "" : "s"} sob sua responsabilidade`}
           />
           <Segmented label="Situação">
-            <SegmentedButton active={tab === "all"} label={`Todos · ${counts.all}`} onClick={() => setTab("all")} />
-            <SegmentedButton active={tab === "upcoming"} label={`Futuros · ${counts.upcoming}`} onClick={() => setTab("upcoming")} />
-            <SegmentedButton active={tab === "completed"} label={`Concluídos · ${counts.completed}`} onClick={() => setTab("completed")} />
-            <SegmentedButton active={tab === "cancelled"} label={`Cancelados · ${counts.cancelled}`} onClick={() => setTab("cancelled")} />
+            <SegmentedButton active={tab === "all"} label={`Todos (${counts.all})`} onClick={() => setTab("all")} />
+            <SegmentedButton active={tab === "upcoming"} label={`Futuros (${counts.upcoming})`} onClick={() => setTab("upcoming")} />
+            <SegmentedButton active={tab === "completed"} label={`Concluídos (${counts.completed})`} onClick={() => setTab("completed")} />
+            <SegmentedButton active={tab === "cancelled"} label={`Cancelados (${counts.cancelled})`} onClick={() => setTab("cancelled")} />
           </Segmented>
         </div>
         {visible.length ? (
@@ -418,7 +415,7 @@ export function ManageView({
                     <td>
                       <p className={cx("t", event.status === "cancelled" && "text-faint line-through")}>{event.title}</p>
                       <p className="s">
-                        {[event.subject?.name, event.academicClass?.name ?? "Toda a instituição"].filter(Boolean).join(" · ")}
+                        {[event.subject?.name, event.academicClass?.name ?? "Toda a instituição"].filter(Boolean).join(", ")}
                       </p>
                     </td>
                     <td>

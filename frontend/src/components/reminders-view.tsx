@@ -81,7 +81,7 @@ function ReminderRow({
 
 const steps = [
   { title: "Abra um evento", text: "No cronograma ou no painel, toque na prova, entrega ou data oficial que importa para você." },
-  { title: "Escolha a antecedência", text: "De 15 minutos a 7 dias antes. O canal segue o padrão do seu perfil." },
+  { title: "Escolha a antecedência", text: "De 15 minutos a 7 dias antes. O aviso vai para o seu e-mail." },
   { title: "Receba o aviso", text: "No horário do aviso, o sistema registra o lembrete como enviado. O disparo por e-mail está previsto." },
 ];
 
@@ -114,7 +114,7 @@ export function RemindersView({
         <InsightTile
           icon={Send}
           label="Próximo envio"
-          value={next ? formatDate(next.sendAt) : "—"}
+          value={next ? formatDate(next.sendAt) : "Nenhum"}
           tone="c-extra"
           hint={next ? (next.academicEvent?.title ?? `Evento #${next.academicEventId}`) : "nenhum agendado"}
           order={2}
@@ -125,12 +125,11 @@ export function RemindersView({
         <section className="card pad rise" style={delay(3)} aria-label="Meus lembretes">
           <div className="head">
             <SectionTitle
-              eyebrow="Central de alertas"
               title={tab === "sent" ? "Lembretes enviados" : tab === "all" ? "Todos os lembretes" : "Aguardando envio"}
             />
             <Segmented label="Mostrar">
-              <SegmentedButton active={tab === "pending"} label={`Pendentes · ${pending.length}`} onClick={() => setTab("pending")} />
-              <SegmentedButton active={tab === "sent"} label={`Enviados · ${sent.length}`} onClick={() => setTab("sent")} />
+              <SegmentedButton active={tab === "pending"} label={`Pendentes (${pending.length})`} onClick={() => setTab("pending")} />
+              <SegmentedButton active={tab === "sent"} label={`Enviados (${sent.length})`} onClick={() => setTab("sent")} />
               <SegmentedButton active={tab === "all"} label="Todos" onClick={() => setTab("all")} />
             </Segmented>
           </div>
@@ -149,7 +148,7 @@ export function RemindersView({
         </section>
 
         <section className="card pad rise" style={delay(4)} aria-label="Como funciona">
-          <SectionTitle eyebrow="Como funciona" title="Três passos" subtitle="Os lembretes são pessoais: só você recebe." />
+          <SectionTitle title="Três passos" subtitle="Os lembretes são pessoais: só você recebe." />
           <ol className="scroll mt-5 flex flex-col gap-4">
             {steps.map((step, index) => (
               <li key={step.title} className="flex gap-3.5">
@@ -165,7 +164,7 @@ export function RemindersView({
           </ol>
           {onOpenProfile ? (
             <button className="link mt-4" onClick={onOpenProfile} type="button">
-              Alterar antecedência e canal padrão
+              Alterar antecedência padrão
               <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
             </button>
           ) : null}
