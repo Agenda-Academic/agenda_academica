@@ -280,7 +280,7 @@ function MonthCalendar({
                       title={cell.events
                         .slice(2)
                         .map((event) => event.title)
-                        .join(" · ")}
+                        .join(", ")}
                       type="button"
                     >
                       +{cell.events.length - 2} evento{cell.events.length - 2 === 1 ? "" : "s"}
@@ -403,11 +403,10 @@ export function CalendarView({
   ) : null;
 
   return (
-    <div className="grid gap-5 xl:h-[calc(100vh-150px)] xl:min-h-[620px] xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-5 xl:h-[calc(100vh-40px)] xl:min-h-[620px] xl:grid-cols-[minmax(0,1fr)_400px]">
       <section className="card pad rise flex min-h-0 min-w-0 flex-col" aria-label="Cronograma">
         <div className="head">
           <SectionTitle
-            eyebrow="Cronograma"
             title={
               role === "admin"
                 ? "Cronograma institucional"

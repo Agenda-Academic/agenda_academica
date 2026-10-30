@@ -3,6 +3,7 @@
 import {
   Bell,
   CalendarDays,
+  CalendarPlus,
   Edit3,
   GraduationCap,
   LayoutDashboard,
@@ -10,6 +11,7 @@ import {
   LogOut,
   Menu,
   RefreshCw,
+  Search,
   Settings,
   X,
   type LucideIcon,
@@ -18,6 +20,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { cx, formatTime } from "@/lib/format";
 import { roleLabels } from "@/lib/meta";
 import type { User, UserRole } from "@/lib/types";
+import { primaryButton } from "./ui";
 
 export type View = "dashboard" | "calendar" | "manage" | "reminders" | "sync";
 
@@ -77,8 +80,51 @@ function Brand({ onDark }: { onDark?: boolean }) {
       </span>
       <div className="min-w-0">
         <p className={cx("brand-name truncate", !onDark && "text-ink")}>Agenda Acadêmica</p>
-        <p className={cx("brand-sub", !onDark && "text-muted")}>IFMS · Três Lagoas</p>
+        <p className={cx("brand-sub", !onDark && "text-muted")}>IFMS, Campus Três Lagoas</p>
       </div>
+    </div>
+  );
+}
+
+/** Busca geral e atalho de criação, logo abaixo da marca no menu. */
+function SideTools({
+  newEventLabel,
+  search,
+  onNewEvent,
+  onSearchChange,
+  onSubmit,
+}: {
+  newEventLabel: string | null;
+  search: string;
+  onNewEvent: () => void;
+  onSearchChange: (value: string) => void;
+  onSubmit?: () => void;
+}) {
+  return (
+    <div className="side-tools">
+      <form
+        className="side-search"
+        role="search"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit?.();
+        }}
+      >
+        <Search aria-hidden />
+        <input
+          placeholder="Buscar evento"
+          aria-label="Buscar evento, disciplina ou professor"
+          enterKeyHint="search"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+        />
+      </form>
+      {newEventLabel ? (
+        <button className={cx(primaryButton, "w-full")} onClick={onNewEvent} type="button">
+          <CalendarPlus className="h-4 w-4" aria-hidden />
+          {newEventLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -98,7 +144,7 @@ function SideFoot({
   onOpenProfile: () => void;
   onRefresh: () => void;
 }) {
-  const role = [roleLabels[user.role], user.registration].filter(Boolean).join(" · ");
+  const role = [roleLabels[user.role], user.registration].filter(Boolean).join(", ");
   return (
     <div className="side-foot">
       <div className="ucard">
@@ -130,7 +176,7 @@ function SideFoot({
           <span className="ok" aria-hidden />
         )}
         {refreshing
-          ? "Atualizando…"
+          ? "Atualizando..."
           : updatedAt
             ? `Atualizado às ${formatTime(updatedAt.toISOString())}`
             : "Atualizar dados"}
@@ -143,29 +189,37 @@ function SideFoot({
 export function AppShell({
   activeView,
   badges,
+  canWrite,
   children,
   refreshing,
+  search,
   updatedAt,
   user,
   onLogout,
   onNavigate,
+  onNewEvent,
   onOpenProfile,
   onRefresh,
+  onSearchChange,
 }: {
   activeView: View;
   badges?: Partial<Record<View, number>>;
-  /** Mantido por compatibilidade com a página; o menu não depende mais dele. */
   canWrite?: boolean;
   children: ReactNode;
   refreshing: boolean;
+  search: string;
   updatedAt?: Date | null;
   user: User;
   onLogout: () => void;
   onNavigate: (view: View) => void;
+  onNewEvent: () => void;
   onOpenProfile: () => void;
   onRefresh: () => void;
+  onSearchChange: (value: string) => void;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const newEventLabel = canWrite ? (user.role === "admin" ? "Evento oficial" : "Novo evento") : null;
+  const pageTitle = visibleNavItems(user.role).find((item) => item.view === activeView)?.label ?? "Agenda Acadêmica";
 
   useEffect(() => {
     if (!drawerOpen) {
@@ -199,6 +253,22 @@ export function AppShell({
     />
   );
 
+  function tools(inDrawer: boolean) {
+    return (
+      <SideTools
+        newEventLabel={newEventLabel}
+        search={search}
+        onNewEvent={() => {
+          onNewEvent();
+          setDrawerOpen(false);
+        }}
+        onSearchChange={onSearchChange}
+        // no celular, o "buscar" do teclado fecha o menu e mostra o resultado
+        onSubmit={inDrawer ? () => setDrawerOpen(false) : undefined}
+      />
+    );
+  }
+
   return (
     <main className="bg-app min-h-screen text-ink">
       {/* Barra do topo (celular) */}
@@ -229,6 +299,7 @@ export function AppShell({
                 <X className="h-5 w-5" aria-hidden />
               </button>
             </div>
+            {tools(true)}
             <NavButtons activeView={activeView} badges={badges} role={user.role} onNavigate={navigate} />
             {foot}
           </aside>
@@ -239,11 +310,16 @@ export function AppShell({
         {/* Menu lateral fixo, da altura da tela (tablet/desktop) */}
         <aside className="side max-md:hidden">
           <Brand onDark />
+          {tools(false)}
           <NavButtons activeView={activeView} badges={badges} role={user.role} onNavigate={navigate} />
           {foot}
         </aside>
 
-        <section className="content">{children}</section>
+        <section className="content">
+          {/* sem cabeçalho visível: o título da tela fica para leitores de tela */}
+          <h1 className="sr-only">{pageTitle}</h1>
+          {children}
+        </section>
       </div>
     </main>
   );

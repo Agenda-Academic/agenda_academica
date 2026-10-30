@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, GraduationCap, Search } from "lucide-react";
+import { GraduationCap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AppShell, type View } from "@/components/app-shell";
 import { CalendarView, type CalendarMode } from "@/components/calendar-view";
@@ -21,7 +21,6 @@ import {
   PageSkeleton,
   Spinner,
   ToastStack,
-  primaryButton,
   type ConfirmState,
   type ToastItem,
   type ToastTone,
@@ -46,7 +45,6 @@ import {
 } from "@/lib/api";
 import {
   addDays,
-  cx,
   errorMessage,
   firstName,
   startOfDay,
@@ -64,30 +62,6 @@ import type {
 } from "@/lib/types";
 
 const SESSION_KEY = "agenda-academica-session";
-
-const viewEyebrows: Record<"student" | "teacher" | "admin", Record<View, string>> = {
-  student: {
-    dashboard: "Minha agenda",
-    calendar: "Cronograma da turma",
-    manage: "Gestão",
-    reminders: "Meus alertas",
-    sync: "Fonte institucional",
-  },
-  teacher: {
-    dashboard: "Painel docente",
-    calendar: "Cronograma das turmas",
-    manage: "Gestão de eventos",
-    reminders: "Meus alertas",
-    sync: "Fonte institucional",
-  },
-  admin: {
-    dashboard: "Visão institucional",
-    calendar: "Cronograma geral",
-    manage: "Eventos oficiais",
-    reminders: "Meus alertas",
-    sync: "Calendário oficial",
-  },
-};
 
 export default function Home() {
   /* ---------------------------------------------------------------- */
@@ -682,7 +656,7 @@ export default function Home() {
           <span className="mark">
             <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
           </span>
-          <Spinner label="Carregando agenda…" />
+          <Spinner label="Carregando agenda..." />
         </div>
       </main>
     );
@@ -704,50 +678,22 @@ export default function Home() {
         badges={{ reminders: reminders.filter((reminder) => reminder.enabled && !reminder.sentAt).length }}
         canWrite={canWrite}
         refreshing={loading}
+        search={search}
         updatedAt={lastLoadedAt}
         user={user}
         onLogout={handleLogout}
         onNavigate={setActiveView}
+        onNewEvent={openNewEvent}
         onOpenProfile={() => setProfileOpen(true)}
         onRefresh={() => void refresh()}
+        onSearchChange={(value) => {
+          setSearch(value);
+          // ao digitar, leva para o cronograma, onde a busca filtra a lista
+          if (value.trim()) {
+            setActiveView("calendar");
+          }
+        }}
       >
-        <header className="top">
-          <div className="min-w-0">
-            <p className="eyebrow">{viewEyebrows[user.role][activeView]}</p>
-            <h1 className="h1">Olá, {firstName(user.fullName ?? user.email)}</h1>
-          </div>
-
-          <div className="top-actions w-full sm:w-auto">
-            {activeView !== "calendar" ? (
-            <label className="relative flex w-full items-center sm:w-[340px]">
-              <Search
-                className="pointer-events-none absolute left-3.5 h-[18px] w-[18px] text-muted"
-                aria-hidden
-              />
-              <input
-                className="input pl-[42px]"
-                placeholder="Buscar evento, disciplina ou professor"
-                aria-label="Buscar evento, disciplina ou professor"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  // ao digitar, leva para o cronograma, onde a busca filtra a lista
-                  if (event.target.value.trim()) {
-                    setActiveView("calendar");
-                  }
-                }}
-              />
-            </label>
-            ) : null}
-            {canWrite ? (
-              <button className={cx(primaryButton, "shrink-0")} onClick={openNewEvent} type="button">
-                <CalendarPlus className="h-4 w-4" aria-hidden />
-                Novo evento
-              </button>
-            ) : null}
-          </div>
-        </header>
-
         {/* a chave reinicia a animação a cada troca de tela */}
         <div key={activeView} className="pop">
           {loading && !lastLoadedAt ? (
