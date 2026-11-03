@@ -19,7 +19,7 @@
   --ink-2: #1f2937;
   --ink-3: #475467;
   --muted: #5d6678;
-  --muted-2: #8a93a3;
+  --muted-2: #6b7385;
   --faint: #a3abb9;
   /* cor de ação */
   --brand: #17803f;
@@ -43,6 +43,7 @@
   --accent-rgb: 74 222 128;
   --shadow-rgb: 16 24 40;
   --danger: #b4234a;
+  --danger-rgb: 180 35 74;
 
   --font: var(--font-open-sans), system-ui, sans-serif;
   --disp: var(--font-open-sans), system-ui, sans-serif;
@@ -100,6 +101,28 @@ button {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+/* no celular, o cabeçalho grudado não cobre o campo focado ou com erro. A folga fica só no
+   conteúdo: no html, ela fazia a página pular ao focar o botão do menu, que fica no cabeçalho.
+   Embaixo, os avisos do celular também não cobrem o item focado nem o evento que a tela mostra
+   depois de salvar (data-event-id): a folga de baixo é a altura deles (--toast-room, que a pilha
+   de avisos do ui.tsx põe só enquanto há aviso). Na camada base, para um scroll-mt-* do próprio
+   elemento valer mais. */
+@layer base {
+  main :is(a[href], button, input, select, textarea, summary, [tabindex], [data-event-id]) {
+    scroll-margin-bottom: var(--toast-room, 0px);
+  }
+  @media (max-width: 767px) {
+    main :is(a[href], button, input, select, textarea, summary, [tabindex]) {
+      scroll-margin-top: 96px;
+    }
+    /* o destaque com evento é uma section (não focável): sem isto, mostrar no Painel o evento
+       salvo levava o destaque para baixo do cabeçalho */
+    main .hero[data-event-id] {
+      scroll-margin-top: 96px;
+    }
+  }
 }
 
 /* ==================================================================
@@ -207,7 +230,7 @@ button:disabled {
       box-shadow 0.2s ease;
   }
   .side-search input::placeholder {
-    color: var(--on-night-2);
+    color: var(--on-night);
   }
   .side-search input:focus {
     border-color: var(--accent);
@@ -216,7 +239,7 @@ button:disabled {
   }
   .nav-label {
     margin: 0 0 6px 14px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -303,10 +326,17 @@ button:disabled {
     display: flex;
     align-items: center;
     gap: 10px;
+    width: 100%;
     padding: 12px;
     border-radius: 16px;
     background: rgb(255 255 255 / 0.06);
     border: 1px solid rgb(255 255 255 / 0.08);
+    color: inherit;
+    text-align: left;
+  }
+  /* o cartão do usuário pode ser o botão das preferências */
+  button.ucard:hover {
+    background: rgb(255 255 255 / 0.1);
   }
   .avatar {
     display: flex;
@@ -316,22 +346,26 @@ button:disabled {
     height: 40px;
     border-radius: 12px;
     background: var(--night-3);
-    color: var(--accent);
+    color: #fff;
     font-weight: 700;
     font-size: 14px;
     flex-shrink: 0;
   }
+  /* nome em até duas linhas, para não cortar "Coordenação Acadêmica" */
   .uname {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
     font-size: 14px;
     font-weight: 650;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.3;
   }
   .urole {
     margin-top: 2px;
-    font-size: 12px;
-    color: var(--on-night-2);
+    font-size: 13px;
+    color: var(--on-night);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -433,7 +467,7 @@ button:disabled {
     gap: 12px 16px;
   }
   .eyebrow {
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -473,33 +507,34 @@ button:disabled {
   .col > .grow {
     flex: 1;
   }
-  /* grade de cards: na mesma linha, todos começam e terminam juntos;
-     o que não cabe rola dentro do card */
+  /* grade de cards: na mesma linha, todos começam e terminam juntos (a linha fica com a
+     altura do card mais alto); cada card cresce com o conteúdo e quem rola é a página */
   .board {
     display: grid;
     gap: 20px;
     grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
   }
   .board > .card {
     display: flex;
     flex-direction: column;
-    min-height: 0;
     min-width: 0;
   }
   @media (min-width: 1200px) {
     .board {
       grid-template-columns: minmax(0, 1fr) 360px;
-      grid-auto-rows: var(--row, 400px);
+      grid-auto-rows: auto;
     }
     .board > .tall {
       grid-row: span 2;
     }
   }
+  /* rolagem interna só onde ainda faz falta (fora da grade); no fim, a roda segue para a página */
   .scroll {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
     margin: 0 -8px;
     padding: 0 8px;
     scrollbar-width: thin;
@@ -511,17 +546,52 @@ button:disabled {
       radial-gradient(farthest-side at 50% 0, rgb(var(--shadow-rgb) / 0.12), transparent) top / 100% 10px no-repeat scroll,
       radial-gradient(farthest-side at 50% 100%, rgb(var(--shadow-rgb) / 0.12), transparent) bottom / 100% 10px no-repeat scroll;
   }
-  /* empilhado, os cards de lista seguem com rolagem; formulário (.free) cresce inteiro */
-  @media (max-width: 1199px) {
-    .board .scroll:not(.free) {
-      max-height: 420px;
-    }
+  /* nos cards da grade o miolo tem a altura do conteúdo: nada de rolagem dentro do card */
+  .board .scroll {
+    overflow: visible;
+    background: none;
   }
-  .card.lift:hover,
-  .kpi:hover {
-    transform: translateY(-2px);
-    border-color: #c9d4e8;
-    box-shadow: 0 18px 30px -18px rgb(23 50 92 / 0.45);
+  /* rodapé do card ("Ver todos (N)"): fica no pé quando o card estica para alinhar a linha */
+  .card-foot {
+    margin-top: auto;
+    padding-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+  }
+  /* efeitos de passar o mouse só com mouse (no toque eles ficam grudados) e só no que é clicável */
+  @media (hover: hover) and (pointer: fine) {
+    .card.lift:hover,
+    .kpi.is-link:hover {
+      transform: translateY(-2px);
+      border-color: #c9d4e8;
+      box-shadow: 0 18px 30px -18px rgb(23 50 92 / 0.45);
+    }
+    button.ev:hover,
+    a.ev:hover {
+      background: var(--surface-2);
+      transform: translateX(3px);
+    }
+    button.ev.sel:hover,
+    a.ev.sel:hover {
+      background: var(--brand-50);
+    }
+    button.mini:hover,
+    a.mini:hover {
+      border-color: var(--brand-200);
+      background: var(--brand-50);
+    }
+    button.day:hover {
+      background: var(--surface-2);
+    }
+    button.day.sel:hover {
+      background: var(--brand-50);
+    }
+    .kpi-chip:hover {
+      filter: brightness(0.95);
+    }
   }
 
   /* entrada suave dos blocos, um após o outro (--i = ordem). "backwards" para o hover
@@ -530,9 +600,10 @@ button:disabled {
     animation: rise 0.42s cubic-bezier(0.16, 1, 0.3, 1) backwards;
     animation-delay: min(calc(var(--i, 0) * 55ms), 500ms);
   }
-  /* troca de tela: o conteúdo assenta sem deslocar */
+  /* troca de tela: o conteúdo assenta sem deslocar. "backwards" para não sobrar transform
+     no fim (um transform prende os position: fixed de dentro, como os diálogos) */
   .pop {
-    animation: pop 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: pop 0.34s cubic-bezier(0.16, 1, 0.3, 1) backwards;
   }
   /* esqueleto de carregamento: bloco cinza com brilho passando */
   .skel {
@@ -641,6 +712,15 @@ button:disabled {
     border-radius: 10px;
     font-size: 13px;
   }
+  /* botão discreto, sem borda (ex.: "Dispensar") */
+  .btn-g {
+    background: transparent;
+    color: var(--ink-3);
+  }
+  .btn-g:hover:not(:disabled) {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
 
   /* pílulas de categoria e situação */
   .pill {
@@ -680,6 +760,21 @@ button:disabled {
   .st-conc { background: #d1fae5; color: #065f46; }
   .st-canc { background: #ffe4e8; color: #9f1239; }
   .prio { background: var(--night); color: var(--accent); }
+  /* situação do evento em contorno, para não se confundir com as pílulas cheias de categoria */
+  .pill.stat {
+    gap: 5px;
+    background: #fff;
+    border: 1px solid var(--line-strong);
+    color: var(--ink-3);
+  }
+  .pill.stat svg {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+  .pill.stat.stat-canc { color: var(--danger); border-color: #f3c6d0; }
+  .pill.stat.stat-alt { color: #92400e; border-color: rgb(217 119 6 / 0.5); }
+  .pill.stat.stat-conc { color: var(--brand-ink); border-color: var(--brand-200); }
 
   /* formulários */
   .input {
@@ -719,7 +814,7 @@ button:disabled {
     display: flex;
     justify-content: space-between;
     gap: 8px;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 650;
     color: var(--ink-2);
   }
@@ -729,8 +824,33 @@ button:disabled {
   }
   .field-help {
     margin-top: 6px;
-    font-size: 12.5px;
+    font-size: 14px;
+    line-height: 1.45;
     color: var(--muted);
+  }
+  /* erro escrito junto do campo */
+  .field-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--danger);
+  }
+  .field-error svg {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+  }
+  .input[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+  .input[aria-invalid="true"]:focus {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 4px rgb(var(--danger-rgb) / 0.14);
   }
 
   /* controle segmentado e chips */
@@ -765,18 +885,33 @@ button:disabled {
     color: var(--ink);
     box-shadow: 0 1px 3px rgb(var(--shadow-rgb) / 0.12);
   }
+  /* celular estreito: as opções quebram linha em vez de sumir à direita */
+  @media (max-width: 479px) {
+    .seg {
+      flex-wrap: wrap;
+      overflow-x: visible;
+    }
+    .seg button {
+      flex: 1 1 auto;
+    }
+  }
   .chips {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
   }
-  /* no celular os filtros de categoria ficam numa linha só, com rolagem lateral */
+  /* no celular os filtros de categoria ficam numa linha só, com rolagem lateral;
+     o degradê na borda direita mostra que há mais. A folga de 4 px, desfeita pela margem,
+     deixa o anel de foco do chip inteiro sem mudar o lugar dos chips. */
   @media (max-width: 639px) {
     .chips.chips-row {
       flex-wrap: nowrap;
       overflow-x: auto;
       scrollbar-width: none;
-      padding-bottom: 2px;
+      padding: 4px 32px 4px 4px;
+      margin: -4px 0 -2px -4px;
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+      mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
     }
     .chips.chips-row > * {
       flex-shrink: 0;
@@ -792,12 +927,12 @@ button:disabled {
     border-radius: 999px;
     border: 1px solid var(--line);
     background: #fff;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--ink-2);
   }
   .chip .n {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--muted);
   }
@@ -849,6 +984,30 @@ button:disabled {
     padding: 20px;
     height: 100%;
   }
+  /* KPI clicável: o botão fica no rótulo e a área dele (::after) cobre o card inteiro;
+     botões próprios do card (.kpi-extra) ficam por cima */
+  .kpi.is-link {
+    position: relative;
+    cursor: pointer;
+  }
+  .kpi-hit {
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+  .kpi-hit::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+  }
+  .kpi-extra {
+    position: relative;
+    z-index: 1;
+  }
+  .kpi-chip {
+    height: 28px;
+  }
   .kpi-top {
     display: flex;
     align-items: center;
@@ -894,7 +1053,8 @@ button:disabled {
   }
   .kpi-hint {
     margin-top: 8px;
-    font-size: 12.5px;
+    font-size: 14px;
+    line-height: 1.45;
     color: var(--muted);
   }
 
@@ -986,6 +1146,8 @@ button:disabled {
   .countdown {
     flex: 0 0 auto;
     align-self: flex-start;
+    /* quando não cabe ao lado e desce de linha, fica à direita (e não solta no canto esquerdo) */
+    margin-left: auto;
     text-align: right;
   }
   .countdown .eyebrow {
@@ -1021,6 +1183,115 @@ button:disabled {
     vertical-align: 1px;
     animation: live 2s ease-out infinite;
   }
+  .countdown.next small {
+    max-width: 200px;
+    margin-left: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* celular: destaque compacto (continua branco com a faixa verde). Data de 56px ao lado
+     do título, dados logo abaixo e a contagem como selo pequeno ao lado do rótulo */
+  @media (max-width: 639px) {
+    .hero {
+      gap: 12px;
+      padding: 18px;
+      border-radius: 20px;
+    }
+    .hero-title {
+      font-size: 22px;
+      line-height: 1.2;
+    }
+    .hero-meta {
+      gap: 6px 14px;
+    }
+    .hero-actions {
+      gap: 8px;
+    }
+    .hero-actions > .btn {
+      flex: 1 1 auto;
+    }
+    .hero.with-date {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr) auto;
+      align-items: center;
+    }
+    .hero.with-date > .hero-body {
+      display: contents;
+    }
+    .hero.with-date .hero-kicker {
+      grid-column: 1 / 3;
+      grid-row: 1;
+    }
+    .hero.with-date > .datebig {
+      grid-column: 1;
+      grid-row: 2;
+      width: 56px;
+      min-height: 0;
+      gap: 0;
+      padding: 8px 0;
+      border-radius: 14px;
+    }
+    .hero.with-date > .datebig .dn {
+      font-size: 26px;
+    }
+    .hero.with-date > .datebig .dw,
+    .hero.with-date > .datebig .mo {
+      font-size: 12px;
+      letter-spacing: 0.06em;
+    }
+    .hero.with-date > .datebig svg {
+      width: 26px;
+      height: 26px;
+    }
+    .hero.with-date .hero-title {
+      grid-column: 2 / 4;
+      grid-row: 2;
+      margin-top: 0;
+    }
+    .hero.with-date .hero-meta,
+    .hero.with-date .hero-actions,
+    .hero.with-date > .countdown.next {
+      grid-column: 1 / -1;
+      margin-top: 0;
+    }
+    .hero.with-date > .countdown.next {
+      order: 1;
+    }
+    .hero.with-date .hero-actions {
+      order: 2;
+    }
+    .hero.with-date > .countdown:not(.next) {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
+    .hero.with-date > .countdown:not(.next) .eyebrow,
+    .hero.with-date > .countdown:not(.next) small {
+      display: none;
+    }
+    .hero.with-date > .countdown b {
+      margin-top: 0;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 14px;
+      line-height: 1.3;
+    }
+    .hero.with-date > .countdown.next {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      margin-left: 0;
+      text-align: left;
+    }
+    .hero.with-date > .countdown.next small {
+      margin: 0;
+      max-width: none;
+      white-space: normal;
+    }
+  }
 
   /* listas de eventos */
   .ev-group {
@@ -1053,10 +1324,6 @@ button:disabled {
     border-radius: 14px;
     text-align: left;
   }
-  .ev:hover {
-    background: var(--surface-2);
-    transform: translateX(3px);
-  }
   .ev.sel {
     background: var(--brand-50);
     box-shadow: inset 0 0 0 1.5px var(--brand-200);
@@ -1075,7 +1342,7 @@ button:disabled {
   }
   .ev-date .dw {
     display: block;
-    font-size: 10.5px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -1111,7 +1378,7 @@ button:disabled {
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 10px;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--muted);
   }
   .ev-when {
@@ -1125,7 +1392,7 @@ button:disabled {
   }
   .ev-rel {
     margin-top: 3px;
-    font-size: 12.5px;
+    font-size: 14px;
     color: var(--muted);
   }
   .ev-rel.soon {
@@ -1184,10 +1451,6 @@ button:disabled {
     background: var(--surface-2);
     text-align: left;
   }
-  .mini:hover {
-    border-color: var(--brand-200);
-    background: var(--brand-50);
-  }
   .mini-ico {
     display: flex;
     align-items: center;
@@ -1207,9 +1470,49 @@ button:disabled {
   }
   .mini-s {
     margin-top: 3px;
-    font-size: 12.5px;
+    font-size: 14px;
     color: var(--muted);
     line-height: 1.45;
+  }
+
+  /* avisos do sistema: lembretes cuja hora chegou */
+  .aviso-ico {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+    background: var(--brand-50);
+    color: var(--brand);
+    flex-shrink: 0;
+  }
+  .avisos {
+    margin-top: 16px;
+    display: grid;
+    gap: 8px;
+  }
+  .aviso {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--line-2);
+    background: var(--surface-2);
+  }
+  .aviso-t {
+    flex: 1 1 260px;
+    min-width: 0;
+    font-size: 14.5px;
+    font-weight: 650;
+    line-height: 1.4;
+  }
+  .aviso-acts {
+    display: flex;
+    flex-shrink: 0;
+    gap: 6px;
   }
 
   /* detalhe do evento */
@@ -1237,7 +1540,7 @@ button:disabled {
     gap: 12px;
     padding: 14px 16px;
     border-radius: 14px;
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 1.5;
   }
   .callout.green { background: var(--brand-50); color: var(--brand-ink); }
@@ -1255,7 +1558,7 @@ button:disabled {
   .tbl th {
     padding: 12px 16px;
     text-align: left;
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -1276,7 +1579,7 @@ button:disabled {
   }
   .tbl .s {
     margin-top: 4px;
-    font-size: 12.5px;
+    font-size: 14px;
     color: var(--muted);
   }
   .acts {
@@ -1285,22 +1588,33 @@ button:disabled {
     gap: 6px;
   }
 
-  /* calendário mensal */
+  /* calendário mensal ("clip" corta os cantos sem virar caixa de rolagem, para o
+     cabeçalho dos dias poder grudar no topo enquanto a página rola) */
   .cal {
     border: 1px solid var(--line);
     border-radius: 18px;
     overflow: hidden;
+    overflow: clip;
     background: #fff;
   }
   .cal-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     background: var(--surface-2);
     border-bottom: 1px solid var(--line);
   }
+  /* no celular, abaixo do cabeçalho fixo do app */
+  @media (max-width: 767px) {
+    .cal-head {
+      top: 88px;
+    }
+  }
   .cal-head span {
     padding: 11px 12px;
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -1327,8 +1641,11 @@ button:disabled {
   .day:last-child {
     border-right: 0;
   }
-  .day:hover {
-    background: var(--surface-2);
+  /* dia clicável */
+  button.day {
+    width: 100%;
+    color: inherit;
+    text-align: left;
   }
   .day.we {
     background: var(--surface-2);
@@ -1369,27 +1686,179 @@ button:disabled {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    font-size: 13px;
+  }
+  /* o título quebra só entre as palavras (sem hífen). A 1ª palavra é a única que pode passar da
+     largura na 1ª linha: ela é um bloco que termina em reticências ("Seminá..."), em vez de partir ao
+     meio ("Seminári / o"); na 2ª linha, quem corta com reticências é o line-clamp */
+  .ce .t > span {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+  /* evento cancelado: o risco do chip não entra sozinho no bloco da 1ª palavra */
+  .ce .t,
+  .ce .t > span {
+    text-decoration: inherit;
   }
   .ce .h {
     display: block;
     margin-top: 2px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     opacity: 0.85;
   }
+  /* pontos de categoria do dia (mês compacto) */
+  .cal-dots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 2px;
+  }
+  .cal-dots .dot {
+    width: 7px;
+    height: 7px;
+  }
+  /* lista do dia escolhido: dentro da grade, logo abaixo da semana dele e na largura toda, para o
+     dia e os eventos dele caberem juntos na tela (a borda de cima cobre a linha da semana) */
+  .cal-day {
+    position: relative;
+    margin-top: -1px;
+    padding: 16px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: #fff;
+  }
+  .cal-day:last-child {
+    border-bottom: 0;
+  }
 
-  /* modal */
+  /* modal: cabe sempre na tela (o corpo rola por dentro, com o X e o rodapé à vista);
+     no celular vira uma folha que sobe de baixo. Entre modal e painel lateral, fica por cima o
+     que abriu por último: a pilha de camadas (ui.tsx) troca este z-index assim que o diálogo abre. */
+  .modal-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 62;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgb(15 30 58 / 0.48);
+  }
   .modal-box {
-    width: 520px;
-    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    width: min(520px, 100%);
+    max-height: calc(100dvh - 32px);
     background: #fff;
     border-radius: 24px;
     box-shadow: 0 30px 80px rgb(var(--night-rgb) / 0.35);
-    overflow: hidden;
+    /* reserva: se o corpo não rolar sozinho, a caixa inteira rola */
+    overflow-y: auto;
+    overscroll-behavior: contain;
     outline: none;
   }
   .modal-box.wide {
-    width: 680px;
+    width: min(680px, 100%);
+  }
+  .modal-head {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 20px 24px;
+  }
+  .modal-foot {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 24px calc(14px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line-2);
+    background: #fff;
+  }
+  @media (min-width: 640px) {
+    .modal-veil {
+      align-items: center;
+      padding: 16px;
+    }
+  }
+  @media (max-width: 639px) {
+    .modal-box,
+    .modal-box.wide {
+      width: 100%;
+      max-height: 92dvh;
+      border-radius: 24px 24px 0 0;
+    }
+    .modal-foot > .btn {
+      flex: 1 1 auto;
+    }
+  }
+
+  /* painel lateral de edição: entra pela direita, por cima da tela atual */
+  .drawer-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    justify-content: flex-end;
+    background: rgb(15 30 58 / 0.48);
+  }
+  .drawer {
+    display: flex;
+    flex-direction: column;
+    width: min(560px, 100vw);
+    height: 100dvh;
+    background: #fff;
+    border-radius: 24px 0 0 24px;
+    box-shadow: 0 30px 80px rgb(var(--night-rgb) / 0.35);
+    outline: none;
+  }
+  .drawer-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .drawer-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 20px 24px 24px;
+  }
+  .drawer-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 24px calc(14px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line-2);
+    background: #fff;
+  }
+  @media (max-width: 639px) {
+    .drawer {
+      width: 100vw;
+      border-radius: 0;
+    }
+    .drawer-foot > .btn {
+      flex: 1 1 auto;
+    }
   }
   .opt {
     display: flex;
@@ -1439,11 +1908,82 @@ button:disabled {
     border: 1px dashed var(--line-strong);
     background: var(--surface-2);
   }
+  /* vazio compacto: uma linha com ícone e texto, sem esticar o card */
+  .empty-inline.compact {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    text-align: left;
+  }
+  .empty-inline.compact .empty-ico {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+  /* "Pular para o conteúdo": escondido até receber o foco do teclado. A sombra só vem com o
+     foco: escondido, ela vazava para dentro da tela como uma mancha no canto de cima. */
+  .skip-link {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 80;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 12px;
+    border: 2px solid var(--brand);
+    background: #fff;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 650;
+    transform: translateY(calc(-100% - 24px));
+  }
+  .skip-link:focus,
+  .skip-link:focus-visible {
+    box-shadow: 0 18px 40px rgb(var(--night-rgb) / 0.3);
+    transform: none;
+  }
+  /* pilha de avisos: embaixo. No celular, na largura toda (12 px de cada lado), acima da área
+     segura; no computador, no canto direito. Com um diálogo aberto, a posição vem de ui.tsx. */
+  .toast-stack {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 70;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+    --toast-from: 14px;
+  }
+  .toast-stack.from-top {
+    --toast-from: -14px;
+  }
+  /* esperando o menu do celular fechar: some da vista, mas o leitor de tela ainda lê */
+  .toast-stack.held {
+    opacity: 0;
+  }
+  .toast-stack.held .toast {
+    pointer-events: none;
+  }
+  @media (min-width: 640px) {
+    .toast-stack {
+      left: auto;
+      right: 24px;
+      bottom: calc(24px + env(safe-area-inset-bottom));
+      width: 390px;
+    }
+  }
+  /* texto, ação e fechar numa linha; sem espaço para o texto, ação e fechar descem juntos */
   .toast {
     pointer-events: auto;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    gap: 4px 12px;
     width: 100%;
     padding: 12px 12px 12px 14px;
     border-radius: 14px;
@@ -1498,6 +2038,47 @@ button:disabled {
   .seg button:active {
     transform: scale(0.97);
   }
+
+  /* toque: alvos de pelo menos 44px (40px nos chips e botões pequenos). Os campos com 16px
+     ficam logo depois, fora das camadas. */
+  @media (pointer: coarse) {
+    .ib.sm,
+    .ubtn {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      min-height: 44px;
+    }
+    .toast button {
+      min-width: 44px;
+      min-height: 44px;
+    }
+    .seg button {
+      height: 44px;
+    }
+    .chip {
+      height: 40px;
+    }
+    .btn-sm {
+      min-height: 40px;
+    }
+    .kpi-chip {
+      height: 36px;
+    }
+    .link,
+    .sync {
+      min-height: 44px;
+    }
+  }
+}
+
+/* toque: campos com 16px, para o iPhone não ampliar a página ao tocar num campo. Fica fora das
+   camadas para valer também onde um utilitário (text-sm, text-[13px]) diminui a letra. */
+@media (pointer: coarse) {
+  .input,
+  .side-search input {
+    font-size: 16px;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1533,10 +2114,11 @@ button:disabled {
   }
 }
 
+/* o aviso entra pelo lado da borda em que está (embaixo, por padrão) */
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.98);
+    transform: translateY(var(--toast-from, 14px)) scale(0.98);
   }
   to {
     opacity: 1;
@@ -1596,6 +2178,21 @@ button:disabled {
   animation: drawer-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+@keyframes drawer-right {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-drawer-right {
+  animation: drawer-right 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .animate-toast-in {
   animation: toast-in 180ms ease-out;
 }
@@ -1611,11 +2208,11 @@ button:disabled {
   }
 }
 
-/* Foco visível consistente para navegação por teclado */
+/* Foco visível consistente para navegação por teclado. Sem border-radius aqui: o anel
+   segue o arredondamento de cada elemento (chips continuam redondos, campos com 12px). */
 :focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
-  border-radius: 0.25rem;
 }
 
 .input:focus-visible,
@@ -1623,8 +2220,72 @@ button:focus-visible {
   outline-offset: 1px;
 }
 
+/* campo com erro: o anel do foco também fica vermelho, junto da borda e do halo (Figma, Estados e feedback) */
+.input[aria-invalid="true"]:focus-visible {
+  outline-color: var(--danger);
+}
+
+/* botão verde: anel escuro afastado, para não sumir na cor do próprio botão */
+.btn-p:focus-visible {
+  outline-color: var(--ink);
+  outline-offset: 2px;
+}
+
+/* menu azul-marinho: anel branco (8:1 sobre o azul), também no item escolhido e no botão verde */
+.side :focus-visible {
+  outline-color: #fff;
+  outline-offset: 2px;
+}
+
+/* linhas de evento e dias do mês: anel por dentro, para não ser cortado pela borda do bloco */
+.ev:focus-visible,
+button.day:focus-visible {
+  outline-offset: -2px;
+}
+
+/* KPI clicável: o anel contorna o card inteiro (desenhado no ::after) */
+.kpi-hit:focus-visible {
+  outline: none;
+}
+.kpi-hit:focus-visible::after {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
 /* busca do menu: o anel verde-claro do próprio campo já marca o foco */
 .side-search input:focus-visible {
   outline: 2px solid transparent;
-  border-radius: 12px;
+}
+
+/* blocos que recebem o foco por script (diálogo, conteúdo, título da tela) não ganham anel */
+.modal-box:focus-visible,
+.drawer:focus-visible,
+main:focus-visible,
+:is(h1, h2, h3, section)[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
+/* alto contraste do Windows: o item escolhido ganha contorno, já que o fundo some */
+@media (forced-colors: active) {
+  .nav.on,
+  .seg .on,
+  .chip.all,
+  .chip.picked,
+  .ev.sel,
+  .day.sel,
+  .opt.on {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
+  .nav.on {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+  /* a sombra some nesse modo: painel lateral, diálogos e avisos ganham borda para não se misturar */
+  .drawer,
+  .modal-box,
+  .toast {
+    border: 1px solid CanvasText;
+  }
 }

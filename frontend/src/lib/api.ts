@@ -18,14 +18,46 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
 };
 
-export class ApiError extends Error {
-  status: number;
+/** Erro de validação da API (VineJS): campo, regra e dados da regra (ex.: { min: 3 }). */
+export type ApiFieldError = {
+  field?: string;
+  rule?: string;
+  message: string;
+  meta?: Record<string, unknown>;
+};
 
-  constructor(message: string, status: number) {
+export class ApiError extends Error {
+  /** Situação HTTP; 0 quando o servidor não respondeu. */
+  status: number;
+  errors: ApiFieldError[];
+
+  constructor(message: string, status: number, errors: ApiFieldError[] = []) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.errors = errors;
   }
+}
+
+/** Falha de rede: o servidor não respondeu. */
+export function isNetworkError(error: unknown) {
+  return error instanceof ApiError && error.status === 0;
+}
+
+// Quem cuida da sessão vencida (o page.tsx registra ao montar).
+let unauthorizedHandler: ((token: string) => void) | null = null;
+
+/** Registra quem é avisado quando uma chamada autenticada volta 401. */
+export function setUnauthorizedHandler(handler: ((token: string) => void) | null) {
+  unauthorizedHandler = handler;
+}
+
+// Quem é avisado quando o servidor responde (a conexão voltou).
+let reachableHandler: (() => void) | null = null;
+
+/** Registra quem é avisado a cada resposta do servidor, de sucesso ou de erro (ex.: tirar o aviso "sem conexão"). */
+export function setReachableHandler(handler: (() => void) | null) {
+  reachableHandler = handler;
 }
 
 export async function apiFetch<T>(path: string, token?: string, options: RequestOptions = {}) {
@@ -41,14 +73,19 @@ export async function apiFetch<T>(path: string, token?: string, options: Request
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
   } catch {
-    throw new Error("Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.");
+    throw new ApiError("Não foi possível conectar ao servidor. Confira sua conexão e tente de novo.", 0);
   }
+  reachableHandler?.();
 
   if (!response.ok) {
     const fallback = { message: `Erro ${response.status}` };
     const payload = await response.json().catch(() => fallback);
-    const message = payload?.message ?? payload?.errors?.[0]?.message ?? fallback.message;
-    throw new ApiError(message, response.status);
+    const errors: ApiFieldError[] = Array.isArray(payload?.errors) ? payload.errors : [];
+    const message = payload?.message ?? errors[0]?.message ?? fallback.message;
+    if (response.status === 401 && token) {
+      unauthorizedHandler?.(token);
+    }
+    throw new ApiError(message, response.status, errors);
   }
 
   return (await response.json()) as T;
@@ -233,10 +270,15 @@ export type CalendarImportInput = {
   events: CalendarImportEventInput[];
 };
 
+export type CalendarImportResult = { import: CalendarImport; events: AcademicEvent[] };
+
+/** Resultado de uma importação: a tela mostra o erro no próprio bloco, sem aviso solto. */
+export type CalendarImportOutcome =
+  | { ok: true; result: CalendarImportResult }
+  | { ok: false; error: ApiError };
+
 export async function importCalendar(token: string, input: CalendarImportInput) {
-  const payload = await apiFetch<
-    ApiEnvelope<{ import: CalendarImport; events: AcademicEvent[] }>
-  >("/calendar-imports", token, {
+  const payload = await apiFetch<ApiEnvelope<CalendarImportResult>>("/calendar-imports", token, {
     method: "POST",
     body: input,
   });

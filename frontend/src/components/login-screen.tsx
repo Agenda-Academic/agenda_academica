@@ -6,29 +6,154 @@ import {
   BookOpen,
   CalendarDays,
   Check,
+  CircleAlert,
   Eye,
   EyeOff,
   GraduationCap,
+  Info,
   Loader2,
   ShieldCheck,
   UserPlus,
   UserRound,
   Users,
 } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
-import { login, signup, wakeApi } from "@/lib/api";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { ApiError, login, signup, wakeApi } from "@/lib/api";
 import { cx, errorMessage } from "@/lib/format";
 import { demoAccounts } from "@/lib/meta";
 import type { Session } from "@/lib/types";
 import { Field, primaryButton } from "./ui";
 
 type Mode = "login" | "signup";
+type FieldName = "fullName" | "email" | "password" | "passwordConfirmation";
+type FieldErrors = Partial<Record<FieldName, string>>;
 
-export function LoginScreen({ onSession }: { onSession: (session: Session) => void }) {
+// ordem dos campos na tela: o foco vai para o primeiro com erro
+const fieldOrder: FieldName[] = ["fullName", "email", "password", "passwordConfirmation"];
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function letters(value: string) {
+  return (value.match(/\p{L}/gu) ?? []).length;
+}
+
+/** Erros da API ligados ao campo certo (cadastro e entrada). */
+function serverErrors(err: unknown, mode: Mode): FieldErrors | null {
+  if (!(err instanceof ApiError)) {
+    return null;
+  }
+  if (mode === "login") {
+    if (err.status === 400 || err.status === 401 || /credentials/i.test(err.message)) {
+      return { password: "E-mail ou senha incorretos." };
+    }
+  }
+  const items = Array.isArray(err.errors) ? err.errors : [];
+  const result: FieldErrors = {};
+  for (const item of items) {
+    if (item.field === "email") {
+      result.email ??= item.rule === "database.unique" ? "Este e-mail já tem conta. Entre ou use outro e-mail." : "Digite um e-mail válido.";
+    } else if (item.field === "password") {
+      result.password ??= "A senha precisa ter de 8 a 32 caracteres.";
+    } else if (item.field === "passwordConfirmation") {
+      result.passwordConfirmation ??= "As senhas não são iguais.";
+    } else if (item.field === "fullName") {
+      result.fullName ??= "Digite seu nome completo.";
+    }
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+/** Campo de senha com o botão de mostrar fora do rótulo (o nome do campo fica só "Senha"). */
+function PasswordField({
+  autoComplete,
+  error,
+  errorId,
+  hint,
+  inputRef,
+  label,
+  shown,
+  value,
+  onChange,
+  onToggle,
+}: {
+  autoComplete: string;
+  error?: string;
+  errorId: string;
+  hint?: string;
+  inputRef: RefObject<HTMLInputElement | null>;
+  label: string;
+  shown: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  onToggle?: () => void;
+}) {
+  const inputId = useId();
+  return (
+    <div className="grid content-start gap-1.5">
+      <div className="grid gap-2">
+        <label htmlFor={inputId} className="lbl">
+          {label}
+          {hint ? <span className="hint">{hint}</span> : null}
+        </label>
+        <span className="relative block">
+          <input
+            ref={inputRef}
+            id={inputId}
+            className={cx("input", onToggle && "pr-12")}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            type={shown ? "text" : "password"}
+            autoComplete={autoComplete}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
+          />
+          {onToggle ? (
+            <button
+              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink"
+              onClick={onToggle}
+              aria-label="Mostrar senha"
+              aria-pressed={shown}
+              title={shown ? "Ocultar senha" : "Mostrar senha"}
+              type="button"
+            >
+              {shown ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+            </button>
+          ) : null}
+        </span>
+      </div>
+      {error ? <FieldMessage id={errorId}>{error}</FieldMessage> : null}
+    </div>
+  );
+}
+
+function FieldMessage({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <p className="field-error flex items-start gap-1.5" id={id}>
+      <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+export function LoginScreen({
+  email,
+  notice,
+  onSession,
+}: {
+  /** E-mail de quem estava na sessão que venceu: o formulário (e o cartão da conta de teste) já vem com ele. */
+  email?: string | null;
+  /** Aviso no topo do formulário (ex.: sessão vencida). */
+  notice?: string | null;
+  onSession: (session: Session) => void;
+}) {
   const [mode, setMode] = useState<Mode>("login");
-  const [loginForm, setLoginForm] = useState({
-    email: demoAccounts[0].email,
-    password: demoAccounts[0].password,
+  const [loginForm, setLoginForm] = useState(() => {
+    if (email) {
+      // conta de teste: a senha também vem, e um clique em Entrar volta para quem estava
+      const known = demoAccounts.find((account) => account.email === email);
+      return { email, password: known?.password ?? "" };
+    }
+    return { email: demoAccounts[0].email, password: demoAccounts[0].password };
   });
   const [signupForm, setSignupForm] = useState({
     fullName: "",
@@ -42,10 +167,28 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
   const [loading, setLoading] = useState(false);
   const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
+  const baseId = useId();
+  const errorId = (name: FieldName) => `${baseId}-${name}-erro`;
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const fullNameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
 
   // Acorda a API enquanto a pessoa ainda está lendo a tela de login.
   useEffect(() => {
     wakeApi();
+  }, []);
+
+  // Depois de sair (ou de a sessão vencer) o foco cairia no body: vai para o título da tela,
+  // sem abrir o teclado do celular.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (!active || active === document.body) {
+      titleRef.current?.focus({ preventScroll: true });
+    }
   }, []);
 
   // Se a resposta demorar, avisa que o servidor está voltando do repouso.
@@ -55,30 +198,91 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
     return () => window.clearTimeout(timer);
   }, [loading]);
 
+  function showErrors(next: FieldErrors) {
+    setFieldErrors(next);
+    const first = fieldOrder.find((name) => next[name]);
+    if (first) {
+      // espera o campo ganhar aria-invalid antes de focar
+      const target = { fullName: fullNameRef, email: emailRef, password: passwordRef, passwordConfirmation: confirmRef }[first];
+      window.requestAnimationFrame(() => target.current?.focus());
+    }
+  }
+
+  /** Limpa o erro do campo que a pessoa mexeu (e o aviso geral). */
+  function touched(name: FieldName) {
+    setError(null);
+    setFieldErrors((current) => {
+      if (mode === "login") {
+        // e-mail ou senha errados: qualquer mudança nos dois apaga o aviso
+        return {};
+      }
+      const next = { ...current };
+      delete next[name];
+      if (name === "password") {
+        delete next.passwordConfirmation;
+      }
+      return next;
+    });
+  }
+
+  function validate(): FieldErrors {
+    const next: FieldErrors = {};
+    const email = (mode === "login" ? loginForm.email : signupForm.email).trim();
+    const password = mode === "login" ? loginForm.password : signupForm.password;
+    if (mode === "signup" && letters(signupForm.fullName.trim()) < 3) {
+      next.fullName = "Digite seu nome completo.";
+    }
+    if (!email) {
+      next.email = "Digite seu e-mail.";
+    } else if (!emailPattern.test(email)) {
+      next.email = "Digite um e-mail válido, como nome@exemplo.com.";
+    }
+    if (!password) {
+      next.password = "Digite sua senha.";
+    } else if (mode === "signup" && (password.length < 8 || password.length > 32)) {
+      next.password = "A senha precisa ter de 8 a 32 caracteres.";
+    }
+    if (mode === "signup" && !next.password && signupForm.passwordConfirmation !== signupForm.password) {
+      next.passwordConfirmation = "As senhas não são iguais.";
+    }
+    return next;
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setLoading(true);
+    if (loading) {
+      return;
+    }
     setError(null);
+    const problems = validate();
+    if (Object.keys(problems).length) {
+      showErrors(problems);
+      return;
+    }
+    setFieldErrors({});
+    setLoading(true);
     try {
       if (mode === "login") {
-        onSession(await login(loginForm.email, loginForm.password));
+        onSession(await login(loginForm.email.trim(), loginForm.password));
       } else {
-        if (signupForm.password !== signupForm.passwordConfirmation) {
-          throw new Error("As senhas não conferem.");
-        }
         onSession(
           await signup({
-            fullName: signupForm.fullName,
-            email: signupForm.email,
+            fullName: signupForm.fullName.trim().replace(/\s+/g, " "),
+            email: signupForm.email.trim(),
             password: signupForm.password,
             passwordConfirmation: signupForm.passwordConfirmation,
             role: signupForm.role,
-            registration: signupForm.registration || null,
+            registration: signupForm.registration.trim() || null,
           })
         );
       }
     } catch (err) {
-      setError(errorMessage(err));
+      const byField = serverErrors(err, mode);
+      if (byField) {
+        showErrors(byField);
+      } else {
+        setError(errorMessage(err));
+      }
     } finally {
       setLoading(false);
       setSlow(false);
@@ -88,9 +292,8 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
   function switchMode(next: Mode) {
     setMode(next);
     setError(null);
+    setFieldErrors({});
   }
-
-  const passwordType = showPassword ? "text" : "password";
 
   return (
     <main className="flex min-h-screen items-center bg-login px-4 py-6 text-ink sm:px-6 lg:px-8">
@@ -108,48 +311,55 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
             </div>
 
             <div className="mt-12 max-w-xl">
-              <h1 className="disp text-[44px] font-bold leading-[1.05]">Agenda acadêmica unificada do campus</h1>
+              <p className="disp text-[44px] font-bold leading-[1.05]">Agenda acadêmica unificada do campus</p>
               <p className="mt-4 text-[15.5px] leading-7 text-on-night">
-                Centraliza provas, trabalhos, atividades, datas oficiais e lembretes de alunos, professores e coordenação.
+                Alunos, docentes e coordenação acompanham o mesmo calendário.
               </p>
             </div>
 
-            <div className="mt-10 grid gap-4 text-[14.5px] text-on-night">
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+            <ul className="mt-10 grid gap-4 text-[14.5px] text-on-night">
+              <li className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
                   <CalendarDays className="h-4 w-4 text-accent" aria-hidden />
                 </span>
-                Prazos docentes e datas institucionais no mesmo fluxo
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                Provas, trabalhos e datas do campus num lugar só
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
                   <Bell className="h-4 w-4 text-accent" aria-hidden />
                 </span>
                 Lembretes pessoais antes de provas, trabalhos e eventos
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
                   <Users className="h-4 w-4 text-accent" aria-hidden />
                 </span>
-                Visão por perfil para aluno, professor e administração
-              </div>
-            </div>
+                Uma visão para cada perfil: aluno, docente e administração
+              </li>
+            </ul>
           </div>
 
           <p className="flex items-center gap-2 border-t border-white/10 pt-5 text-[13px] text-on-night-2">
             <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
-            Ambiente de demonstração: os dados voltam ao padrão sempre que o servidor reinicia.
+            Contas de teste. Os dados de exemplo voltam ao original quando o sistema reinicia.
           </p>
         </div>
 
         <div className="flex items-center justify-center p-5 sm:p-8">
-          <form className="w-full max-w-md" onSubmit={handleSubmit}>
+          <form className="w-full max-w-md" onSubmit={handleSubmit} noValidate>
             <div className="mb-6 flex items-center gap-3 xl:hidden">
               <span className="mark">
                 <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
               </span>
               <p className="brand-name text-ink">Agenda Acadêmica</p>
             </div>
+
+            {notice ? (
+              <p role="status" className="callout blue mb-5">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                {notice}
+              </p>
+            ) : null}
 
             <div className="seg mb-7 grid w-full grid-cols-2">
               <button
@@ -172,27 +382,29 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
               </button>
             </div>
 
-            <h2 className="disp text-[30px] font-bold leading-tight">
-              {mode === "login" ? "Entrar" : "Criar minha conta"}
-            </h2>
+            <h1 ref={titleRef} className="disp text-[30px] font-bold leading-tight" tabIndex={-1}>
+              {mode === "login" ? "Acesse sua agenda" : "Crie sua conta"}
+            </h1>
             <p className="mt-2 text-[14.5px] leading-6 text-muted">
               {mode === "login"
-                ? "Use seu e-mail ou escolha uma conta de demonstração."
-                : "Crie uma conta para acompanhar prazos e configurar lembretes."}
+                ? "Use seu e-mail ou escolha uma conta de teste."
+                : "Com a conta você acompanha os prazos e ativa lembretes."}
             </p>
 
             <div className="mt-5 grid gap-3">
               {mode === "signup" ? (
                 <>
-                  <Field label="Nome completo">
+                  <Field label="Nome completo" error={fieldErrors.fullName} errorId={errorId("fullName")}>
                     <input
+                      ref={fullNameRef}
                       className="input"
                       value={signupForm.fullName}
-                      onChange={(event) =>
-                        setSignupForm({ ...signupForm, fullName: event.target.value })
-                      }
+                      onChange={(event) => {
+                        setSignupForm({ ...signupForm, fullName: event.target.value });
+                        touched("fullName");
+                      }}
                       autoComplete="name"
-                      required
+                      maxLength={120}
                     />
                   </Field>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -200,10 +412,8 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
                       <input
                         className="input"
                         value={signupForm.registration}
-                        onChange={(event) =>
-                          setSignupForm({ ...signupForm, registration: event.target.value })
-                        }
-                        placeholder="ALU-000"
+                        onChange={(event) => setSignupForm({ ...signupForm, registration: event.target.value })}
+                        placeholder="Ex.: ALU-123"
                       />
                     </Field>
                     <Field label="Perfil">
@@ -218,70 +428,66 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
                         }
                       >
                         <option value="student">Aluno</option>
-                        <option value="teacher">Professor</option>
+                        <option value="teacher">Docente</option>
                       </select>
                     </Field>
                   </div>
                 </>
               ) : null}
 
-              <Field label="E-mail">
+              <Field label="E-mail" error={fieldErrors.email} errorId={errorId("email")}>
                 <input
+                  ref={emailRef}
                   className="input"
                   value={mode === "login" ? loginForm.email : signupForm.email}
-                  onChange={(event) =>
-                    mode === "login"
-                      ? setLoginForm({ ...loginForm, email: event.target.value })
-                      : setSignupForm({ ...signupForm, email: event.target.value })
-                  }
+                  onChange={(event) => {
+                    if (mode === "login") {
+                      setLoginForm({ ...loginForm, email: event.target.value });
+                    } else {
+                      setSignupForm({ ...signupForm, email: event.target.value });
+                    }
+                    touched("email");
+                  }}
                   type="email"
                   autoComplete="email"
-                  required
+                  inputMode="email"
                 />
               </Field>
 
-              <Field label="Senha" hint={mode === "signup" ? "mínimo de 8 caracteres" : undefined}>
-                <span className="relative block">
-                  <input
-                    className="input pr-11"
-                    value={mode === "login" ? loginForm.password : signupForm.password}
-                    onChange={(event) =>
-                      mode === "login"
-                        ? setLoginForm({ ...loginForm, password: event.target.value })
-                        : setSignupForm({ ...signupForm, password: event.target.value })
-                    }
-                    type={passwordType}
-                    autoComplete={mode === "login" ? "current-password" : "new-password"}
-                    minLength={mode === "signup" ? 8 : undefined}
-                    maxLength={mode === "signup" ? 32 : undefined}
-                    required
-                  />
-                  <button
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition hover:bg-surface-2 hover:text-ink"
-                    onClick={() => setShowPassword((current) => !current)}
-                    title={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                    type="button"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
-                  </button>
-                </span>
-              </Field>
+              <PasswordField
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                error={fieldErrors.password}
+                errorId={errorId("password")}
+                hint={mode === "signup" ? "de 8 a 32 caracteres" : undefined}
+                inputRef={passwordRef}
+                label="Senha"
+                shown={showPassword}
+                value={mode === "login" ? loginForm.password : signupForm.password}
+                onChange={(value) => {
+                  if (mode === "login") {
+                    setLoginForm({ ...loginForm, password: value });
+                  } else {
+                    setSignupForm({ ...signupForm, password: value });
+                  }
+                  touched("password");
+                }}
+                onToggle={() => setShowPassword((current) => !current)}
+              />
 
               {mode === "signup" ? (
-                <Field label="Confirmar senha">
-                  <input
-                    className="input"
-                    value={signupForm.passwordConfirmation}
-                    onChange={(event) =>
-                      setSignupForm({ ...signupForm, passwordConfirmation: event.target.value })
-                    }
-                    type={passwordType}
-                    autoComplete="new-password"
-                    minLength={8}
-                    maxLength={32}
-                    required
-                  />
-                </Field>
+                <PasswordField
+                  autoComplete="new-password"
+                  error={fieldErrors.passwordConfirmation}
+                  errorId={errorId("passwordConfirmation")}
+                  inputRef={confirmRef}
+                  label="Confirmar senha"
+                  shown={showPassword}
+                  value={signupForm.passwordConfirmation}
+                  onChange={(value) => {
+                    setSignupForm({ ...signupForm, passwordConfirmation: value });
+                    touched("passwordConfirmation");
+                  }}
+                />
               ) : null}
             </div>
 
@@ -292,7 +498,11 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
               </p>
             ) : null}
 
-            <button className={cx(primaryButton, "mt-5 h-11 w-full")} disabled={loading} type="submit">
+            <button
+              className={cx(primaryButton, "mt-5 h-11 w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-55")}
+              aria-disabled={loading || undefined}
+              type="submit"
+            >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               ) : mode === "login" ? (
@@ -300,20 +510,20 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
               ) : (
                 <UserPlus className="h-4 w-4" aria-hidden />
               )}
-              {mode === "login" ? "Entrar" : "Criar conta e entrar"}
+              {loading ? (mode === "login" ? "Entrando" : "Criando conta") : mode === "login" ? "Entrar" : "Criar conta e entrar"}
             </button>
 
             {loading && slow ? (
-              <p role="status" className="mt-3 text-center text-xs text-muted">
+              <p role="status" className="mt-3 text-center text-sm text-muted">
                 O servidor estava em repouso e está voltando. No primeiro acesso isso leva até um minuto.
               </p>
             ) : null}
 
             {mode === "login" ? (
               <div className="mt-7">
-                <p className="eyebrow flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4" aria-hidden />
-                  Contas de demonstração
+                <p className="flex items-center gap-2 text-sm font-bold text-ink-2">
+                  <ShieldCheck className="h-4 w-4 text-muted" aria-hidden />
+                  Contas de teste
                 </p>
                 <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
                   {demoAccounts.map((account, index) => {
@@ -326,7 +536,10 @@ export function LoginScreen({ onSession }: { onSession: (session: Session) => vo
                         type="button"
                         title={`Usar conta ${account.label}`}
                         aria-pressed={on}
-                        onClick={() => setLoginForm({ email: account.email, password: account.password })}
+                        onClick={() => {
+                          setLoginForm({ email: account.email, password: account.password });
+                          touched("email");
+                        }}
                         // no celular vira linha (ícone, texto, check); a partir de sm, cartão com o texto embaixo
                         className={cx(
                           "grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border p-3.5 text-left transition hover:-translate-y-0.5 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-2.5",

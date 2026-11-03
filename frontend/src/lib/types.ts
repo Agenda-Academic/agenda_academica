@@ -63,6 +63,10 @@ export type AcademicEvent = {
   subjectId: number | null;
   teacherId: number | null;
   officialPriority: boolean;
+  /** Importação que trouxe o evento (só datas importadas do calendário oficial). */
+  calendarImportId?: number | null;
+  /** Código do evento na fonte importada, quando a fonte informa. */
+  sourceExternalId?: string | null;
   academicClass?: AcademicClass | null;
   subject?: Subject | null;
   teacher?: User | null;
