@@ -32,19 +32,16 @@ type FieldErrors = Partial<Record<FieldName, string>>;
 const fieldOrder: FieldName[] = ["fullName", "registration", "email", "password", "passwordConfirmation"];
 
 const emailTaken = "Este e-mail já tem conta. Entre ou use outro e-mail.";
+const registrationTaken = "Esta matrícula já tem conta. Entre ou confira o número.";
 
 /**
- * Matrícula (ou e-mail) que já tem conta e que só o banco recusa: a API responde 500 com o erro do
- * banco, que cita a coluna ("UNIQUE constraint failed: users.registration" no SQLite e
- * "users_registration_unique" no Postgres e no MySQL). Essa mensagem traz o comando inteiro, com
- * dados da conta, e nunca aparece na tela: vira o erro do campo.
+ * Matrícula (ou e-mail) que já tem conta e que só o banco recusa (API sem a regra de único): a API
+ * responde 500 com o erro do banco, que cita a coluna ("UNIQUE constraint failed: users.registration"
+ * no SQLite e "users_registration_unique" no Postgres e no MySQL). Essa mensagem traz o comando
+ * inteiro, com dados da conta, e nunca aparece na tela: vira o erro do campo.
  */
 const takenByDatabase: Array<{ field: FieldName; column: RegExp; message: string }> = [
-  {
-    field: "registration",
-    column: /users\.registration\b|users_registration_unique/i,
-    message: "Esta matrícula já tem conta. Entre ou confira o número.",
-  },
+  { field: "registration", column: /users\.registration\b|users_registration_unique/i, message: registrationTaken },
   { field: "email", column: /users\.email\b|users_email_unique/i, message: emailTaken },
 ];
 
@@ -81,6 +78,8 @@ function serverErrors(err: unknown, mode: Mode): FieldErrors | null {
       result.passwordConfirmation ??= "As senhas não são iguais.";
     } else if (item.field === "fullName") {
       result.fullName ??= "Digite seu nome completo.";
+    } else if (item.field === "registration") {
+      result.registration ??= item.rule === "database.unique" ? registrationTaken : "Confira a matrícula.";
     }
   }
   return Object.keys(result).length ? result : null;

@@ -18,7 +18,13 @@ export const signupValidator = vine.create({
   // Auto-cadastro nunca cria administradores; contas admin sao
   // provisionadas por seed/operacao.
   role: vine.enum(['student', 'teacher']).optional(),
-  registration: vine.string().nullable().optional(),
+  // Matrícula repetida volta como erro do campo (422), não como falha do banco (500).
+  registration: vine
+    .string()
+    .trim()
+    .unique({ table: 'users', column: 'registration' })
+    .nullable()
+    .optional(),
 })
 
 /**

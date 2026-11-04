@@ -142,4 +142,25 @@ test.group('Academic API', (group) => {
       false
     )
   })
+
+  test('signup rejects a registration that already has an account', async ({ client, assert }) => {
+    // com espaços em volta também, porque a matrícula é gravada sem eles
+    for (const registration of ['ALU-001', ' ALU-001 ']) {
+      const response = await client.post('/api/v1/auth/signup').json({
+        fullName: 'Pessoa Repetida',
+        email: 'repetida@agenda.test',
+        password: 'password123',
+        passwordConfirmation: 'password123',
+        registration,
+      })
+
+      response.assertStatus(422)
+      const errors = (response.body() as { errors?: { field: string; rule: string }[] }).errors
+      assert.isTrue(
+        (errors ?? []).some(
+          (error) => error.field === 'registration' && error.rule === 'database.unique'
+        )
+      )
+    }
+  })
 })
