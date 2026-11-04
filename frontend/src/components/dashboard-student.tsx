@@ -12,9 +12,11 @@ import {
   InsightTile,
   NextEventHero,
   WeekSpark,
+  calendarNote,
   calendarUpcomingCount,
   dateChip,
   delay,
+  openAhead,
   type CalendarFilter,
 } from "./dashboard-bits";
 import { EmptyState, SectionTitle } from "./ui";
@@ -89,6 +91,14 @@ export function StudentDashboard({
   const thirtyDays = next30.length;
   const exams30 = next30.filter((event) => event.category === "exam");
   const pointsAtStake = next30.reduce((sum, event) => sum + (event.points ?? 0), 0);
+  // o Cronograma lista todos os próximos (não só 30 dias), com os cancelados: o rodapé usa o número
+  // dele e os indicadores que abrem o Cronograma dizem a diferença
+  const calendarCount = calendarUpcomingCount(events, now);
+  // a lista de compromissos segue a regra das datas oficiais (openAhead): abertos com algum dia de hoje
+  // em diante, o de hoje e o em andamento inclusive; o destaque continua sendo o próximo que vai começar
+  const ahead = openAhead(events, now);
+  const thirtyNote = calendarNote(events, now, thirtyDays);
+  const examsNote = calendarNote(events, now, exams30.length, { categories: ["exam"], feminine: true });
   // agendados: o aviso ainda não chegou (os que chegaram estão no card de avisos)
   const avisoIds = new Set((avisos ?? []).map((aviso) => aviso.id));
   const scheduled = reminders
@@ -152,10 +162,16 @@ export function StudentDashboard({
     }
   }
 
+  // os que abrem o detalhe do evento dizem qual (opensEvent), para o foco voltar a eles
   const heroSecondary = !nextEvent
     ? undefined
     : heroReminder
-      ? { label: `Lembrete: ${reminderOffsetLabel(heroReminder.offsetMinutes)}`, icon: BellRing, onClick: () => onSelect(nextEvent.id) }
+      ? {
+          label: `Lembrete: ${reminderOffsetLabel(heroReminder.offsetMinutes)}`,
+          icon: BellRing,
+          onClick: () => onSelect(nextEvent.id),
+          opensEvent: nextEvent.id,
+        }
       : onQuickReminder
         ? quick
           ? {
@@ -165,7 +181,7 @@ export function StudentDashboard({
               onClick: () => remindHero(nextEvent),
             }
           : undefined
-        : { label: "Ativar lembrete", icon: Bell, onClick: () => onSelect(nextEvent.id) };
+        : { label: "Ativar lembrete", icon: Bell, onClick: () => onSelect(nextEvent.id), opensEvent: nextEvent.id };
 
   return (
     <div className="grid gap-5">
@@ -175,7 +191,7 @@ export function StudentDashboard({
 
       {/* Destaque + turma (no celular e no tablet a turma vai para o fim do Painel) */}
       <div className={cx("grid items-stretch gap-5 max-xl:contents", context && "xl:grid-cols-[minmax(0,1fr)_360px]")}>
-        <div className="rise" style={delay(0)}>
+        <div className="hero-slot rise" style={delay(0)}>
           <NextEventHero
             event={nextEvent}
             hideClass
@@ -187,7 +203,8 @@ export function StudentDashboard({
 
         {context ? (
           <section className="card pad rise flex flex-col max-xl:order-last" style={delay(1)} aria-label="Sua turma">
-            <h2 className="disp text-[24px] font-bold leading-tight">{myClass?.name ?? "Sem turma"}</h2>
+            {/* nome de turma longo, sem espaço, quebra em qualquer ponto */}
+            <h2 className="disp text-[24px] font-bold leading-tight wrap-anywhere">{myClass?.name ?? "Sem turma"}</h2>
             <p className="sub">
               {myClass ? (myClass.course?.name ?? "Curso") : "Fale com a administração para vincular sua matrícula."}
             </p>
@@ -204,10 +221,12 @@ export function StudentDashboard({
               <>
                 <hr className="divider mt-[18px] mb-3.5" />
                 <ul className="flex flex-col gap-2.5 text-sm">
+                  {/* o nome da docente fica inteiro; só um nome que passa de 70% da linha corta com
+                      reticências, para a disciplina continuar à vista e a linha não passar da borda do card */}
                   {subjects.slice(0, 5).map(([subject, teacher]) => (
                     <li key={subject} className="flex justify-between gap-2.5">
                       <span className="truncate font-semibold">{subject}</span>
-                      {teacher ? <span className="muted shrink-0">{teacher}</span> : null}
+                      {teacher ? <span className="muted max-w-[70%] shrink-0 truncate">{teacher}</span> : null}
                     </li>
                   ))}
                 </ul>
@@ -225,6 +244,7 @@ export function StudentDashboard({
           order={2}
           value={String(thirtyDays)}
           hint={thirtyDays === 1 ? "evento no período" : "eventos no período"}
+          note={thirtyNote}
           actionLabel="Ver no cronograma"
           onClick={() => onOpenCalendar()}
         >
@@ -241,6 +261,7 @@ export function StudentDashboard({
           actionLabel="Ver as provas no cronograma"
           onClick={() => onOpenCalendar({ categories: ["exam"] })}
           hint={exams30.length ? "nos próximos 30 dias" : "nenhuma prova nos próximos 30 dias"}
+          note={examsNote}
           extra={
             exams30.length ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -249,6 +270,7 @@ export function StudentDashboard({
                     key={event.id}
                     className="pill c-prova kpi-chip"
                     aria-label={`${event.title}, ${dateChip(event.startsAt)}`}
+                    data-opens-event={event.id}
                     onClick={() => onSelect(event.id)}
                     type="button"
                   >
@@ -307,7 +329,7 @@ export function StudentDashboard({
           </div>
           <EventList
             className="mt-3.5"
-            events={upcomingEvents}
+            events={ahead}
             grouped
             hideClass
             limit={6}
@@ -316,8 +338,8 @@ export function StudentDashboard({
             emptyHint="Quando houver novos prazos, eles aparecem aqui."
             showAll={{
               label: "Ver todos no cronograma",
-              // o Cronograma conta também os cancelados, os concluídos e os de hoje
-              count: calendarUpcomingCount(events, now),
+              // o N é o que o Cronograma lista (decisão 2), com os cancelados e os concluídos
+              count: calendarCount,
               onClick: () => onOpenCalendar(),
             }}
             onSelect={onSelect}
@@ -334,11 +356,14 @@ export function StudentDashboard({
                 : undefined
             }
           />
-          <div className="mt-3.5 flex flex-col gap-2">
+          {/* wrap-anywhere: os títulos e a dica do vazio, que traz o título da próxima prova, vêm da
+              pessoa e, com palavra ou link longo, quebram em qualquer ponto */}
+          <div className="mt-3.5 flex flex-col gap-2 wrap-anywhere">
             {scheduled.slice(0, 3).map((reminder) => (
               <button
                 key={reminder.id}
                 className="mini"
+                data-opens-event={reminder.academicEventId}
                 onClick={() => onSelect(reminder.academicEventId)}
                 type="button"
               >
@@ -346,7 +371,8 @@ export function StudentDashboard({
                   <Bell className="h-[18px] w-[18px]" aria-hidden />
                 </span>
                 <span className="min-w-0">
-                  <span className="mini-t block truncate">
+                  {/* o título quebra linha, como no Figma (a coluna tem 330 px) */}
+                  <span className="mini-t block wrap-anywhere">
                     {reminder.academicEvent?.title ?? `Evento #${reminder.academicEventId}`}
                   </span>
                   {/* mesmo formato da linha em Lembretes */}

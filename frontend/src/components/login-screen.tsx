@@ -25,11 +25,28 @@ import type { Session } from "@/lib/types";
 import { Field, primaryButton } from "./ui";
 
 type Mode = "login" | "signup";
-type FieldName = "fullName" | "email" | "password" | "passwordConfirmation";
+type FieldName = "fullName" | "registration" | "email" | "password" | "passwordConfirmation";
 type FieldErrors = Partial<Record<FieldName, string>>;
 
 // ordem dos campos na tela: o foco vai para o primeiro com erro
-const fieldOrder: FieldName[] = ["fullName", "email", "password", "passwordConfirmation"];
+const fieldOrder: FieldName[] = ["fullName", "registration", "email", "password", "passwordConfirmation"];
+
+const emailTaken = "Este e-mail já tem conta. Entre ou use outro e-mail.";
+
+/**
+ * Matrícula (ou e-mail) que já tem conta e que só o banco recusa: a API responde 500 com o erro do
+ * banco, que cita a coluna ("UNIQUE constraint failed: users.registration" no SQLite e
+ * "users_registration_unique" no Postgres e no MySQL). Essa mensagem traz o comando inteiro, com
+ * dados da conta, e nunca aparece na tela: vira o erro do campo.
+ */
+const takenByDatabase: Array<{ field: FieldName; column: RegExp; message: string }> = [
+  {
+    field: "registration",
+    column: /users\.registration\b|users_registration_unique/i,
+    message: "Esta matrícula já tem conta. Entre ou confira o número.",
+  },
+  { field: "email", column: /users\.email\b|users_email_unique/i, message: emailTaken },
+];
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -47,11 +64,17 @@ function serverErrors(err: unknown, mode: Mode): FieldErrors | null {
       return { password: "E-mail ou senha incorretos." };
     }
   }
+  if (mode === "signup" && err.status >= 500 && /unique|duplicate/i.test(err.message)) {
+    const taken = takenByDatabase.find((item) => item.column.test(err.message));
+    if (taken) {
+      return { [taken.field]: taken.message };
+    }
+  }
   const items = Array.isArray(err.errors) ? err.errors : [];
   const result: FieldErrors = {};
   for (const item of items) {
     if (item.field === "email") {
-      result.email ??= item.rule === "database.unique" ? "Este e-mail já tem conta. Entre ou use outro e-mail." : "Digite um e-mail válido.";
+      result.email ??= item.rule === "database.unique" ? emailTaken : "Digite um e-mail válido.";
     } else if (item.field === "password") {
       result.password ??= "A senha precisa ter de 8 a 32 caracteres.";
     } else if (item.field === "passwordConfirmation") {
@@ -149,7 +172,7 @@ export function LoginScreen({
   const [mode, setMode] = useState<Mode>("login");
   const [loginForm, setLoginForm] = useState(() => {
     if (email) {
-      // conta de teste: a senha também vem, e um clique em Entrar volta para quem estava
+      // conta de demonstração: a senha também vem, e um clique em Entrar volta para quem estava
       const known = demoAccounts.find((account) => account.email === email);
       return { email, password: known?.password ?? "" };
     }
@@ -173,6 +196,7 @@ export function LoginScreen({
   const errorId = (name: FieldName) => `${baseId}-${name}-erro`;
   const titleRef = useRef<HTMLHeadingElement>(null);
   const fullNameRef = useRef<HTMLInputElement>(null);
+  const registrationRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
@@ -203,7 +227,13 @@ export function LoginScreen({
     const first = fieldOrder.find((name) => next[name]);
     if (first) {
       // espera o campo ganhar aria-invalid antes de focar
-      const target = { fullName: fullNameRef, email: emailRef, password: passwordRef, passwordConfirmation: confirmRef }[first];
+      const target = {
+        fullName: fullNameRef,
+        registration: registrationRef,
+        email: emailRef,
+        password: passwordRef,
+        passwordConfirmation: confirmRef,
+      }[first];
       window.requestAnimationFrame(() => target.current?.focus());
     }
   }
@@ -296,8 +326,10 @@ export function LoginScreen({
   }
 
   return (
-    <main className="flex min-h-screen items-center bg-login px-4 py-6 text-ink sm:px-6 lg:px-8">
-      <section className="card rise mx-auto grid w-full max-w-6xl overflow-hidden !rounded-[28px] xl:grid-cols-[1fr_0.95fr]">
+    // o cartão fica no meio da altura, entre os dois vãos da .entrada (globals.css); com aviso na
+    // tela, o vão de baixo guarda o lugar dele e, no fim da rolagem, o cartão fica acima do aviso
+    <main className="entrada flex min-h-screen flex-col bg-login px-4 py-6 text-ink sm:px-6 lg:px-8">
+      <section className="card rise mx-auto grid w-full max-w-6xl shrink-0 overflow-hidden !rounded-[28px] xl:grid-cols-[1fr_0.95fr]">
         <div className="hidden min-h-[600px] flex-col justify-between bg-night p-10 text-white xl:flex">
           <div>
             <div className="flex items-center gap-3">
@@ -313,7 +345,7 @@ export function LoginScreen({
             <div className="mt-12 max-w-xl">
               <p className="disp text-[44px] font-bold leading-[1.05]">Agenda acadêmica unificada do campus</p>
               <p className="mt-4 text-[15.5px] leading-7 text-on-night">
-                Alunos, docentes e coordenação acompanham o mesmo calendário.
+                Centraliza provas, trabalhos, atividades, datas oficiais e lembretes de alunos, docentes e coordenação.
               </p>
             </div>
 
@@ -322,7 +354,7 @@ export function LoginScreen({
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
                   <CalendarDays className="h-4 w-4 text-accent" aria-hidden />
                 </span>
-                Provas, trabalhos e datas do campus num lugar só
+                Prazos docentes e datas institucionais no mesmo fluxo
               </li>
               <li className="flex items-center gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
@@ -334,14 +366,14 @@ export function LoginScreen({
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
                   <Users className="h-4 w-4 text-accent" aria-hidden />
                 </span>
-                Uma visão para cada perfil: aluno, docente e administração
+                Visão por perfil para aluno, docente e administração
               </li>
             </ul>
           </div>
 
           <p className="flex items-center gap-2 border-t border-white/10 pt-5 text-[13px] text-on-night-2">
             <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
-            Contas de teste. Os dados de exemplo voltam ao original quando o sistema reinicia.
+            Ambiente de demonstração: os dados voltam ao padrão sempre que o servidor reinicia.
           </p>
         </div>
 
@@ -383,12 +415,12 @@ export function LoginScreen({
             </div>
 
             <h1 ref={titleRef} className="disp text-[30px] font-bold leading-tight" tabIndex={-1}>
-              {mode === "login" ? "Acesse sua agenda" : "Crie sua conta"}
+              {mode === "login" ? "Entrar" : "Criar minha conta"}
             </h1>
             <p className="mt-2 text-[14.5px] leading-6 text-muted">
               {mode === "login"
-                ? "Use seu e-mail ou escolha uma conta de teste."
-                : "Com a conta você acompanha os prazos e ativa lembretes."}
+                ? "Use seu e-mail ou escolha uma conta de demonstração."
+                : "Crie uma conta para acompanhar prazos e configurar lembretes."}
             </p>
 
             <div className="mt-5 grid gap-3">
@@ -408,12 +440,21 @@ export function LoginScreen({
                     />
                   </Field>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Matrícula" hint="opcional">
+                    <Field
+                      label="Matrícula"
+                      hint="opcional"
+                      error={fieldErrors.registration}
+                      errorId={errorId("registration")}
+                    >
                       <input
+                        ref={registrationRef}
                         className="input"
                         value={signupForm.registration}
-                        onChange={(event) => setSignupForm({ ...signupForm, registration: event.target.value })}
-                        placeholder="Ex.: ALU-123"
+                        onChange={(event) => {
+                          setSignupForm({ ...signupForm, registration: event.target.value });
+                          touched("registration");
+                        }}
+                        placeholder="ALU-000"
                       />
                     </Field>
                     <Field label="Perfil">
@@ -458,7 +499,7 @@ export function LoginScreen({
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 error={fieldErrors.password}
                 errorId={errorId("password")}
-                hint={mode === "signup" ? "de 8 a 32 caracteres" : undefined}
+                hint={mode === "signup" ? "mínimo de 8 caracteres" : undefined}
                 inputRef={passwordRef}
                 label="Senha"
                 shown={showPassword}
@@ -523,7 +564,7 @@ export function LoginScreen({
               <div className="mt-7">
                 <p className="flex items-center gap-2 text-sm font-bold text-ink-2">
                   <ShieldCheck className="h-4 w-4 text-muted" aria-hidden />
-                  Contas de teste
+                  Contas de demonstração
                 </p>
                 <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
                   {demoAccounts.map((account, index) => {

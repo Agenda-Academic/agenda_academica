@@ -2,7 +2,6 @@
 
 import {
   ArrowRight,
-  Bell,
   BellRing,
   BookOpen,
   CheckCircle2,
@@ -14,39 +13,161 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { countdown, cx, dateParts, formatTime, groupByWeek, isWholeDay, relativeDue, startOfDay } from "@/lib/format";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type Ref,
+} from "react";
+import {
+  countdown,
+  cx,
+  dateParts,
+  formatShortDate,
+  formatShortDateTime,
+  formatTime,
+  groupByWeek,
+  isSameDay,
+  isWholeDay,
+  relativeDue,
+  startOfDay,
+} from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, Category, Reminder } from "@/lib/types";
-import { EventRow, eventLastDay } from "./event-bits";
+import { EventRow, StatusPill, eventLastDay } from "./event-bits";
 import { EmptyState } from "./ui";
 
 /** Filtro com que os painéis abrem o Cronograma (ex.: só Provas). */
 export type CalendarFilter = { categories?: Category[] };
 
-/** Categorias das datas oficiais do campus. */
+/* ------------------------------------------------------------------ */
+/* Datas oficiais: uma regra só para o Painel, a Gestão e o Cronograma */
+/* ------------------------------------------------------------------ */
+
+/** Categorias do calendário oficial do campus (só a administração publica nelas). */
 export const officialCategories: Category[] = ["institutional", "holiday", "recess"];
 
-/**
- * Data oficial: evento da administração (ou importado) de uma das categorias do calendário
- * oficial. É a regra do filtro com que os painéis abrem o Cronograma, para o número do card
- * bater com a lista que abre.
- */
-export function isOfficialDate(event: AcademicEvent) {
-  const official = event.officialPriority || event.source === "official" || event.source === "imported";
-  return official && officialCategories.includes(event.category);
+/** Origem oficial: publicado pela administração ou importado do calendário oficial. */
+export function isOfficialSource(event: AcademicEvent) {
+  return event.officialPriority || event.source !== "teacher";
 }
 
 /**
- * Quantos eventos o Cronograma mostra em "Próximos" (só das categorias dadas, se houver):
- * os que ainda têm algum dia pela frente, em qualquer situação, como a lista de lá conta.
- * É o N do "Ver todos no cronograma (N)".
+ * Data oficial: evento de origem oficial (administração ou importação) numa das categorias do
+ * calendário oficial (institucional, feriado, recesso), com turma ou sem. Um evento oficial de outra
+ * categoria (ex.: uma prova unificada) é evento oficial, mas não é data oficial. Como só a
+ * administração publica nessas categorias, é o mesmo conjunto que o Cronograma mostra com o filtro
+ * delas (officialCategories).
+ */
+export function isOfficialDate(event: AcademicEvent) {
+  return isOfficialSource(event) && officialCategories.includes(event.category);
+}
+
+/** Nem cancelado nem concluído. */
+function isOpen(event: AcademicEvent) {
+  return event.status !== "cancelled" && event.status !== "completed";
+}
+
+/** Ainda tem algum dia de hoje em diante (é o "Próximos" do Cronograma). */
+function hasDayAhead(event: AcademicEvent, today: number) {
+  return eventLastDay(event).getTime() >= today;
+}
+
+function byStart(a: AcademicEvent, b: AcademicEvent) {
+  return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+}
+
+/**
+ * Eventos à frente: os abertos (sem os cancelados e os concluídos) que ainda têm algum dia de hoje
+ * em diante, o que está em andamento e o que já começou hoje inclusive, em ordem de início. É o
+ * "Próximos" do Cronograma sem os cancelados e os concluídos.
+ */
+export function openAhead(events: AcademicEvent[], now: number) {
+  const today = startOfDay(new Date(now)).getTime();
+  return events.filter((event) => isOpen(event) && hasDayAhead(event, today)).sort(byStart);
+}
+
+/**
+ * Próximas datas oficiais (o KPI e os cards "Datas oficiais à frente" e "Próximas datas oficiais",
+ * no Painel e na Gestão): as datas oficiais à frente (openAhead), a que está em andamento inclusive.
+ */
+export function upcomingOfficialDates(events: AcademicEvent[], now: number) {
+  return openAhead(events.filter(isOfficialDate), now);
+}
+
+/** O que o Cronograma lista em "Próximos" (só das categorias dadas, se houver), em qualquer situação. */
+function calendarUpcoming(events: AcademicEvent[], now: number, categories?: Category[]) {
+  const today = startOfDay(new Date(now)).getTime();
+  return events.filter((event) => (!categories || categories.includes(event.category)) && hasDayAhead(event, today));
+}
+
+/**
+ * Quantos eventos o Cronograma lista em "Próximos" (só das categorias dadas, se houver): os que
+ * ainda têm algum dia de hoje em diante, em qualquer situação (cancelados e concluídos entram).
  */
 export function calendarUpcomingCount(events: AcademicEvent[], now: number, categories?: Category[]) {
-  const today = startOfDay(new Date(now)).getTime();
-  return events.filter(
-    (event) => (!categories || categories.includes(event.category)) && eventLastDay(event).getTime() >= today
-  ).length;
+  return calendarUpcoming(events, now, categories).length;
+}
+
+function counted(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * Por que o Cronograma (em "Próximos", com o filtro que o indicador abre) mostra outro número que o
+ * indicador (own), para a dica dele dizer a diferença: as canceladas e as concluídas que o
+ * Cronograma também lista ("o cronograma mostra também 1 cancelada") ou, se a diferença é outra
+ * (o indicador olha só 30 dias), quantos ele lista ("o cronograma mostra 23 ao todo"). Sem
+ * diferença, null. feminine: a palavra do indicador é feminina (datas, provas).
+ */
+export function calendarNote(
+  events: AcademicEvent[],
+  now: number,
+  own: number,
+  options: { categories?: Category[]; feminine?: boolean } = {}
+) {
+  const listed = calendarUpcoming(events, now, options.categories);
+  if (listed.length === own) {
+    return null;
+  }
+  const cancelled = listed.filter((event) => event.status === "cancelled").length;
+  const completed = listed.filter((event) => event.status === "completed").length;
+  if (cancelled + completed !== listed.length - own) {
+    return `o cronograma mostra ${listed.length} ao todo`;
+  }
+  const female = options.feminine;
+  const parts = [
+    cancelled
+      ? counted(cancelled, female ? "cancelada" : "cancelado", female ? "canceladas" : "cancelados")
+      : null,
+    completed
+      ? counted(completed, female ? "concluída" : "concluído", female ? "concluídas" : "concluídos")
+      : null,
+  ].filter((part): part is string => Boolean(part));
+  return `o cronograma mostra também ${parts.join(" e ")}`;
+}
+
+/**
+ * Texto do rodapé "Ver todos (N)" (decisão 2): N é quantos o destino lista (destination), que pode
+ * ser mais que a lista do card, porque o Cronograma conta também os cancelados, os concluídos e os
+ * que já começaram hoje. Sem destination, o destino lista o mesmo conjunto da lista (own).
+ */
+export function showAllText(label: string, own: number, destination?: number) {
+  return `${label} (${destination ?? own})`;
+}
+
+/** O que muda a altura de uma lista do Painel (para as colunas de useColumnFill refazerem a conta). */
+export function heightKey(events: AcademicEvent[]) {
+  return events.map((event) => `${event.id}:${event.title}:${event.startsAt}:${event.endsAt}:${event.status}`).join(",");
+}
+
+/** Nenhum dos eventos tem turma: só assim um subtítulo pode dizer que eles valem para todas as turmas. */
+export function allWithoutClass(events: AcademicEvent[]) {
+  return events.every((event) => event.academicClassId === null);
 }
 
 /** Atraso da entrada suave (classe "rise"): blocos aparecem em sequência. */
@@ -63,11 +184,23 @@ function capitalize(text: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** Quando é uma data oficial, no rótulo curto: "seg, 02/11, dia todo", "qui, 05/11, 18:00" ou "seg, 23/11 a sex, 27/11". */
+export function officialWhen(event: AcademicEvent) {
+  const start = new Date(event.startsAt);
+  const last = eventLastDay(event);
+  if (isWholeDay(event.startsAt, event.endsAt)) {
+    return last.getTime() > startOfDay(start).getTime()
+      ? `${formatShortDate(start)} a ${formatShortDate(last)}`
+      : `${formatShortDate(start)}, dia todo`;
+  }
+  return formatShortDateTime(start);
+}
+
 // enquanto envia, o botão continua focável, só fica apagado
 const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
 
 /** Pílula "Salvo agora" (a mesma da Gestão). */
-function SavedPill() {
+export function SavedPill() {
   return (
     <span className="pill bg-brand text-white">
       <CheckCircle2 className="h-3 w-3" aria-hidden />
@@ -139,28 +272,44 @@ function freeBand(element: HTMLElement) {
 }
 
 /**
- * Rola a página até o evento ficar inteiro na faixa livre: se ele já está nela, nada se mexe;
- * se não, ele vai para o meio dela (como a linha salva na Gestão). Mais alto que a faixa, fica
- * à vista o começo dele, com o título e a pílula.
+ * Quanto a página rola para o evento ficar inteiro na faixa livre: nada, se ele já está nela; se
+ * não, ele vai para o meio dela ou, mais alto que ela, fica com o topo logo abaixo da barra (o
+ * começo dele, com o título e a pílula, à vista). A conta já para no começo e no fim da página.
  */
-function scrollIntoFreeBand(element: HTMLElement) {
+function revealPlan(element: HTMLElement) {
   const box = element.getBoundingClientRect();
   const band = freeBand(element);
   if (box.top >= band.top && box.bottom <= band.bottom) {
-    return;
+    return { band, shift: 0 };
   }
   const room = band.bottom - band.top;
   const goal = box.height >= room ? band.top : band.top + (room - box.height) / 2;
-  window.scrollTo({ top: window.scrollY + box.top - goal, behavior: reducedMotion() ? "auto" : "smooth" });
+  const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  const y = Math.min(Math.max(window.scrollY + box.top - goal, 0), maxY);
+  return { band, shift: y - window.scrollY };
+}
+
+/**
+ * Foco num bloco que não é botão (o destaque), sem rolar: ganha tabIndex -1 só enquanto está com o
+ * foco. A folga de rolagem dele (globals.css) é a mesma do topo da faixa livre: com o topo dele ali,
+ * os avisos (useToastRoom, em ui.tsx) não têm por que subir a página de novo.
+ */
+function focusBlock(element: HTMLElement) {
+  if (!element.hasAttribute("tabindex") && !element.matches("a[href], button, input, select, textarea")) {
+    element.setAttribute("tabindex", "-1");
+    element.addEventListener("blur", () => element.removeAttribute("tabindex"), { once: true });
+  }
+  element.focus({ preventScroll: true });
 }
 
 /**
  * Mostra no Painel o evento salvo pelo painel lateral (savedTick muda a cada salvamento):
  * espera a lista nova e nenhum diálogo aberto, põe a pílula "Salvo agora" no destaque ou na
  * linha com data-event-id e, já com a altura final, rola até ela ficar livre da barra do topo
- * e dos avisos, põe o foco na ação principal dela e pisca o fundo. Devolve o id que tem a
- * pílula. Se o evento não aparece no Painel, o foco vai para o título da tela, nunca para o
- * "Editar" de outro evento.
+ * e dos avisos, põe o foco na ação principal dela e pisca o fundo. Quando o destaque é mais alto
+ * que a faixa livre (celular deitado), o topo dele fica logo abaixo da barra e o foco vai para
+ * ele mesmo. Devolve o id que tem a pílula. Se o evento não aparece no Painel, o foco vai para o
+ * título da tela, nunca para o "Editar" de outro evento.
  */
 export function useSavedReveal<T extends HTMLElement>(
   lastSavedId: number | null | undefined,
@@ -223,10 +372,22 @@ export function useSavedReveal<T extends HTMLElement>(
       screenHeading()?.focus({ preventScroll: true });
       return;
     }
-    scrollIntoFreeBand(target);
-    // a linha é o próprio botão; no destaque, a ação principal é o botão marcado
-    const action = target.matches("button") ? target : (target.querySelector<HTMLElement>("[data-primary-action]") ?? target);
-    action.focus({ preventScroll: true });
+    const { band, shift } = revealPlan(target);
+    // a linha é o próprio botão; no destaque, a ação principal é o botão marcado. Ela só fica com o
+    // foco se, depois da rolagem, estiver inteira na faixa livre; senão (destaque mais alto que a
+    // faixa), o foco vai para o próprio destaque, com o topo à vista, e não para um "Editar"
+    // embaixo dos avisos ou fora da tela
+    const action = target.matches("button") ? target : target.querySelector<HTMLElement>("[data-primary-action]");
+    const box = action?.getBoundingClientRect();
+    const free = Boolean(box && box.top - shift >= band.top && box.bottom - shift <= band.bottom);
+    if (shift) {
+      window.scrollTo({ top: window.scrollY + shift, behavior: reducedMotion() ? "auto" : "smooth" });
+    }
+    if (action && free) {
+      action.focus({ preventScroll: true });
+    } else {
+      focusBlock(target);
+    }
     flashSaved(target);
   }, [saved]);
 
@@ -241,6 +402,113 @@ export function useSavedReveal<T extends HTMLElement>(
   return { rootRef, savedId: saved?.id ?? null };
 }
 
+/* ------------------------------------------------------------------ */
+/* Colunas que terminam juntas                                         */
+/* ------------------------------------------------------------------ */
+
+/** Lista que pode mostrar mais itens: quantos tem, quantos mostra no mínimo e no máximo. */
+export type FillList = { total: number; min: number; max: number };
+
+type FillState = {
+  key: string;
+  main: number;
+  side: number;
+  /** Lista que acabou de ganhar um item, e a sobra que havia antes dele. */
+  tried: "main" | "side" | null;
+  before: number;
+  done: boolean;
+};
+
+/** Sobra pequena demais para mais um item (px). */
+const FILL_SLACK = 40;
+
+/**
+ * Duas colunas lado a lado (.duo) que terminam juntas, sem sobra grande e sem rolagem por dentro:
+ * o card de baixo de cada coluna (.duo-fill) estica até o fim da coluna mais alta e guarda a sobra
+ * no espaçador .fill-gap dele. A lista da coluna (a desse card, como no Painel da docente, ou a de
+ * outro card da mesma coluna, como no da administração) mostra mais um item enquanto a coluna for a
+ * mais baixa e ainda houver itens. Se o item a mais deixa a outra coluna com mais sobra do que
+ * antes, ele sai. Com as colunas uma embaixo da outra, cada lista mostra o mínimo. A conta recomeça
+ * quando a largura, as fontes ou os dados (dataKey) mudam; tudo acontece antes da pintura.
+ */
+export function useColumnFill(main: FillList, side: FillList, dataKey: string) {
+  const gridRef = useRef<HTMLDivElement>(null);
+  const mainGapRef = useRef<HTMLDivElement>(null);
+  const sideGapRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  const [fontsTick, setFontsTick] = useState(0);
+  const key = `${dataKey}|${width}|${fontsTick}`;
+  const fresh = (forKey: string): FillState => ({
+    key: forKey,
+    main: main.min,
+    side: side.min,
+    tried: null,
+    before: 0,
+    done: false,
+  });
+  const [fill, setFill] = useState<FillState>(() => fresh(key));
+  let current = fill;
+  if (fill.key !== key) {
+    current = fresh(key);
+    setFill(current);
+  }
+
+  // largura das colunas (sem transform: a entrada suave não muda a conta)
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) {
+      return;
+    }
+    setWidth(grid.clientWidth);
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(() => setWidth(grid.clientWidth));
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, []);
+
+  // a fonte que chega depois muda a altura dos textos
+  useEffect(() => {
+    let alive = true;
+    void document.fonts?.ready.then(() => {
+      if (alive) {
+        setFontsTick((tick) => tick + 1);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (fill.done || fill.key !== key) {
+      return;
+    }
+    const columns = Array.from(gridRef.current?.children ?? []) as HTMLElement[];
+    const sideBySide = columns.length > 1 && Math.abs(columns[0].offsetTop - columns[1].offsetTop) < 2;
+    const freeMain = sideBySide ? (mainGapRef.current?.offsetHeight ?? 0) : 0;
+    const freeSide = sideBySide ? (sideGapRef.current?.offsetHeight ?? 0) : 0;
+    if (fill.tried === "main" && freeSide > fill.before) {
+      setFill({ ...fill, main: fill.main - 1, tried: null, done: true });
+    } else if (fill.tried === "side" && freeMain > fill.before) {
+      setFill({ ...fill, side: fill.side - 1, tried: null, done: true });
+    } else if (freeMain > FILL_SLACK && fill.main < Math.min(main.total, main.max)) {
+      setFill({ ...fill, main: fill.main + 1, tried: "main", before: freeMain });
+    } else if (freeSide > FILL_SLACK && fill.side < Math.min(side.total, side.max)) {
+      setFill({ ...fill, side: fill.side + 1, tried: "side", before: freeSide });
+    } else if (columns.length) {
+      setFill({ ...fill, tried: null, done: true });
+    }
+  }, [fill, key, main.total, main.max, side.total, side.max]);
+
+  return { gridRef, mainGapRef, sideGapRef, mainCount: current.main, sideCount: current.side };
+}
+
+/* ------------------------------------------------------------------ */
+/* Indicadores e listas                                                */
+/* ------------------------------------------------------------------ */
+
 /**
  * Card de indicador (KPI) do Figma. Com onClick, o card inteiro vira um botão
  * (.kpi.is-link): o botão fica no rótulo e a área dele cobre o card.
@@ -251,6 +519,7 @@ export function InsightTile({
   value,
   unit,
   hint,
+  note,
   tone,
   order = 0,
   children,
@@ -264,6 +533,11 @@ export function InsightTile({
   value: string;
   unit?: string;
   hint?: ReactNode;
+  /**
+   * Linha a mais na dica, quando o destino do clique mostra outro número (calendarNote): "o
+   * cronograma mostra também 1 cancelada". Entra também no nome do botão.
+   */
+  note?: string | null;
   /** Cor do ícone: classe de categoria (ex.: "c-prova"). Padrão: verde da marca. */
   tone?: string;
   /** Peças só visuais (gráfico, barra). */
@@ -274,7 +548,9 @@ export function InsightTile({
   actionLabel?: string;
   onClick?: () => void;
 }) {
-  const name = `${label}: ${value}${unit ? ` ${unit}` : ""}${actionLabel ? `. ${actionLabel}` : ""}`;
+  const name = `${label}: ${value}${unit ? ` ${unit}` : ""}${actionLabel ? `. ${actionLabel}` : ""}${
+    note ? `. ${capitalize(note)}` : ""
+  }`;
   return (
     <div className={cx("card kpi rise", onClick && "is-link")} style={delay(order)}>
       <div className="kpi-top">
@@ -297,7 +573,13 @@ export function InsightTile({
       </p>
       {children}
       {extra ? <div className="kpi-extra">{extra}</div> : null}
-      {hint ? <p className="kpi-hint">{hint}</p> : null}
+      {/* a dica pode trazer nomes de disciplina ou de turma: palavra longa quebra em qualquer ponto */}
+      {hint || note ? (
+        <p className="kpi-hint wrap-anywhere">
+          {hint}
+          {note ? <span className="block">{note}</span> : null}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -345,6 +627,16 @@ export function CategoryBreakdown({
   );
 }
 
+/** Rodapé "Ver todos (N)" de uma lista do Painel. */
+export type ShowAll = {
+  label: string;
+  onClick: () => void;
+  /** Quantos o destino lista: é o N do rodapé (showAllText). Sem ele, o destino lista o mesmo conjunto da lista. */
+  count?: number;
+  /** O rodapé fica mesmo quando a lista cabe inteira (é o caminho do card para o destino). */
+  always?: boolean;
+};
+
 export function EventList({
   className,
   emptyCompact,
@@ -352,6 +644,7 @@ export function EventList({
   emptyIcon,
   emptyText,
   events,
+  fillRef,
   grouped,
   hideClass,
   limit,
@@ -370,6 +663,8 @@ export function EventList({
   emptyIcon: LucideIcon;
   emptyText: string;
   events: AcademicEvent[];
+  /** Card que estica para a coluna terminar junto (useColumnFill): espaçador entre a lista e o rodapé. */
+  fillRef?: Ref<HTMLDivElement>;
   /** Separa em "Esta semana", "Próxima semana" e "Mais adiante". */
   grouped?: boolean;
   hideClass?: boolean;
@@ -380,22 +675,28 @@ export function EventList({
   /** Evento salvo há pouco pelo painel lateral: a linha ganha a pílula "Salvo agora". */
   savedId?: number | null;
   selectedId?: number | null;
-  /**
-   * Rodapé "Ver todos (N)", mostrado quando o destino tem mais eventos que a lista mostra.
-   * count é quantos o destino mostra (o Cronograma conta também cancelados e concluídos);
-   * sem ele, N é o tamanho da lista.
-   */
-  showAll?: { label: string; onClick: () => void; count?: number };
+  /** Rodapé "Ver todos (N)", quando a lista não cabe inteira (ou sempre, com always). */
+  showAll?: ShowAll;
   onSelect: (id: number) => void;
 }) {
   const visible = limit ? events.slice(0, limit) : events;
-  const total = showAll?.count ?? events.length;
 
   if (!visible.length) {
     const empty = <EmptyState compact={emptyCompact} icon={emptyIcon} text={emptyText} hint={emptyHint} />;
-    return className ? <div className={className}>{empty}</div> : empty;
+    const block = className ? <div className={className}>{empty}</div> : empty;
+    // no card que estica, o vazio fica logo abaixo do título (como nos outros cards) e a sobra vai
+    // para o espaçador, que useColumnFill continua medindo
+    return fillRef ? (
+      <>
+        {block}
+        <div ref={fillRef} className="fill-gap" aria-hidden />
+      </>
+    ) : (
+      block
+    );
   }
 
+  // as linhas (EventRow) já dizem qual evento abrem (data-opens-event), para o foco voltar a elas
   const row = (event: AcademicEvent) => (
     <EventRow
       key={event.id}
@@ -426,10 +727,11 @@ export function EventList({
   return (
     <>
       {list}
-      {showAll && visible.length < total ? (
+      {fillRef ? <div ref={fillRef} className="fill-gap" aria-hidden /> : null}
+      {showAll && (visible.length < events.length || showAll.always) ? (
         <div className="card-foot">
           <button className="link" onClick={showAll.onClick} type="button">
-            {showAll.label} ({total})
+            {showAllText(showAll.label, events.length, showAll.count)}
             <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
           </button>
         </div>
@@ -437,6 +739,10 @@ export function EventList({
     </>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Destaque                                                            */
+/* ------------------------------------------------------------------ */
 
 function plural(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
@@ -465,8 +771,8 @@ function countdownWords(value: string, now: Date) {
   return `${single ? "Falta" : "Faltam"} ${text}`;
 }
 
-/** Contagem regressiva que se atualiza sozinha. */
-function Countdown({ startsAt, until }: { startsAt: string; until: string }) {
+/** Contagem regressiva que se atualiza sozinha. note troca o texto miúdo de baixo (ex.: "visível para toda a turma"). */
+function Countdown({ startsAt, until, note }: { startsAt: string; until: string; note?: string }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30000);
@@ -479,23 +785,43 @@ function Countdown({ startsAt, until }: { startsAt: string; until: string }) {
         Faltam
       </p>
       <b aria-hidden>{countdown(startsAt, now)}</b>
-      <small aria-hidden>{until}</small>
+      <small aria-hidden>{note ?? until}</small>
       <span className="sr-only">
-        {countdownWords(startsAt, now)} {until}.
+        {countdownWords(startsAt, now)} {until}.{note ? ` ${capitalize(note)}.` : ""}
       </span>
     </div>
   );
 }
 
-type HeroAction = {
+/** Quando é o evento do destaque: "Amanhã, 19:00", "Amanhã, 19:00 até 21:30" ou "Hoje, dia todo". */
+function heroWhen(event: AcademicEvent) {
+  const day = capitalize(relativeDue(event.startsAt));
+  if (isWholeDay(event.startsAt, event.endsAt)) {
+    return `${day}, dia todo`;
+  }
+  const start = new Date(event.startsAt);
+  const endsAt = event.endsAt;
+  const end = endsAt ? new Date(endsAt) : null;
+  const tail = endsAt && end && end > start && isSameDay(start, end) ? ` até ${formatTime(endsAt)}` : "";
+  return `${day}, ${formatTime(event.startsAt)}${tail}`;
+}
+
+export type HeroAction = {
   label: string;
+  /** Sem ícone, o botão fica só com o texto (como no Figma). */
   icon?: LucideIcon;
   onClick: () => void;
   /** Enviando: giro no lugar do ícone e o clique não repete. */
   busy?: boolean;
+  /** O botão abre o detalhe deste evento: ganha data-opens-event, para o foco voltar a ele. */
+  opensEvent?: number;
 };
 
-/** Destaque do próximo compromisso (card branco com faixa verde), com bloco de data e contagem regressiva. */
+/**
+ * Destaque do próximo compromisso (card branco com faixa verde), com bloco de data e contagem
+ * regressiva. No computador (globals.css, .hero-slot) ele vira uma grade: a data à esquerda, a
+ * contagem no alto à direita e os botões lado a lado, que podem seguir por baixo da contagem.
+ */
 export function NextEventHero({
   event,
   emptyTitle = "Você está em dia com os prazos",
@@ -507,6 +833,8 @@ export function NextEventHero({
   secondary,
   hideClass,
   hideTeacher,
+  showStatus,
+  countdownNote,
   onOpen,
   onEmptyAction,
 }: {
@@ -524,6 +852,10 @@ export function NextEventHero({
   hideClass?: boolean;
   /** Esconde o nome do docente (no painel do próprio docente). */
   hideTeacher?: boolean;
+  /** Mostra a situação (Agendado, Alterado) ao lado da categoria, como no Painel da docente do Figma. */
+  showStatus?: boolean;
+  /** Texto miúdo da contagem no lugar de "até o início" (ex.: "visível para toda a turma"). */
+  countdownNote?: string;
   onOpen: (id: number) => void;
   onEmptyAction?: { label: string; onClick: () => void };
 }) {
@@ -549,14 +881,13 @@ export function NextEventHero({
 
   const meta = categoryMeta[event.category];
   const parts = dateParts(event.startsAt);
-  const when = `${capitalize(relativeDue(event.startsAt))}, ${isWholeDay(event.startsAt, event.endsAt) ? "dia todo" : formatTime(event.startsAt)}`;
   const course = [event.subject?.name, hideClass ? null : event.academicClass?.name].filter(Boolean).join(", ");
-  const SecondaryIcon = secondary?.icon ?? Bell;
+  const SecondaryIcon = secondary?.icon;
   const PrimaryIcon = primaryAction?.icon;
 
   // a chave troca o card quando o evento muda: o foco não fica num "Editar" que passou a ser de outro evento
   return (
-    <section key={event.id} className="hero with-date h-full" aria-label={kicker} data-event-id={event.id}>
+    <section key={event.id} className="hero with-date is-event h-full" aria-label={kicker} data-event-id={event.id}>
       <div className="datebig">
         <span className="dw">{parts.weekday}</span>
         <span className="dn">{parts.day}</span>
@@ -566,13 +897,16 @@ export function NextEventHero({
         <div className="hero-kicker">
           <span className="eyebrow">{kicker}</span>
           <span className={cx("pill", meta.tint)}>{meta.short}</span>
+          {showStatus ? <StatusPill event={event} showScheduled /> : null}
           {saved ? <SavedPill /> : null}
         </div>
-        <h2 className="hero-title">{event.title}</h2>
-        <div className="hero-meta">
+        {/* título, disciplina, turma, local e nome vêm da pessoa: palavra ou link longo quebra em
+            qualquer ponto, sem passar da borda do destaque */}
+        <h2 className="hero-title wrap-anywhere">{event.title}</h2>
+        <div className="hero-meta wrap-anywhere">
           <span>
             <Clock className="h-[15px] w-[15px]" aria-hidden />
-            {when}
+            {heroWhen(event)}
           </span>
           {course ? (
             <span>
@@ -601,13 +935,25 @@ export function NextEventHero({
         </div>
         <div className="hero-actions">
           {primaryAction ? (
-            <button className="btn btn-p" data-primary-action onClick={primaryAction.onClick} type="button">
+            <button
+              className="btn btn-p"
+              data-primary-action
+              data-opens-event={primaryAction.opensEvent}
+              onClick={primaryAction.onClick}
+              type="button"
+            >
               {PrimaryIcon ? <PrimaryIcon className="h-4 w-4" aria-hidden /> : null}
               {primaryAction.label}
               {PrimaryIcon ? null : <ArrowRight className="h-4 w-4" aria-hidden />}
             </button>
           ) : (
-            <button className="btn btn-p" data-primary-action onClick={() => onOpen(event.id)} type="button">
+            <button
+              className="btn btn-p"
+              data-primary-action
+              data-opens-event={event.id}
+              onClick={() => onOpen(event.id)}
+              type="button"
+            >
               {primaryLabel}
               <ArrowRight className="h-4 w-4" aria-hidden />
             </button>
@@ -617,6 +963,7 @@ export function NextEventHero({
               className={cx("btn btn-s", busyLook)}
               aria-busy={secondary.busy || undefined}
               aria-disabled={secondary.busy || undefined}
+              data-opens-event={secondary.opensEvent}
               onClick={() => {
                 if (!secondary.busy) {
                   secondary.onClick();
@@ -626,18 +973,26 @@ export function NextEventHero({
             >
               {secondary.busy ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
+              ) : SecondaryIcon ? (
                 <SecondaryIcon className="h-4 w-4" aria-hidden />
-              )}
+              ) : null}
               {secondary.label}
             </button>
           ) : null}
         </div>
       </div>
-      <Countdown startsAt={event.startsAt} until={event.category === "assignment" ? "até a entrega" : "até o início"} />
+      <Countdown
+        startsAt={event.startsAt}
+        until={event.category === "assignment" ? "até a entrega" : "até o início"}
+        note={countdownNote}
+      />
     </section>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Avisos                                                              */
+/* ------------------------------------------------------------------ */
 
 /** Quando é o evento do aviso: "Amanhã, 19:00" ou "Hoje, dia todo". */
 function avisoWhen(event: AcademicEvent) {
@@ -706,7 +1061,8 @@ export function AvisosCard({
           const details = event ? [avisoWhen(event), event.location].filter(Boolean).join(", ") : null;
           return (
             <li key={aviso.id} className="aviso">
-              <p className="aviso-t">
+              {/* título e local vêm da pessoa: palavra ou link longo quebra em qualquer ponto */}
+              <p className="aviso-t wrap-anywhere">
                 {event?.title ?? "Evento da sua agenda"}
                 {details ? <span className="block text-sm font-normal text-muted">{details}</span> : null}
               </p>
@@ -714,6 +1070,7 @@ export function AvisosCard({
                 <button
                   className="btn btn-s btn-sm"
                   aria-label={event ? `Ver evento ${event.title}` : undefined}
+                  data-opens-event={aviso.academicEventId}
                   onClick={() => onOpen(aviso.academicEventId)}
                   type="button"
                 >

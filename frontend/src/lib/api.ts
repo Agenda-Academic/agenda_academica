@@ -14,8 +14,16 @@ type ApiEnvelope<T> = {
   data: T;
 };
 
+/**
+ * Prazo de cada chamada. Passa com folga do minuto que o servidor em repouso leva para voltar (plano
+ * grátis do Render); depois dele, a chamada é cancelada e vira ApiTimeoutError.
+ */
+export const REQUEST_TIMEOUT_MS = 90_000;
+
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
+  /** Prazo desta chamada, em ms (padrão: REQUEST_TIMEOUT_MS). */
+  timeoutMs?: number;
 };
 
 /** Erro de validação da API (VineJS): campo, regra e dados da regra (ex.: { min: 3 }). */
@@ -39,9 +47,22 @@ export class ApiError extends Error {
   }
 }
 
-/** Falha de rede: o servidor não respondeu. */
+/** O servidor não respondeu no prazo (conexão presa): a chamada foi cancelada, mas o pedido pode ter chegado. */
+export class ApiTimeoutError extends ApiError {
+  constructor() {
+    super("O servidor não respondeu a tempo. Tente de novo.", 0);
+    this.name = "ApiTimeoutError";
+  }
+}
+
+/** Falha de rede: o servidor não respondeu (sem conexão ou sem resposta no prazo). */
 export function isNetworkError(error: unknown) {
   return error instanceof ApiError && error.status === 0;
+}
+
+/** Sem resposta no prazo: antes de repetir um envio, vale conferir se o primeiro entrou. */
+export function isTimeoutError(error: unknown): error is ApiTimeoutError {
+  return error instanceof ApiTimeoutError;
 }
 
 // Quem cuida da sessão vencida (o page.tsx registra ao montar).
@@ -61,34 +82,70 @@ export function setReachableHandler(handler: (() => void) | null) {
 }
 
 export async function apiFetch<T>(path: string, token?: string, options: RequestOptions = {}) {
-  let response: Response;
+  const { body, headers, signal, timeoutMs = REQUEST_TIMEOUT_MS, ...init } = options;
+  // uma conexão presa não deixa a tela esperando para sempre: no prazo, a chamada é cancelada
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  // quem chamou também pode cancelar
+  const forwardAbort = () => controller.abort();
+  if (signal?.aborted) {
+    controller.abort();
+  } else {
+    signal?.addEventListener("abort", forwardAbort, { once: true });
+  }
+
   try {
-    response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    });
-  } catch {
-    throw new ApiError("Não foi possível conectar ao servidor. Confira sua conexão e tente de novo.", 0);
-  }
-  reachableHandler?.();
-
-  if (!response.ok) {
-    const fallback = { message: `Erro ${response.status}` };
-    const payload = await response.json().catch(() => fallback);
-    const errors: ApiFieldError[] = Array.isArray(payload?.errors) ? payload.errors : [];
-    const message = payload?.message ?? errors[0]?.message ?? fallback.message;
-    if (response.status === 401 && token) {
-      unauthorizedHandler?.(token);
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}${path}`, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...headers,
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (timedOut) {
+        throw new ApiTimeoutError();
+      }
+      if (signal?.aborted) {
+        throw error;
+      }
+      throw new ApiError("Não foi possível conectar ao servidor. Confira sua conexão e tente de novo.", 0);
     }
-    throw new ApiError(message, response.status, errors);
-  }
+    reachableHandler?.();
 
-  return (await response.json()) as T;
+    if (!response.ok) {
+      const fallback = { message: `Erro ${response.status}` };
+      const payload = await response.json().catch(() => fallback);
+      const errors: ApiFieldError[] = Array.isArray(payload?.errors) ? payload.errors : [];
+      const message = payload?.message ?? errors[0]?.message ?? fallback.message;
+      if (response.status === 401 && token) {
+        unauthorizedHandler?.(token);
+      }
+      throw new ApiError(message, response.status, errors);
+    }
+
+    try {
+      return (await response.json()) as T;
+    } catch (error) {
+      // a resposta começou a chegar e parou: o prazo acabou no meio dela
+      if (timedOut) {
+        throw new ApiTimeoutError();
+      }
+      throw error;
+    }
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", forwardAbort);
+  }
 }
 
 /**

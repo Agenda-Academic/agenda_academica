@@ -79,7 +79,7 @@ export function ProfileModal({
         busy={saving}
         initialFocusRef={nameRef}
         onClose={requestClose}
-        title="Preferências"
+        title="Configurações do perfil"
         footer={
           <>
             <button className={`btn btn-s ${busyLook}`} aria-disabled={saving || undefined} onClick={requestClose} type="button">
@@ -102,7 +102,12 @@ export function ProfileModal({
               <p className="truncate text-sm text-muted">{user.email}</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <span className="pill st-ag">{roleLabels[user.role]}</span>
-                {user.registration ? <span className="pill st-ag">{user.registration}</span> : null}
+                {user.registration ? (
+                  // matrícula comprida e sem espaço: corta com reticência na largura do cartão, inteira no title
+                  <span className="pill st-ag min-w-0 max-w-full" title={user.registration}>
+                    <span className="truncate">{user.registration}</span>
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>
@@ -122,7 +127,7 @@ export function ProfileModal({
               />
             </Field>
 
-            <Field label="Antecedência padrão" hint="usada ao ativar novos lembretes">
+            <Field label="Lembrete padrão" hint="usado ao ativar novos lembretes">
               <select
                 className="input"
                 value={form.defaultReminderMinutes}
@@ -136,17 +141,17 @@ export function ProfileModal({
               </select>
             </Field>
 
+            {/* o canal num quadro e a observação embaixo, como no Figma; o aviso é no próprio sistema */}
             <div className="grid gap-2">
               <span className="lbl">Avisos</span>
               <div className="flex items-start gap-3 rounded-2xl border border-line-2 bg-surface-2 px-4 py-3">
                 <Bell className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
                 <span className="min-w-0 text-sm leading-5">
                   <span className="block font-bold text-ink">No sistema</span>
-                  <span className="block text-muted">
-                    Na hora marcada, o aviso aparece no Painel e em Lembretes. O envio por e-mail é o próximo passo.
-                  </span>
+                  <span className="block text-muted">Na hora marcada, o aviso aparece no Painel e em Lembretes.</span>
                 </span>
               </div>
+              <p className="field-help !mt-1">O envio por e-mail é o próximo passo.</p>
             </div>
           </div>
         </form>

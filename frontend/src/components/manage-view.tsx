@@ -12,11 +12,11 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
-import { cx, dateParts } from "@/lib/format";
-import { categoryMeta, statusMeta } from "@/lib/meta";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { cx, dateParts, isAllDay, isSameDay } from "@/lib/format";
+import { categoryMeta, showsOfficialPill, statusMeta } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, TeachingAssignment, UserRole } from "@/lib/types";
-import { delay } from "./dashboard-bits";
+import { calendarUpcomingCount, delay, isOfficialDate, upcomingOfficialDates } from "./dashboard-bits";
 import { reactivatedStatus } from "./event-bits";
 import { NoAssignmentsNotice, eventWhen, eventWhenLabel, type EventStatusChange } from "./event-editor";
 import { SegmentedButton } from "./ui";
@@ -37,15 +37,57 @@ const tabs: Array<{ id: StatusTab; label: string }> = [
 
 const PAGE = 10;
 
-// tabela a partir de 1024px; abaixo, cartões
-const wideQuery = "(min-width: 1024px)";
-function subscribeWide(notify: () => void) {
-  const query = window.matchMedia(wideQuery);
-  query.addEventListener("change", notify);
-  return () => query.removeEventListener("change", notify);
+function mediaStore(query: string) {
+  return {
+    subscribe(notify: () => void) {
+      const list = window.matchMedia(query);
+      list.addEventListener("change", notify);
+      return () => list.removeEventListener("change", notify);
+    },
+    read: () => window.matchMedia(query).matches,
+  };
 }
-const readWide = () => window.matchMedia(wideQuery).matches;
-const readWideOnServer = () => true;
+const onServer = () => true;
+// abas em botões a partir de 1100px; abaixo, uma lista de escolha
+const tabsMedia = mediaStore("(min-width: 1100px)");
+// tabela de cinco colunas (Figma) a partir de 1280px. Turma, Data, Situação e Ações têm largura fixa
+// (600px) e o título fica com o resto, inteiro nos títulos comuns. Abaixo disso a coluna do evento
+// ficaria estreita demais, e entram os cartões, que mostram o título inteiro.
+const tableMedia = mediaStore("(min-width: 1280px)");
+// o card ao lado só fica ao lado da lista a partir de 1600px (a tabela fica com 916px); abaixo disso
+// ele desce para depois da lista e a tabela usa a largura toda, como no Figma (1116px a 1440px)
+const SIDE_COLUMNS = "min-[1600px]:grid-cols-[minmax(0,1fr)_300px]";
+// respiro do card parado no alto, em cima e embaixo (o mesmo do menu)
+const SIDE_ROOM = 20;
+// com aviso no canto, o card parado sobe no máximo isso acima do alto da tela (o -16px do .manage-side
+// no globals.css): sai só parte do respiro de cima, e o título continua à vista
+const SIDE_LIFT = 16;
+
+/**
+ * O card ao lado só fica parado no alto quando cabe inteiro na tela, com o respiro em cima e embaixo
+ * (o título à vista). Com aviso embaixo (room: a altura que os avisos tomam, com a folga; ver toastRoom),
+ * ele também precisa caber entre SIDE_LIFT acima do alto da tela e o aviso. Se não cabe, ele rola com a
+ * página, como o card de baixo, e nada clicável fica preso embaixo do aviso.
+ */
+function sideSticks(cardHeight: number, viewportHeight: number, room = 0) {
+  if (cardHeight <= 0 || cardHeight + 2 * SIDE_ROOM > viewportHeight) {
+    return false;
+  }
+  return cardHeight + Math.max(SIDE_ROOM, room) - SIDE_LIFT <= viewportHeight;
+}
+
+/**
+ * Altura que os avisos tomam embaixo, das medidas que o ui.tsx põe no :root enquanto eles estão na tela:
+ * o canto ocupado por eles (--toast-corner) e o pé que eles abrem no fim da página (--toast-foot, que no
+ * fim da lista empurra o card parado para cima). Vale a maior; sem aviso, 0.
+ */
+function toastRoom() {
+  const style = document.documentElement.style;
+  return Math.max(
+    parseFloat(style.getPropertyValue("--toast-corner")) || 0,
+    parseFloat(style.getPropertyValue("--toast-foot")) || 0
+  );
+}
 
 const normalize = (value: string) =>
   value
@@ -54,9 +96,19 @@ const normalize = (value: string) =>
     .toLocaleLowerCase("pt-BR")
     .trim();
 
-const isOfficial = (event: AcademicEvent) => event.officialPriority || event.source !== "teacher";
 const startTime = (event: AcademicEvent) => new Date(event.startsAt).getTime();
 const isOpen = (event: AcademicEvent) => event.status === "scheduled" || event.status === "changed";
+
+/** Fim do evento: o término; no dia todo sem término, a meia-noite seguinte (o feriado de hoje ainda não passou). */
+function endTime(event: AcademicEvent) {
+  if (event.endsAt) {
+    return new Date(event.endsAt).getTime();
+  }
+  const start = new Date(event.startsAt);
+  return isAllDay(event.startsAt)
+    ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1).getTime()
+    : start.getTime();
+}
 
 function tabOf(event: AcademicEvent, now: number): Exclude<StatusTab, "all"> {
   if (event.status === "cancelled") {
@@ -65,7 +117,15 @@ function tabOf(event: AcademicEvent, now: number): Exclude<StatusTab, "all"> {
   if (event.status === "completed") {
     return "completed";
   }
-  return new Date(event.endsAt ?? event.startsAt).getTime() < now ? "past" : "upcoming";
+  return endTime(event) < now ? "past" : "upcoming";
+}
+
+/**
+ * Data oficial à frente: a regra do Painel (isOfficialDate e calendarUpcomingCount, em dashboard-bits).
+ * O card ao lado, o "Ver todos (N)" e o filtro da lista contam os mesmos eventos.
+ */
+function isOfficialAhead(event: AcademicEvent, now: number) {
+  return isOfficialDate(event) && calendarUpcomingCount([event], now) > 0;
 }
 
 function searchText(event: AcademicEvent) {
@@ -114,6 +174,7 @@ function summaryLine(counts: Record<StatusTab, number>) {
   return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}`;
 }
 
+/** Para quem é o evento, nos cartões do celular ("Matemática, TADS 5"). */
 function audienceOf(event: AcademicEvent, withTeacher: boolean) {
   return [
     event.subject?.name,
@@ -122,6 +183,36 @@ function audienceOf(event: AcademicEvent, withTeacher: boolean) {
   ]
     .filter(Boolean)
     .join(", ");
+}
+
+/** Turno com inicial maiúscula, como no Painel da docente: "Noturno". */
+function shiftLabel(shift?: string | null) {
+  return shift ? shift.charAt(0).toUpperCase() + shift.slice(1) : null;
+}
+
+const pad = (value: number) => String(value).padStart(2, "0");
+
+/** Data da linha em duas linhas curtas que cabem na coluna: "qui, 05/11" e "19:00 até 21:00" (ou "08:00 até 21/11"). */
+function rowWhen(event: AcademicEvent) {
+  const when = eventWhen(event.startsAt, event.endsAt);
+  const start = new Date(event.startsAt);
+  const end = event.endsAt ? new Date(event.endsAt) : null;
+  if (when.time !== "Dia todo" && end && end.getTime() > start.getTime() && !isSameDay(start, end)) {
+    return {
+      day: when.day,
+      time: `${pad(start.getHours())}:${pad(start.getMinutes())} até ${pad(end.getDate())}/${pad(end.getMonth() + 1)}`,
+    };
+  }
+  return when;
+}
+
+/**
+ * Quando, no card das datas oficiais, numa linha só: o dia do início já está no bloco da data.
+ * "19:00 até 21:00", "08:00 até 05/11", "Dia todo" ou "17/11 a 19/11, dia todo".
+ */
+function sideWhen(event: AcademicEvent) {
+  const when = rowWhen(event);
+  return when.time === "Dia todo" && when.day.includes(" a ") ? `${when.day}, dia todo` : when.time;
 }
 
 /* ------------------------------------------------------------------ */
@@ -167,6 +258,7 @@ export type ManageViewProps = {
   role: UserRole;
   isAdmin: boolean;
   manageableEvents: AcademicEvent[];
+  /** Mantido por compatibilidade: o card das datas oficiais usa a lista da Gestão, a mesma do filtro. */
   allEvents?: AcademicEvent[];
   editingEventId: number | null;
   lastSavedId?: number | null;
@@ -185,7 +277,6 @@ export function ManageView({
   role,
   isAdmin,
   manageableEvents,
-  allEvents,
   editingEventId,
   lastSavedId,
   savedTick,
@@ -197,11 +288,13 @@ export function ManageView({
   onSetStatus,
 }: ManageViewProps) {
   const admin = isAdmin || role === "admin";
-  const wide = useSyncExternalStore(subscribeWide, readWide, readWideOnServer);
+  const wide = useSyncExternalStore(tabsMedia.subscribe, tabsMedia.read, onServer);
+  const tableWide = useSyncExternalStore(tableMedia.subscribe, tableMedia.read, onServer);
   const headingId = useId();
   const [now] = useState(() => Date.now());
   const [tab, setTab] = useState<StatusTab>("upcoming");
   const [search, setSearch] = useState("");
+  // filtro "Próximas datas oficiais", ligado pelo "Ver todos (N)" do card ao lado
   const [onlyOfficial, setOnlyOfficial] = useState(false);
   const [limit, setLimit] = useState(PAGE);
   // list: a lista do momento do salvamento; a linha só é mostrada com a lista nova (ou depois de esperar)
@@ -213,6 +306,8 @@ export function ManageView({
   } | null>(null);
   const [seenTick, setSeenTick] = useState(savedTick);
   const [flash, setFlash] = useState<{ id: number } | null>(null);
+  // card ao lado: a altura dele vai para --side-h (o sticky do globals.css, .manage-side, usa)
+  const [sideNode, setSideNode] = useState<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -226,7 +321,7 @@ export function ManageView({
   const term = normalize(search);
   const filtered = (searchTerm: string, official: boolean) =>
     manageableEvents.filter(
-      (event) => (!official || isOfficial(event)) && (!searchTerm || searchText(event).includes(searchTerm))
+      (event) => (!official || isOfficialAhead(event, now)) && (!searchTerm || searchText(event).includes(searchTerm))
     );
 
   // salvou (p2 avisa por savedTick): mostrar a linha salva, trocando de aba e de página se preciso
@@ -242,7 +337,7 @@ export function ManageView({
       setReveal(null);
     } else if (target) {
       const keepSearch = !term || searchText(target).includes(term);
-      const keepOfficial = !onlyOfficial || isOfficial(target);
+      const keepOfficial = !onlyOfficial || isOfficialAhead(target, now);
       const targetTab = tab === "all" || tabOf(target, now) === tab ? tab : tabOf(target, now);
       const index = rowsFor(filtered(keepSearch ? term : "", onlyOfficial && keepOfficial), targetTab, now).findIndex(
         (event) => event.id === target.id
@@ -269,6 +364,13 @@ export function ManageView({
   const visibleRows = rows.slice(0, limit);
   const visibleKey = visibleRows.map((event) => event.id).join(",");
   const canCreate = admin || context === null || assignments.length > 0;
+
+  // datas oficiais (administração): N conta todas as que o filtro mostra, também as canceladas e as
+  // concluídas, como o "Ver todas no cronograma (N)" do Painel; o card lista as mesmas do Painel
+  // (upcomingOfficialDates: abertas, com algum dia de hoje em diante, a em andamento inclusive)
+  const officialDates = admin ? manageableEvents.filter(isOfficialDate) : [];
+  const officialTotal = admin ? calendarUpcomingCount(officialDates, now) : 0;
+  const officialSoon = admin ? upcomingOfficialDates(manageableEvents, now) : [];
 
   useEffect(() => {
     if (!reveal || reveal.ready || reveal.waited) {
@@ -329,6 +431,46 @@ export function ManageView({
     listRef.current?.querySelectorAll<HTMLElement>("[data-edit-button]")[index]?.focus();
   }, [limit]);
 
+  // o card ao lado fica parado no alto só quando cabe na tela (data-stick, que o sticky do globals.css,
+  // .manage-side, usa); mais alto que a tela, ele rola com a página e o título não some. A altura dele
+  // vai para --side-h: com aviso no canto, o card parado sobe para deixar o espaço do aviso. Quando nem
+  // assim ele cabe, ele rola com a página enquanto houver aviso e volta a ficar parado quando o aviso sai
+  useLayoutEffect(() => {
+    if (!sideNode) {
+      return;
+    }
+    const update = () => {
+      const height = sideNode.offsetHeight;
+      sideNode.style.setProperty("--side-h", `${height}px`);
+      const stick = sideSticks(height, window.innerHeight, toastRoom());
+      if (stick === sideNode.hasAttribute("data-stick")) {
+        return;
+      }
+      // ao prender ou soltar, o card desliza de onde está até o lugar novo, sem pular
+      const from = sideNode.getBoundingClientRect().top;
+      sideNode.toggleAttribute("data-stick", stick);
+      const shift = from - sideNode.getBoundingClientRect().top;
+      if (Math.abs(shift) >= 1 && !reducedMotion()) {
+        sideNode.animate([{ transform: `translateY(${shift}px)` }, { transform: "none" }], {
+          duration: 200,
+          easing: "ease",
+        });
+      }
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(sideNode);
+    // os avisos põem e tiram o --toast-corner e o --toast-foot no style do :root (ui.tsx)
+    const toasts = new MutationObserver(update);
+    toasts.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      toasts.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [sideNode]);
+
   function chooseTab(next: StatusTab) {
     pendingRef.current = null;
     setTab(next);
@@ -384,12 +526,13 @@ export function ManageView({
     setLimit((current) => current + PAGE);
   }
 
+  /** "Ver todos (N)" do card ao lado: a lista mostra as N datas de uma vez, em Todos (com as canceladas). */
   function showAllOfficial() {
     pendingRef.current = null;
     setOnlyOfficial(true);
     setSearch("");
-    setTab("upcoming");
-    setLimit(PAGE);
+    setTab("all");
+    setLimit(Math.max(PAGE, officialTotal));
     headingRef.current?.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" });
     headingRef.current?.focus({ preventScroll: true });
   }
@@ -421,11 +564,6 @@ export function ManageView({
   const newLabel = admin ? "Novo evento oficial" : "Novo evento";
   const activeLabel = tabs.find((item) => item.id === tab)?.label ?? "";
   const otherTab = tabs.find((item) => item.id !== tab && item.id !== "all" && counts[item.id] > 0);
-  const officialUpcoming = admin
-    ? (allEvents ?? manageableEvents)
-        .filter((event) => isOfficial(event) && tabOf(event, now) === "upcoming")
-        .sort((a, b) => startTime(a) - startTime(b))
-    : [];
 
   const statusButton = (event: AcademicEvent, index: number, asText: boolean) => {
     if (!onSetStatus) {
@@ -452,47 +590,88 @@ export function ManageView({
     );
   };
 
+  const savedPill = (
+    <span className="pill bg-brand text-white">
+      <CheckCircle2 className="h-3 w-3" aria-hidden />
+      Salvo agora
+    </span>
+  );
+  const editingPill = (
+    <span className="pill bg-brand-100 text-brand-ink">
+      <Pencil className="h-3 w-3" aria-hidden />
+      Em edição
+    </span>
+  );
+  const officialPill = (
+    <span className="pill prio shrink-0">
+      <ShieldCheck className="h-3 w-3" aria-hidden />
+      Oficial
+    </span>
+  );
+
+  // cartões (celular): todas as pílulas, que quebram linha
   const statusPills = (event: AcademicEvent) => {
     const past = tabOf(event, now) === "past";
-    const editing = editingEventId === event.id;
-    const saved = flash?.id === event.id;
     return (
       <>
         {past && event.status === "scheduled" ? null : (
           <span className={cx("pill", statusMeta[event.status].pill)}>{statusMeta[event.status].label}</span>
         )}
-        {past ? <span className="pill border border-line-strong bg-white text-ink-3">Já passou</span> : null}
-        {editing ? (
-          <span className="pill bg-brand-100 text-brand-ink">
-            <Pencil className="h-3 w-3" aria-hidden />
-            Em edição
-          </span>
-        ) : null}
-        {saved ? (
-          <span className="pill bg-brand text-white">
-            <CheckCircle2 className="h-3 w-3" aria-hidden />
-            Salvo agora
-          </span>
-        ) : null}
+        {past ? <span className="pill stat">Já passou</span> : null}
+        {editingEventId === event.id ? editingPill : null}
+        {flash?.id === event.id ? savedPill : null}
       </>
     );
   };
 
+  // tabela: uma pílula por linha, para as linhas terem a mesma altura. "Salvo agora" logo depois de
+  // salvar, "Em edição" com o painel aberto (que mostra a situação no cabeçalho) e, no mais, a situação
+  const situationPill = (event: AcademicEvent) => {
+    if (flash?.id === event.id) {
+      return savedPill;
+    }
+    if (editingEventId === event.id) {
+      return editingPill;
+    }
+    if (tabOf(event, now) === "past") {
+      return <span className="pill stat">Já passou</span>;
+    }
+    return <span className={cx("pill", statusMeta[event.status].pill)}>{statusMeta[event.status].label}</span>;
+  };
+
+  // segunda linha do evento na tabela (Figma: "Prova  10 pts"); na administração, quem publicou
+  const rowDetail = (event: AcademicEvent) =>
+    [
+      admin && event.source === "teacher" ? event.teacher?.fullName : null,
+      event.points !== null ? `${event.points.toLocaleString("pt-BR")} pts` : admin ? null : "sem pontuação",
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+  // Figma (Gestão de eventos): Evento | Turma, disciplina | Data | Situação | Ações, rente às bordas do card.
+  // Cada célula tem um número fixo de linhas e corta com reticências: todas as linhas ficam da mesma altura.
+  // Só o Evento estica: Turma, disciplina (160px de texto, "Engenharia de Software" inteira), Data
+  // ("08:00 até 05/11"), Situação ("Salvo agora") e Ações (os botões, 6px depois da situação) são fixas.
+  // O título do evento vai até duas linhas (com o card ao lado, a partir de 1600px, o texto tem 278px).
+  // Toda linha tem 80px: cabem o título em duas linhas (20px cada), 4px e a linha da pílula (24px),
+  // com 5px de folga em cima e embaixo; o resto das células fica centrado nela, como antes.
   const table = (
-    <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-line">
-      <table className="tbl table-fixed [&_td]:px-3 [&_th]:px-3">
+    <div className="overflow-x-auto overflow-y-hidden border-t border-line">
+      <table className="tbl table-fixed [&_td]:px-3 [&_td]:py-[5px] [&_td:first-child]:pl-6 [&_td:last-child]:pl-1.5 [&_td:last-child]:pr-6 [&_th]:px-3 [&_th:first-child]:pl-6 [&_th:last-child]:pl-1.5 [&_th:last-child]:pr-6">
         <caption className="sr-only">
           {`${activeLabel}: ${visibleRows.length} de ${rows.length} evento${rows.length === 1 ? "" : "s"}`}
         </caption>
         <colgroup>
           <col />
+          <col className="w-[184px]" />
+          <col className="w-[128px]" />
           <col className="w-[132px]" />
-          <col className="w-[132px]" />
-          <col className={onSetStatus ? "w-[152px]" : "w-[110px]"} />
+          <col className={onSetStatus ? "w-[156px] pointer-coarse:w-[174px]" : "w-[112px] pointer-coarse:w-[124px]"} />
         </colgroup>
         <thead>
           <tr>
             <th scope="col">Evento</th>
+            <th scope="col">Turma, disciplina</th>
             <th scope="col">Data</th>
             <th scope="col">Situação</th>
             <th scope="col" className="text-right">
@@ -503,8 +682,13 @@ export function ManageView({
         <tbody>
           {visibleRows.map((event, index) => {
             const meta = categoryMeta[event.category];
-            const when = eventWhen(event.startsAt, event.endsAt);
+            const when = rowWhen(event);
             const editing = editingEventId === event.id;
+            const cancelled = event.status === "cancelled";
+            const closed = cancelled || event.status === "completed";
+            const classLabel = event.academicClass?.name ?? "Toda a instituição";
+            const subject = event.subject?.name;
+            const detail = rowDetail(event);
             return (
               <tr
                 key={event.id}
@@ -512,36 +696,39 @@ export function ManageView({
                 data-editing={editing ? "" : undefined}
                 aria-current={editing ? "true" : undefined}
                 className={cx(
-                  "transition-colors hover:bg-surface-2",
+                  "h-20 transition-colors hover:bg-surface-2",
+                  // concluído e cancelado ficam no fundo cinza, como no Figma
+                  closed && "bg-surface-2",
                   editing && "!bg-brand-50 [&>td:first-child]:shadow-[inset_3px_0_0_var(--brand)]"
                 )}
               >
                 <td>
-                  <p
-                    className={cx(
-                      "t line-clamp-2 break-words",
-                      event.status === "cancelled" && "text-muted line-through"
-                    )}
-                  >
+                  <p className={cx("t line-clamp-2 break-words leading-5", closed && "text-ink-3")} title={event.title}>
                     {event.title}
                   </p>
-                  <div className="s !mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className={cx("pill", meta.tint)}>{meta.short}</span>
-                    {admin && isOfficial(event) ? (
-                      <span className="pill prio">
-                        <ShieldCheck className="h-3 w-3" aria-hidden />
-                        Oficial
-                      </span>
-                    ) : null}
-                    <span className="min-w-0 break-words">{audienceOf(event, admin)}</span>
+                  <div className="s !mt-1 flex items-center gap-2 overflow-hidden whitespace-nowrap">
+                    <span className={cx("pill shrink-0", meta.tint)}>{meta.short}</span>
+                    {admin && showsOfficialPill(event) ? officialPill : null}
+                    {detail ? <span className="min-w-0 truncate">{detail}</span> : null}
                   </div>
                 </td>
-                <td>
-                  <p className="whitespace-nowrap font-semibold">{when.day}</p>
-                  <p className="s">{when.time}</p>
+                {/* duas linhas curtas, como a Data: a turma em cima e a disciplina embaixo */}
+                <td className={cx(closed && "text-muted")}>
+                  <p className="truncate" title={classLabel}>
+                    {classLabel}
+                  </p>
+                  {subject ? (
+                    <p className="s truncate" title={subject}>
+                      {subject}
+                    </p>
+                  ) : null}
+                </td>
+                <td className={cx(closed && "text-muted")}>
+                  <p className={cx("truncate font-semibold", cancelled && "line-through")}>{when.day}</p>
+                  <p className={cx("s truncate", cancelled && "line-through")}>{when.time}</p>
                 </td>
                 <td>
-                  <div className="flex flex-wrap gap-1.5">{statusPills(event)}</div>
+                  <div className="flex">{situationPill(event)}</div>
                 </td>
                 <td>
                   <div className="acts">
@@ -575,8 +762,10 @@ export function ManageView({
     </div>
   );
 
+  // coluna presa à largura do card (grid-cols-1): título, local ou nome comprido sem espaço quebram
+  // dentro do cartão em vez de alargá-lo
   const cards = (
-    <ul className="grid gap-3" aria-label={`${activeLabel}: ${visibleRows.length} de ${rows.length}`}>
+    <ul className="grid grid-cols-1 gap-3" aria-label={`${activeLabel}: ${visibleRows.length} de ${rows.length}`}>
       {visibleRows.map((event, index) => {
         const meta = categoryMeta[event.category];
         const parts = dateParts(event.startsAt);
@@ -600,22 +789,17 @@ export function ManageView({
               <div className="min-w-0 flex-1">
                 <p
                   className={cx(
-                    "break-words text-[15px] font-[650] leading-[1.3]",
+                    "text-[15px] font-[650] leading-[1.3] wrap-anywhere",
                     event.status === "cancelled" && "text-muted line-through"
                   )}
                 >
                   {event.title}
                 </p>
                 <p className="mt-1 text-[13px] leading-5 text-ink-3">{eventWhenLabel(event.startsAt, event.endsAt)}</p>
-                <p className="text-[13px] leading-5 text-muted">{audienceOf(event, admin)}</p>
+                <p className="text-[13px] leading-5 text-muted wrap-anywhere">{audienceOf(event, admin)}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <span className={cx("pill", meta.tint)}>{meta.short}</span>
-                  {admin && isOfficial(event) ? (
-                    <span className="pill prio">
-                      <ShieldCheck className="h-3 w-3" aria-hidden />
-                      Oficial
-                    </span>
-                  ) : null}
+                  {admin && showsOfficialPill(event) ? officialPill : null}
                   {statusPills(event)}
                 </div>
               </div>
@@ -653,7 +837,7 @@ export function ManageView({
       <span className="empty-ico">
         <SearchX className="h-6 w-6" aria-hidden />
       </span>
-      <p className="mt-2 text-[15px] font-bold text-ink">
+      <p className="mt-2 text-[15px] font-bold text-ink wrap-anywhere">
         {term && !counts.all
           ? `Nada encontrado para "${search.trim()}".`
           : term
@@ -680,102 +864,135 @@ export function ManageView({
     </div>
   );
 
+  // a tabela fica rente às bordas do card, como no Figma; cabeçalho, cartões e rodapé têm o respiro do card
   const listCard = (
-    <section className="card pad rise min-w-0" style={delay(0)} aria-labelledby={headingId}>
-      <div className="head">
-        <div className="min-w-0">
-          <h2 id={headingId} ref={headingRef} tabIndex={-1} className="h2">
-            {admin ? "Eventos da instituição" : "Eventos que você gerencia"}
-          </h2>
-          <p className="sub">{summaryLine(overall)}</p>
+    <section className="card rise min-w-0 overflow-hidden" style={delay(0)} aria-labelledby={headingId}>
+      <div className={cx("px-6 pt-6", manageableEvents.length ? "pb-5" : "pb-6")}>
+        <div className="head">
+          <div className="min-w-0">
+            <h2 id={headingId} ref={headingRef} tabIndex={-1} className="h2">
+              {admin ? "Eventos da instituição" : "Eventos que você gerencia"}
+            </h2>
+            <p className="sub">{summaryLine(overall)}</p>
+          </div>
+          {canCreate ? (
+            <button className="btn btn-p" onClick={onNewEvent} type="button">
+              <Plus className="h-4 w-4" aria-hidden />
+              {newLabel}
+            </button>
+          ) : null}
         </div>
-        {canCreate ? (
-          <button className="btn btn-p" onClick={onNewEvent} type="button">
-            <Plus className="h-4 w-4" aria-hidden />
-            {newLabel}
-          </button>
-        ) : null}
+
+        {manageableEvents.length ? (
+          <>
+            <div className="mt-5 flex flex-wrap items-end gap-3">
+              {/* largura para o texto de ajuda caber inteiro; sem espaço, as abas descem para a linha de baixo */}
+              <div className="relative min-w-[min(100%,18rem)] flex-1">
+                <Search
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+                  aria-hidden
+                />
+                <input
+                  ref={searchRef}
+                  className="input pl-10 pr-11 [&::-webkit-search-cancel-button]:hidden"
+                  type="search"
+                  value={search}
+                  onChange={(event) => changeSearch(event.target.value)}
+                  placeholder="Título, disciplina ou local"
+                  aria-label="Buscar nos eventos"
+                />
+                {search ? (
+                  <button
+                    className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-muted hover:bg-surface-2"
+                    aria-label="Limpar busca"
+                    onClick={clearSearch}
+                    type="button"
+                  >
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
+              {wide ? (
+                <div ref={tabsRef} className="seg flex-wrap" role="group" aria-label="Situação dos eventos">
+                  {tabs.map((item) => (
+                    <SegmentedButton
+                      key={item.id}
+                      active={tab === item.id}
+                      label={`${item.label} (${counts[item.id]})`}
+                      onClick={() => chooseTab(item.id)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <label className="grid w-full gap-2">
+                  <span className="lbl">Situação</span>
+                  <select
+                    ref={tabSelectRef}
+                    className="input"
+                    value={tab}
+                    onChange={(event) => chooseTab(event.target.value as StatusTab)}
+                  >
+                    {tabs.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {`${item.label} (${counts[item.id]})`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+
+            {onlyOfficial ? (
+              <div className="mt-3">
+                <button
+                  className="chip all"
+                  aria-label="Próximas datas oficiais, tirar o filtro"
+                  onClick={clearOfficial}
+                  type="button"
+                >
+                  Próximas datas oficiais
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="empty-inline mt-5">
+            <span className="empty-ico">
+              <CalendarPlus className="h-6 w-6" aria-hidden />
+            </span>
+            <p className="mt-2 text-[15px] font-bold text-ink">Nenhum evento criado ainda.</p>
+            <p className="max-w-sm text-[13px] leading-5 text-muted">
+              {admin
+                ? "Publique o primeiro evento oficial para toda a instituição."
+                : "Publique a primeira prova ou trabalho para a turma."}
+            </p>
+            {canCreate ? (
+              <button className="btn btn-p mt-3" onClick={onNewEvent} type="button">
+                <Plus className="h-4 w-4" aria-hidden />
+                {newLabel}
+              </button>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {manageableEvents.length ? (
         <>
-          <div className="mt-5 flex flex-wrap items-end gap-3">
-            {/* largura para o texto de ajuda caber inteiro; sem espaço, as abas descem para a linha de baixo */}
-            <div className="relative min-w-[min(100%,18rem)] flex-1">
-              <Search
-                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
-                aria-hidden
-              />
-              <input
-                ref={searchRef}
-                className="input pl-10 pr-11 [&::-webkit-search-cancel-button]:hidden"
-                type="search"
-                value={search}
-                onChange={(event) => changeSearch(event.target.value)}
-                placeholder="Título, disciplina ou local"
-                aria-label="Buscar nos eventos"
-              />
-              {search ? (
-                <button
-                  className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-muted hover:bg-surface-2"
-                  aria-label="Limpar busca"
-                  onClick={clearSearch}
-                  type="button"
-                >
-                  <X className="h-4 w-4" aria-hidden />
-                </button>
-              ) : null}
-            </div>
-            {wide ? (
-              <div ref={tabsRef} className="seg flex-wrap" role="group" aria-label="Situação dos eventos">
-                {tabs.map((item) => (
-                  <SegmentedButton
-                    key={item.id}
-                    active={tab === item.id}
-                    label={`${item.label} (${counts[item.id]})`}
-                    onClick={() => chooseTab(item.id)}
-                  />
-                ))}
-              </div>
+          <div ref={listRef}>
+            {rows.length ? (
+              tableWide ? (
+                table
+              ) : (
+                <div className="px-6 pb-6">{cards}</div>
+              )
             ) : (
-              <label className="grid w-full gap-2">
-                <span className="lbl">Situação</span>
-                <select
-                  ref={tabSelectRef}
-                  className="input"
-                  value={tab}
-                  onChange={(event) => chooseTab(event.target.value as StatusTab)}
-                >
-                  {tabs.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {`${item.label} (${counts[item.id]})`}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="px-6 pb-6">{emptyFiltered}</div>
             )}
           </div>
 
-          {onlyOfficial ? (
-            <div className="mt-3">
-              <button
-                className="chip all"
-                aria-label="Somente eventos oficiais, tirar o filtro"
-                onClick={clearOfficial}
-                type="button"
-              >
-                Somente eventos oficiais
-                <X className="h-3.5 w-3.5" aria-hidden />
-              </button>
-            </div>
-          ) : null}
-
-          <div ref={listRef} className="mt-4">
-            {rows.length ? (wide ? table : cards) : emptyFiltered}
-          </div>
-
           {rows.length > visibleRows.length ? (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-2 px-6 py-4">
               <p className="text-[13px] text-muted">{`Mostrando ${visibleRows.length} de ${rows.length}`}</p>
               <button className="btn btn-s btn-sm" onClick={showMore} type="button">
                 {`Mostrar mais ${Math.min(PAGE, rows.length - visibleRows.length)}`}
@@ -783,43 +1000,40 @@ export function ManageView({
             </div>
           ) : null}
         </>
-      ) : (
-        <div className="empty-inline mt-5">
-          <span className="empty-ico">
-            <CalendarPlus className="h-6 w-6" aria-hidden />
-          </span>
-          <p className="mt-2 text-[15px] font-bold text-ink">Nenhum evento criado ainda.</p>
-          <p className="max-w-sm text-[13px] leading-5 text-muted">
-            {admin
-              ? "Publique o primeiro evento oficial para toda a instituição."
-              : "Publique a primeira prova ou trabalho para a turma."}
-          </p>
-          {canCreate ? (
-            <button className="btn btn-p mt-3" onClick={onNewEvent} type="button">
-              <Plus className="h-4 w-4" aria-hidden />
-              {newLabel}
-            </button>
-          ) : null}
-        </div>
-      )}
+      ) : null}
     </section>
   );
 
   const sideCard = admin ? (
-    <OfficialDatesCard events={officialUpcoming} onEdit={onEdit} onNewEvent={onNewEvent} onShowAll={showAllOfficial} />
+    <OfficialDatesCard
+      events={officialSoon}
+      total={officialTotal}
+      onEdit={onEdit}
+      onNewEvent={onNewEvent}
+      onShowAll={showAllOfficial}
+    />
   ) : assignments.length ? (
     <AssignmentsCard assignments={assignments} events={manageableEvents} now={now} onNewEventFor={onNewEventFor} />
   ) : null;
 
+  // lado a lado a partir de 1600px: cada card tem a altura do conteúdo (nada de coluna branca até o fim)
+  // e o de lado fica parado no alto enquanto a lista rola, se couber na tela. Abaixo disso, o card desce
+  // para depois da lista, e a tabela usa a largura toda, como no Figma. Com aviso embaixo, o fim da
+  // página ganha a altura dele (o pé do #conteudo, growToastFoot no ui.tsx): rolando até o fim, nada
+  // clicável fica embaixo do aviso.
   return (
-    <div className={cx("grid items-stretch gap-5", sideCard && "min-[1400px]:grid-cols-[minmax(0,1fr)_320px]")}>
+    <div className={cx("manage-view grid items-start gap-5", sideCard && SIDE_COLUMNS)}>
       {noAssignments ? (
         <section className="card pad rise">
           <NoAssignmentsNotice heading="h2" />
         </section>
       ) : null}
       {listCard}
-      {sideCard}
+      {sideCard ? (
+        <div ref={setSideNode} className="manage-side min-w-0">
+          {sideCard}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -846,7 +1060,7 @@ function AssignmentsCard({
         Disciplinas e turmas
       </h2>
       <p className="sub">Crie um evento já com a disciplina e a turma escolhidas.</p>
-      <ul className="mt-4 flex flex-col gap-2">
+      <ul className="manage-side-list">
         {assignments.map((assignment) => {
           const subject = assignment.subject?.name ?? "Disciplina";
           const className = assignment.academicClass?.name ?? "Turma";
@@ -859,7 +1073,7 @@ function AssignmentsCard({
           return (
             <li key={assignment.id}>
               <button
-                className="mini items-center"
+                className="mini h-full items-center"
                 aria-label={`Novo evento de ${subject} para ${className}`}
                 onClick={() => onNewEventFor(assignment.academicClassId, assignment.subjectId)}
                 type="button"
@@ -868,11 +1082,11 @@ function AssignmentsCard({
                   <Plus className="h-[18px] w-[18px]" aria-hidden />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="mini-t block break-words">{`Novo evento de ${subject}`}</span>
-                  <span className="mini-s block">
+                  <span className="mini-t block wrap-anywhere">{`Novo evento de ${subject}`}</span>
+                  <span className="mini-s block wrap-anywhere">
                     {[
                       className,
-                      assignment.academicClass?.shift,
+                      shiftLabel(assignment.academicClass?.shift),
                       ahead ? `${ahead} ${ahead === 1 ? "evento" : "eventos"} à frente` : null,
                     ]
                       .filter(Boolean)
@@ -888,13 +1102,19 @@ function AssignmentsCard({
   );
 }
 
+/**
+ * Datas oficiais à frente (administração): as abertas com algum dia de hoje em diante, como no Painel.
+ * O "Ver todos (N)" aparece quando o filtro da lista mostra mais (N conta também as canceladas e as concluídas).
+ */
 function OfficialDatesCard({
   events,
+  total,
   onEdit,
   onNewEvent,
   onShowAll,
 }: {
   events: AcademicEvent[];
+  total: number;
   onEdit: (event: AcademicEvent) => void;
   onNewEvent: () => void;
   onShowAll: () => void;
@@ -906,31 +1126,35 @@ function OfficialDatesCard({
       <h2 id={headingId} className="h2">
         Próximas datas oficiais
       </h2>
-      <p className="sub">Aparecem para toda a instituição.</p>
+      {/* vale para todas: a data pode ser de uma turma só, e a linha diz para quem é */}
+      <p className="sub">Feriados, recessos e eventos institucionais.</p>
       {shown.length ? (
-        <ul className="mt-4 flex flex-col gap-2">
+        <ul className="manage-side-list">
           {shown.map((event) => {
             const parts = dateParts(event.startsAt);
+            const audience = event.academicClass?.name ?? "Toda a instituição";
+            // a linha inteira abre o painel de edição: o texto fica com a largura toda do item
+            // (título em até duas linhas, quando e para quem em uma cada) e o lápis só indica a ação
             return (
-              <li
-                key={event.id}
-                className="flex items-center gap-3 rounded-[14px] border border-line-2 bg-surface-2 p-3"
-              >
-                <span className="ev-date bg-white">
-                  <span className="dw">{parts.weekday}</span>
-                  <span className="dn">{parts.day}</span>
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="mini-t block break-words">{event.title}</span>
-                  <span className="mini-s block">{eventWhenLabel(event.startsAt, event.endsAt)}</span>
-                </span>
+              <li key={event.id}>
                 <button
-                  className="btn btn-s btn-sm shrink-0"
-                  aria-label={`Editar ${event.title}`}
+                  className="mini h-full items-center"
+                  aria-label={`Editar ${event.title}, ${eventWhenLabel(event.startsAt, event.endsAt)}, ${event.academicClass?.name ?? "toda a instituição"}`}
                   onClick={() => onEdit(event)}
                   type="button"
                 >
-                  Editar
+                  <span className="ev-date bg-white">
+                    <span className="dw">{parts.weekday}</span>
+                    <span className="dn">{parts.day}</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="mini-t line-clamp-2 wrap-anywhere">{event.title}</span>
+                    <span className="mini-s block truncate">{sideWhen(event)}</span>
+                    <span className="mini-s !mt-0 flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate">{audience}</span>
+                      <Pencil className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+                    </span>
+                  </span>
                 </button>
               </li>
             );
@@ -938,16 +1162,16 @@ function OfficialDatesCard({
         </ul>
       ) : (
         <div className="empty-inline mt-4 !py-6">
-          <p className="text-[15px] font-bold text-ink">Nenhum evento oficial à frente.</p>
+          <p className="text-[15px] font-bold text-ink">Nenhuma data oficial à frente.</p>
           <button className="btn btn-s btn-sm mt-2" onClick={onNewEvent} type="button">
             <Plus className="h-4 w-4" aria-hidden />
             Novo evento oficial
           </button>
         </div>
       )}
-      {events.length > shown.length ? (
+      {shown.length > 0 && total > shown.length ? (
         <button className="btn btn-s btn-sm mt-3 w-full" onClick={onShowAll} type="button">
-          {`Ver todos (${events.length})`}
+          {`Ver todos (${total})`}
         </button>
       ) : null}
     </section>

@@ -11,6 +11,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import { AppShell, type View } from "@/components/app-shell";
 import { CalendarView, type CalendarMode } from "@/components/calendar-view";
 import { AdminDashboard } from "@/components/dashboard-admin";
@@ -34,6 +35,7 @@ import {
   ConfirmDialog,
   ErrorState,
   PageSkeleton,
+  RetryButton,
   Spinner,
   ToastStack,
   type ConfirmState,
@@ -51,6 +53,7 @@ import {
   getReminders,
   importCalendar,
   isNetworkError,
+  isTimeoutError,
   logout,
   saveReminder,
   setReachableHandler,
@@ -92,6 +95,7 @@ const EXPIRED_KEY = "agenda:sessao-vencida";
 const FILTERS_KEY = "agenda:filtros";
 const dismissedKey = (userId: number) => `agenda:avisos-dispensados:${userId}`;
 const EXPIRED_NOTICE = "Sua sessão expirou. Entre de novo para continuar de onde parou.";
+const EVENT_GONE = "Esse evento não existe mais. Ele pode ter sido removido.";
 
 // endereço de cada tela (?tela=...)
 const viewSlugs: Record<View, string> = {
@@ -138,6 +142,12 @@ type DetailOrigin = "outside" | "here" | "switched";
 /** Camada leve por cima da tela, com entrada própria no histórico: o Voltar fecha só ela. */
 type HistoryLayer = "menu" | "perfil" | "confirmar";
 
+/**
+ * Onde estava o botão ou a linha que abriu o detalhe: o card (pelo nome dele) e a ordem entre os que abrem o
+ * mesmo evento nesse card. Um evento pode aparecer em vários lugares da tela (destaque, avisos, lista, semana).
+ */
+type OpenerSpot = { region: string; nth: number };
+
 /** O que cada entrada do histórico guarda. */
 type HistoryEntry = {
   key: string;
@@ -152,6 +162,10 @@ type HistoryEntry = {
   uid?: number;
   /** Posição no histórico da aba: diz se a entrada veio pelo Voltar ou pelo Avançar. */
   pos?: number;
+  /** Evento cujo detalhe foi aberto desta tela: na volta, o foco vai para quem abriu (data-opens-event). */
+  opener?: number;
+  /** Qual dos botões ou linhas desse evento abriu o detalhe. */
+  openerSpot?: OpenerSpot;
 };
 
 type ResumeEditor = {
@@ -181,6 +195,19 @@ type PendingBoot = {
 
 /** Volta no histórico pedida por nós: `run` roda no popstate; com `process`, a entrada que vier é mostrada. */
 type PendingPop = { run: () => void; process?: boolean };
+
+/** Publicação nova que ficou sem resposta no prazo: pode ter entrado. A próxima carga (ou o próximo Publicar) confere. */
+type UnsureCreate = {
+  token: string;
+  body: EventInput;
+  form: EventFormState;
+  /** Eventos que já estavam na tela antes do envio: o criado é um que não estava. */
+  known: Set<number>;
+  /** Entrada de edição do painel de onde saiu o envio. */
+  editorKey: string | null;
+  /** Só valem as cargas pedidas depois do prazo estourado. */
+  afterSeq: number;
+};
 
 type ToastOptions = {
   action?: { label: string; onClick: () => void };
@@ -214,6 +241,11 @@ type RouterHistoryState = { __NA?: boolean; __PRIVATE_NEXTJS_INTERNALS_TREE?: un
 let routerTree: unknown = null;
 // mudanças de endereço feitas por nós: cada uma já chega ao Next pelo pushState/replaceState dele
 let urlWrites = 0;
+// posição da última entrada empilhada neste documento: depois dela não há entrada (desconhecida depois de um F5)
+let lastPushedPos: number | null = null;
+// último clique (ou Enter e espaço num botão) na página: diz quem abriu o detalhe quando o botão não ganha o foco
+// no clique (Safari)
+let lastPress: { target: Element; at: number } | null = null;
 
 function historyState() {
   return (window.history.state as RouterHistoryState | null) ?? null;
@@ -340,6 +372,8 @@ function writeHistory(mode: "push" | "replace", entry: HistoryEntry): HistoryEnt
   const url = entryUrl(full);
   if (mode === "push") {
     window.history.pushState(data, "", url);
+    // empilhar descarta as entradas que estavam à frente
+    lastPushedPos = full.pos ?? null;
   } else {
     window.history.replaceState(data, "", url);
   }
@@ -526,6 +560,14 @@ function avisoWhen(value: string) {
   return `${weekday === 0 || weekday === 6 ? "no" : "na"} ${weekdayNames[weekday]}, ${day}/${month}, às ${time}`;
 }
 
+/**
+ * Fim dos textos de lembrete: ": aviso na quarta, 04/11, às 19:00". Evento cancelado ou concluído não tem aviso (o
+ * lembrete fica guardado, mas não avisa), e o texto não promete um.
+ */
+function avisoTail(event: Pick<AcademicEvent, "status"> | null | undefined, sendAt: string) {
+  return event?.status === "cancelled" || event?.status === "completed" ? "" : `: aviso ${avisoWhen(sendAt)}`;
+}
+
 /** Resultado curto de uma mudança de situação, mostrado no próprio painel lateral. */
 function statusShort(status: AcademicEvent["status"]) {
   if (status === "completed") return "Evento concluído.";
@@ -564,6 +606,237 @@ function sameForm(a: EventFormState, b: EventFormState) {
 function sameMinute(a: string | null, b: string | null) {
   const minute = (value: string | null) => (value ? Math.floor(new Date(value).getTime() / 60000) : null);
   return minute(a) === minute(b);
+}
+
+/** Texto de uma falha: o prazo estourado tem a frase dele (o errorMessage também já cuida disso). */
+function failText(err: unknown) {
+  return isTimeoutError(err) ? err.message : errorMessage(err);
+}
+
+/** Sem conexão de verdade: o aviso sai quando o servidor volta a responder. O prazo estourado não conta (o envio pode não ter entrado). */
+function offlineError(err: unknown) {
+  return isNetworkError(err) && !isTimeoutError(err);
+}
+
+/** Quem publicou o evento é quem está na sessão (sem o createdById, vale o dono para o docente e o oficial para a administração). */
+function publishedBy(event: AcademicEvent, user: User) {
+  if (typeof event.createdById === "number") {
+    return event.createdById === user.id;
+  }
+  return user.role === "teacher" ? event.teacherId === user.id : event.source !== "teacher";
+}
+
+/** O evento que a publicação sem resposta criou: novo na lista, com o mesmo título e início, publicado por quem está na sessão. */
+function findCreated(list: AcademicEvent[], unsure: UnsureCreate, user: User) {
+  return (
+    list.find(
+      (event) =>
+        !unsure.known.has(event.id) &&
+        event.title.trim() === unsure.body.title &&
+        sameMinute(event.startsAt, unsure.body.startsAt) &&
+        publishedBy(event, user)
+    ) ?? null
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Foco                                                                */
+/* ------------------------------------------------------------------ */
+
+/** O foco caiu no body: o elemento que o tinha saiu da tela. */
+function focusLost() {
+  const active = document.activeElement;
+  return !active || active === document.body;
+}
+
+function focusScreenHeading() {
+  document.querySelector<HTMLElement>("#conteudo h1[tabindex]")?.focus({ preventScroll: true });
+}
+
+/**
+ * Um evento saiu da tela (apagado por outra pessoa ou excluído) e o que tinha o foco pode ter saído junto (o
+ * detalhe, o destaque, o botão de lembrete): se o foco cair no body, vai para o conteúdo da tela. Quem leva o
+ * foco a um lugar certo (a linha vizinha, o título do detalhe) pode fazer isso antes ou depois; aqui só se recolhe
+ * o que caiu. Por 1,5 s, a conferência roda a cada mudança na página, logo depois dela e antes da pintura (o foco
+ * não chega a ficar no body), e também a cada 150 ms (o que some sem sair da página, escondido ou desativado).
+ */
+function keepFocusInContent() {
+  const rescue = () => {
+    if (focusLost()) {
+      document.getElementById("conteudo")?.focus({ preventScroll: true });
+    }
+  };
+  const watcher = typeof MutationObserver === "undefined" ? null : new MutationObserver(rescue);
+  watcher?.observe(document.body, { childList: true, subtree: true });
+  let tries = 0;
+  const check = () => {
+    rescue();
+    tries += 1;
+    if (tries < 10) {
+      window.setTimeout(check, 150);
+    } else {
+      watcher?.disconnect();
+    }
+  };
+  window.setTimeout(check, 150);
+}
+
+/** Cards onde ficam os botões e as linhas que abrem o detalhe (destaque, avisos, listas, semana, indicadores). */
+const OPENER_REGIONS = "section, aside, .card";
+const OPENER_REGIONS_IN_MAIN = "main section, main aside, main .card";
+
+/**
+ * Nome do card do elemento: o aria-label, o título ligado por aria-labelledby ou o primeiro título, sem as contagens
+ * ("Avisos (2)" e "Avisos (1)" são o mesmo card). Card sem nome fica com a posição dele na tela.
+ */
+function regionKey(element: HTMLElement) {
+  const region = element.parentElement?.closest<HTMLElement>(OPENER_REGIONS) ?? null;
+  if (!region) {
+    return "";
+  }
+  const labelledBy = region.getAttribute("aria-labelledby");
+  const name =
+    region.getAttribute("aria-label") ||
+    (labelledBy
+      ? labelledBy
+          .split(/\s+/)
+          .map((id) => document.getElementById(id)?.textContent ?? "")
+          .join(" ")
+      : "") ||
+    region.querySelector("h2, h3, .kpi-label")?.textContent ||
+    "";
+  const plain = name.replace(/\(\d+\)/g, "").replace(/\s+/g, " ").trim();
+  return plain || `#${Array.from(document.querySelectorAll(OPENER_REGIONS_IN_MAIN)).indexOf(region)}`;
+}
+
+/** Botões e linhas que abrem o detalhe do evento (data-opens-event), na ordem da tela, sem os escondidos e os inertes. */
+function openerCandidates(eventId: number) {
+  return Array.from(document.querySelectorAll<HTMLElement>(`main [data-opens-event="${eventId}"]`)).filter(
+    (element) => !element.closest("[inert], [hidden], [aria-hidden='true']") && element.getClientRects().length > 0
+  );
+}
+
+function inView(element: HTMLElement) {
+  const box = element.getBoundingClientRect();
+  return box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < window.innerHeight;
+}
+
+/** O mesmo botão ou linha de antes: no mesmo card e na mesma ordem (ou o último do card, se ele mostra menos agora). */
+function spotTarget(candidates: HTMLElement[], spot: OpenerSpot) {
+  const same = candidates.filter((element) => regionKey(element) === spot.region);
+  return same.length ? same[Math.min(spot.nth, same.length - 1)] : null;
+}
+
+/** Quem acabou de abrir o detalhe do evento: o do clique que está acontecendo ou, sem ele, o que tem o foco. */
+function usedOpener(eventId: number) {
+  const selector = `[data-opens-event="${eventId}"]`;
+  const pressed = lastPress && performance.now() - lastPress.at < 1000 ? lastPress.target : null;
+  for (const node of [pressed, document.activeElement]) {
+    const element = node instanceof Element ? node.closest<HTMLElement>(selector) : null;
+    if (element?.closest("main")) {
+      return element;
+    }
+  }
+  return null;
+}
+
+/** Onde está quem abriu o detalhe do evento agora, para a entrada da tela guardar. */
+function openerSpotFor(eventId: number): OpenerSpot | undefined {
+  const element = usedOpener(eventId);
+  if (!element) {
+    return undefined;
+  }
+  const region = regionKey(element);
+  const nth = openerCandidates(eventId)
+    .filter((item) => regionKey(item) === region)
+    .indexOf(element);
+  return nth >= 0 ? { region, nth } : undefined;
+}
+
+/** A posição guardada numa entrada (que pode vir de antes de um F5): só vale no formato certo. */
+function readSpot(value: unknown): OpenerSpot | undefined {
+  if (!isRecord(value) || typeof value.region !== "string") {
+    return undefined;
+  }
+  const nth = value.nth;
+  return typeof nth === "number" && Number.isInteger(nth) && nth >= 0 ? { region: value.region, nth } : undefined;
+}
+
+/**
+ * Foca quem abriu o detalhe: o mesmo botão ou linha de antes (spot), trazido para a vista se a tela mudou; sem ele, o
+ * primeiro à vista que abre o mesmo evento (com `sameOnly`, só o mesmo). Devolve o focado e se ele é o de antes.
+ */
+function focusOpener(eventId: number, spot?: OpenerSpot, sameOnly = false) {
+  const candidates = openerCandidates(eventId);
+  const same = spot ? spotTarget(candidates, spot) : null;
+  if (same) {
+    if (!inView(same)) {
+      same.scrollIntoView({ block: "nearest" });
+    }
+    same.focus({ preventScroll: true });
+    if (document.activeElement === same) {
+      return { element: same, exact: true };
+    }
+  }
+  if (sameOnly) {
+    return null;
+  }
+  for (const element of candidates) {
+    if (element !== same && inView(element)) {
+      element.focus({ preventScroll: true });
+      if (document.activeElement === element) {
+        return { element, exact: false };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * De volta à tela que abriu o detalhe: quando ela se acomoda (as listas que se ajustam ao espaço mudam de tamanho logo
+ * depois de montar), a rolagem guardada volta (se a tela ainda estava curta para ela) e o foco vai para quem abriu;
+ * sem ele, para o título da tela. Se a linha for refeita logo em seguida, o foco passa para a nova; se quem abriu só
+ * aparecer um pouco depois (lista que ganha itens para caber) e ninguém mexeu no foco, ele vai para lá.
+ */
+function focusOpenerSoon(eventId: number, y: number, spot?: OpenerSpot) {
+  let placed: Element | null = null;
+  let exact = false;
+  const place = (sameOnly: boolean) => {
+    const found = focusOpener(eventId, spot, sameOnly);
+    if (found) {
+      placed = found.element;
+      exact = found.exact;
+    }
+    return found !== null;
+  };
+  const toHeading = () => {
+    focusScreenHeading();
+    placed = document.activeElement;
+  };
+  const settle = () => {
+    if (window.scrollY + 1 < y) {
+      window.scrollTo({ top: y, behavior: "instant" });
+    }
+    if (!place(false)) {
+      toHeading();
+    }
+    let checks = 0;
+    const hold = () => {
+      if (focusLost()) {
+        if (!place(false)) {
+          toHeading();
+        }
+      } else if (spot && !exact && document.activeElement === placed) {
+        place(true);
+      }
+      checks += 1;
+      if (checks < 5) {
+        window.setTimeout(hold, 120);
+      }
+    };
+    window.setTimeout(hold, 120);
+  };
+  window.requestAnimationFrame(() => window.requestAnimationFrame(settle));
 }
 
 /** Aviso de lembrete identificado pelo horário: mudar a antecedência faz o aviso voltar. */
@@ -659,15 +932,15 @@ function statusText(title: string, status: AcademicEvent["status"]) {
   return `Evento reativado: "${title}".`;
 }
 
-/** Calendário de exemplo do dia: o checksum muda por dia, para a tela avisar se já foi importado. */
+/**
+ * Calendário de exemplo do dia: o checksum muda por dia, para a tela avisar se já foi importado. As datas vão no
+ * formato do modelo e do Figma ("2026-11-17"), sem fuso: a importação lê no horário do navegador, o mesmo da prévia,
+ * e manda o instante certo para a API.
+ */
 function buildDemoPayload(dayKey: string): CalendarImportInput {
   const [year, month, day] = dayKey.split("-").map(Number);
   const today = new Date(year, (month || 1) - 1, day || 1);
-  const at = (offset: number, hours = 0, minutes = 0) => {
-    const date = addDays(startOfDay(today), offset);
-    date.setHours(hours, minutes, 0, 0);
-    return date.toISOString();
-  };
+  const at = (offset: number) => localDateKey(addDays(startOfDay(today), offset));
   return {
     sourceName: "Calendário de demonstração",
     sourceUrl: "https://www.ifms.edu.br/",
@@ -678,8 +951,8 @@ function buildDemoPayload(dayKey: string): CalendarImportInput {
         description: "Palestras, oficinas e apresentações para todas as turmas.",
         category: "institutional",
         startsAt: at(14),
-        // termina às 23:59 do último dia, para não ocupar o dia seguinte no calendário
-        endsAt: at(16, 23, 59),
+        // término só com o dia: vale até 23:59 dele, sem ocupar o dia seguinte no calendário
+        endsAt: at(16),
         sourceExternalId: "demo-semana-academica",
         color: "#2563eb",
       },
@@ -772,7 +1045,17 @@ export default function Home() {
   const focusContentRef = useRef(false);
   const closePopRef = useRef<PendingPop | null>(null);
   const pendingBootRef = useRef<PendingBoot | null>(null);
-  const afterLoadRef = useRef<((loaded: LoadedData) => void) | null>(null);
+  // cada carga que deu certo (com o número dela): o que ficou esperando dados novos
+  const afterLoadRef = useRef<((loaded: LoadedData, seq: number) => void) | null>(null);
+  // publicação nova sem resposta no prazo, ainda sem saber se entrou
+  const unsureCreateRef = useRef<UnsureCreate | null>(null);
+  // de volta à tela que abriu o detalhe: o evento cujo botão ou linha recebe o foco depois que ela montar, a rolagem
+  // dela e qual dos botões ou linhas do evento abriu
+  const openerFocusRef = useRef<{ eventId: number; y: number; spot?: OpenerSpot } | null>(null);
+  // Voltar do navegador com o detalhe ao lado do Cronograma: a linha que recebe o foco quando o detalhe sair
+  const detailFocusRef = useRef<{ eventId: number; spot?: OpenerSpot; at: number } | null>(null);
+  // eventos que saíram da tela nesta sessão (excluídos aqui ou apagados por outra pessoa): cada um é tratado uma vez só
+  const goneIdsRef = useRef(new Set<number>());
   // ações dos avisos rodam com as funções do render de agora (o aviso pode ter sido criado bem antes)
   const toastActionsRef = useRef<{ openFromToast: (eventId: number) => void } | null>(null);
   const loadSeqRef = useRef(0);
@@ -864,8 +1147,9 @@ export default function Home() {
       setLastLoadedAt(new Date());
       setReferenceNow(Date.now());
       const loaded: LoadedData = { events: eventsData, context: contextData };
-      // primeira carga que deu certo depois de entrar ou do F5 (mesmo pelo Tentar de novo): rolagem, detalhe e rascunho
-      afterLoadRef.current?.(loaded);
+      // primeira carga que deu certo depois de entrar ou do F5 (mesmo pelo Tentar de novo): rolagem, detalhe e
+      // rascunho; e a publicação que ficou sem resposta no prazo, se ela já aparece
+      afterLoadRef.current?.(loaded, seq);
       return { ok: true, ...loaded };
     } catch (err) {
       if (sessionRef.current?.token !== activeSession.token || seq !== loadSeqRef.current) {
@@ -873,7 +1157,7 @@ export default function Home() {
       }
       if (!(err instanceof ApiError && err.status === 401)) {
         // 401 fica com o aviso de sessão vencida
-        setLoadFailure({ message: errorMessage(err), offline: isNetworkError(err) });
+        setLoadFailure({ message: failText(err), offline: offlineError(err) });
       }
       return { ok: false, error: err };
     } finally {
@@ -1046,25 +1330,55 @@ export default function Home() {
     window.scrollTo({ top: target.y, behavior: "instant" });
   }, [navToken]);
 
-  // o detalhe fechou porque o evento saiu (excluído ou apagado por outra pessoa): o botão que tinha o foco sumiu com
-  // ele, e o foco vai para o conteúdo da tela, como faz a confirmação quando não tem para onde devolver
+  // de volta à tela que abriu o detalhe (X, Esc ou Voltar): depois que ela monta e a rolagem volta, o foco vai
+  // para o mesmo botão ou linha que abriu (sem ele, o primeiro à vista do mesmo evento); sem nenhum, para o título
+  // da tela, como nas outras trocas
   useEffect(() => {
-    if (selectedEventId !== null || !focusContentRef.current) {
+    const pending = openerFocusRef.current;
+    if (!pending) {
       return;
     }
-    focusContentRef.current = false;
-    if (!document.activeElement || document.activeElement === document.body) {
-      document.getElementById("conteudo")?.focus({ preventScroll: true });
+    openerFocusRef.current = null;
+    focusOpenerSoon(pending.eventId, pending.y, pending.spot);
+  }, [navToken]);
+
+  // o detalhe fechou porque o evento saiu (excluído ou apagado por outra pessoa): o botão que tinha o foco sumiu com
+  // ele, e o foco vai para o conteúdo da tela, como faz a confirmação quando não tem para onde devolver. Fechou pelo
+  // Voltar do navegador, com o detalhe ao lado do Cronograma: o foco vai para a linha que o abriu, como no X e no Esc
+  // (no Modal, quem devolve o foco é o próprio Modal; aqui só se recolhe o que caiu no body)
+  useEffect(() => {
+    if (selectedEventId !== null) {
+      return;
     }
+    const back = detailFocusRef.current;
+    detailFocusRef.current = null;
+    if (focusContentRef.current) {
+      focusContentRef.current = false;
+      if (focusLost()) {
+        document.getElementById("conteudo")?.focus({ preventScroll: true });
+      }
+      return;
+    }
+    if (!back || Date.now() - back.at > 1500) {
+      return;
+    }
+    const toOpener = () => {
+      if (focusLost() && !focusOpener(back.eventId, back.spot)) {
+        focusScreenHeading();
+      }
+    };
+    toOpener();
+    window.requestAnimationFrame(toOpener);
   }, [selectedEventId]);
 
-  function rememberScroll() {
+  /** Guarda a rolagem da entrada atual (e o que mais ela precisar levar, como quem abriu o detalhe). */
+  function rememberScroll(extra: Partial<HistoryEntry> = {}) {
     const y = window.scrollY;
     const current = currentEntry();
     if (current) {
       scrollByKeyRef.current.set(current.key, y);
     }
-    patchCurrentEntry({ scrollY: y });
+    patchCurrentEntry({ scrollY: y, ...extra });
   }
 
   /** Troca de tela com endereço próprio, começando no topo. */
@@ -1078,7 +1392,9 @@ export default function Home() {
       setFocusHeadingToken((token) => token + 1);
       return;
     }
-    rememberScroll();
+    // a tela de agora guarda o evento cujo detalhe ela abre (ou nenhum) e qual dos botões ou linhas dele abriu: no
+    // Voltar, o foco volta para esse mesmo
+    rememberScroll({ opener: eventId ?? undefined, openerSpot: eventId ? openerSpotFor(eventId) : undefined });
     const current = currentEntry();
     if (current?.layer) {
       // pelo menu do celular (ou por um aviso): a tela nova ocupa a entrada da camada, e o Voltar não reabre a camada
@@ -1144,7 +1460,8 @@ export default function Home() {
     setReminderDraft(null);
     const current = currentEntry();
     if (selectedEventId === null || !current) {
-      rememberScroll();
+      // a lista guarda a linha que abriu o detalhe: no Voltar do navegador, o foco volta para ela
+      rememberScroll({ opener: id, openerSpot: openerSpotFor(id) });
       writeHistory("push", { key: newEntryKey(), view: "calendar", eventId: id, detail: "here" });
     } else {
       // trocar de evento dentro do Cronograma não cria entrada nova
@@ -1170,17 +1487,22 @@ export default function Home() {
     deselectInPlace();
   }
 
-  /** Volta uma entrada nossa (a do detalhe) e mostra a de baixo como num Voltar; sem popstate, `fallback`. */
-  function backAndShow(fallback: () => void) {
+  /** Anda `steps` entradas (negativo para trás) e mostra a que vier, como num Voltar ou Avançar; sem popstate, `fallback`. */
+  function goAndShow(steps: number, fallback: () => void) {
     const pending: PendingPop = { run: () => undefined, process: true };
     closePopRef.current = pending;
-    window.history.back();
+    window.history.go(steps);
     window.setTimeout(() => {
       if (closePopRef.current === pending) {
         closePopRef.current = null;
         fallback();
       }
     }, 700);
+  }
+
+  /** Volta uma entrada nossa (a do detalhe) e mostra a de baixo como num Voltar; sem popstate, `fallback`. */
+  function backAndShow(fallback: () => void) {
+    goAndShow(-1, fallback);
   }
 
   function deselectInPlace() {
@@ -1198,6 +1520,11 @@ export default function Home() {
       return;
     }
     focusContentRef.current = true;
+    if (closePopRef.current?.process) {
+      // já há uma volta nossa a caminho que mostra a entrada de baixo (o X, por exemplo): ela fecha o detalhe, e uma
+      // segunda voltaria duas entradas
+      return;
+    }
     const current = currentEntry();
     if (
       current?.view === "calendar" &&
@@ -1260,23 +1587,46 @@ export default function Home() {
     }
   }
 
-  /** Entrada que só repete a de baixo (camada ou edição que já fechou): volta mais uma e mostra a que vier. */
-  function skipEntry(entry: HistoryEntry) {
-    backAndShow(() => writeHistory("replace", { ...entry, layer: undefined, editar: undefined }));
+  /**
+   * Pula uma entrada que não mostraria nada, no sentido em que a pessoa andava (a posição diz qual). Pelo Avançar,
+   * segue para a seguinte; sem nenhuma depois dela, volta para onde a pessoa estava. Pelo Voltar, volta mais uma.
+   * Sem popstate, `fallback`. A entrada pulada nunca é mostrada: `left` continua sendo a última mostrada, então
+   * pulos seguidos (um detalhe que saiu e, depois dele, uma camada que fechou) andam sempre no mesmo sentido.
+   */
+  function skipPast(entry: HistoryEntry, left: HistoryEntry | null, fallback: () => void) {
+    const from = left?.pos;
+    const at = entry.pos;
+    if (from !== undefined && at !== undefined && at > from) {
+      const stay = () => goAndShow(from - at, fallback);
+      if (lastPushedPos !== null && at >= lastPushedPos) {
+        // é a última entrada: não há tela seguinte
+        stay();
+      } else {
+        goAndShow(1, stay);
+      }
+      return;
+    }
+    backAndShow(fallback);
+  }
+
+  /** Entrada que só repete a de baixo (camada ou edição que já fechou): pula e mostra a que vier. */
+  function skipEntry(entry: HistoryEntry, left: HistoryEntry | null) {
+    skipPast(entry, left, () => writeHistory("replace", { ...entry, layer: undefined, editar: undefined }));
   }
 
   /**
    * Detalhe de um evento que já saiu (excluído aqui ou por outra pessoa): a entrada não mostraria nada, então é pulada
-   * (pelo Avançar, a pessoa fica onde estava). Sem entrada antes dela, vira o Cronograma sem o detalhe.
+   * no sentido em que a pessoa andava: pelo Avançar, chega à tela seguinte (ou fica onde estava, se não houver);
+   * pelo Voltar, à de antes. Sem entrada antes dela, vira o Cronograma sem o detalhe.
    */
   function skipGoneEntry(entry: HistoryEntry, left: HistoryEntry | null) {
     const showList = () => {
       goTo("calendar", { replace: true });
-      pushToast("info", "Esse evento não existe mais. Ele pode ter sido removido.");
+      pushToast("info", EVENT_GONE);
     };
     const forward = left?.pos !== undefined && entry.pos !== undefined && entry.pos > left.pos;
     if (forward || (entry.pos ?? 0) > 0) {
-      backAndShow(showList);
+      skipPast(entry, left, showList);
       return;
     }
     showList();
@@ -1462,7 +1812,7 @@ export default function Home() {
     const layerOpen = entry.layer === "confirmar" ? confirm : entry.layer === "perfil" ? profileOpen : menuOpen;
     if ((entry.layer && !layerOpen) || (entry.editar !== undefined && !editorOpen)) {
       // camada ou edição que já fechou (ex.: Avançar até ela): pula, para o Voltar nunca ficar parado
-      skipEntry(entry);
+      skipEntry(entry, left);
       return;
     }
 
@@ -1505,7 +1855,33 @@ export default function Home() {
       requestScroll(y, true);
       // só entrada de antes de um F5 (rolagem fora do mapa): se o Next ainda subir ao topo logo depois, a trava devolve
       scrollGuardRef.current = known === undefined && y > 0 ? { y, until: Date.now() + 800 } : null;
-      setFocusHeadingToken((token) => token + 1);
+      // de volta do detalhe aberto nesta tela (X, Esc ou Voltar): o foco vai para quem abriu, depois que a tela
+      // montar e a rolagem voltar; nas outras trocas, para o título da tela
+      const opener =
+        typeof entry.opener === "number" &&
+        left?.view === "calendar" &&
+        left.eventId !== null &&
+        (left.pos === undefined || entry.pos === undefined || left.pos > entry.pos)
+          ? entry.opener
+          : null;
+      if (opener !== null) {
+        openerFocusRef.current = { eventId: opener, y, spot: readSpot(entry.openerSpot) };
+      } else {
+        setFocusHeadingToken((token) => token + 1);
+      }
+    } else if (
+      view === "calendar" &&
+      eventId === null &&
+      selectedEventId !== null &&
+      left?.view === "calendar" &&
+      left.eventId !== null
+    ) {
+      // o detalhe do Cronograma fecha pelo Voltar: o foco que estava nele vai para a linha que o abriu
+      detailFocusRef.current = {
+        eventId: left.eventId,
+        spot: entry.opener === left.eventId ? readSpot(entry.openerSpot) : undefined,
+        at: Date.now(),
+      };
     }
   });
 
@@ -1698,8 +2074,32 @@ export default function Home() {
     );
     const view = activeView;
     const subject = original ? `evento-${original.id}` : "evento-novo";
+    // eventos de antes do envio: se a publicação ficar sem resposta, o criado é um que não estava aqui
+    const known = new Set(events.map((event) => event.id));
     setSavingEvent(true);
     setServerErrorState(null);
+    const unsure = original ? null : takeUnsureCreate(active);
+    if (unsure) {
+      // a publicação anterior ficou sem resposta no prazo: antes de publicar de novo, confere se ela já entrou
+      let created: AcademicEvent | null;
+      try {
+        created = findCreated(await getEvents(active.token), unsure, active.user);
+      } catch (err) {
+        if (sessionRef.current?.token === unsure.token) {
+          unsureCreateRef.current ??= unsure;
+        }
+        setSavingEvent(false);
+        actionFailed(err, active, subject);
+        return;
+      }
+      if (sessionRef.current?.token !== active.token) {
+        setSavingEvent(false);
+        return;
+      }
+      if (created && resolveCreated(created, unsure, active) !== "told") {
+        return;
+      }
+    }
     let saved: AcademicEvent;
     try {
       saved = original
@@ -1716,39 +2116,155 @@ export default function Home() {
         }
         return;
       }
+      if (!original && isTimeoutError(err)) {
+        // a publicação pode ter entrado: a recarga que o aviso dispara (ou o próximo Publicar) confere e, se ela
+        // entrou, o painel fecha como salvo, sem publicar duas vezes
+        unsureCreateRef.current = {
+          token: active.token,
+          body,
+          form,
+          known,
+          editorKey: editorEntryRef.current?.key ?? null,
+          afterSeq: loadSeqRef.current + 1,
+        };
+      }
+      // sem conexão ou sem resposta no prazo: o painel continua aberto com o rascunho (o rodapé dele avisa), Esc, X
+      // e Fechar voltam a valer e, no prazo estourado, a recarga corre em segundo plano
       actionFailed(err, active, subject, original?.id);
       return;
     }
+    finishSaved(saved, { active, view, form, editing: Boolean(original), markChanged });
+  }
+
+  /** Salvou: o painel fecha, o evento salvo é destacado (no Painel e na Gestão) ou aberto (no Cronograma) e o aviso sai. */
+  function finishSaved(
+    saved: AcademicEvent,
+    { active, editing, form, markChanged, view }: { active: Session; view: View; form: EventFormState; editing: boolean; markChanged: boolean }
+  ) {
+    const subject = editing ? `evento-${saved.id}` : "evento-novo";
+    // o Painel e a Gestão guardam a lista de agora e destacam o evento com a próxima, a da resposta logo abaixo: o
+    // destaque sai assim que o painel fecha, sem esperar a recarga (quando ela chega, a pessoa já pode estar em
+    // outro painel ou detalhe, e o destaque não pode tirar o foco nem a rolagem de lá)
+    flushSync(() => {
+      setLastSavedId(saved.id);
+      setSavedTick((tick) => tick + 1);
+    });
     // a lista, o destaque e o painel reaberto já mostram a versão salva: o "Salvando" sai agora e a
     // recarga corre em segundo plano (se ela falhar, a versão salva continua na tela)
     setEvents((list) => upsertEvent(list, saved));
     setSavingEvent(false);
-    if (!original && active.user.role === "teacher") {
-      lastCreateRef.current = {
-        academicClassId: form.academicClassId,
-        subjectId: form.subjectId,
-        category: form.category,
-      };
+    if (!editing) {
+      rememberCreate(form, active);
     }
     closeEditor(() => {
       if (view === "calendar") {
         showInCalendar(saved.id);
-      } else if (view === "dashboard") {
-        // o foco não fica no "Editar" do destaque, que pode ser de outro evento agora: o Painel leva à linha salva
+      } else if (view === "dashboard" && focusLost()) {
+        // o destaque leva o foco à linha salva; até lá, ele não fica no body
         document.getElementById("conteudo")?.focus({ preventScroll: true });
       }
-      // com o painel já fechado: o Painel e a Gestão destacam a linha salva quando a lista da recarga chega
-      setLastSavedId(saved.id);
-      setSavedTick((tick) => tick + 1);
       void loadAll(active);
     });
-    pushToast("success", savedText(saved, Boolean(original), markChanged), {
+    pushToast("success", savedText(saved, editing, markChanged), {
       keys: [subject, `evento-${saved.id}`],
       action:
         view === "calendar"
           ? undefined
           : { label: "Ver no cronograma", onClick: () => toastActionsRef.current?.openFromToast(saved.id) },
     });
+  }
+
+  /** Depois de publicar, a próxima publicação da docente já vem com a mesma turma, disciplina e categoria. */
+  function rememberCreate(form: EventFormState, active: Session) {
+    if (active.user.role === "teacher") {
+      lastCreateRef.current = {
+        academicClassId: form.academicClassId,
+        subjectId: form.subjectId,
+        category: form.category,
+      };
+    }
+  }
+
+  /** A publicação sem resposta desta sessão, se houver: quem a pega passa a cuidar dela. */
+  function takeUnsureCreate(active: Session) {
+    const unsure = unsureCreateRef.current;
+    if (!unsure || unsure.token !== active.token) {
+      return null;
+    }
+    unsureCreateRef.current = null;
+    return unsure;
+  }
+
+  /** Carga que deu certo depois do prazo estourado numa publicação: se o evento já aparece, ela entrou. */
+  function settleUnsureCreate(list: AcademicEvent[], seq: number) {
+    const unsure = unsureCreateRef.current;
+    const active = sessionRef.current;
+    if (!unsure || seq < unsure.afterSeq) {
+      return;
+    }
+    if (!active || active.token !== unsure.token) {
+      unsureCreateRef.current = null;
+      return;
+    }
+    const created = findCreated(list, unsure, active.user);
+    if (!created) {
+      // ainda não aparece: a próxima carga, ou o Publicar de novo, confere outra vez
+      return;
+    }
+    unsureCreateRef.current = null;
+    resolveCreated(created, unsure, active);
+  }
+
+  /**
+   * A publicação que ficou sem resposta no prazo entrou. Com o mesmo rascunho aberto (o mesmo painel, ou um novo com
+   * o mesmo título e início), o painel fecha como salvo e o evento é destacado; se a pessoa mudou o rascunho depois,
+   * o painel passa a editar o evento criado, com as mudanças. Fora disso, só o aviso de que ele foi publicado.
+   */
+  function resolveCreated(created: AcademicEvent, unsure: UnsureCreate, active: Session): "closed" | "adopted" | "told" {
+    const draftOpen =
+      editorOpen &&
+      editingEventId === null &&
+      (editorEntryRef.current?.key === unsure.editorKey ||
+        (eventForm.title.trim() === unsure.body.title && sameMinute(eventForm.startsAt, unsure.body.startsAt)));
+    if (draftOpen && sameForm(eventForm, unsure.form)) {
+      finishSaved(created, { active, view: activeView, form: unsure.form, editing: false, markChanged: false });
+      return "closed";
+    }
+    rememberCreate(unsure.form, active);
+    if (draftOpen) {
+      adoptCreated(created);
+      setSavingEvent(false);
+      pushToast("info", `${savedText(created, false, false)} O que você mudou depois continua no painel para salvar.`, {
+        keys: ["evento-novo", `evento-${created.id}`],
+      });
+      return "adopted";
+    }
+    setEvents((list) => upsertEvent(list, created));
+    // o aviso de prazo estourado daquela publicação já não vale; o novo não sai com a próxima publicação
+    dropToasts("evento-novo");
+    pushToast("success", savedText(created, false, false), {
+      keys: [`evento-${created.id}`],
+      action:
+        activeView === "calendar"
+          ? undefined
+          : { label: "Ver no cronograma", onClick: () => toastActionsRef.current?.openFromToast(created.id) },
+    });
+    return "told";
+  }
+
+  /** O painel do rascunho passa a editar o evento que a publicação criou: o que a pessoa mudou depois fica como alteração. */
+  function adoptCreated(created: AcademicEvent) {
+    setEvents((list) => upsertEvent(list, created));
+    setEditingEventId(created.id);
+    setEditingFallback(created);
+    setFormSnapshot(eventToForm(created));
+    setServerErrorState(null);
+    setEditorStatusNotice(null);
+    const entry = editorEntryRef.current;
+    const current = currentEntry();
+    if (entry && current?.key === entry.key && current.editar === "novo") {
+      editorEntryRef.current = writeHistory("replace", { ...current, editar: created.id });
+    }
   }
 
   function requestDeleteEvent(event: AcademicEvent) {
@@ -1779,6 +2295,7 @@ export default function Home() {
       }
     }
     removeEventLocally(event.id);
+    keepFocusInContent();
     // o detalhe fecha como no X: sem entrada repetida, o Voltar seguinte já sai do Cronograma
     const live = liveRef.current;
     if (live.editorOpen && live.editingEventId === event.id) {
@@ -1792,24 +2309,51 @@ export default function Home() {
 
   /** Tira o evento (e o lembrete dele) da tela na hora, antes da recarga. */
   function removeEventLocally(eventId: number) {
+    goneIdsRef.current.add(eventId);
     setEvents((list) => list.filter((item) => item.id !== eventId));
     setReminders((list) => list.filter((item) => item.academicEventId !== eventId));
   }
 
-  /** O evento sumiu (outra pessoa apagou): sai da lista, do detalhe e do painel, com um aviso só. */
-  function eventGone(eventId: number, active: Session, message: string) {
+  /**
+   * O evento sumiu (outra pessoa apagou): sai da lista, do detalhe e do painel, com um aviso só. Um evento que já
+   * saiu (excluído aqui, ou já avisado por outra ação ou recarga) não fecha nada de novo nem repete o aviso.
+   */
+  function eventGone(eventId: number, active: Session, message: string, reload = true) {
+    const first = !goneIdsRef.current.has(eventId);
     removeEventLocally(eventId);
-    const live = liveRef.current;
-    if (live.editorOpen && live.editingEventId === eventId) {
-      closeEditor(() => leaveDetail(eventId));
-    } else {
-      leaveDetail(eventId);
+    if (first) {
+      // o detalhe, o destaque ou o botão de lembrete que tinha o foco sai junto: o foco vai para o conteúdo da tela
+      keepFocusInContent();
+      const live = liveRef.current;
+      if (live.editorOpen && live.editingEventId === eventId) {
+        closeEditor(() => leaveDetail(eventId));
+      } else {
+        leaveDetail(eventId);
+      }
+      pushToast("danger", message, { keys: [`evento-${eventId}`, `lembrete-${eventId}`] });
     }
-    pushToast("danger", message, { keys: [`evento-${eventId}`, `lembrete-${eventId}`] });
-    void loadAll(active);
+    if (reload) {
+      void loadAll(active);
+    }
   }
 
-  /** Falha de uma ação: 401 fica com o aviso de sessão vencida, 404 do evento tira ele da tela, o resto vira aviso. */
+  /**
+   * A recarga veio sem o evento do detalhe aberto (outra pessoa apagou): o detalhe fecha como no 404, sem deixar o
+   * evento no endereço, com o aviso e o foco no conteúdo. Com o painel de edição aberto, quem avisa é o salvar dele.
+   */
+  function dropVanishedDetail(list: AcademicEvent[]) {
+    const active = sessionRef.current;
+    const { editorOpen: editing, selectedEventId: shown } = liveRef.current;
+    if (!active || shown === null || editing || closePopRef.current || list.some((event) => event.id === shown)) {
+      return;
+    }
+    eventGone(shown, active, EVENT_GONE, false);
+  }
+
+  /**
+   * Falha de uma ação: 401 fica com o aviso de sessão vencida, 404 do evento tira ele da tela, o resto vira aviso.
+   * Sem resposta no prazo, o pedido pode ter chegado: a recarga em segundo plano mostra como ficou.
+   */
   function actionFailed(err: unknown, active: Session, subject: string, eventId?: number) {
     if (err instanceof ApiError && err.status === 401) {
       return;
@@ -1818,7 +2362,10 @@ export default function Home() {
       eventGone(eventId, active, errorMessage(err));
       return;
     }
-    pushToast("danger", errorMessage(err), { keys: [subject], offline: isNetworkError(err) });
+    pushToast("danger", failText(err), { keys: [subject], offline: offlineError(err) });
+    if (isTimeoutError(err)) {
+      void loadAll(active);
+    }
   }
 
   function requestStatusChange(event: AcademicEvent, status: EventStatusChange) {
@@ -1906,7 +2453,7 @@ export default function Home() {
         enabled: true,
       });
       setReminders((list) => upsertReminder(list, saved));
-      pushToast("success", `Lembrete de "${event.title}" ${existed ? "atualizado" : "criado"}: aviso ${avisoWhen(saved.sendAt)}.`, {
+      pushToast("success", `Lembrete de "${event.title}" ${existed ? "atualizado" : "criado"}${avisoTail(event, saved.sendAt)}.`, {
         keys: [subject],
       });
       setReminderDraft(null);
@@ -1927,7 +2474,7 @@ export default function Home() {
     const subject = `lembrete-${event.id}`;
     const existing = reminderByEvent.get(event.id);
     if (existing) {
-      pushToast("info", `"${event.title}" já tem lembrete: aviso ${avisoWhen(existing.sendAt)}.`);
+      pushToast("info", `"${event.title}" já tem lembrete${avisoTail(event, existing.sendAt)}.`);
       return;
     }
     const offsetMinutes = bestReminderOffset(event.startsAt, active.user.defaultReminderMinutes, Date.now());
@@ -1939,7 +2486,7 @@ export default function Home() {
     try {
       const saved = await saveReminder(active.token, { academicEventId: event.id, offsetMinutes, enabled: true });
       setReminders((list) => upsertReminder(list, saved));
-      pushToast("success", `Lembrete de "${event.title}" criado: aviso ${avisoWhen(saved.sendAt)}.`, {
+      pushToast("success", `Lembrete de "${event.title}" criado${avisoTail(event, saved.sendAt)}.`, {
         keys: [subject],
         action: { label: "Desfazer", onClick: () => void undoReminder(saved) },
       });
@@ -1989,14 +2536,34 @@ export default function Home() {
       void loadAll(active);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        // já não existia: sai da tela do mesmo jeito
+        // já não existia: sai da tela do mesmo jeito, e a recarga diz se o evento saiu junto
         setReminders((list) => list.filter((item) => item.id !== reminder.id));
-        void loadAll(active);
+        void reminderGone(reminder, active, errorMessage(err));
+        return;
       }
       actionFailed(err, active, subject);
     } finally {
       setSavingReminder(false);
     }
+  }
+
+  /**
+   * O lembrete já não existia (404). Se o evento também saiu (outra pessoa apagou, e o lembrete foi junto), vale o
+   * caminho do evento apagado: o detalhe fecha sem deixar o evento no endereço, o aviso diz que o evento não existe
+   * mais e o foco fica no conteúdo. Se o evento continua, o aviso é o do lembrete.
+   */
+  async function reminderGone(reminder: Reminder, active: Session, message: string) {
+    const eventId = reminder.academicEventId;
+    const loaded = await loadAll(active);
+    if (sessionRef.current?.token !== active.token || goneIdsRef.current.has(eventId)) {
+      // a recarga (esta ou uma mais nova) já tratou o evento que saiu
+      return;
+    }
+    if (loaded.ok && !loaded.events.some((event) => event.id === eventId)) {
+      eventGone(eventId, active, EVENT_GONE, false);
+      return;
+    }
+    pushToast("danger", message, { keys: [`lembrete-${eventId}`] });
   }
 
   /** Desfazer a remoção: recria com a mesma antecedência. */
@@ -2013,11 +2580,12 @@ export default function Home() {
         enabled: true,
       });
       setReminders((list) => upsertReminder(list, saved));
-      pushToast(
-        "success",
-        `Lembrete de "${eventsById.get(reminder.academicEventId)?.title ?? reminder.academicEvent?.title ?? "evento"}" de volta: aviso ${avisoWhen(saved.sendAt)}.`,
-        { keys: [subject] }
-      );
+      // evento cancelado ou concluído: o lembrete volta, mas sem aviso para prometer (o evento da resposta é o de agora;
+      // o Desfazer pode chegar bem depois do aviso que o criou)
+      const event = saved.academicEvent ?? eventsById.get(reminder.academicEventId) ?? reminder.academicEvent;
+      pushToast("success", `Lembrete de "${event?.title ?? "evento"}" de volta${avisoTail(event, saved.sendAt)}.`, {
+        keys: [subject],
+      });
       void loadAll(active);
     } catch (err) {
       actionFailed(err, active, subject, reminder.academicEventId);
@@ -2051,7 +2619,7 @@ export default function Home() {
       });
       setReminders((list) => upsertReminder(list, saved));
       // tira o "Lembrete criado" de antes, com o horário velho e o Desfazer que apagaria o lembrete ajustado
-      pushToast("success", `Lembrete de "${event?.title ?? "evento"}" atualizado: aviso ${avisoWhen(saved.sendAt)}.`, {
+      pushToast("success", `Lembrete de "${event?.title ?? "evento"}" atualizado${avisoTail(event, saved.sendAt)}.`, {
         keys: [subject],
       });
       void loadAll(active);
@@ -2092,6 +2660,10 @@ export default function Home() {
       await loadAll(active);
       return { ok: true, result };
     } catch (err) {
+      if (isTimeoutError(err)) {
+        // sem resposta no prazo, a importação pode ter entrado: a recarga mostra as datas como ficaram
+        void loadAll(active);
+      }
       // o erro aparece no próprio bloco da importação, sem aviso solto
       return { ok: false, error: err instanceof ApiError ? err : new ApiError(errorMessage(err), 500) };
     } finally {
@@ -2138,6 +2710,10 @@ export default function Home() {
     setReminderDraft(null);
     resetEditorState();
     closePopRef.current = null;
+    unsureCreateRef.current = null;
+    openerFocusRef.current = null;
+    detailFocusRef.current = null;
+    goneIdsRef.current = new Set();
     setLastSavedId(null);
     setSavedTick(0);
     setSearch("");
@@ -2210,6 +2786,8 @@ export default function Home() {
       editar: kept?.editar,
       scrollY: kept?.scrollY,
       pos: kept?.pos,
+      opener: kept?.opener,
+      openerSpot: kept?.openerSpot,
     });
     setActiveView(view);
     setSelectedEventId(eventId);
@@ -2254,7 +2832,7 @@ export default function Home() {
     if (here) {
       if (pending.eventId !== null && !list.some((event) => event.id === pending.eventId)) {
         deselectInPlace();
-        pushToast("info", "Esse evento não existe mais. Ele pode ter sido removido.");
+        pushToast("info", EVENT_GONE);
       } else if (pending.scrollY) {
         requestScroll(pending.scrollY, true);
       }
@@ -2294,7 +2872,7 @@ export default function Home() {
       }
       dropEditorEntry();
       if (pending.editar !== "novo" && target === null) {
-        pushToast("info", "Esse evento não existe mais. Ele pode ter sido removido.");
+        pushToast("info", EVENT_GONE);
       }
     }
   }
@@ -2341,6 +2919,8 @@ export default function Home() {
     resetApp();
     setSession(null);
     markSignedOut();
+    // os avisos da sessão que terminou (ex.: "Boas-vindas") não ficam na tela de entrada
+    setToasts([]);
     pushToast("info", "Você saiu da conta.");
   }
 
@@ -2375,6 +2955,8 @@ export default function Home() {
     writeStorage("local", SESSION_KEY, null);
     resetApp();
     setSession(null);
+    // a tela de entrada explica a sessão vencida; os avisos dela (com Desfazer de outra sessão) saem
+    setToasts([]);
     setLoginNotice(EXPIRED_NOTICE);
     setLoginEmail(current.user.email);
   });
@@ -2499,6 +3081,11 @@ export default function Home() {
         saveDraft();
       }
     };
+    // na captura, antes de qualquer onClick: o clique que abre o detalhe já diz qual botão ou linha foi
+    const handlePress = (event: MouseEvent) => {
+      lastPress = event.target instanceof Element ? { target: event.target, at: performance.now() } : null;
+    };
+    window.addEventListener("click", handlePress, { capture: true });
     window.addEventListener("popstate", handlePop, { capture: true });
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("pagehide", handleHide);
@@ -2507,6 +3094,8 @@ export default function Home() {
       window.clearTimeout(saveTimer);
       setUnauthorizedHandler(null);
       setReachableHandler(null);
+      lastPress = null;
+      window.removeEventListener("click", handlePress, { capture: true });
       window.removeEventListener("popstate", handlePop, { capture: true });
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("pagehide", handleHide);
@@ -2524,7 +3113,15 @@ export default function Home() {
 
   // funções do render de agora para quem chama depois: a carga em voo e as ações dos avisos
   useLayoutEffect(() => {
-    afterLoadRef.current = finishBoot;
+    afterLoadRef.current = (loaded, seq) => {
+      // a primeira carga (entrada ou F5) já avisa do evento do endereço que não existe mais
+      const booting = pendingBootRef.current !== null && pendingBootRef.current.token === sessionRef.current?.token;
+      finishBoot(loaded);
+      settleUnsureCreate(loaded.events, seq);
+      if (!booting) {
+        dropVanishedDetail(loaded.events);
+      }
+    };
     toastActionsRef.current = { openFromToast };
   });
 
@@ -2638,6 +3235,7 @@ export default function Home() {
         activeView={activeView}
         badges={{ reminders: avisos.length }}
         canWrite={canWrite}
+        context={context}
         focusHeadingToken={focusHeadingToken}
         loadError={loadFailure?.message ?? null}
         menuOpen={menuOpen}
@@ -2663,9 +3261,8 @@ export default function Home() {
               {loadFailure.offline ? "Sem conexão." : "Não foi possível atualizar."} Mostrando dados de{" "}
               {formatTime(lastLoadedAt.toISOString())}.
             </span>
-            <button className="link shrink-0" disabled={loading} onClick={() => void refresh()} type="button">
-              Tentar de novo
-            </button>
+            {/* enquanto tenta, o foco fica no botão; se a carga der certo, a faixa sai e o foco vai ao título da tela */}
+            <RetryButton className="link shrink-0" onRetry={() => void refresh()} retrying={loading} />
           </div>
         ) : null}
 
@@ -2739,6 +3336,7 @@ export default function Home() {
                   savedTick={savedTick}
                   upcomingEvents={upcomingEvents}
                   onDismissAviso={dismissAviso}
+                  onNewEvent={openNewEvent}
                   onOpenCalendar={openCalendar}
                   onOpenSync={() => goTo("sync")}
                   onSelect={selectEvent}

@@ -1,11 +1,14 @@
 "use client";
 
 import {
+  Award,
   Bell,
   BellOff,
+  BookOpen,
   CalendarDays,
   Check,
   CheckCircle2,
+  Clock,
   Edit3,
   Loader2,
   MapPin,
@@ -14,6 +17,8 @@ import {
   RotateCcw,
   ShieldCheck,
   Trash2,
+  UserRound,
+  Users,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -21,7 +26,7 @@ import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { cx, dateParts, daysUntil, formatTime, isAllDay, relativeDue, startOfDay } from "@/lib/format";
 import { categoryMeta, reminderChips, reminderShortLabel, showsOfficialPill, sourceText, statusMeta } from "@/lib/meta";
 import type { AcademicEvent } from "@/lib/types";
-import { isOnTopLayer } from "./ui";
+import { InfoLine, isOnTopLayer } from "./ui";
 
 /* ------------------------------------------------------------------ */
 /* Datas curtas do detalhe e das linhas                                */
@@ -127,8 +132,104 @@ function isOngoing(event: AcademicEvent) {
   return isMultiDay(event) && daysUntil(event.startsAt) < 0 && daysUntil(eventLastDay(event).toISOString()) >= 0;
 }
 
-function pointsText(points: number) {
-  return `Vale ${points.toLocaleString("pt-BR")} ponto${points === 1 ? "" : "s"}`;
+/* ------------------------------------------------------------------ */
+/* Dados do detalhe (ordem do Figma: início, término, local...)        */
+/* ------------------------------------------------------------------ */
+
+/** Depois de "até": "a quarta, 18/11" ou "o sábado, 21/11". */
+function toDay(date: Date) {
+  return `${isWeekend(date) ? "o" : "a"} ${weekdayNames[date.getDay()]}, ${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+}
+
+function capitalize(text: string) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** "faltam 1 dia e 11 horas", "faltam 3 horas e 20 min" ou "falta 1 hora". */
+function timeLeft(ms: number) {
+  const minutes = Math.max(1, Math.floor(ms / 60000));
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const rest = minutes % 60;
+  const parts = [
+    days ? `${days} ${days === 1 ? "dia" : "dias"}` : null,
+    hours ? `${hours} ${hours === 1 ? "hora" : "horas"}` : null,
+    !days && rest ? `${rest} min` : null,
+  ].filter((part): part is string => part !== null);
+  const single = parts.length === 1 && parts[0].startsWith("1 ");
+  return `${single ? "falta" : "faltam"} ${parts.join(" e ")}`;
+}
+
+export type EventWhenSummary = { tone: "green" | "past"; head: string; tail: string | null };
+
+/**
+ * Quando é o evento em relação a agora, no bloco do alto do detalhe (Figma): "Amanhã às 19:00,
+ * faltam 1 dia e 11 horas", "Em andamento, até a quarta, 18/11" ou "Já passou, ontem".
+ * Cancelado e concluído não têm o bloco: a pílula e o aviso já dizem a situação.
+ */
+export function eventWhenSummary(event: AcademicEvent, now: number): EventWhenSummary | null {
+  if (event.status === "cancelled" || event.status === "completed") {
+    return null;
+  }
+  const start = new Date(event.startsAt);
+  const startMs = start.getTime();
+  const wholeDay = isWholeDay(event);
+  const last = eventLastDay(event);
+  const multi = last.getTime() > startOfDay(start).getTime();
+  const endDate = event.endsAt ? new Date(event.endsAt) : null;
+  const end = endDate && endDate.getTime() > startMs ? endDate : null;
+  // fim: no dia todo, a meia-noite depois do último dia; senão o término ou, sem ele, o próprio início
+  const endMs = wholeDay
+    ? new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1).getTime()
+    : (end?.getTime() ?? startMs);
+  const days = Math.round((startOfDay(start).getTime() - startOfDay(new Date(now)).getTime()) / 86400000);
+  const day = days === 0 ? "Hoje" : days === 1 ? "Amanhã" : capitalize(onDay(start));
+
+  if (startMs > now) {
+    if (wholeDay) {
+      return {
+        tone: "green",
+        head: multi ? `${day}, até ${toDay(last)}` : `${day}, dia todo`,
+        tail: days > 1 ? `faltam ${days} dias` : null,
+      };
+    }
+    // "Amanhã às 19:00" e "Na quarta, 04/11, às 19:00"
+    return { tone: "green", head: `${day}${days > 1 ? "," : ""} às ${clock(start)}`, tail: timeLeft(startMs - now) };
+  }
+  if (now < endMs) {
+    if (multi) {
+      return { tone: "green", head: "Em andamento", tail: `até ${toDay(last)}${!wholeDay && end ? `, às ${clock(end)}` : ""}` };
+    }
+    return wholeDay
+      ? { tone: "green", head: "Hoje, dia todo", tail: null }
+      : { tone: "green", head: "Acontecendo agora", tail: `até ${clock(end ?? start)}` };
+  }
+  return {
+    tone: "past",
+    head: "Já passou",
+    tail: days === 0 ? (wholeDay ? "hoje" : `hoje às ${clock(start)}`) : relativeDue(event.startsAt),
+  };
+}
+
+/** Início no rótulo curto do glossário: "qui, 05/11, 19:00", "seg, 02/11, dia todo" ou "seg, 16/11". */
+export function eventStartLabel(event: AcademicEvent) {
+  const start = new Date(event.startsAt);
+  if (isWholeDay(event)) {
+    return isMultiDay(event) ? shortDay(start) : `${shortDay(start)}, dia todo`;
+  }
+  return `${shortDay(start)}, ${clock(start)}`;
+}
+
+/** Término no mesmo formato ("qui, 05/11, 21:00"); no dia todo de vários dias, o último dia. Sem término, null. */
+export function eventEndLabel(event: AcademicEvent) {
+  if (isWholeDay(event)) {
+    return isMultiDay(event) ? shortDay(eventLastDay(event)) : null;
+  }
+  const end = event.endsAt ? new Date(event.endsAt) : null;
+  if (!end || end.getTime() <= new Date(event.startsAt).getTime()) {
+    return null;
+  }
+  return `${shortDay(end)}, ${clock(end)}`;
 }
 
 /** Situação que os botões pedem. "changed" é a volta de um evento cancelado. */
@@ -139,18 +240,16 @@ export function reactivatedStatus(event: AcademicEvent): EventStatusChange {
   return event.status === "cancelled" ? "changed" : "scheduled";
 }
 
-export function StatusPill({ event }: { event: AcademicEvent }) {
-  if (event.status === "scheduled") {
+/**
+ * Situação em pílula cheia, como no Figma (Guia visual): Agendado, Alterado, Concluído e Cancelado.
+ * Nas linhas, "Agendado" não aparece; no detalhe (showScheduled), aparece como no Figma.
+ */
+export function StatusPill({ event, showScheduled = false }: { event: AcademicEvent; showScheduled?: boolean }) {
+  if (event.status === "scheduled" && !showScheduled) {
     return null;
   }
   const status = statusMeta[event.status];
-  const Icon = status.icon;
-  return (
-    <span className={cx("pill", status.pill)}>
-      <Icon className="h-3 w-3" aria-hidden />
-      {status.label}
-    </span>
-  );
+  return <span className={cx("pill", status.pill)}>{status.label}</span>;
 }
 
 function OfficialPill() {
@@ -202,6 +301,9 @@ export function EventRow({
   const multi = isMultiDay(event);
   const ongoing = isOngoing(event);
   const hasReminder = Boolean(event.reminder && event.reminder.enabled !== false);
+  const time = multi ? formatDayRange(event) : isWholeDay(event) ? "Dia todo" : formatTime(event.startsAt);
+  const rel = ongoing ? "em andamento" : relativeDue(event.startsAt);
+  const soon = ongoing || (days >= 0 && days <= 1);
   const details = [
     event.subject?.name,
     !hideClass ? event.academicClass?.name : null,
@@ -217,6 +319,8 @@ export function EventRow({
       aria-current={selected ? "true" : undefined}
       className={cx("ev", selected && "sel")}
       data-event-id={event.id}
+      // abre o detalhe: ao fechá-lo, o foco volta para cá (contrato com o page.tsx)
+      data-opens-event={event.id}
       onClick={onClick}
       type="button"
     >
@@ -228,7 +332,8 @@ export function EventRow({
         </span>
       )}
       <span className="ev-body">
-        <span className={cx("ev-title block", cancelled && "text-muted line-through")}>{event.title}</span>
+        {/* sem "block": o .ev-title corta na 2ª linha com reticências, e palavra longa quebra */}
+        <span className={cx("ev-title", cancelled && "text-muted line-through")}>{event.title}</span>
         <span className="ev-meta">
           <span className={cx("pill", meta.tint)}>{meta.short}</span>
           <StatusPill event={event} />
@@ -239,6 +344,11 @@ export function EventRow({
             </span>
           ) : null}
           {showsOfficialPill(event) ? <OfficialPill /> : null}
+          {/* coluna estreita (celular): a hora vem para junto das pílulas, como no Figma, e o
+              título usa a largura toda; a coluna da direita (.ev-when) some. Fora dela, o contrário. */}
+          <span className="ev-at">
+            {time === "Dia todo" ? "dia todo" : time}, <span className={soon ? "soon" : undefined}>{rel}</span>
+          </span>
           {hasReminder ? (
             <span className="inline-flex items-center text-brand" title="Lembrete ativo">
               <Bell className="h-3.5 w-3.5" aria-hidden />
@@ -249,12 +359,8 @@ export function EventRow({
         </span>
       </span>
       <span className="ev-when">
-        <span className="ev-time block">
-          {multi ? formatDayRange(event) : isWholeDay(event) ? "Dia todo" : formatTime(event.startsAt)}
-        </span>
-        <span className={cx("ev-rel block", (ongoing || (days >= 0 && days <= 1)) && "soon")}>
-          {ongoing ? "em andamento" : relativeDue(event.startsAt)}
-        </span>
+        <span className="ev-time block">{time}</span>
+        <span className={cx("ev-rel block", soon && "soon")}>{rel}</span>
       </span>
     </button>
   );
@@ -437,17 +543,11 @@ export function EventDetailContent({
     );
   }
 
-  const facts = [
-    event.subject?.name ? { label: "Disciplina", value: event.subject.name } : null,
-    !official && event.academicClass?.name ? { label: "Turma", value: event.academicClass.name } : null,
-    event.points !== null ? { label: "Pontuação", value: pointsText(event.points) } : null,
-  ].filter((fact): fact is { label: string; value: string } => fact !== null);
-
-  const relative = isOngoing(event)
-    ? "em andamento"
-    : Math.abs(daysUntil(event.startsAt)) <= 30
-      ? relativeDue(event.startsAt)
-      : null;
+  // dados na ordem do Figma; evento oficial sem local não ganha "Não informado" (feriado não tem sala)
+  const when = eventWhenSummary(event, now);
+  const endLabel = eventEndLabel(event);
+  const location = event.location ?? (official ? null : "Não informado");
+  const responsible = official ? "Administração" : (event.teacher?.fullName ?? "Docente");
 
   const removeButton = (
     <button
@@ -606,21 +706,24 @@ export function EventDetailContent({
     );
   }
 
+  // ordem do Figma (Cronograma, agenda e detalhe; Mobile, detalhe): situação, quando, os dados,
+  // a descrição e, por último, o lembrete. As ações de quem gerencia ficam entre os dados e o lembrete.
   return (
     <div>
       <div className={cx("flex flex-wrap items-center gap-2", cornerSpace && "min-h-[38px] pr-12")}>
         <span className={cx("pill", meta.tint)}>{meta.short}</span>
-        <StatusPill event={event} />
+        <StatusPill event={event} showScheduled />
         {showsOfficialPill(event) ? <OfficialPill /> : null}
       </div>
+      {/* wrap-anywhere: palavra ou link sem espaço quebra na largura do detalhe, sem alargar o painel */}
       <h2
         ref={titleRef}
         tabIndex={-1}
-        className={cx("disp mt-3 text-[26px] font-bold leading-tight", cancelled && "text-muted line-through")}
+        className={cx("disp mt-3 text-[26px] font-bold leading-tight wrap-anywhere", cancelled && "text-muted line-through")}
       >
         {event.title}
       </h2>
-      <p className="sub">{sourceText(event)}</p>
+      <p className="sub wrap-anywhere">{sourceText(event)}</p>
 
       {cancelled ? (
         <p className="callout rose mt-4">
@@ -634,22 +737,30 @@ export function EventDetailContent({
           Evento alterado depois de publicado. Confira a data, o horário e o local.
         </p>
       ) : null}
-
-      <div className="mt-4 grid gap-2 text-[15px] leading-6 text-ink-2">
-        <p className="flex items-start gap-2.5">
-          <CalendarDays className="mt-1 h-4 w-4 shrink-0 text-muted" aria-hidden />
+      {when ? (
+        <p className={cx("callout mt-4 items-center", when.tone)}>
+          <Clock className="h-4 w-4 shrink-0" aria-hidden />
           <span>
-            <span className="font-semibold">{formatEventWhen(event)}</span>
-            {relative ? <span className="text-muted">, {relative}</span> : null}
+            <b className="font-bold">{when.head}</b>
+            {when.tail ? `, ${when.tail}` : null}
           </span>
         </p>
-        {event.location ? (
-          <p className="flex items-start gap-2.5">
-            <MapPin className="mt-1 h-4 w-4 shrink-0 text-muted" aria-hidden />
-            <span>{event.location}</span>
-          </p>
+      ) : null}
+
+      <dl className="info mt-5">
+        <InfoLine icon={CalendarDays} label="Início" value={eventStartLabel(event)} />
+        {endLabel ? <InfoLine icon={Clock} label="Término" value={endLabel} /> : null}
+        {/* o dd do InfoLine (ui.tsx) já quebra palavra longa; o span do Local repete, sem break-words, que o anularia */}
+        {location ? <InfoLine icon={MapPin} label="Local" value={<span className="wrap-anywhere">{location}</span>} /> : null}
+        {event.subject?.name ? <InfoLine icon={BookOpen} label="Disciplina" value={event.subject.name} /> : null}
+        <InfoLine icon={Users} label="Turma" value={event.academicClass?.name ?? "Toda a instituição"} />
+        <InfoLine icon={UserRound} label="Responsável" value={responsible} />
+        {event.points !== null ? (
+          <InfoLine icon={Award} label="Pontuação" value={`${event.points.toLocaleString("pt-BR")} pts (informativa)`} />
         ) : null}
-      </div>
+      </dl>
+
+      {event.description ? <p className="callout past mt-5 whitespace-pre-line wrap-anywhere">{event.description}</p> : null}
 
       {canManage ? (
         <div className="mt-5 grid grid-cols-2 gap-2.5" role="group" aria-label="Ações do evento">
@@ -678,19 +789,6 @@ export function EventDetailContent({
       ) : null}
 
       {reminderBox()}
-
-      {facts.length ? (
-        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-          {facts.map((fact) => (
-            <div key={fact.label} className="min-w-0">
-              <dt className="text-[13px] text-muted">{fact.label}</dt>
-              <dd className="mt-0.5 break-words font-semibold text-ink">{fact.value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-
-      {event.description ? <p className="callout past mt-5 whitespace-pre-line">{event.description}</p> : null}
     </div>
   );
 }

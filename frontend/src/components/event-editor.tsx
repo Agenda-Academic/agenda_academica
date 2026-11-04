@@ -444,8 +444,9 @@ function FormField({
   className?: string;
   children: ReactNode;
 }) {
+  // grid-cols-1: o campo fica na largura dele, mesmo com uma opção comprida sem espaço na lista de escolha
   return (
-    <div className={cx("grid min-w-0 content-start gap-2", className)} data-field="">
+    <div className={cx("grid min-w-0 grid-cols-1 content-start gap-2", className)} data-field="">
       <label className="lbl" htmlFor={id}>
         <span>{label}</span>
         {hint ? <span className="hint">{hint}</span> : null}
@@ -548,7 +549,11 @@ function CategoryPicker({
   );
 }
 
-/** Prévia fiel do evento como aparece na agenda de quem recebe. */
+/**
+ * Prévia fiel do evento como aparece na agenda de quem recebe. Título, turma, local e descrição vêm de
+ * quem escreve: wrap-anywhere faz uma palavra ou um link sem espaço quebrar na largura da prévia, sem
+ * alargar o painel (break-words quebra, mas não reduz a largura mínima).
+ */
 function EventPreview({
   form,
   status,
@@ -579,7 +584,7 @@ function EventPreview({
         <div className="min-w-0 flex-1">
           <p
             className={cx(
-              "break-words text-[15px] font-[650] leading-[1.3]",
+              "text-[15px] font-[650] leading-[1.3] wrap-anywhere",
               status === "cancelled" && "text-muted line-through",
               !form.title.trim() && "text-muted"
             )}
@@ -602,7 +607,7 @@ function EventPreview({
           <ul className="mt-2.5 grid gap-1 text-[13.5px] leading-5 text-ink-3">
             <li className="flex items-start gap-2">
               <BookOpen className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-              <span className="min-w-0">{audience}</span>
+              <span className="min-w-0 wrap-anywhere">{audience}</span>
             </li>
             <li className="flex items-start gap-2">
               <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
@@ -613,18 +618,18 @@ function EventPreview({
             {form.location.trim() ? (
               <li className="flex items-start gap-2">
                 <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-                <span className="min-w-0 break-words">{form.location.trim()}</span>
+                <span className="min-w-0 wrap-anywhere">{form.location.trim()}</span>
               </li>
             ) : null}
             {points ? (
               <li className="flex items-start gap-2">
                 <Trophy className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-                <span>{points}</span>
+                <span className="min-w-0 wrap-anywhere">{points}</span>
               </li>
             ) : null}
           </ul>
           {description ? (
-            <p className="mt-2 line-clamp-2 whitespace-pre-line break-words text-[13px] leading-5 text-muted">
+            <p className="mt-2 line-clamp-2 whitespace-pre-line text-[13px] leading-5 text-muted wrap-anywhere">
               {description}
             </p>
           ) : null}
@@ -758,17 +763,22 @@ export function EventEditor({
     }
   }
 
-  // salvamento demorado: no plano gratuito a API dorme e leva até um minuto para voltar
-  const [slowSave, setSlowSave] = useState(false);
+  // salvamento demorado: no plano gratuito a API dorme e leva até um minuto para voltar. Aos 5 s a nota
+  // diz isso; passado o minuto, ela muda, porque o envio ainda espera até o prazo da API (90 s)
+  const [slowSave, setSlowSave] = useState<"" | "waking" | "late">("");
   if (!saving && slowSave) {
-    setSlowSave(false);
+    setSlowSave("");
   }
   useEffect(() => {
     if (!saving) {
       return;
     }
-    const timer = window.setTimeout(() => setSlowSave(true), 5000);
-    return () => window.clearTimeout(timer);
+    const waking = window.setTimeout(() => setSlowSave("waking"), 5000);
+    const late = window.setTimeout(() => setSlowSave("late"), 60000);
+    return () => {
+      window.clearTimeout(waking);
+      window.clearTimeout(late);
+    };
   }, [saving]);
 
   // envio que acabou sem fechar o painel (sem conexão ou sem resposta no prazo): o rascunho continua
@@ -817,8 +827,9 @@ export function EventEditor({
 
   const title = editingEvent ? "Editar evento" : isAdmin ? "Novo evento oficial" : "Novo evento";
   const dirtyPill = changed ? <span className="pill st-alt">Alterações não salvas</span> : null;
+  // min-w-0: no cabeçalho (uma linha flexível), o título comprido corta com reticência em vez de passar do X
   const subtitle = editingEvent ? (
-    <span className="block">
+    <span className="block min-w-0">
       <span className="block truncate font-semibold text-ink-2">{editingEvent.title}</span>
       <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
         <span>{eventWhenLabel(editingEvent.startsAt, editingEvent.endsAt)}</span>
@@ -827,8 +838,8 @@ export function EventEditor({
       </span>
     </span>
   ) : (audience.label && !blocked) || dirtyPill ? (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      {audience.label && !blocked ? <span>{audience.label}</span> : null}
+    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      {audience.label && !blocked ? <span className="min-w-0 wrap-anywhere">{audience.label}</span> : null}
       {dirtyPill}
     </span>
   ) : undefined;
@@ -1004,10 +1015,17 @@ export function EventEditor({
               ? "Não foi possível salvar agora. Suas alterações continuam aqui."
               : "Não foi possível publicar agora. O que você preencheu continua aqui."}
           </>
+        ) : slowSave === "late" ? (
+          <>
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            {editingEvent
+              ? "Está demorando mais que o normal. Se o servidor não responder, suas alterações continuam aqui."
+              : "Está demorando mais que o normal. Se o servidor não responder, o que você preencheu continua aqui."}
+          </>
         ) : slowSave ? (
           <>
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            O servidor pode estar acordando. Na primeira vez isso leva até 1 minuto.
+            O servidor estava em repouso e está voltando. Isso leva até um minuto.
           </>
         ) : null}
       </p>
@@ -1314,8 +1332,9 @@ function EditorForm({
           ) : null}
         </div>
 
-        <div className="grid gap-5">
-          <p className="text-sm leading-6 text-muted">{helpLine}</p>
+        {/* coluna presa à largura do painel (grid-cols-1): nada aqui dentro faz o painel rolar de lado */}
+        <div className="grid grid-cols-1 gap-5">
+          <p className="text-sm leading-6 text-muted wrap-anywhere">{helpLine}</p>
 
           <FormField
             id={fid("titulo")}
@@ -1416,7 +1435,8 @@ function EditorForm({
               {conflicts.length ? (
                 <div className="callout amber mt-3 px-3.5 py-2.5">
                   <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                  <ul className="grid gap-1">
+                  {/* as linhas trazem títulos e turmas de outros eventos */}
+                  <ul className="grid min-w-0 gap-1 wrap-anywhere">
                     {conflicts.map((line) => (
                       <li key={line}>{line}.</li>
                     ))}
@@ -1549,7 +1569,7 @@ function EditorForm({
             />
           </FormField>
 
-          <section className="grid gap-3 border-t border-line-2 pt-5" aria-labelledby={fid("previa")}>
+          <section className="grid grid-cols-1 gap-3 border-t border-line-2 pt-5" aria-labelledby={fid("previa")}>
             <h3 id={fid("previa")} className="text-[15px] font-bold text-ink">
               {hasClass || !isAdmin ? "Como a turma vai ver" : "Como todos vão ver"}
             </h3>
@@ -1560,7 +1580,7 @@ function EditorForm({
               audience={audience.label ?? "Escolha a disciplina e a turma"}
               past={startIsPast}
             />
-            <p className="callout green">
+            <p className="callout green wrap-anywhere">
               <Eye className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               {previewNote}
             </p>

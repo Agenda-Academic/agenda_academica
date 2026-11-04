@@ -4,23 +4,28 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  CircleCheckBig,
   Clock,
   CloudDownload,
   Copy,
+  File as FileIcon,
+  FileJson,
   FileUp,
   History,
-  ListChecks,
   Loader2,
+  Lock,
   ShieldCheck,
   Undo2,
+  type LucideIcon,
 } from "lucide-react";
-import { Fragment, useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import type { CalendarImportEventInput, CalendarImportInput } from "@/lib/api";
 import { addDays, cx, errorMessage, formatOnDayAt, formatShortDate, formatShortDateTime, formatTime, startOfDay } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, CalendarImport, Category } from "@/lib/types";
-import { InsightTile, delay, isOfficialDate } from "./dashboard-bits";
-import { ConfirmDialog, EmptyState, Field, SectionTitle, type ConfirmState } from "./ui";
+import { delay, isOfficialDate, officialCategories } from "./dashboard-bits";
+import { useSideFit } from "./reminders-view";
+import { ConfirmDialog, EmptyState, type ConfirmState } from "./ui";
 
 /** O que a importação devolve: os eventos criados e o registro da importação. */
 export type ImportResult = { import?: CalendarImport | null; events: AcademicEvent[] };
@@ -542,14 +547,77 @@ function buildTemplate() {
   );
 }
 
+/** "1 institucional, 1 feriado e 1 recesso": as categorias do arquivo, na ordem em que aparecem. */
+function categoryBreakdown(rows: PreviewRow[]) {
+  const counts = new Map<Category, number>();
+  for (const row of rows) {
+    counts.set(row.category, (counts.get(row.category) ?? 0) + 1);
+  }
+  const parts = [...counts].map(([category, count]) => {
+    const meta = categoryMeta[category];
+    return `${count} ${(count === 1 ? meta.short : meta.label).toLowerCase()}`;
+  });
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}` : (parts[0] ?? "");
+}
+
+/** Coluna Origem: o calendário de demonstração, o endereço da fonte ou o JSON. */
+function originOf(item: CalendarImport) {
+  if (item.checksum?.startsWith("demo-")) {
+    return { text: "Demonstração", mono: false };
+  }
+  if (item.sourceUrl) {
+    return { text: item.sourceUrl, mono: true };
+  }
+  return { text: "JSON", mono: false };
+}
+
+/** Situação da importação: desfeita quando trouxe datas e nenhuma está mais no calendário. */
+function importState(item: CalendarImport, current: number) {
+  if (item.status === "failed") {
+    return { label: "Falhou", pill: "st-canc" };
+  }
+  if (!current && item.totalEvents > 0) {
+    return { label: "Desfeita", pill: "st-ag" };
+  }
+  return { label: "Concluída", pill: "st-conc" };
+}
+
+/** Indicador do alto, como no Figma: rótulo, valor curto e dica. */
+function ImportTile({
+  hint,
+  icon: Icon,
+  label,
+  order,
+  tone,
+  value,
+}: {
+  hint: string;
+  icon?: LucideIcon;
+  label: string;
+  order: number;
+  tone?: "ok" | "warn";
+  value: string;
+}) {
+  return (
+    <div className={cx("card kpi rise", tone && `imp-kpi-${tone}`)} style={delay(order)}>
+      <p className="kpi-label">{label}</p>
+      <p className="imp-kpi-val">
+        {Icon ? <Icon className="h-[22px] w-[22px] shrink-0" aria-hidden /> : null}
+        {value}
+      </p>
+      <p className="kpi-hint wrap-anywhere">{hint}</p>
+    </div>
+  );
+}
+
 function DateList({ items }: { items: Array<{ key: string | number; title: string; category: Category; start: Date; end: Date | null }> }) {
   return (
-    <ul className="grid gap-1.5">
+    <ul className="grid grid-cols-1 gap-1.5">
       {items.map((item) => {
         const meta = categoryMeta[item.category];
         return (
           <li key={item.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line-2 bg-white px-3 py-2 text-sm">
-            <span className="min-w-0 flex-1 basis-40 font-bold text-ink">{item.title}</span>
+            <span className="min-w-0 flex-1 basis-40 font-bold text-ink wrap-anywhere">{item.title}</span>
             <span className="text-ink-3">{rangeLabel(item.start, item.end)}</span>
             {meta ? <span className={cx("pill", meta.tint)}>{meta.short}</span> : null}
           </li>
@@ -558,6 +626,11 @@ function DateList({ items }: { items: Array<{ key: string | number; title: strin
     </ul>
   );
 }
+
+const byStart = (a: AcademicEvent, b: AcademicEvent) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+
+/** Quantas importações a tabela mostra antes do "Ver todas (N)". */
+const IMPORTS_PREVIEW = 5;
 
 export function SyncView({
   events,
@@ -574,7 +647,7 @@ export function SyncView({
   imports: CalendarImport[];
   isAdmin: boolean;
   saving: boolean;
-  /** Dados do "Usar dados de exemplo". Sem ele, a tela monta um exemplo próprio. */
+  /** Dados da "Importação de demonstração". Sem ele, a tela monta um exemplo próprio. */
   demoPayload?: CalendarImportInput;
   /** Importa e devolve o resultado; o texto colado só é limpo quando der certo. */
   onImport?: (payload: CalendarImportInput) => Promise<ImportOutcome>;
@@ -588,6 +661,14 @@ export function SyncView({
   const textId = `${baseId}-json`;
   const statusId = `${baseId}-status`;
   const formatId = `${baseId}-formato`;
+  const demoTitleId = `${baseId}-demo`;
+  const jsonTitleId = `${baseId}-json-titulo`;
+  const resultTitleId = `${baseId}-resultado`;
+  const accessId = `${baseId}-acesso`;
+  const prioId = `${baseId}-prioridade`;
+  const fieldsId = `${baseId}-campos`;
+  const histId = `${baseId}-historico`;
+  const restrictedId = `${baseId}-restrito`;
 
   const [text, setText] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -605,12 +686,21 @@ export function SyncView({
   // horário de referência fixado na montagem (render precisa ser puro)
   const [now] = useState(() => Date.now());
   const [template] = useState(buildTemplate);
+  // "Ver todas (N)": a tabela mostra as últimas importações e abre o resto ali mesmo
+  const [showAllImports, setShowAllImports] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
   const resultRef = useRef<HTMLElement>(null);
   const previewRef = useRef<HTMLHeadingElement>(null);
   const rowButtons = useRef(new Map<number, HTMLButtonElement>());
   const focusAfterConfirm = useRef<HTMLElement | null>(null);
+  const moreImportsRef = useRef<HTMLButtonElement>(null);
+  // tabela que acabou de abrir (com a primeira importação que apareceu) ou de fechar
+  const importsToggled = useRef<{ firstNew: number | null } | null>(null);
+  // a coluna lateral termina junto do card do JSON (ou fica parada no alto, se ele for bem mais alto)
+  const mainColRef = useRef<HTMLDivElement>(null);
+  const { sideRef, gapRef, stuck } = useSideFit(mainColRef, isAdmin);
 
   const busy = importing || saving;
   const check = useMemo(() => validateImport(text, events, now), [text, events, now]);
@@ -621,7 +711,10 @@ export function SyncView({
   const pastChosen = chosen.filter((row) => row.past).length;
   const canImport = check.status === "ok" && chosen.length > 0;
 
-  // mesmo calendário já importado: vale o que ainda tem datas no calendário; se todas saíram, foi desfeito
+  // datas que a importação ainda tem no calendário
+  const datesOf = (item: CalendarImport) => events.filter((event) => event.calendarImportId === item.id).sort(byStart);
+  // mesmo calendário já importado: só é repetido se ainda tem datas no calendário;
+  // se todas as datas saíram, a importação foi desfeita e o aviso diz isso
   const sameSource =
     check.status === "ok"
       ? imports.filter(
@@ -630,11 +723,10 @@ export function SyncView({
             (check.namedSource && normalize(item.sourceName) === normalize(check.sourceName))
         )
       : [];
-  const hasDates = (item: CalendarImport) => events.some((event) => event.calendarImportId === item.id);
-  const previous = sameSource.find(hasDates) ?? sameSource[0] ?? null;
-  const previousUndone = previous !== null && previous.totalEvents > 0 && !hasDates(previous);
+  const previous = sameSource.find((item) => datesOf(item).length > 0) ?? null;
+  const undonePrevious = previous ? null : (sameSource.find((item) => item.totalEvents > 0) ?? null);
 
-  // mesma regra do Painel e do Cronograma ("Datas oficiais à frente")
+  // mesma regra do Painel e do Cronograma (datas oficiais à frente)
   const officialAhead = events.filter(
     (event) =>
       isOfficialDate(event) &&
@@ -642,11 +734,12 @@ export function SyncView({
       event.status !== "completed" &&
       new Date(event.startsAt).getTime() >= now
   ).length;
+  const upToDate = officialAhead > 0;
   const lastImport = imports[0] ?? null;
   const resultPast = lastResult
     ? lastResult.events.filter((event) => new Date(event.endsAt ?? event.startsAt).getTime() < now).length
     : 0;
-  // desfeita por outro caminho (aviso com Desfazer ou histórico): a importação já está na lista e não tem mais datas
+  // desfeita por outro caminho (aviso com Desfazer ou tabela): a importação já está na lista e não tem mais datas
   const resultUndone = lastResult
     ? lastResult.undone ||
       (lastResult.importId !== null &&
@@ -675,15 +768,71 @@ export function SyncView({
     }
   }, [confirm]);
 
+  // "Ver todas": o foco vai para a primeira importação que apareceu; "Mostrar menos": o botão continua à vista
+  useEffect(() => {
+    const target = importsToggled.current;
+    if (!target) {
+      return;
+    }
+    importsToggled.current = null;
+    const first = target.firstNew !== null ? rowButtons.current.get(target.firstNew) : null;
+    if (first) {
+      first.focus();
+    } else {
+      moreImportsRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [showAllImports]);
+
+  // o campo cresce com o texto, e quem rola é a página. Sem field-sizing no navegador, a altura vem do
+  // texto por aqui (sem o crescimento que o card esticado dá, para medir só o texto)
+  useLayoutEffect(() => {
+    const field = textRef.current;
+    if (!field || typeof CSS === "undefined" || CSS.supports("field-sizing", "content")) {
+      return;
+    }
+    const fit = () => {
+      field.style.flexGrow = "0";
+      field.style.height = "auto";
+      const borders = field.offsetHeight - field.clientHeight;
+      field.style.height = `${field.scrollHeight + borders}px`;
+      field.style.flexGrow = "";
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [text, isAdmin]);
+
+  function toggleImports() {
+    const open = !showAllImports;
+    importsToggled.current = { firstNew: open ? (imports[IMPORTS_PREVIEW]?.id ?? null) : null };
+    setShowAllImports(open);
+  }
+
   function changeText(value: string) {
     setText(value);
     setSubmitError(null);
+    // texto novo: o resultado da importação anterior sai de baixo do campo
+    setLastResult(null);
   }
 
-  function fillExample() {
+  /** "Importar calendário de demonstração": os dados de exemplo entram no campo e a prévia abre para conferir. */
+  function loadDemo() {
+    if (busy) {
+      return;
+    }
     changeText(JSON.stringify(demoPayload ?? buildDemoPayload(), null, 2));
     setPicked({});
     setFileNote(null);
+    setPreviewOpen(true);
+    setPreviewFocus((value) => value + 1);
+  }
+
+  function clearText() {
+    changeText("");
+    setPicked({});
+    setFileNote(null);
+    setPreviewOpen(false);
+    textRef.current?.focus();
   }
 
   async function readFile(event: ChangeEvent<HTMLInputElement>) {
@@ -708,9 +857,9 @@ export function SyncView({
   async function copyTemplate() {
     try {
       await navigator.clipboard.writeText(template);
-      setCopyNote("Modelo copiado. Cole no campo acima e troque pelos dados do calendário.");
+      setCopyNote("Modelo copiado. Cole em Conteúdo JSON e troque pelos dados do calendário.");
     } catch {
-      setCopyNote("Não foi possível copiar. Selecione o modelo abaixo e copie.");
+      setCopyNote("Não foi possível copiar. Selecione o modelo acima e copie.");
     }
   }
 
@@ -718,6 +867,7 @@ export function SyncView({
     if (check.status !== "ok") {
       return;
     }
+    setLastResult(null);
     setPreviewOpen(true);
     setPreviewFocus((value) => value + 1);
   }
@@ -800,70 +950,126 @@ export function SyncView({
     );
   }
 
-  const tiles = (
-    <div className={cx("grid gap-4", isAdmin && "sm:grid-cols-2")}>
-      {isAdmin ? (
-        <InsightTile
-          icon={History}
-          label="Última importação"
-          value={lastImport ? dayLabel(lastImport.importedAt, now) : "Nunca"}
-          tone="c-ativ"
-          hint={lastImport ? `às ${formatTime(lastImport.importedAt)}, ${lastImport.sourceName}` : "Nenhuma importação ainda."}
-          order={0}
-        />
-      ) : null}
-      <InsightTile
-        icon={ShieldCheck}
-        label="Datas oficiais à frente"
-        value={String(officialAhead)}
-        tone="c-inst"
-        hint="Datas oficiais aparecem para todas as turmas."
-        order={1}
-      />
-    </div>
-  );
-
   if (!isAdmin) {
+    // a tela é da administração; quem chega aqui por outro caminho vê o porquê (Figma, Estados e feedback)
     return (
-      <div className="grid gap-5">
-        {tiles}
-        <section className="card pad rise" style={delay(2)} aria-label="Importar calendário">
-          <SectionTitle title="Importar calendário" subtitle="Só a administração importa o calendário oficial." />
-          <p className="callout blue mt-4">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            As datas oficiais já aparecem no Cronograma para todas as turmas.
-          </p>
-        </section>
-      </div>
+      <section className="card pad rise" aria-labelledby={restrictedId}>
+        <div className="empty-inline">
+          <span className="empty-ico imp-lock">
+            <Lock className="h-6 w-6" aria-hidden />
+          </span>
+          <h2 id={restrictedId} className="mt-1.5 text-[15px] font-bold text-ink">
+            Só a administração importa datas oficiais
+          </h2>
+          <p className="max-w-sm text-sm leading-5 text-muted">Você continua vendo o calendário oficial no cronograma.</p>
+          {onOpenCalendar ? (
+            <button className="btn btn-s btn-sm mt-2" onClick={() => onOpenCalendar({ categories: officialCategories })} type="button">
+              Abrir cronograma
+            </button>
+          ) : null}
+        </div>
+      </section>
     );
   }
 
-  const statusTone = check.status === "ok" ? "font-semibold text-brand-ink" : "";
-  const statusText =
-    check.status === "empty"
-      ? "Cole o conteúdo do arquivo, escolha um arquivo .json ou use os dados de exemplo."
-      : check.status === "error"
-        ? check.message
-        : `${datesLabel(rows.length)} ${rows.length === 1 ? "pronta" : "prontas"} para conferir.${
-            duplicates ? ` ${duplicates === 1 ? "1 já existe" : `${duplicates} já existem`} no calendário.` : ""
-          }`;
+  const statusBlock =
+    check.status === "empty" ? (
+      <p className="field-help">Cole o conteúdo do arquivo ou escolha um arquivo .json.</p>
+    ) : check.status === "error" ? (
+      <p className="callout rose mt-3">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <span className="min-w-0 wrap-anywhere">{check.message}</span>
+      </p>
+    ) : (
+      <p className="callout green mt-3">
+        <CircleCheckBig className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <span>
+          <b>JSON válido.</b>{" "}
+          {duplicates
+            ? `${datesLabel(rows.length)} no arquivo: ${categoryBreakdown(rows)}. ${
+                duplicates === 1 ? "1 já existe" : `${duplicates} já existem`
+              } no calendário.`
+            : `${datesLabel(rows.length)} ${rows.length === 1 ? "pronta" : "prontas"} para importar: ${categoryBreakdown(rows)}.`}
+        </span>
+      </p>
+    );
 
   return (
     <div className="grid gap-5">
-      {tiles}
+      <div className="kpis">
+        <ImportTile label="Fonte" value="IFMS, Reitoria" hint="calendário letivo oficial" order={0} />
+        <ImportTile
+          label="Última importação"
+          value={lastImport ? dayLabel(lastImport.importedAt, now) : "Nunca"}
+          hint={lastImport ? `às ${formatTime(lastImport.importedAt)}, ${lastImport.sourceName}` : "nenhuma importação ainda"}
+          order={1}
+        />
+        <ImportTile
+          label="Eventos oficiais"
+          value={`${officialAhead} ${officialAhead === 1 ? "futuro" : "futuros"}`}
+          hint="visíveis para todas as turmas"
+          order={2}
+        />
+        <ImportTile
+          label="Situação"
+          value={upToDate ? "Em dia" : "Falta importar"}
+          hint={upToDate ? "nenhuma pendência de importação" : "nenhum evento oficial à frente"}
+          icon={upToDate ? CircleCheckBig : AlertTriangle}
+          tone={upToDate ? "ok" : "warn"}
+          order={3}
+        />
+      </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <section className="card pad rise min-w-0" style={delay(2)} aria-label="Importar calendário">
-          <SectionTitle title="Importar calendário" subtitle="Datas oficiais aparecem para todas as turmas." />
+      {/* o card do JSON e a coluna lateral terminam juntos: o mais baixo estica (o campo cresce, ou a sobra fica no pé de Campos aceitos) */}
+      <div className={cx("tela-cols", stuck && "is-stuck")}>
+        <div ref={mainColRef} className="tela-main">
+          <section className="card pad rise imp-demo" style={delay(4)} aria-labelledby={demoTitleId}>
+            <span className="imp-ico" aria-hidden>
+              <CloudDownload className="h-6 w-6" />
+            </span>
+            <div className="imp-demo-text">
+              <h2 className="h2" id={demoTitleId}>
+                Importação de demonstração
+              </h2>
+              <p className="sub">Carrega um conjunto de datas institucionais de exemplo para testes e apresentações.</p>
+            </div>
+            <button
+              className="btn btn-p aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
+              aria-disabled={busy || undefined}
+              onClick={loadDemo}
+              type="button"
+            >
+              <CloudDownload className="h-4 w-4" aria-hidden />
+              Importar calendário de demonstração
+            </button>
+          </section>
 
-          <div className="mt-5 grid gap-4">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-              <button className="btn btn-s" onClick={() => fileRef.current?.click()} type="button">
+          <section className="card pad rise imp-json-card min-w-0" style={delay(5)} aria-labelledby={jsonTitleId}>
+            <div className="flex min-w-0 items-start gap-[18px]">
+              <span className="imp-ico json" aria-hidden>
+                <FileJson className="h-6 w-6" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="h2" id={jsonTitleId}>
+                  Importar JSON personalizado
+                </h2>
+                <p className="sub">Cole o calendário exportado pela reitoria ou escolha o arquivo. Os dados são validados antes de gravar.</p>
+              </div>
+            </div>
+
+            {/* rótulo e formato à esquerda; o arquivo .json, à direita, logo acima do campo */}
+            <div className="mt-[18px] flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+                <label htmlFor={textId} className="lbl">
+                  Conteúdo JSON
+                </label>
+                <span className="font-mono text-[13px] text-muted" aria-hidden>
+                  {'{ "sourceName", "events": [...] }'}
+                </span>
+              </span>
+              <button className="btn btn-s btn-sm" onClick={() => fileRef.current?.click()} type="button">
                 <FileUp className="h-4 w-4" aria-hidden />
                 Escolher arquivo .json
-              </button>
-              <button className="link min-h-11" onClick={fillExample} type="button">
-                Usar dados de exemplo
               </button>
               <input
                 ref={fileRef}
@@ -878,64 +1084,53 @@ export function SyncView({
             {fileNote ? (
               <p
                 role={fileNote.tone === "err" ? "alert" : "status"}
-                className={cx("text-sm", fileNote.tone === "err" ? "font-semibold text-[var(--danger)]" : "text-ink-3")}
+                className={cx("mt-2 text-sm wrap-anywhere", fileNote.tone === "err" ? "font-semibold text-[var(--danger)]" : "text-ink-3")}
               >
                 {fileNote.text}
               </p>
             ) : null}
-
-            <div>
-              <Field label="Dados do calendário (JSON)" hint="cole o texto do arquivo">
-                <textarea
-                  id={textId}
-                  className="input field-sizing-content min-h-44 max-h-[32rem] font-mono text-[13px]"
-                  value={text}
-                  onChange={(event) => changeText(event.target.value)}
-                  placeholder="Cole aqui o conteúdo do arquivo do calendário."
-                  aria-describedby={`${statusId} ${formatId}`}
-                  aria-invalid={check.status === "error" ? true : undefined}
-                  spellCheck={false}
-                />
-              </Field>
-              <p
-                id={statusId}
-                aria-live="polite"
-                className={check.status === "error" ? "field-error" : cx("field-help flex items-start gap-1.5", statusTone)}
-              >
-                {check.status === "ok" ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
-                {check.status === "error" ? <AlertTriangle aria-hidden /> : null}
-                <span>{statusText}</span>
-              </p>
-              <p id={formatId} className="field-help">
-                Cada data precisa de title, category e startsAt. Veja abaixo como montar o arquivo.
-              </p>
+            <textarea
+              ref={textRef}
+              id={textId}
+              className="input imp-json mt-2"
+              value={text}
+              onChange={(event) => changeText(event.target.value)}
+              placeholder="Cole aqui o conteúdo do arquivo do calendário."
+              aria-describedby={`${statusId} ${formatId}`}
+              aria-invalid={check.status === "error" ? true : undefined}
+              spellCheck={false}
+            />
+            <div id={statusId} aria-live="polite">
+              {statusBlock}
             </div>
+            <p id={formatId} className="sr-only">
+              Cada data precisa de title, category e startsAt. Os campos estão em Campos aceitos.
+            </p>
 
             {!previewOpen ? (
-              <div>
+              <div className="mt-3.5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
                 <button className="btn btn-p w-full sm:w-auto" disabled={check.status !== "ok" || busy} onClick={openPreview} type="button">
-                  <ListChecks className="h-4 w-4" aria-hidden />
-                  Conferir datas
+                  <FileIcon className="h-4 w-4" aria-hidden />
+                  Validar e importar JSON
                 </button>
+                {text ? (
+                  <button className="btn btn-s w-full sm:w-auto" onClick={clearText} type="button">
+                    Limpar
+                  </button>
+                ) : null}
               </div>
             ) : (
-              <div className="grid gap-3 rounded-2xl border border-line-2 bg-surface-2 p-4">
+              <div className="mt-4 grid grid-cols-1 gap-3 rounded-2xl border border-line-2 bg-surface-2 p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <h3 ref={previewRef} tabIndex={-1} className="text-[16px] font-bold outline-none">
                     Conferir datas
                   </h3>
-                  {check.status === "ok" ? <p className="text-sm text-ink-3">Fonte: {check.sourceName}</p> : null}
+                  {check.status === "ok" ? <p className="min-w-0 text-sm text-ink-3 wrap-anywhere">Fonte: {check.sourceName}</p> : null}
                 </div>
 
                 {check.status === "ok" ? (
                   <>
-                    {previous && previousUndone ? (
-                      // as datas daquela importação saíram do calendário: não há repetida a evitar
-                      <p className="callout blue">
-                        <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                        <span>Esse calendário foi importado {formatOnDayAt(previous.importedAt)} e depois desfeito.</span>
-                      </p>
-                    ) : previous ? (
+                    {previous ? (
                       <p className="callout amber">
                         <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                         <span>
@@ -943,13 +1138,22 @@ export function SyncView({
                           {duplicates ? " As datas que já existem ficaram desmarcadas." : ""}
                         </span>
                       </p>
+                    ) : undonePrevious ? (
+                      // as datas daquela importação saíram do calendário: não há repetida a evitar
+                      <p className="callout blue">
+                        <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                        <span>Esse calendário foi importado {formatOnDayAt(undonePrevious.importedAt)} e depois desfeito.</span>
+                      </p>
                     ) : null}
-                    <ul className="grid gap-2">
+                    <ul className="grid grid-cols-1 gap-2">
                       {rows.map((row) => {
                         const meta = categoryMeta[row.category];
                         const inputId = `${baseId}-linha-${row.index}`;
                         return (
-                          <li key={row.key} className={cx("flex items-start gap-3 rounded-xl border bg-white p-3", isPicked(row) ? "border-line" : "border-line-2")}>
+                          <li
+                            key={row.key}
+                            className={cx("flex items-start gap-3 rounded-xl border bg-white p-3", isPicked(row) ? "border-line" : "border-line-2")}
+                          >
                             <input
                               id={inputId}
                               type="checkbox"
@@ -959,7 +1163,7 @@ export function SyncView({
                               onChange={(event) => setPicked((current) => ({ ...current, [row.key]: event.target.checked }))}
                             />
                             <label htmlFor={inputId} className="min-w-0 flex-1 cursor-pointer">
-                              <span className={cx("block text-[15px] font-bold leading-snug", !isPicked(row) && "text-ink-3")}>{row.title}</span>
+                              <span className={cx("block text-[15px] font-bold leading-snug wrap-anywhere", !isPicked(row) && "text-ink-3")}>{row.title}</span>
                               <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-ink-3">
                                 <span className={cx("pill", meta.tint)}>{meta.short}</span>
                                 <span>{rangeLabel(row.start, row.end)}</span>
@@ -982,7 +1186,9 @@ export function SyncView({
                         ? `${datesLabel(rows.length)} para importar.`
                         : `${chosen.length} de ${datesLabel(rows.length)} marcadas para importar.`}
                       {duplicates && !chosen.length ? " Todas já existem. Marque alguma se quiser importar mesmo assim." : ""}
-                      {pastChosen ? ` ${pastChosen === 1 ? "1 data já passou e aparece" : `${pastChosen} datas já passaram e aparecem`} só em Passados.` : ""}
+                      {pastChosen
+                        ? ` ${pastChosen === 1 ? "1 data já passou e aparece" : `${pastChosen} datas já passaram e aparecem`} só em Passados.`
+                        : ""}
                     </p>
                   </>
                 ) : (
@@ -997,7 +1203,7 @@ export function SyncView({
                 {submitError ? (
                   <div role="alert" className="callout rose">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                    <span>
+                    <span className="min-w-0 wrap-anywhere">
                       <b className="block">A importação não foi feita. O texto continua no campo.</b>
                       {submitError}
                     </span>
@@ -1028,53 +1234,129 @@ export function SyncView({
               </div>
             )}
 
-            <details className="group rounded-2xl border border-line-2 px-4 py-3">
-              <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-3 text-[14.5px] font-bold [&::-webkit-details-marker]:hidden">
-                Como montar o arquivo
+            {lastResult ? (
+              <section
+                ref={resultRef}
+                tabIndex={-1}
+                className={cx(
+                  "mt-4 rounded-2xl border p-4 outline-none",
+                  resultUndone ? "border-line-2 bg-surface-2" : "border-brand-200 bg-brand-50"
+                )}
+                aria-labelledby={resultTitleId}
+              >
+                <div className="flex items-start gap-3">
+                  <span className={cx("kpi-ico shrink-0", resultUndone ? "c-ativ" : "bg-white")}>
+                    {resultUndone ? <Undo2 className="h-[18px] w-[18px]" aria-hidden /> : <CheckCircle2 className="h-[18px] w-[18px]" aria-hidden />}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 id={resultTitleId} className="text-[16px] font-bold">
+                      {resultUndone ? "Importação desfeita" : `${datesLabel(resultCount)} ${resultCount === 1 ? "importada" : "importadas"}`}
+                    </h3>
+                    <p className="sub !mt-0.5 wrap-anywhere">
+                      {resultUndone
+                        ? `As datas de "${lastResult.sourceName}" saíram do calendário.`
+                        : `De "${lastResult.sourceName}", ${formatOnDayAt(lastResult.importedAt)}.`}
+                    </p>
+                  </div>
+                </div>
+
+                {!resultUndone && lastResult.events.length ? (
+                  <>
+                    <div className="mt-4">
+                      <DateList
+                        items={[...lastResult.events].sort(byStart).map((event) => ({
+                          key: event.id,
+                          title: event.title,
+                          category: event.category,
+                          start: new Date(event.startsAt),
+                          end: event.endsAt ? new Date(event.endsAt) : null,
+                        }))}
+                      />
+                    </div>
+                    {resultPast ? (
+                      <p className="callout amber mt-3">
+                        <Clock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                        {resultPast === 1 ? "1 data já passou e aparece só em Passados." : `${resultPast} datas já passaram e aparecem só em Passados.`}
+                      </p>
+                    ) : null}
+                    <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+                      {onOpenCalendar ? (
+                        <button
+                          className="btn btn-s w-full sm:w-auto"
+                          onClick={() => onOpenCalendar({ categories: [...new Set(lastResult.events.map((event) => event.category))] })}
+                          type="button"
+                        >
+                          Ver no cronograma
+                        </button>
+                      ) : null}
+                      {onUndoImport ? (
+                        <button className="btn btn-danger w-full sm:w-auto" disabled={busy} onClick={undoLastResult} type="button">
+                          <Undo2 className="h-4 w-4" aria-hidden />
+                          Desfazer importação
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
+                ) : null}
+              </section>
+            ) : null}
+          </section>
+        </div>
+
+        <div ref={sideRef} className="tela-side">
+          <section className="card pad rise" style={delay(6)} aria-labelledby={accessId}>
+            <div className="flex items-start gap-3.5">
+              <span className="kpi-ico imp-night shrink-0" aria-hidden>
+                <ShieldCheck className="h-[18px] w-[18px]" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="h2" id={accessId}>
+                  Acesso liberado
+                </h2>
+                <p className="sub">Somente a administração pode importar datas oficiais.</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="card pad rise" style={delay(7)} aria-labelledby={prioId}>
+            <h2 className="kpi-label" id={prioId}>
+              Regra de prioridade
+            </h2>
+            <p className="imp-prio-n">{officialAhead}</p>
+            <p className="imp-prio-t">{officialAhead === 1 ? "evento oficial atual" : "eventos oficiais atuais"}</p>
+            <p className="sub">Datas oficiais aparecem para todas as turmas. Quem marca um evento no mesmo dia vê um aviso de conflito.</p>
+          </section>
+
+          <section className="card pad rise" style={delay(8)} aria-labelledby={fieldsId}>
+            <h2 className="h2" id={fieldsId}>
+              Campos aceitos
+            </h2>
+            <dl className="info imp-fields">
+              <dt>title</dt>
+              <dd>Título da data</dd>
+              <dt>category</dt>
+              <dd>
+                institucional, feriado ou recesso
+                <span className="imp-opt block">também prova, trabalho, atividade e extracurricular, em português ou inglês</span>
+              </dd>
+              <dt>startsAt</dt>
+              <dd>Data/hora de início (AAAA-MM-DD ou DD/MM/AAAA)</dd>
+              <dt>endsAt</dt>
+              <dd>
+                Término <span className="imp-opt">opcional</span>
+              </dd>
+            </dl>
+            {/* fica com a sobra quando a coluna estica para terminar junto do card do JSON */}
+            <div ref={gapRef} className="tela-gap" aria-hidden />
+            <details className="group mt-4 rounded-xl border border-line-2 px-3.5 py-2">
+              <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold [&::-webkit-details-marker]:hidden">
+                Ver modelo de arquivo
                 <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden />
               </summary>
-              <div className="mt-3 grid gap-3 text-sm leading-6 text-ink-3">
-                <p>Um objeto com o nome da fonte e a lista de datas. Também vale colar só a lista.</p>
-                <div className="rounded-xl border border-line">
-                  <table className="tbl">
-                    <thead>
-                      <tr>
-                        <th scope="col">Campo</th>
-                        <th scope="col">Como preencher</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="font-mono">sourceName</td>
-                        <td>Nome da fonte, de 3 a 120 caracteres. Opcional.</td>
-                      </tr>
-                      <tr>
-                        <td className="font-mono">events</td>
-                        <td>Lista com as datas. Obrigatório.</td>
-                      </tr>
-                      <tr>
-                        <td className="font-mono">title</td>
-                        <td>Título da data, de 3 a 140 caracteres. Obrigatório.</td>
-                      </tr>
-                      <tr>
-                        <td className="font-mono">category</td>
-                        <td>{categoryHelp}. Obrigatório.</td>
-                      </tr>
-                      <tr>
-                        <td className="font-mono">startsAt</td>
-                        <td>Início: {dateHelp}. Obrigatório.</td>
-                      </tr>
-                      <tr>
-                        <td className="font-mono">endsAt</td>
-                        <td>Término, no mesmo formato e depois do início. Só o dia vale até 23:59. Opcional.</td>
-                      </tr>
-                      <tr>
-                        <td className="font-mono">description, location</td>
-                        <td>Descrição e local. Opcionais.</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+              <div className="mb-1.5 mt-2 grid gap-3">
+                <pre className="whitespace-pre-wrap break-words rounded-xl border border-line bg-surface-2 p-3 font-mono text-[13px] leading-5 text-ink-2">
+                  {template}
+                </pre>
                 <div className="flex flex-wrap items-center gap-3">
                   <button className="btn btn-s btn-sm" onClick={() => void copyTemplate()} type="button">
                     <Copy className="h-3.5 w-3.5" aria-hidden />
@@ -1086,204 +1368,162 @@ export function SyncView({
                     </span>
                   ) : null}
                 </div>
-                <pre className="whitespace-pre-wrap break-words rounded-xl border border-line bg-surface-2 p-3 font-mono text-[12.5px] leading-5 text-ink-2">
-                  {template}
-                </pre>
               </div>
             </details>
-          </div>
-        </section>
-
-        <div className="flex min-w-0 flex-col gap-5">
-          {lastResult ? (
-            <section
-              ref={resultRef}
-              tabIndex={-1}
-              className="card pad rise outline-none"
-              aria-label={resultUndone ? "Importação desfeita" : "Resultado da importação"}
-            >
-              <div className="flex items-start gap-3">
-                <span className={cx("kpi-ico shrink-0", resultUndone && "c-ativ")}>
-                  {resultUndone ? <Undo2 className="h-[18px] w-[18px]" aria-hidden /> : <CheckCircle2 className="h-[18px] w-[18px]" aria-hidden />}
-                </span>
-                <div className="min-w-0">
-                  <h2 className="h2">
-                    {resultUndone ? "Importação desfeita" : `${datesLabel(resultCount)} ${resultCount === 1 ? "importada" : "importadas"}`}
-                  </h2>
-                  <p className="sub">
-                    {resultUndone
-                      ? `As datas de "${lastResult.sourceName}" saíram do calendário.`
-                      : `De "${lastResult.sourceName}", ${formatOnDayAt(lastResult.importedAt)}.`}
-                  </p>
-                </div>
-              </div>
-
-              {!resultUndone && lastResult.events.length ? (
-                <>
-                  <div className="mt-4">
-                    <DateList
-                      items={[...lastResult.events]
-                        .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
-                        .map((event) => ({
-                          key: event.id,
-                          title: event.title,
-                          category: event.category,
-                          start: new Date(event.startsAt),
-                          end: event.endsAt ? new Date(event.endsAt) : null,
-                        }))}
-                    />
-                  </div>
-                  {resultPast ? (
-                    <p className="callout amber mt-3">
-                      <Clock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                      {resultPast === 1 ? "1 data já passou e aparece só em Passados." : `${resultPast} datas já passaram e aparecem só em Passados.`}
-                    </p>
-                  ) : null}
-                  <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
-                    {onOpenCalendar ? (
-                      <button
-                        className="btn btn-s w-full sm:w-auto"
-                        onClick={() => onOpenCalendar({ categories: [...new Set(lastResult.events.map((event) => event.category))] })}
-                        type="button"
-                      >
-                        Ver no cronograma
-                      </button>
-                    ) : null}
-                    {onUndoImport ? (
-                      <button className="btn btn-danger w-full sm:w-auto" disabled={busy} onClick={undoLastResult} type="button">
-                        <Undo2 className="h-4 w-4" aria-hidden />
-                        Desfazer importação
-                      </button>
-                    ) : null}
-                  </div>
-                </>
-              ) : null}
-            </section>
-          ) : null}
-
-          <section className="card pad rise flex-1" style={delay(3)} aria-label="Importações">
-            <SectionTitle title="Importações" subtitle="Abra uma importação para ver as datas que ela trouxe." />
-            {imports.length ? (
-              <div className="mt-4 rounded-2xl border border-line">
-                <table className="tbl">
-                  <thead>
-                    <tr>
-                      <th scope="col" className="px-3 @min-[400px]:px-4">
-                        Fonte
-                      </th>
-                      <th scope="col" className="hidden whitespace-nowrap px-3 @min-[400px]:table-cell @min-[400px]:px-4">
-                        Importado em
-                      </th>
-                      <th scope="col" className="px-3 text-right @min-[400px]:px-4">
-                        Datas
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {imports.map((item) => {
-                      const current = events
-                        .filter((event) => event.calendarImportId === item.id)
-                        .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
-                      const open = openImportId === item.id;
-                      const detailsId = `${baseId}-importacao-${item.id}`;
-                      return (
-                        <Fragment key={item.id}>
-                          <tr className={cx(open && "bg-surface-2")}>
-                            <td className="px-3 @min-[400px]:px-4">
-                              <button
-                                ref={(node) => {
-                                  if (node) {
-                                    rowButtons.current.set(item.id, node);
-                                  } else {
-                                    rowButtons.current.delete(item.id);
-                                  }
-                                }}
-                                className="flex w-full items-start gap-2 rounded-lg text-left"
-                                aria-expanded={open}
-                                aria-controls={detailsId}
-                                onClick={() => setOpenImportId(open ? null : item.id)}
-                                type="button"
-                              >
-                                <ChevronDown className={cx("mt-0.5 h-4 w-4 shrink-0 text-muted transition", open && "rotate-180")} aria-hidden />
-                                <span className="min-w-0">
-                                  <span className="t block break-words">{item.sourceName}</span>
-                                  <span className="s block @min-[400px]:hidden">{formatShortDateTime(item.importedAt)}</span>
-                                  <span className="mt-1.5 flex flex-wrap gap-1.5">
-                                    <span className="pill stat">
-                                      {item.status === "failed" ? "Falhou" : current.length || !item.totalEvents ? "Concluída" : "Desfeita"}
-                                    </span>
-                                  </span>
-                                </span>
-                              </button>
-                            </td>
-                            <td className="hidden whitespace-nowrap px-3 @min-[400px]:table-cell @min-[400px]:px-4">
-                              {formatShortDateTime(item.importedAt)}
-                            </td>
-                            <td className="whitespace-nowrap px-3 text-right @min-[400px]:px-4">
-                              {current.length} de {item.totalEvents}
-                            </td>
-                          </tr>
-                          {open ? (
-                            <tr id={detailsId} className="bg-surface-2">
-                              <td colSpan={3} className="px-3 pt-0 @min-[400px]:px-4">
-                                {current.length ? (
-                                  <div className="grid gap-3">
-                                    <DateList
-                                      items={current.map((event) => ({
-                                        key: event.id,
-                                        title: event.title,
-                                        category: event.category,
-                                        start: new Date(event.startsAt),
-                                        end: event.endsAt ? new Date(event.endsAt) : null,
-                                      }))}
-                                    />
-                                    {onUndoImport ? (
-                                      <div>
-                                        <button
-                                          className="btn btn-danger btn-sm"
-                                          disabled={busy}
-                                          onClick={() =>
-                                            askUndo(
-                                              current.map((event) => event.id),
-                                              current.map((event) => event.title),
-                                              item.sourceName,
-                                              () => {
-                                                focusAfterConfirm.current = rowButtons.current.get(item.id) ?? null;
-                                              }
-                                            )
-                                          }
-                                          type="button"
-                                        >
-                                          <Undo2 className="h-3.5 w-3.5" aria-hidden />
-                                          Desfazer importação
-                                        </button>
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-ink-3">
-                                    {item.totalEvents
-                                      ? "As datas desta importação não estão mais no calendário."
-                                      : "Esta importação não trouxe datas."}
-                                  </p>
-                                )}
-                              </td>
-                            </tr>
-                          ) : null}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="mt-4">
-                <EmptyState icon={History} text="Nenhuma importação ainda." hint="Use os dados de exemplo para testar a importação." />
-              </div>
-            )}
           </section>
         </div>
       </div>
+
+      <section className="card rise imp-hist" style={delay(9)} aria-labelledby={histId}>
+        <div className="imp-hist-head">
+          <h2 className="h2" id={histId}>
+            Importações realizadas
+          </h2>
+          {imports.length ? <p className="sub">Abra uma importação para ver as datas que ela trouxe.</p> : null}
+        </div>
+        {imports.length ? (
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th scope="col" className="px-3 @min-[400px]:px-4">
+                  Fonte
+                </th>
+                <th scope="col" className="hidden whitespace-nowrap @min-[600px]:table-cell">
+                  Importado em
+                </th>
+                <th scope="col" className="px-3 @min-[400px]:px-4">
+                  Datas
+                </th>
+                <th scope="col" className="hidden @min-[820px]:table-cell">
+                  Origem
+                </th>
+                <th scope="col" className="hidden @min-[440px]:table-cell">
+                  Situação
+                </th>
+              </tr>
+            </thead>
+            <tbody id={`${histId}-linhas`}>
+              {(showAllImports ? imports : imports.slice(0, IMPORTS_PREVIEW)).map((item) => {
+                const current = datesOf(item);
+                const open = openImportId === item.id;
+                const detailsId = `${baseId}-importacao-${item.id}`;
+                const state = importState(item, current.length);
+                const origin = originOf(item);
+                // "2" quando todas as datas seguem no calendário; "1 de 2" quando alguma saiu
+                const count = current.length === item.totalEvents ? String(item.totalEvents) : `${current.length} de ${item.totalEvents}`;
+                return (
+                  <Fragment key={item.id}>
+                    <tr className={cx(open && "bg-surface-2")}>
+                      <td className="px-3 @min-[400px]:px-4">
+                        <button
+                          ref={(node) => {
+                            if (node) {
+                              rowButtons.current.set(item.id, node);
+                            } else {
+                              rowButtons.current.delete(item.id);
+                            }
+                          }}
+                          className="flex w-full items-start gap-2 rounded-lg text-left"
+                          aria-expanded={open}
+                          aria-controls={open ? detailsId : undefined}
+                          onClick={() => setOpenImportId(open ? null : item.id)}
+                          type="button"
+                        >
+                          <ChevronDown className={cx("mt-0.5 h-4 w-4 shrink-0 text-muted transition", open && "rotate-180")} aria-hidden />
+                          <span className="min-w-0">
+                            <span className="t block wrap-anywhere">{item.sourceName}</span>
+                            <span className="s block @min-[600px]:hidden">{formatShortDateTime(item.importedAt)}</span>
+                            <span className="mt-1.5 flex @min-[440px]:hidden">
+                              <span className={cx("pill", state.pill)}>{state.label}</span>
+                            </span>
+                          </span>
+                        </button>
+                      </td>
+                      <td className="hidden whitespace-nowrap @min-[600px]:table-cell">{formatShortDateTime(item.importedAt)}</td>
+                      <td className="whitespace-nowrap px-3 @min-[400px]:px-4">{count}</td>
+                      <td className={cx("hidden @min-[820px]:table-cell", origin.mono && "break-all font-mono text-[13px]")}>{origin.text}</td>
+                      <td className="hidden @min-[440px]:table-cell">
+                        <span className={cx("pill", state.pill)}>{state.label}</span>
+                      </td>
+                    </tr>
+                    {open ? (
+                      <tr id={detailsId} className="bg-surface-2">
+                        <td colSpan={5} className="px-3 pt-0 @min-[400px]:px-4">
+                          <div className="grid gap-3 pb-1">
+                            <p className="text-sm text-ink-3 @min-[820px]:hidden">
+                              Origem: <span className={cx(origin.mono && "break-all font-mono text-[13px]")}>{origin.text}</span>
+                            </p>
+                            {current.length ? (
+                              <>
+                                <DateList
+                                  items={current.map((event) => ({
+                                    key: event.id,
+                                    title: event.title,
+                                    category: event.category,
+                                    start: new Date(event.startsAt),
+                                    end: event.endsAt ? new Date(event.endsAt) : null,
+                                  }))}
+                                />
+                                {onUndoImport ? (
+                                  <div>
+                                    <button
+                                      className="btn btn-danger btn-sm"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        askUndo(
+                                          current.map((event) => event.id),
+                                          current.map((event) => event.title),
+                                          item.sourceName,
+                                          () => {
+                                            focusAfterConfirm.current = rowButtons.current.get(item.id) ?? null;
+                                          }
+                                        )
+                                      }
+                                      type="button"
+                                    >
+                                      <Undo2 className="h-3.5 w-3.5" aria-hidden />
+                                      Desfazer importação
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </>
+                            ) : (
+                              <p className="text-sm text-ink-3">
+                                {item.totalEvents
+                                  ? "As datas desta importação não estão mais no calendário."
+                                  : "Esta importação não trouxe datas."}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div className="px-6 pb-6">
+            <EmptyState icon={History} text="Nenhuma importação ainda." hint="Use a importação de demonstração para testar." />
+          </div>
+        )}
+        {imports.length > IMPORTS_PREVIEW ? (
+          <div className="card-foot border-t border-line-2 px-6 pb-4">
+            <button
+              ref={moreImportsRef}
+              className="link"
+              aria-controls={`${histId}-linhas`}
+              aria-expanded={showAllImports}
+              onClick={toggleImports}
+              type="button"
+            >
+              {showAllImports ? "Mostrar menos" : `Ver todas (${imports.length})`}
+              <ChevronDown className={cx("h-[15px] w-[15px] transition", showAllImports && "rotate-180")} aria-hidden />
+            </button>
+          </div>
+        ) : null}
+      </section>
 
       {confirm ? (
         <ConfirmDialog

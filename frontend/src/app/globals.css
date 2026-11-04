@@ -113,12 +113,17 @@ button:disabled {
   main :is(a[href], button, input, select, textarea, summary, [tabindex], [data-event-id]) {
     scroll-margin-bottom: var(--toast-room, 0px);
   }
+  /* o destaque com evento (uma section) guarda a folga de cima da faixa livre (dashboard-bits.tsx):
+     quando ele é mais alto que ela, o topo dele para ali e o foco vai para ele; com a mesma folga,
+     os avisos (useToastRoom, em ui.tsx) não sobem a página de novo */
+  main .hero[data-event-id] {
+    scroll-margin-top: 16px;
+  }
   @media (max-width: 767px) {
     main :is(a[href], button, input, select, textarea, summary, [tabindex]) {
       scroll-margin-top: 96px;
     }
-    /* o destaque com evento é uma section (não focável): sem isto, mostrar no Painel o evento
-       salvo levava o destaque para baixo do cabeçalho */
+    /* no celular, logo abaixo do cabeçalho grudado */
     main .hero[data-event-id] {
       scroll-margin-top: 96px;
     }
@@ -152,6 +157,26 @@ button:disabled {
   .bg-app,
   .bg-login {
     background: var(--bg);
+  }
+  /* entrada (login-screen.tsx, coluna flex): o cartão fica no meio da altura, entre dois vãos que
+     dividem a sobra. Enquanto houver aviso, o vão de baixo tem pelo menos o pé dos avisos
+     (--toast-foot, do ui.tsx, o mesmo da margem do #conteudo), menos os 24 px do respiro de baixo
+     da entrada (py-6), que já contam. Com sobra, nada se mexe; sem ela, o cartão sobe só o que
+     falta ou a página ganha a rolagem que falta, e no fim da rolagem o cartão para 12 px acima dos
+     avisos. Entra de uma vez e sai suave (--toast-foot-ease). */
+  .entrada::before,
+  .entrada::after {
+    content: "";
+    flex: 1 1 0px;
+  }
+  .entrada::after {
+    min-height: max(0px, var(--toast-foot, 0px) - 24px);
+    transition: min-height var(--toast-foot-ease, 0.3s) ease;
+  }
+  /* o foco pelo teclado também para acima dos avisos: no celular, a regra base já deixa embaixo o
+     --toast-room; a partir de 640 px, o aviso fica no canto, com a altura no --toast-corner */
+  .entrada :is(a[href], button, input, select, textarea, summary, [tabindex]) {
+    scroll-margin-bottom: max(var(--toast-room, 0px), var(--toast-corner, 0px));
   }
   .app {
     display: flex;
@@ -195,6 +220,18 @@ button:disabled {
     font-size: 12.5px;
     color: var(--on-night-2);
   }
+  /* gaveta do celular (Figma 18): o X fica dentro da faixa da marca e a linha de baixo atravessa a
+     gaveta. Marca de 40 e nome de 16 px, como no Figma, para o nome caber inteiro ao lado do X. */
+  .brand.in-drawer {
+    padding: 4px 6px 16px;
+  }
+  .brand.in-drawer .mark {
+    width: 40px;
+    height: 40px;
+  }
+  .brand.in-drawer .brand-name {
+    font-size: 16px;
+  }
   /* busca e atalho de criação, logo abaixo da marca */
   .side-tools {
     display: flex;
@@ -236,6 +273,30 @@ button:disabled {
     border-color: var(--accent);
     background: rgb(255 255 255 / 0.12);
     box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.25);
+  }
+  /* atalho no canto do campo vazio (Figma: "Ctrl K"). Letra clara, para o contraste; some com o
+     foco (o atalho já levou até ali) e no toque, onde não há teclado com Ctrl */
+  .side-search .kbd {
+    position: absolute;
+    right: 10px;
+    padding: 3px 7px;
+    border-radius: 7px;
+    border: 1px solid rgb(255 255 255 / 0.16);
+    background: rgb(255 255 255 / 0.06);
+    color: var(--on-night);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.3;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .side-search input:focus ~ .kbd {
+    display: none;
+  }
+  @media (pointer: coarse) {
+    .side-search .kbd {
+      display: none;
+    }
   }
   .nav-label {
     margin: 0 0 6px 14px;
@@ -334,7 +395,7 @@ button:disabled {
     color: inherit;
     text-align: left;
   }
-  /* o cartão do usuário pode ser o botão das preferências */
+  /* o cartão do usuário pode ser o botão das configurações do perfil */
   button.ucard:hover {
     background: rgb(255 255 255 / 0.1);
   }
@@ -351,16 +412,16 @@ button:disabled {
     font-size: 14px;
     flex-shrink: 0;
   }
-  /* nome em até duas linhas, para não cortar "Coordenação Acadêmica" */
+  /* nome numa linha só (Figma): o que não cabe sai por palavras inteiras ("Diogo Queiroz",
+     "Coordenação"; app-shell.tsx prende "da Silva" e "Profa. Maraísa"), e o nome inteiro fica no
+     title. Uma palavra só maior que a linha (um e-mail) termina em reticência. */
   .uname {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    overflow-wrap: anywhere;
     font-size: 14px;
     font-weight: 650;
-    line-height: 1.3;
+    line-height: 1.5;
+    max-height: 1.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .urole {
     margin-top: 2px;
@@ -402,6 +463,69 @@ button:disabled {
     height: 7px;
     border-radius: 99px;
     background: var(--accent);
+  }
+  /* tela baixa (notebook de 768, janela de 1280x720, 1440 com a barra do navegador): o menu fixo
+     aperta os espaços para caber inteiro, com a barra do semestre, sem rolar por dentro. Se ainda
+     faltar altura, a barra sai (useSemesterFits, app-shell.tsx). A 900 de altura fica como no Figma. */
+  @media (min-width: 768px) and (max-height: 800px) {
+    .side {
+      gap: 14px;
+      padding-block: 14px;
+    }
+    .side .brand {
+      padding-bottom: 14px;
+    }
+    .side-tools {
+      gap: 8px;
+    }
+    .nav-label {
+      margin-bottom: 4px;
+    }
+    .side-foot {
+      gap: 4px;
+    }
+    .semestre {
+      padding-block: 9px;
+    }
+    .semestre .bar {
+      margin-top: 7px;
+    }
+    .ucard {
+      padding-block: 9px;
+    }
+    .sync {
+      padding-top: 2px;
+    }
+  }
+  /* com mouse, os itens do menu descem para 40 px; no toque ficam os 44 px */
+  @media (min-width: 768px) and (max-height: 800px) and (pointer: fine) {
+    .navlist .nav {
+      height: 40px;
+    }
+  }
+  /* mais baixa ainda (notebook de 1366x768 com a barra de tarefas e a do navegador, de 600 a 700 px):
+     mais um aperto, para o menu da administração caber sem rolar */
+  @media (min-width: 768px) and (max-height: 700px) {
+    .side {
+      gap: 12px;
+    }
+    .side .brand {
+      padding-bottom: 12px;
+    }
+    .ucard {
+      padding-block: 7px;
+    }
+  }
+  @media (min-width: 768px) and (max-height: 700px) and (pointer: fine) {
+    .navlist .nav {
+      height: 36px;
+    }
+    .side-tools .btn {
+      min-height: 40px;
+    }
+    .side-search input {
+      height: 40px;
+    }
   }
 
   .content {
@@ -521,12 +645,144 @@ button:disabled {
     min-width: 0;
   }
   @media (min-width: 1200px) {
+    /* coluna de apoio de 330 px, a do Figma */
     .board {
-      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-template-columns: minmax(0, 1fr) 330px;
       grid-auto-rows: auto;
     }
     .board > .tall {
       grid-row: span 2;
+    }
+  }
+  /* Painéis da docente e da administração (Figma): coluna larga e coluna de apoio de 330 px (flex
+     999 e 1, como no Figma), uma embaixo da outra quando as duas não cabem. Lado a lado, as colunas
+     terminam juntas: o card de baixo de cada uma (.duo-fill) estica até o fim da mais alta e guarda
+     a sobra no .fill-gap, e a lista da coluna mostra mais itens enquanto houver sobra
+     (useColumnFill, em dashboard-bits.tsx) */
+  .duo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: stretch;
+  }
+  .duo-col {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .duo-main {
+    flex: 999 1 560px;
+  }
+  .duo-side {
+    flex: 1 1 330px;
+  }
+  .duo-col > .card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .duo-col > .duo-fill {
+    flex: 1 1 auto;
+  }
+  .fill-gap {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  /* turmas e disciplinas da docente: duas por linha quando o card tem largura */
+  .subj-grid {
+    margin-top: 16px;
+    display: grid;
+    gap: 12px;
+  }
+  @container (min-width: 440px) {
+    .subj-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  /* semana da turma (Painel da docente, Figma): todos os dias, o dia à esquerda e os eventos dele em
+     blocos na cor da categoria; o dia sem nada diz "Livre", apagado (png 12). O texto fica em 14 px,
+     como no resto do sistema. O rótulo do dia segue a primeira linha do lado (linha de base): o
+     título do bloco, a continuação de um evento de vários dias ou o "Livre" */
+  .wk {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+  }
+  .wk-day {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .wk-day:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+  .wk-label {
+    width: 56px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .wk-free,
+  .wk-line,
+  .wk-more {
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  .wk-free,
+  .wk-more {
+    color: var(--muted);
+  }
+  .wk-more {
+    font-weight: 600;
+  }
+  /* evento de vários dias, nos dias depois do primeiro: o nome com o ponto da categoria */
+  .wk-line {
+    font-weight: 600;
+    color: var(--ink-3);
+    overflow-wrap: anywhere;
+  }
+  .wk-line .dot {
+    margin-right: 8px;
+    vertical-align: 1px;
+  }
+  .wk-evs {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .wk-ev {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: 6px 10px;
+    border-radius: 8px;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  .wk-t,
+  .wk-h {
+    display: block;
+  }
+  .wk-h {
+    margin-top: 2px;
+    font-weight: 500;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    button.wk-ev:hover {
+      filter: brightness(0.96);
     }
   }
   /* rolagem interna só onde ainda faz falta (fora da grade); no fim, a roda segue para a página */
@@ -626,20 +882,6 @@ button:disabled {
     min-height: 100%;
     justify-content: center;
   }
-  /* em coluna estreita a linha de evento fica compacta */
-  @container (max-width: 400px) {
-    .ev {
-      gap: 12px;
-      padding: 10px 8px;
-    }
-    .ev-meta .det {
-      display: none;
-    }
-    .ev-when {
-      min-width: 0;
-    }
-  }
-
   .divider {
     height: 1px;
     background: var(--line-2);
@@ -760,21 +1002,23 @@ button:disabled {
   .st-conc { background: #d1fae5; color: #065f46; }
   .st-canc { background: #ffe4e8; color: #9f1239; }
   .prio { background: var(--night); color: var(--accent); }
-  /* situação do evento em contorno, para não se confundir com as pílulas cheias de categoria */
-  .pill.stat {
-    gap: 5px;
-    background: #fff;
-    border: 1px solid var(--line-strong);
-    color: var(--ink-3);
-  }
+  /* situação do evento em pílula cheia, como no Figma (Guia visual): as mesmas cores de
+     .st-ag, .st-alt, .st-conc e .st-canc. Texto sobre o fundo: 6,8:1, 6,4:1, 6,8:1 e 6,7:1 */
+  .pill.stat { background: var(--neutral-tint); color: var(--ink-3); }
   .pill.stat svg {
     width: 12px;
     height: 12px;
     flex-shrink: 0;
   }
-  .pill.stat.stat-canc { color: var(--danger); border-color: #f3c6d0; }
-  .pill.stat.stat-alt { color: #92400e; border-color: rgb(217 119 6 / 0.5); }
-  .pill.stat.stat-conc { color: var(--brand-ink); border-color: var(--brand-200); }
+  .pill.stat.stat-canc { background: #ffe4e8; color: #9f1239; }
+  .pill.stat.stat-alt { background: #fef3c7; color: #92400e; }
+  .pill.stat.stat-conc { background: #d1fae5; color: #065f46; }
+  /* alto contraste do Windows: sem o fundo, a borda mostra o contorno da pílula */
+  @media (forced-colors: active) {
+    .pill.stat {
+      border: 1px solid CanvasText;
+    }
+  }
 
   /* formulários */
   .input {
@@ -902,14 +1146,17 @@ button:disabled {
   }
   /* no celular os filtros de categoria ficam numa linha só, com rolagem lateral;
      o degradê na borda direita mostra que há mais. A folga de 4 px, desfeita pela margem,
-     deixa o anel de foco do chip inteiro sem mudar o lugar dos chips. */
+     deixa o anel de foco do chip inteiro sem mudar o lugar dos chips. O scroll-padding (degradê
+     de 40 px mais o anel) é onde para o chip focado pelo teclado (calendar-view.tsx), e a folga
+     da direita, do mesmo tamanho, deixa o último chip inteiro fora do degradê no fim da linha. */
   @media (max-width: 639px) {
     .chips.chips-row {
       flex-wrap: nowrap;
       overflow-x: auto;
       scrollbar-width: none;
-      padding: 4px 32px 4px 4px;
+      padding: 4px 44px 4px 4px;
       margin: -4px 0 -2px -4px;
+      scroll-padding-inline: 4px 44px;
       -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
       mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
     }
@@ -1018,6 +1265,11 @@ button:disabled {
     font-size: 13.5px;
     font-weight: 600;
     color: var(--ink-3);
+  }
+  /* rótulo em duas linhas (ex.: "Datas oficiais à frente" a 1280) cabe na altura do ícone (36 px):
+     o número e a dica ficam na mesma altura nos indicadores da linha */
+  .kpi-top > .kpi-label {
+    line-height: 18px;
   }
   .kpi-ico {
     display: flex;
@@ -1190,6 +1442,142 @@ button:disabled {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* lugar do destaque nos painéis: é a largura dele que decide o arranjo */
+  .hero-slot {
+    container: hero / inline-size;
+  }
+  /* com largura (computador), o destaque vira a grade do Figma: a data à esquerda, título e dados
+     no meio, a contagem no alto à direita e os botões lado a lado, numa linha que pode seguir por
+     baixo da contagem; assim eles não empilham quando o meio fica estreito (ao lado da turma) */
+  @container hero (min-width: 720px) {
+    .hero.with-date {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr) auto;
+      grid-template-rows: repeat(4, auto);
+      column-gap: 28px;
+      row-gap: 0;
+      align-items: start;
+      align-content: center;
+    }
+    .hero.with-date > .hero-body {
+      display: contents;
+    }
+    .hero.with-date > .datebig {
+      grid-column: 1;
+      grid-row: 1 / 5;
+      align-self: center;
+    }
+    .hero.with-date .hero-kicker {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .hero.with-date .hero-title {
+      grid-column: 2;
+      grid-row: 2;
+    }
+    /* dados e botões também podem seguir por baixo da contagem: o destaque não cresce à toa */
+    .hero.with-date .hero-meta {
+      grid-column: 2 / 4;
+      grid-row: 3;
+    }
+    .hero.with-date .hero-actions {
+      grid-column: 2 / 4;
+      grid-row: 4;
+    }
+    .hero.with-date > .countdown {
+      grid-column: 3;
+      grid-row: 1 / 3;
+      margin-left: 0;
+    }
+  }
+  /* largura média (ao lado da turma até uns 1420 px, docente e administração em 1024, celular
+     deitado): a contagem vira um selo no alto, ao lado do rótulo, e título, dados e botões usam a
+     largura toda. Os botões ficam lado a lado e o destaque não fica mais alto que o card ao lado. Na
+     administração, o selo é a próxima data oficial, com o rótulo curto em cima (o nome da data
+     está no card "Próximas datas oficiais"); sem data à frente, fica o "Nenhuma data à frente".
+     Começa em 540 px: a 1280 com a barra de rolagem clássica (Windows), o destaque do aluno tem
+     559 px e fica neste arranjo, não no de tablet */
+  @media (min-width: 640px) {
+    @container hero (min-width: 540px) and (max-width: 719.98px) {
+      .hero.with-date {
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr) auto;
+        grid-template-rows: repeat(4, auto);
+        column-gap: 28px;
+        row-gap: 0;
+        align-items: start;
+        align-content: center;
+      }
+      .hero.with-date > .hero-body {
+        display: contents;
+      }
+      .hero.with-date > .datebig {
+        grid-column: 1;
+        grid-row: 1 / 5;
+        align-self: center;
+      }
+      .hero.with-date .hero-kicker {
+        grid-column: 2;
+        grid-row: 1;
+        align-self: center;
+      }
+      .hero.with-date > .countdown {
+        grid-column: 3;
+        grid-row: 1;
+        align-self: center;
+        margin-left: 0;
+      }
+      .hero.with-date > .countdown:not(.next) .eyebrow,
+      .hero.with-date > .countdown:not(.next) small,
+      .hero.with-date > .countdown.next b + small {
+        display: none;
+      }
+      .hero.with-date > .countdown b {
+        margin-top: 0;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 14px;
+        line-height: 1.3;
+      }
+      .hero.with-date > .countdown.next b {
+        margin-top: 4px;
+      }
+      .hero.with-date .hero-title {
+        grid-column: 2 / 4;
+        grid-row: 2;
+      }
+      .hero.with-date .hero-meta {
+        grid-column: 2 / 4;
+        grid-row: 3;
+      }
+      .hero.with-date .hero-actions {
+        grid-column: 2 / 4;
+        grid-row: 4;
+      }
+    }
+    /* parte estreita da faixa média, de 540 a 639 px (o aluno de 1280 a 1343, ao lado da turma, e o
+       celular deitado de 640): bloco de data, folgas e botões mais justos. A linha dos botões ganha
+       40 px e cada botão fica 8 px menor, e os dois cabem lado a lado também com o rótulo mais longo
+       do lembrete ("Ver detalhes" e "Lembrete: 30 minutos antes"), quando o evento é hoje ou amanhã */
+    @container hero (min-width: 540px) and (max-width: 639.98px) {
+      .hero.with-date {
+        grid-template-columns: 88px minmax(0, 1fr) auto;
+        column-gap: 20px;
+        padding: 24px;
+      }
+      .hero.with-date > .datebig {
+        width: 88px;
+        min-height: 116px;
+        padding: 14px 0;
+      }
+      .hero.with-date > .datebig .dn {
+        font-size: 46px;
+      }
+      .hero.with-date .hero-actions > .btn {
+        padding-inline: 14px;
+      }
+    }
+  }
 
   /* celular: destaque compacto (continua branco com a faixa verde). Data de 56px ao lado
      do título, dados logo abaixo e a contagem como selo pequeno ao lado do rótulo */
@@ -1360,6 +1748,7 @@ button:disabled {
     flex: 1;
     min-width: 0;
   }
+  /* até duas linhas, com reticências no fim; a palavra que não cabe na linha quebra em vez de sumir */
   .ev-title {
     font-size: 15px;
     font-weight: 650;
@@ -1368,6 +1757,7 @@ button:disabled {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    overflow-wrap: anywhere;
   }
   .ev-meta > span {
     max-width: 100%;
@@ -1398,6 +1788,30 @@ button:disabled {
   .ev-rel.soon {
     color: var(--danger);
     font-weight: 650;
+  }
+  /* hora junto das pílulas ("19:00, em 2 dias"): só na coluna estreita */
+  .ev-at {
+    display: none;
+    white-space: nowrap;
+  }
+  .ev-at .soon {
+    color: var(--danger);
+    font-weight: 650;
+  }
+  /* coluna estreita (celular, card de até 400px), como no Figma 15 e 16: linha compacta, a hora desce
+     para junto das pílulas e o título usa a largura toda. Fica depois das regras da linha para valer. */
+  @container (max-width: 400px) {
+    .ev {
+      gap: 12px;
+      padding: 10px 8px;
+    }
+    .ev-meta .det,
+    .ev-when {
+      display: none;
+    }
+    .ev-at {
+      display: inline;
+    }
   }
 
   /* barra segmentada por categoria */
@@ -1588,6 +2002,458 @@ button:disabled {
     gap: 6px;
   }
 
+  /* Gestão: o card ao lado da lista (disciplinas e turmas da docente, datas oficiais da administração)
+     tem a altura do conteúdo e fica parado no alto enquanto a lista rola, no respiro do menu (20px), só
+     quando cabe inteiro na tela (data-stick e --side-h vêm da manage-view). Mais alto que a tela, ele
+     rola com a página, e o título não some. Com aviso no canto (--toast-corner, do ui.tsx), o card parado
+     sobe para o pé ficar acima do aviso e volta quando ele sai, mas no máximo até 16px acima do alto da
+     tela (sai só parte do respiro de cima): o título continua à vista. Se nem assim ele cabe entre esse
+     limite e o aviso, a manage-view tira o data-stick enquanto houver aviso, e ele rola com a página.
+     Ao lado da lista só a partir de 1600px (a manage-view usa a mesma largura); abaixo disso ele desce
+     e não gruda. */
+  @media (min-width: 1600px) {
+    .manage-side[data-stick] {
+      position: sticky;
+      top: max(-16px, min(20px, calc(100vh - var(--side-h, 0px) - max(20px, var(--toast-corner, 0px)))));
+      transition: top 0.2s ease;
+    }
+  }
+  /* itens do card ao lado: um embaixo do outro na coluna de 300px; com o card embaixo da lista, na
+     largura toda, eles se dividem em colunas de pelo menos 280px (cada linha começa e termina junto) */
+  .manage-side-list {
+    margin-top: 16px;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Lembretes e Importar calendário (Figma, telas 5 e 10)               */
+  /* ------------------------------------------------------------------ */
+  /* coluna principal e coluna lateral lado a lado (a partir de 1200px) terminam juntas (decisão 2):
+     a mais baixa estica. Na lateral, o último card cresce e a sobra fica no pé dele (.tela-gap); no
+     principal, quem cresce é a lista de "Aguardando aviso" ou o campo do JSON. Quando o principal passa
+     da lateral por mais que uma sobra pequena, a lateral fica do tamanho do conteúdo e parada no alto
+     enquanto a página rola (.is-stuck, de useSideFit em reminders-view.tsx), como na Gestão; mais alta
+     que a tela, ela para com o pé à vista (--side-h). Abaixo de 1200px, uma coluna só. */
+  .tela-cols {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .tela-main,
+  .tela-side {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .tela-gap {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  @media (min-width: 1200px) {
+    .tela-cols {
+      grid-template-columns: minmax(0, 1fr) 340px;
+      align-items: stretch;
+    }
+    .tela-main > .card:last-child,
+    .tela-side > .card:last-child {
+      flex: 1 1 auto;
+    }
+    .tela-side > .card:last-child,
+    .imp-json-card {
+      display: flex;
+      flex-direction: column;
+    }
+    .tela-cols.is-stuck > .tela-side {
+      align-self: start;
+      position: sticky;
+      top: min(20px, calc(100vh - var(--side-h, 0px) - 20px));
+    }
+    /* Lembretes: "Aguardando aviso" e a lateral na mesma linha, como no Figma; "Já avisados" embaixo */
+    .rem-cols {
+      grid-template-areas: "pend side" "past .";
+    }
+    .rem-cols > .tela-main {
+      display: contents;
+    }
+    .rem-pend {
+      grid-area: pend;
+    }
+    .rem-past {
+      grid-area: past;
+    }
+    .rem-cols > .tela-side {
+      grid-area: side;
+    }
+    /* Importar: o card do JSON estica pelo campo, que fica mais alto */
+    .imp-json-card > .input.imp-json {
+      flex: 1 0 auto;
+    }
+  }
+  /* "Aguardando aviso": esticado, a lista fica com a sobra (o vazio, no meio dela) e o "Ver todos" no pé */
+  .rem-pend {
+    display: flex;
+    flex-direction: column;
+  }
+  .rem-pend-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .rem-pend-body > .empty-inline {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  /* "Ver todos" logo embaixo da lista, quando o grupo dos cancelados vem depois dela */
+  .rem-more {
+    display: flex;
+  }
+
+  /* Lembretes: três indicadores; até 1100px o "Próximo aviso" ocupa a linha toda */
+  .rem-kpis > .rem-next {
+    grid-column: span 2;
+  }
+  @media (min-width: 1100px) {
+    .kpis.rem-kpis {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .rem-kpis > .rem-next {
+      grid-column: auto;
+    }
+  }
+  .kpi.rem-next {
+    background: var(--night);
+    border-color: var(--night);
+    color: #fff;
+  }
+  .rem-next .kpi-label {
+    color: var(--on-night);
+  }
+  .rem-next .kpi-ico {
+    background: rgb(255 255 255 / 0.1);
+    color: var(--accent);
+  }
+  .rem-next .kpi-val {
+    color: var(--accent);
+    overflow-wrap: anywhere;
+  }
+  .rem-next .kpi-val.long {
+    font-size: 28px;
+    line-height: 1.15;
+  }
+  .rem-next .kpi-hint {
+    color: var(--on-night-2);
+  }
+  /* linha de lembrete: ícone, evento com os dados, quando avisa e Remover */
+  .rem-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .rem-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+    padding: 16px;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: #fff;
+    /* a linha que muda de lugar ao salvar a antecedência rola inteira até a vista (reminders-view.tsx),
+       com as folgas dos campos: acima dos avisos do celular e, nele, abaixo do cabeçalho grudado */
+    scroll-margin-bottom: var(--toast-room, 0px);
+  }
+  @media (max-width: 767px) {
+    .rem-row {
+      scroll-margin-top: 96px;
+    }
+  }
+  .rem-row.past {
+    border-color: var(--line-2);
+    background: var(--surface-2);
+  }
+  .rem-ico {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    flex-shrink: 0;
+    background: #e0f2fe;
+    color: #075985;
+  }
+  .rem-row.past .rem-ico {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  .rem-row.void .rem-ico {
+    background: var(--neutral-tint);
+    color: var(--ink-3);
+  }
+  .rem-body {
+    flex: 1 1 320px;
+    min-width: 0;
+  }
+  .rem-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .rem-title {
+    min-width: 0;
+    border-radius: 6px;
+    text-align: left;
+    font-size: 15.5px;
+    font-weight: 650;
+    line-height: 1.35;
+    text-underline-offset: 4px;
+  }
+  button.rem-title:hover {
+    color: var(--brand-ink);
+    text-decoration-line: underline;
+  }
+  /* toque: o título que abre o evento tem alvo de 44 px de altura sem mudar o desenho. O ::after vazio
+     cresce mais para cima (o respiro da linha) do que para baixo (os dados do evento, 8 px abaixo) */
+  @media (any-pointer: coarse) {
+    button.rem-title {
+      position: relative;
+    }
+    button.rem-title::after {
+      content: "";
+      position: absolute;
+      inset: min(0px, calc(100% - 37px)) 0 min(0px, max(-7px, calc(100% - 44px)));
+    }
+  }
+  .rem-row .ev-meta {
+    margin-top: 8px;
+    gap: 6px 16px;
+  }
+  .rem-meta-i {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .rem-meta-i svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+  /* antecedência do aviso, trocada na própria linha (sem disabled enquanto salva: o foco fica nela) */
+  .rem-offset {
+    height: 34px;
+    padding: 0 30px 0 10px;
+    border-radius: 9px;
+    border: 1px solid var(--line-strong);
+    background: #fff
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+      no-repeat right 9px center;
+    appearance: none;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .rem-offset:hover {
+    border-color: var(--line-hover);
+  }
+  .rem-acts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+  .rem-when {
+    height: 30px;
+    padding: 0 12px;
+    background: #e0f2fe;
+    color: #075985;
+  }
+  .rem-row.past .rem-when {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  /* card estreito (celular): sem o ícone grande, o evento usa a largura toda */
+  @container (max-width: 520px) {
+    .rem-ico {
+      display: none;
+    }
+    .rem-acts {
+      margin-left: 0;
+    }
+  }
+  .rem-steps {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .rem-steps li {
+    display: flex;
+    gap: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-2);
+  }
+  .rem-step-n {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    background: var(--brand-50);
+    color: var(--brand);
+    font-weight: 700;
+  }
+
+  /* Importar calendário: indicadores com valor curto (24px), como no Figma */
+  .imp-kpi-val {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--disp);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+  }
+  .kpi.imp-kpi-ok {
+    background: var(--brand-50);
+    border-color: var(--brand-200);
+  }
+  .imp-kpi-ok .kpi-label,
+  .imp-kpi-ok .kpi-hint {
+    color: var(--brand-ink);
+  }
+  .imp-kpi-ok .imp-kpi-val {
+    color: var(--brand);
+  }
+  .kpi.imp-kpi-warn {
+    background: #fff7e0;
+    border-color: #f3d38b;
+  }
+  .imp-kpi-warn .kpi-label,
+  .imp-kpi-warn .kpi-hint,
+  .imp-kpi-warn .imp-kpi-val {
+    color: #7a3b06;
+  }
+  .imp-ico {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 15px;
+    flex-shrink: 0;
+    background: var(--brand-50);
+    color: var(--brand);
+  }
+  .imp-ico.json {
+    background: #ede9fe;
+    color: #5b21b6;
+  }
+  .imp-demo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+  }
+  /* o texto ocupa o resto da linha do ícone e o botão desce para baixo, como no Figma */
+  .imp-demo-text {
+    flex: 1 1 calc(100% - 70px);
+    min-width: 0;
+  }
+  @container (max-width: 520px) {
+    .imp-demo > .btn {
+      width: 100%;
+      white-space: normal;
+    }
+  }
+  /* campo do JSON escuro, como no Figma. Cresce com o texto, sem limite de altura: nada rola por
+     dentro dele, quem rola é a página (sem field-sizing, a sync-view ajusta a altura pelo script) */
+  .input.imp-json {
+    min-height: 15rem;
+    field-sizing: content;
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--on-night);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  .input.imp-json::placeholder {
+    color: #9aa7bd;
+  }
+  .input.imp-json:focus {
+    border-color: var(--brand-400);
+    box-shadow: 0 0 0 4px rgb(var(--brand-rgb) / 0.22);
+  }
+  .input.imp-json[aria-invalid="true"] {
+    border-color: #f43f5e;
+  }
+  .input.imp-json[aria-invalid="true"]:focus {
+    border-color: #f43f5e;
+    box-shadow: 0 0 0 4px rgb(var(--danger-rgb) / 0.3);
+  }
+  .kpi-ico.imp-night {
+    background: var(--night);
+    color: var(--accent);
+  }
+  .empty-ico.imp-lock {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  .imp-prio-n {
+    margin-top: 12px;
+    font-family: var(--disp);
+    font-size: 56px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .imp-prio-t {
+    margin-top: 6px;
+    font-size: 14.5px;
+    font-weight: 650;
+  }
+  .info.imp-fields {
+    margin-top: 14px;
+    gap: 10px 14px;
+  }
+  .info.imp-fields dt {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .imp-opt {
+    font-weight: 500;
+    color: var(--muted);
+  }
+  /* tabela de importações de ponta a ponta no card, como no Figma */
+  .imp-hist {
+    overflow: hidden;
+    overflow: clip;
+  }
+  .imp-hist-head {
+    padding: 22px 24px 18px;
+  }
+  @media (pointer: coarse) {
+    .rem-offset {
+      height: 40px;
+      font-size: 16px;
+    }
+  }
+
   /* calendário mensal ("clip" corta os cantos sem virar caixa de rolagem, para o
      cabeçalho dos dias poder grudar no topo enquanto a página rola) */
   .cal {
@@ -1650,8 +2516,10 @@ button:disabled {
   .day.we {
     background: var(--surface-2);
   }
+  /* dias de fora do mês: mais claros que os do mês, mas com contraste de 5:1 ou mais no branco,
+     no fim de semana e no dia escolhido (o --faint do Figma ficava em 2,3:1) */
   .day.out .dnum {
-    color: var(--faint);
+    color: var(--muted);
   }
   .dnum {
     display: inline-flex;
@@ -1688,9 +2556,9 @@ button:disabled {
     overflow: hidden;
     font-size: 13px;
   }
-  /* o título quebra só entre as palavras (sem hífen). A 1ª palavra é a única que pode passar da
-     largura na 1ª linha: ela é um bloco que termina em reticências ("Seminá..."), em vez de partir ao
-     meio ("Seminári / o"); na 2ª linha, quem corta com reticências é o line-clamp */
+  /* o título quebra só entre as palavras (sem hífen). Cada palavra é um bloco que termina em
+     reticências quando é mais larga que o chip ("Matemá..."), em qualquer linha, em vez de partir ao
+     meio ("Seminári / o") ou perder as últimas letras na borda ("Matemát") */
   .ce .t > span {
     display: inline-block;
     max-width: 100%;
@@ -1699,7 +2567,14 @@ button:disabled {
     white-space: nowrap;
     vertical-align: top;
   }
-  /* evento cancelado: o risco do chip não entra sozinho no bloco da 1ª palavra */
+  /* a palavra que cabe no chip (o calendar-view.tsx mede) volta a ser texto: com mais de 2 linhas, o
+     line-clamp corta a última palavra da 2ª linha com reticências ("de Engenh..."), em vez de esconder
+     a palavra inteira, como faz com um bloco */
+  .ce .t > span.fits {
+    display: inline;
+    vertical-align: baseline;
+  }
+  /* evento cancelado: o risco do chip não entra sozinho no bloco de cada palavra */
   .ce .t,
   .ce .t > span {
     text-decoration: inherit;
@@ -1737,8 +2612,9 @@ button:disabled {
   }
 
   /* modal: cabe sempre na tela (o corpo rola por dentro, com o X e o rodapé à vista);
-     no celular vira uma folha que sobe de baixo. Entre modal e painel lateral, fica por cima o
-     que abriu por último: a pilha de camadas (ui.tsx) troca este z-index assim que o diálogo abre. */
+     no celular vira uma folha que sobe de baixo. A pilha de camadas (ui.tsx) troca este z-index
+     assim que o diálogo abre: o detalhe fica abaixo do painel de edição, que fica abaixo da
+     confirmação, e no mesmo tipo fica por cima o que abriu por último. */
   .modal-veil {
     position: fixed;
     inset: 0;
@@ -1760,6 +2636,8 @@ button:disabled {
     overflow-y: auto;
     overscroll-behavior: contain;
     outline: none;
+    /* avisos no pé do detalhe (sem rodapé): o espaço deles fica embaixo do conteúdo (ui.tsx) */
+    padding-bottom: var(--toast-dock, 0px);
   }
   .modal-box.wide {
     width: min(680px, 100%);
@@ -1826,6 +2704,8 @@ button:disabled {
     border-radius: 24px 0 0 24px;
     box-shadow: 0 30px 80px rgb(var(--night-rgb) / 0.35);
     outline: none;
+    /* como na .modal-box: só sem rodapé, que o painel de edição sempre tem */
+    padding-bottom: var(--toast-dock, 0px);
   }
   .drawer-head {
     display: flex;
@@ -1947,7 +2827,8 @@ button:disabled {
     transform: none;
   }
   /* pilha de avisos: embaixo. No celular, na largura toda (12 px de cada lado), acima da área
-     segura; no computador, no canto direito. Com um diálogo aberto, a posição vem de ui.tsx. */
+     segura; no computador, no canto direito. Com um diálogo aberto, a posição vem de ui.tsx (no
+     detalhe sem rodapé, no pé dele, também acima da área segura). */
   .toast-stack {
     position: fixed;
     left: 12px;
@@ -1976,6 +2857,15 @@ button:disabled {
       bottom: calc(24px + env(safe-area-inset-bottom));
       width: 390px;
     }
+  }
+  /* pé da página com aviso (growToastFoot, no ui.tsx): enquanto houver aviso, o conteúdo ganha embaixo
+     a altura da pilha (--toast-foot: do alto dela ao pé da tela, mais 12 px de folga), menos os 20 px
+     do respiro de baixo do .app, que já contam. No fim da rolagem, o fim do conteúdo fica acima dos
+     avisos e o item focado lá embaixo tem para onde subir. Entra de uma vez (--toast-foot-ease: 0s) e
+     sai suave, com o fim da página descendo junto. */
+  #conteudo {
+    margin-bottom: max(0px, var(--toast-foot, 0px) - 20px);
+    transition: margin-bottom var(--toast-foot-ease, 0.3s) ease;
   }
   /* texto, ação e fechar numa linha; sem espaço para o texto, ação e fechar descem juntos */
   .toast {
@@ -2049,10 +2939,6 @@ button:disabled {
       min-width: 44px;
       min-height: 44px;
     }
-    .toast button {
-      min-width: 44px;
-      min-height: 44px;
-    }
     .seg button {
       height: 44px;
     }
@@ -2068,6 +2954,28 @@ button:disabled {
     .link,
     .sync {
       min-height: 44px;
+    }
+  }
+
+  /* toque: o X dos diálogos e dos avisos e a ação do aviso têm alvo de 44 px sem mudar o desenho.
+     A área de toque é um ::after vazio centrado no botão; o X dos diálogos segue com 38 px. */
+  @media (any-pointer: coarse) {
+    .modal-head > .ib.sm,
+    .drawer-head > .ib.sm {
+      width: 38px;
+      height: 38px;
+      min-width: 38px;
+      min-height: 38px;
+    }
+    .toast button {
+      position: relative;
+    }
+    .modal-head > .ib.sm::after,
+    .drawer-head > .ib.sm::after,
+    .toast button::after {
+      content: "";
+      position: absolute;
+      inset: min(0px, calc(50% - 22px));
     }
   }
 }
@@ -2235,6 +3143,11 @@ button:focus-visible {
 .side :focus-visible {
   outline-color: #fff;
   outline-offset: 2px;
+}
+
+/* aviso de sucesso, também azul-marinho: anel branco no Desfazer e no X (o Tab chega neles pelo diálogo) */
+.toast.ok :focus-visible {
+  outline-color: #fff;
 }
 
 /* linhas de evento e dias do mês: anel por dentro, para não ser cortado pela borda do bloco */

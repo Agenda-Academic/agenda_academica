@@ -25,6 +25,7 @@ import {
   useState,
   useSyncExternalStore,
   type CSSProperties,
+  type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type RefObject,
@@ -231,21 +232,70 @@ function pageTop(element: HTMLElement) {
 }
 
 const ASIDE_GAP = 20;
-// folga entre o dia escolhido (ou a lista dele) e as bordas da tela
-const DAY_GAP = 16;
+// folga entre o que a página traz para a tela (a linha escolhida, o dia e a lista dele) e as bordas dela
+const EDGE_GAP = 16;
 
 /**
- * Depois de rolar até a linha, o começo do painel ao lado (título e data) continua à vista. Com a lista
- * mais curta que o painel, ou perto do fim dela, o painel não tem onde grudar e subiria junto com a página.
+ * Caixa do elemento na página, com as frações de pixel, como ela fica no fim das entradas animadas (.rise,
+ * .pop) dele e dos blocos em volta. O getBoundingClientRect mede o quadro atual da animação (até 13 px fora),
+ * e a soma dos offsetTop, que são inteiros, errava até 2 px. As animações vão até o fim só durante a medida
+ * e voltam para onde estavam antes de a tela ser pintada de novo.
  */
-function keepAsideStart(aside: HTMLElement | null) {
-  const row = aside?.parentElement;
-  if (!aside || !row) {
-    return;
+function settledBox(element: HTMLElement) {
+  const seeks: Array<[Animation, CSSNumberish]> = [];
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    const animations = typeof node.getAnimations === "function" ? node.getAnimations() : [];
+    for (const animation of animations) {
+      const time = animation.currentTime;
+      const end = animation.effect?.getComputedTiming().endTime;
+      if (time !== null && typeof end === "number" && Number.isFinite(end) && animation.playState === "running") {
+        seeks.push([animation, time]);
+        animation.currentTime = end;
+      }
+    }
   }
-  const lowest = Math.max(0, pageTop(row) + row.offsetHeight - aside.offsetHeight - ASIDE_GAP);
-  if (window.scrollY > lowest) {
-    window.scrollTo({ top: lowest, behavior: "instant" });
+  const box = element.getBoundingClientRect();
+  for (const [animation, time] of seeks) {
+    animation.currentTime = time;
+  }
+  return { top: box.top + window.scrollY, bottom: box.bottom + window.scrollY };
+}
+
+/**
+ * Maior rolagem com o começo do painel ao lado (título e data) à vista. O painel gruda no alto só até
+ * onde a grade vai: daí para baixo ele sobe junto com a página.
+ */
+function asideStartLimit(aside: HTMLElement) {
+  const grid = aside.parentElement;
+  return grid ? pageTop(grid) + grid.offsetHeight - aside.offsetHeight - ASIDE_GAP : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Folga no fim da Agenda com o detalhe ao lado (useAsideRoom): a altura que falta embaixo da última linha
+ * para ela, a EDGE_GAP da borda de baixo, caber na tela junto com o começo do painel, preso no alto. Com
+ * a lista mais curta que o painel, a grade já vai até o fim dele, e não há folga.
+ */
+function sizeAsideRoom(room: HTMLElement, list: HTMLElement, aside: HTMLElement) {
+  const card = room.parentElement;
+  const grid = aside.parentElement;
+  const rows = list.querySelectorAll<HTMLElement>(".ev");
+  const last = rows[rows.length - 1];
+  let height = 0;
+  if (card && grid && last) {
+    const style = getComputedStyle(card);
+    // onde o card da lista terminaria sem a folga
+    const cardEnd =
+      pageTop(room) + (Number.parseFloat(style.paddingBottom) || 0) + (Number.parseFloat(style.borderBottomWidth) || 0);
+    // fim da grade com a última linha inteira na tela e o painel preso no alto
+    const needed = pageTop(last) + last.offsetHeight + EDGE_GAP - window.innerHeight + ASIDE_GAP + aside.offsetHeight;
+    if (needed > Math.max(cardEnd, pageTop(grid) + aside.offsetHeight)) {
+      // 2 px a mais pelos arredondamentos do offsetTop
+      height = Math.ceil(needed - cardEnd) + 2;
+    }
+  }
+  const value = height ? `${height}px` : "";
+  if (room.style.height !== value) {
+    room.style.height = value;
   }
 }
 
@@ -263,8 +313,8 @@ function stuckHeadBottom(day: HTMLElement) {
  * título dela (que recebe o foco) sempre à vista.
  */
 function placeDay(day: HTMLElement, top: number, list: HTMLElement | null, title: HTMLElement | null) {
-  const safeTop = stuckHeadBottom(day) + DAY_GAP;
-  const safeBottom = window.innerHeight - DAY_GAP;
+  const safeTop = stuckHeadBottom(day) + EDGE_GAP;
+  const safeBottom = window.innerHeight - EDGE_GAP;
   const dayTop = pageTop(day);
   const end = list ? pageTop(list) + list.offsetHeight : dayTop + day.offsetHeight;
   // parte do dia no mesmo lugar e desce até o fim aparecer, sem passar do ponto em que o dia encosta no cabeçalho
@@ -275,6 +325,90 @@ function placeDay(day: HTMLElement, top: number, list: HTMLElement | null, title
   scroll = Math.max(0, Math.round(scroll));
   if (scroll !== Math.round(window.scrollY)) {
     window.scrollTo({ top: scroll, behavior: "instant" });
+  }
+}
+
+/**
+ * Dia de um evento que chega de outro lugar (Painel, avisos, a Agenda), com a lista do dia aberta logo
+ * abaixo da semana: o dia vai para o meio da tela e, se a lista não couber, a página desce até ela
+ * aparecer inteira, sem levar o dia para baixo do cabeçalho DOM a SÁB. Com a lista mais alta que a
+ * tela, a linha do evento (a marcada) fica à vista, mesmo que o dia suba.
+ */
+function placeDayWithEvent(day: HTMLElement, list: HTMLElement, row: HTMLElement | null) {
+  const safeTop = stuckHeadBottom(day) + EDGE_GAP;
+  const safeBottom = window.innerHeight - EDGE_GAP;
+  const dayTop = pageTop(day);
+  const listEnd = pageTop(list) + list.offsetHeight;
+  let scroll = Math.min(
+    Math.max(dayTop - (window.innerHeight - day.offsetHeight) / 2, listEnd - safeBottom),
+    dayTop - safeTop
+  );
+  if (row) {
+    const rowTop = pageTop(row);
+    scroll = Math.min(Math.max(scroll, rowTop + row.offsetHeight - safeBottom), rowTop - safeTop);
+  }
+  scroll = Math.max(0, Math.round(scroll));
+  if (scroll !== Math.round(window.scrollY)) {
+    window.scrollTo({ top: scroll, behavior: "instant" });
+  }
+}
+
+/**
+ * Rola a página até o elemento ficar inteiro na tela, com a folga EDGE_GAP nas bordas (ou o scroll-margin
+ * dele, quando é maior: o cabeçalho do celular em cima, os avisos embaixo). "nearest" rola só o que falta e
+ * "center" leva o elemento ao meio. A medida é a do fim das entradas animadas (settledBox), para a linha
+ * não ficar abaixo da borda quando a animação acaba. Com o painel ao lado (`aside`), o começo dele também
+ * fica à vista sempre que cabe junto com o elemento (na Agenda, a folga do useAsideRoom garante isso);
+ * quando não cabe, vale o elemento, e o painel sobe com a página.
+ */
+function revealElement(element: HTMLElement, block: "center" | "nearest", aside?: HTMLElement | null) {
+  const box = settledBox(element);
+  const style = getComputedStyle(element);
+  const top = box.top - Math.max(EDGE_GAP, Number.parseFloat(style.scrollMarginTop) || 0);
+  const bottom = box.bottom + Math.max(EDGE_GAP, Number.parseFloat(style.scrollMarginBottom) || 0);
+  const viewHeight = window.innerHeight;
+  const current = Math.round(window.scrollY);
+  // rolagens com o elemento inteiro entre as folgas: da que deixa o fim dele embaixo até a que deixa o
+  // começo em cima (mais alto que a tela, vale o começo)
+  const maxScroll = Math.floor(top);
+  const minScroll = Math.min(maxScroll, Math.ceil(bottom - viewHeight));
+  let next = block === "center" ? Math.round((top + bottom - viewHeight) / 2) : current;
+  next = Math.min(Math.max(next, minScroll), maxScroll);
+  if (aside) {
+    next = Math.max(Math.min(next, Math.floor(asideStartLimit(aside))), minScroll);
+  }
+  next = Math.max(0, next);
+  if (next !== current) {
+    window.scrollTo({ top: next, behavior: "instant" });
+  }
+}
+
+/**
+ * Celular: a linha de categorias rola de lado, e a borda direita some num degradê. O chip que recebe o
+ * foco pelo teclado rola para dentro da linha, inteiro e fora do degradê (o scroll-padding da linha, no
+ * globals.css, tem a largura dele). Sozinho, o navegador não rola um chip que já aparece em parte. No
+ * toque e no clique a linha não se mexe, para o chip não sair de baixo do dedo antes do clique.
+ */
+function revealFocusedChip(event: ReactFocusEvent<HTMLElement>) {
+  const row = event.currentTarget;
+  const chip = event.target as HTMLElement;
+  if (chip === row || row.scrollWidth <= row.clientWidth || !chip.matches(":focus-visible")) {
+    return;
+  }
+  const style = getComputedStyle(row);
+  const start = Number.parseFloat(style.scrollPaddingLeft) || 0;
+  const end = Number.parseFloat(style.scrollPaddingRight) || 0;
+  const box = row.getBoundingClientRect();
+  const item = chip.getBoundingClientRect();
+  let shift = 0;
+  if (item.right > box.right - end) {
+    shift = item.right - (box.right - end);
+  }
+  if (item.left - shift < box.left + start) {
+    shift = item.left - (box.left + start);
+  }
+  if (Math.round(shift)) {
+    row.scrollLeft += Math.round(shift);
   }
 }
 
@@ -335,6 +469,47 @@ function useAsideFollow(ref: RefObject<HTMLElement | null>, active: boolean, res
   return reset;
 }
 
+/**
+ * Folga no fim do card da Agenda enquanto o detalhe está ao lado. Mais alto que a janela, o painel subia
+ * com a página perto do fim da lista, e a linha escolhida ou o começo do painel saía da tela. Com a folga,
+ * qualquer linha (a última também) cabe na tela junto com o começo do painel, e no fim da página o card da
+ * lista e o painel terminam juntos. A medida vale a cada render, antes de pintar, e quando a lista ou o
+ * painel mudam de tamanho sozinhos (fontes, janela). A folga não muda o tamanho de nenhum dos dois.
+ */
+function useAsideRoom(
+  roomRef: RefObject<HTMLElement | null>,
+  listRef: RefObject<HTMLElement | null>,
+  asideRef: RefObject<HTMLElement | null>,
+  active: boolean
+) {
+  useLayoutEffect(() => {
+    const room = roomRef.current;
+    const list = listRef.current;
+    const aside = asideRef.current;
+    if (active && room && list && aside) {
+      sizeAsideRoom(room, list, aside);
+    }
+  });
+
+  useEffect(() => {
+    const room = roomRef.current;
+    const list = listRef.current;
+    const aside = asideRef.current;
+    if (!active || !room || !list || !aside) {
+      return;
+    }
+    const update = () => sizeAsideRoom(room, list, aside);
+    const observer = new ResizeObserver(update);
+    observer.observe(list);
+    observer.observe(aside);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [active, roomRef, listRef, asideRef]);
+}
+
 /* ------------------------------------------------------------------ */
 /* Peças                                                               */
 /* ------------------------------------------------------------------ */
@@ -345,7 +520,8 @@ function ListEmpty({ actions, hint, icon: Icon, title }: { actions?: ReactNode; 
       <span className="empty-ico">
         <Icon className="h-6 w-6" aria-hidden />
       </span>
-      <p className="mt-2 text-[15px] font-bold text-ink">{title}</p>
+      {/* o termo da busca vem no título: uma palavra mais larga que o card quebra em vez de passar dele */}
+      <p className="mt-2 text-[15px] font-bold text-ink wrap-anywhere">{title}</p>
       {hint ? <p className="max-w-sm text-sm leading-5 text-muted">{hint}</p> : null}
       {actions ? <div className="mt-3 flex flex-wrap justify-center gap-2.5">{actions}</div> : null}
     </div>
@@ -353,18 +529,40 @@ function ListEmpty({ actions, hint, icon: Icon, title }: { actions?: ReactNode; 
 }
 
 /**
- * Título do evento na grade, que quebra só entre as palavras. A 1ª palavra é a única que pode passar
- * da largura na 1ª linha (as outras descem para a 2ª, que o corte termina em reticências): ela vai num
- * bloco que também termina em reticências ("Seminá..."), em vez de partir ao meio ("Seminári / o").
+ * Título do evento na grade, que quebra só entre as palavras. Cada palavra vai num bloco que termina em
+ * reticências quando ela é mais larga que o chip ("Matemá..."), em qualquer linha, em vez de partir ao
+ * meio ("Seminári / o") ou perder as últimas letras na borda ("Prova de / Matemát"). As palavras que
+ * cabem voltam a ser texto (fitChipWords): com mais de 2 linhas, o line-clamp corta a 2ª linha com
+ * reticências, terminando a última palavra ("de Engenh...") em vez de esconder ela inteira.
  */
 function chipTitle(title: string) {
-  const [first, ...rest] = title.trim().split(/\s+/);
-  return (
-    <>
-      <span>{first}</span>
-      {rest.length ? ` ${rest.join(" ")}` : null}
-    </>
-  );
+  return title
+    .trim()
+    .split(/\s+/)
+    .map((word, index) => (
+      <Fragment key={index}>
+        {index ? " " : null}
+        <span>{word}</span>
+      </Fragment>
+    ));
+}
+
+/**
+ * Palavras dos títulos dos chips (chipTitle): cada uma começa como bloco que corta com reticências
+ * (globals.css) e ganha "fits", que a deixa como texto, quando cabe na largura do chip. Lê todas antes
+ * de mudar alguma, pelas medidas de layout (sem as animações de entrada): no bloco, a largura do texto é
+ * o scrollWidth; no texto, o offsetWidth.
+ */
+function fitChipWords(grid: HTMLElement | null) {
+  if (!grid?.isConnected) {
+    return;
+  }
+  const words = Array.from(grid.querySelectorAll<HTMLElement>(".ce .t > span"));
+  const fits = words.map((word) => {
+    const natural = word.classList.contains("fits") ? word.offsetWidth : word.scrollWidth;
+    return natural <= (word.parentElement?.clientWidth ?? 0);
+  });
+  words.forEach((word, index) => word.classList.toggle("fits", fits[index]));
 }
 
 /** Eventos de um dia escolhido no mês, logo abaixo da semana dele (o card do dia do Figma, perto do dia). */
@@ -463,6 +661,25 @@ function MonthCalendar({
       button.focus();
     }
   });
+
+  // títulos dos chips: antes de pintar, a cada mês ou evento novo; de novo quando a grade muda de
+  // largura (janela, menu, chips que aparecem a partir de 1024 px) e quando a Open Sans termina de chegar
+  useLayoutEffect(() => fitChipWords(gridRef.current), [weeks]);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) {
+      return;
+    }
+    const refit = () => fitChipWords(grid);
+    const observer = new ResizeObserver(refit);
+    observer.observe(grid);
+    void document.fonts.ready.then(refit);
+    document.fonts.addEventListener("loadingdone", refit);
+    return () => {
+      observer.disconnect();
+      document.fonts.removeEventListener("loadingdone", refit);
+    };
+  }, []);
 
   function showMonthOf(date: Date) {
     setCursor({ year: date.getFullYear(), month: date.getMonth() });
@@ -742,12 +959,22 @@ export function CalendarView({
     }
   }
 
+  // evento aberto ao lado, na Agenda, quando a pessoa passa para o Calendário: fica marcado no dia e na
+  // lista do dia, mas o diálogo só abre quando ela clica nele (trocar de modo não abre diálogo sozinho).
+  // Vale só para esse evento: outro evento, ou o mesmo escolhido de novo depois de fechar, abre como sempre.
+  const [quietId, setQuietId] = useState<number | null>(null);
+  if (quietId !== null && quietId !== selectedEventId) {
+    setQuietId(null);
+  }
+  const quiet = quietId !== null && quietId === selectedEventId;
+
   const sectionRef = useRef<HTMLElement>(null);
   const detailTitleRef = useRef<HTMLHeadingElement>(null);
   const dayTitleRef = useRef<HTMLHeadingElement>(null);
   const dayPanelRef = useRef<HTMLElement>(null);
   const allChipRef = useRef<HTMLButtonElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const asideRoomRef = useRef<HTMLDivElement>(null);
   // evento, modo e data para os quais a página já rolou até a linha ou o dia
   const scrolledFor = useRef<{ id: number; mode: CalendarMode; start: number | null } | null>(null);
   const pendingFocus = useRef<"detail" | null>(null);
@@ -822,6 +1049,7 @@ export function CalendarView({
   const asideOpen = side && selectedEvent !== null;
   const asideRef = useRef<HTMLElement>(null);
   const resetAside = useAsideFollow(asideRef, asideOpen, String(selectedEventId ?? ""));
+  useAsideRoom(asideRoomRef, listRef, asideRef, asideOpen);
   const hiddenByFilters =
     !monthMode && selectedEvent !== null && !periodNotice && !listEvents.some((event) => event.id === selectedEvent.id);
 
@@ -832,7 +1060,9 @@ export function CalendarView({
 
   // evento escolhido (aqui, no Painel, nos avisos ou na busca): a página rola até a linha ou o dia dele,
   // sem rolar se já está à vista. O mesmo evento num lugar novo (salvo com outra data, ou o outro modo)
-  // vai para o centro: a lista acompanha o evento.
+  // vai para o centro: a lista acompanha o evento. No Calendário, com a lista do dia aberta, o dia, a
+  // lista e a linha do evento ficam à vista juntos; com um clique na própria grade, nada rola (o que foi
+  // clicado já está à vista e não sai de baixo do cursor).
   const targetDay = selectedDay ?? (selectedEvent ? dayKey(new Date(selectedEvent.startsAt)) : null);
   const targetVisible =
     selectedEventId !== null &&
@@ -850,22 +1080,34 @@ export function CalendarView({
     }
     scrolledFor.current = { id: selectedEventId, mode: calendarMode, start: currentStart };
     const relocated = last?.id === selectedEventId;
+    const fromHere = !relocated && internalId === selectedEventId;
     afterPaint(() => {
       const root = sectionRef.current;
-      const target = monthMode
-        ? root?.querySelector<HTMLElement>(`[data-day="${targetDay}"]`)
-        : root?.querySelector<HTMLElement>(`.ev[data-event-id="${selectedEventId}"]`);
-      if (!target) {
+      if (monthMode) {
+        const day = root?.querySelector<HTMLElement>(`[data-day="${targetDay}"]`);
+        const list = dayPanelRef.current;
+        if (!day || fromHere) {
+          return;
+        }
+        if (list) {
+          placeDayWithEvent(day, list, list.querySelector<HTMLElement>(`.ev[data-event-id="${selectedEventId}"]`));
+        } else {
+          revealElement(day, relocated ? "center" : "nearest");
+        }
+        return;
+      }
+      const row = root?.querySelector<HTMLElement>(`.ev[data-event-id="${selectedEventId}"]`);
+      if (!row) {
         return;
       }
       if (relocated) {
         resetAside();
       }
-      target.scrollIntoView({ block: relocated ? "center" : "nearest" });
-      // com o painel ao lado, o título do detalhe nunca fica acima da tela
-      keepAsideStart(asideRef.current);
+      // a linha inteira à vista e, com o painel ao lado, o título do detalhe também (a folga no fim da
+      // lista deixa os dois caberem juntos); a lista ainda pode estar na animação de entrada
+      revealElement(row, relocated ? "center" : "nearest", asideRef.current);
     });
-  }, [selectedEventId, calendarMode, targetVisible, currentStart, monthMode, targetDay, resetAside]);
+  }, [selectedEventId, calendarMode, targetVisible, currentStart, monthMode, targetDay, resetAside, internalId]);
 
   // no computador, o foco vai para o título do detalhe ao lado (no Modal, quem cuida é o próprio Modal)
   useEffect(() => {
@@ -930,6 +1172,16 @@ export function CalendarView({
     setPeriodNotice(null);
   }
 
+  /**
+   * "Ver em ..." da lista vazia e "Ver só os próximos" do aviso: o botão clicado some com a lista nova, e o
+   * foco vai para a aba do período escolhido, que fica (como na Gestão), em vez de cair no início da página.
+   */
+  function showPeriod(value: TimeFilter, from: HTMLElement) {
+    setPeriod(value);
+    const tabs = from.closest("section")?.querySelectorAll<HTMLButtonElement>('.seg[aria-label="Período"] button');
+    tabs?.[timeFilters.findIndex((item) => item.value === value)]?.focus();
+  }
+
   function clearAll() {
     setSearch("");
     setPeriod("upcoming");
@@ -957,21 +1209,28 @@ export function CalendarView({
     focusAllChip();
   }
 
-  /** Ao ir para o Calendário com um evento aberto, a grade mostra o mês e o dia dele. */
+  /**
+   * Ao ir para o Calendário com um evento aberto, a grade mostra o mês e o dia dele, com a lista do dia
+   * aberta e o evento marcado nela. O detalhe não vira diálogo sozinho: ele abre com um clique no evento.
+   */
   function changeMode(mode: CalendarMode) {
     if (mode === "month" && !monthMode && selectedEvent) {
-      const start = new Date(selectedEvent.startsAt);
-      if (!gridShows(cursor, start)) {
-        setCursor({ year: start.getFullYear(), month: start.getMonth() });
+      // um dia do evento já escolhido na grade (evento de vários dias) continua; senão, o 1º dia dele
+      const kept = selectedDay && occursOnDay(selectedEvent, parseDayKey(selectedDay)) ? parseDayKey(selectedDay) : null;
+      const day = kept ?? new Date(selectedEvent.startsAt);
+      if (day.getFullYear() !== cursor.year || day.getMonth() !== cursor.month) {
+        setCursor({ year: day.getFullYear(), month: day.getMonth() });
       }
-      if (!(selectedDay && occursOnDay(selectedEvent, parseDayKey(selectedDay)))) {
-        setSelectedDay(dayKey(start));
+      if (!kept) {
+        setSelectedDay(dayKey(day));
       }
+      setQuietId(selectedEvent.id);
     }
     setCalendarMode(mode);
   }
 
   function selectFromList(id: number) {
+    setQuietId(null);
     setInternalId(id);
     onSelect(id);
   }
@@ -1003,6 +1262,7 @@ export function CalendarView({
   }
 
   function openFromDay(id: number) {
+    setQuietId(null);
     setInternalId(id);
     pendingFocus.current = "detail";
     onSelect(id);
@@ -1013,6 +1273,7 @@ export function CalendarView({
     if (button && key !== selectedDay) {
       dayAnchor.current = { key, top: pageTop(button) - window.scrollY, list: false };
     }
+    setQuietId(null);
     setInternalId(id);
     setSelectedDay(key);
     pendingFocus.current = "detail";
@@ -1087,7 +1348,7 @@ export function CalendarView({
 
     const seeOther =
       otherPeriod && otherCount ? (
-        <button className="btn btn-p" onClick={() => setPeriod(otherPeriod)} type="button">
+        <button className="btn btn-p" onClick={(click) => showPeriod(otherPeriod, click.currentTarget)} type="button">
           Ver em {periodNames[otherPeriod]}
         </button>
       ) : null;
@@ -1152,54 +1413,23 @@ export function CalendarView({
           </Segmented>
         </div>
 
-        <div className="mt-4 grid gap-3 border-b border-line-2 pb-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* no celular a busca fica aqui; a partir de 768px ela fica no menu e aqui aparece só o chip */}
-            <label className="relative flex min-w-[200px] flex-1 items-center md:hidden">
-              <Search className="pointer-events-none absolute left-3.5 h-4 w-4 text-muted" aria-hidden />
-              <input
-                ref={searchInputRef}
-                className="input min-h-[44px] pl-10 pr-11"
-                placeholder="Buscar no cronograma"
-                aria-label="Filtrar por título, disciplina, turma ou docente"
-                enterKeyHint="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape" && search) {
-                    event.preventDefault();
-                    setSearch("");
-                  }
-                }}
-              />
-              {search ? (
-                <button
-                  className="absolute right-1.5 grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink"
-                  aria-label="Limpar busca"
-                  onClick={() => {
-                    // o X faz parte do campo: o foco volta para ele, pronto para outra busca
-                    setSearch("");
-                    searchInputRef.current?.focus();
-                  }}
-                  title="Limpar busca"
-                  type="button"
-                >
-                  <X className="h-4 w-4" aria-hidden />
-                </button>
-              ) : null}
-            </label>
-
+        {/* coluna presa à largura do card (minmax(0, 1fr)): um termo longo não alarga a coluna nem passa da tela */}
+        <div className="mt-4 grid grid-cols-1 gap-3 border-b border-line-2 pb-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {/* a busca fica só no menu (no celular, na gaveta); aqui aparece o chip dela, que limpa a busca.
+                O termo longo termina em reticência dentro do card, e o termo inteiro fica no title e no nome
+                do X. No toque, o X tem alvo de 40 px (o ::after), sem mudar o desenho. */}
             {term ? (
-              <span className="chip picked hidden max-w-full pr-1.5 md:inline-flex">
+              <span className="chip picked min-w-0 max-w-full pr-1.5" title={`Busca: ${term}`}>
                 <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 <span className="min-w-0 truncate">
                   Busca: <b>{term}</b>
                 </span>
                 <button
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-surface-2"
-                  aria-label="Limpar busca"
+                  className="relative grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-surface-2 pointer-coarse:after:absolute pointer-coarse:after:-inset-2"
+                  aria-label={`Limpar busca por "${term}"`}
                   onClick={clearSearch}
-                  title="Limpar busca"
+                  title={`Limpar busca por "${term}"`}
                   type="button"
                 >
                   <X className="h-3.5 w-3.5" aria-hidden />
@@ -1232,10 +1462,15 @@ export function CalendarView({
               </button>
             ) : null}
 
+            {/* o select fica da largura da maior turma: um nome sem espaço não passa do card, e a turma
+                escolhida termina em reticência */}
             {role === "admin" && classes.length ? (
               <select
                 aria-label="Turma"
-                className={cx("input min-h-[44px] w-auto font-semibold", classFilter !== "all" && "border-night text-night")}
+                className={cx(
+                  "input min-h-[44px] w-auto min-w-0 max-w-full truncate font-semibold",
+                  classFilter !== "all" && "border-night text-night"
+                )}
                 value={classFilter}
                 onChange={(event) => setClassFilter(event.target.value)}
               >
@@ -1261,7 +1496,7 @@ export function CalendarView({
             </span>
           </div>
 
-          <div className="chips chips-row items-center" role="group" aria-label="Categorias">
+          <div className="chips chips-row items-center" role="group" aria-label="Categorias" onFocus={revealFocusedChip}>
             <button
               ref={allChipRef}
               className={cx("chip", allSelected && "all")}
@@ -1299,8 +1534,9 @@ export function CalendarView({
         {calendarMode === "list" && periodNotice ? (
           <div className="callout blue mt-3 flex-wrap items-center">
             <Info className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="min-w-0 flex-1">{periodNotice}</span>
-            <button className="link" onClick={() => setPeriod("upcoming")} type="button">
+            {/* o aviso traz o título do evento: uma palavra mais larga que o card quebra em vez de passar dele */}
+            <span className="min-w-0 flex-1 wrap-anywhere">{periodNotice}</span>
+            <button className="link" onClick={(click) => showPeriod("upcoming", click.currentTarget)} type="button">
               Ver só os próximos
             </button>
           </div>
@@ -1319,14 +1555,16 @@ export function CalendarView({
         {hiddenByFilters && selectedEvent ? (
           <div className="callout blue mt-3 flex-wrap items-center">
             <Info className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="min-w-0 flex-1">&quot;{selectedEvent.title}&quot; não aparece na lista com os filtros atuais.</span>
+            <span className="min-w-0 flex-1 wrap-anywhere">
+              &quot;{selectedEvent.title}&quot; não aparece na lista com os filtros atuais.
+            </span>
             <button className="link" onClick={clearFilters} type="button">
               Limpar filtros
             </button>
           </div>
         ) : null}
 
-        <div className="mt-3">
+        <div ref={listRef} className="mt-3">
           {calendarMode === "list" ? (
             listBody()
           ) : (
@@ -1379,6 +1617,9 @@ export function CalendarView({
             />
           )}
         </div>
+        {/* folga no fim da lista com o detalhe ao lado (useAsideRoom): a linha escolhida e o começo do
+            detalhe cabem juntos na tela, e no fim da página os dois cards terminam juntos */}
+        {asideOpen ? <div ref={asideRoomRef} aria-hidden /> : null}
       </section>
 
       {/* computador, na Agenda: detalhe ao lado, que acompanha a página (sem rolagem própria) */}
@@ -1410,8 +1651,9 @@ export function CalendarView({
         </aside>
       ) : null}
 
-      {/* celular, tablet e Calendário: detalhe no Modal, com o foco no título do evento */}
-      {compact && selectedEvent ? (
+      {/* celular, tablet e Calendário: detalhe no Modal, com o foco no título do evento. O evento que
+          veio da Agenda ao trocar de modo só fica marcado: o Modal abre quando a pessoa clica nele. */}
+      {compact && selectedEvent && !quiet ? (
         <Modal title="Detalhes do evento" initialFocusRef={detailTitleRef} onClose={() => onSelect(null)}>
           {renderDetail(selectedEvent)}
         </Modal>

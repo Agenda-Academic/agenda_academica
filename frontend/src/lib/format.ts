@@ -1,3 +1,4 @@
+import { isTimeoutError } from "./api";
 import type { AcademicEvent, Category } from "./types";
 
 export function formatDate(value: string) {
@@ -225,7 +226,7 @@ const fieldNames: Record<string, string> = {
   channel: "o canal do aviso",
   notificationChannel: "o canal do aviso",
   offsetMinutes: "a antecedência",
-  defaultReminderMinutes: "a antecedência padrão",
+  defaultReminderMinutes: "o lembrete padrão",
   enabled: "a opção de ativar",
   sourceName: "o nome da fonte",
   sourceUrl: "o endereço da fonte",
@@ -312,6 +313,8 @@ function validationMessage(item: FieldErrorLike) {
 /** Texto do erro para a pessoa: validação, mensagem conhecida da API ou reserva pela situação. */
 export function errorMessage(error: unknown) {
   if (!error || typeof error !== "object") return "Algo deu errado. Tente de novo.";
+  // o prazo estourado também tem situação 0, mas não é falta de conexão: fica com a frase dele
+  if (isTimeoutError(error)) return error.message;
   const err = error as ErrorLike;
   const validation = err.errors?.find((item) => item.rule);
   if (validation) return validationMessage(validation);
@@ -496,12 +499,23 @@ export function countdown(value: string, now = new Date()) {
   return `${days ? `${days}d ` : ""}${hours}h ${String(rest).padStart(2, "0")}m`;
 }
 
+/** Turno com a inicial maiúscula, como no Figma: "noturno" vira "Noturno". */
+export function shiftLabel(value?: string | null) {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : null;
+}
+
+/** "2 nov a 6 nov": intervalo de dias nos títulos de semana (Figma). */
+export function dayMonthRange(start: Date, end: Date) {
+  const label = (date: Date) => `${date.getDate()} ${shortMonths[date.getMonth()].toLowerCase()}`;
+  return `${label(start)} a ${label(end)}`;
+}
+
 /** Agrupa eventos futuros em "Esta semana", "Próxima semana, 29 jun a 5 jul" e "Mais adiante". */
 export function groupByWeek<T extends { startsAt: string }>(items: T[], now = new Date()) {
   const today = startOfDay(now);
   const nextWeekStart = addDays(today, 7 - today.getDay());
   const nextWeekEnd = addDays(nextWeekStart, 6);
-  const range = `${nextWeekStart.getDate()} ${shortMonths[nextWeekStart.getMonth()].toLowerCase()} a ${nextWeekEnd.getDate()} ${shortMonths[nextWeekEnd.getMonth()].toLowerCase()}`;
+  const range = dayMonthRange(nextWeekStart, nextWeekEnd);
   const groups: Array<{ label: string; items: T[] }> = [
     { label: "Esta semana", items: [] },
     { label: `Próxima semana, ${range}`, items: [] },

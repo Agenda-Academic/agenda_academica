@@ -62,6 +62,8 @@ export type AcademicEvent = {
   academicClassId: number | null;
   subjectId: number | null;
   teacherId: number | null;
+  /** Quem publicou (docente ou administração); a API manda em todo evento. */
+  createdById?: number | null;
   officialPriority: boolean;
   /** Importação que trouxe o evento (só datas importadas do calendário oficial). */
   calendarImportId?: number | null;
