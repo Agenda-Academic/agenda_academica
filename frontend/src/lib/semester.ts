@@ -49,8 +49,11 @@ export function semesterWeek(
   today: Date,
   classes: Array<Pick<AcademicClass, "year" | "semester">> = []
 ): SemesterWeek | null {
-  const terms = classes.length
-    ? [...new Set(classes.map((item) => `${item.year}/${item.semester}`))]
+  // a turma anual (curso integrado, semester 0) não define semestre: quem só tem turma anual usa o semestre do
+  // calendário em que o dia cai, como a administração
+  const semestral = classes.filter((item) => Boolean(item.semester));
+  const terms = semestral.length
+    ? [...new Set(semestral.map((item) => `${item.year}/${item.semester}`))]
     : Object.keys(semesterCalendar);
   const todayNumber = dayNumber(today.getFullYear(), today.getMonth(), today.getDate());
   for (const term of terms) {

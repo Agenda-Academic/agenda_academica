@@ -1,0 +1,475 @@
+/* ==================================================================
+   Área Docente: aba Minhas turmas (my-classes.tsx), Gestão (manage-view.tsx) e o seletor de turma e disciplina do event-editor.tsx.
+
+   Importado por globals.css dentro de @layer components (depois de @import "tailwindcss"): os
+   utilitários do Tailwind continuam valendo por cima destas regras. Use os tokens de :root
+   (--brand, --ink, --muted, --line...) e as classes de globals.css (card, pad, btn, pill, callout,
+   field-error, drawer...) antes de criar algo novo. Prefixe as classes novas com o nome da área
+   (ex.: .docente-...) para não colidir com as outras áreas. Só a área Docente edita este arquivo.
+   ================================================================== */
+
+/* ------------------------------------------------------------------ */
+/* Abas da Gestão (amostra docente-notas-evento: "Eventos 17", "Minhas turmas 1") */
+/* ------------------------------------------------------------------ */
+.docente-tabs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 20px 24px 0;
+}
+.docente-tabs .n {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+}
+/* pedidos de entrada esperando a docente: o mesmo âmbar das pendências da administração */
+.docente-tab-pend {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------ */
+/* Lista de turmas (como a tabela de Turmas da administração)          */
+/* ------------------------------------------------------------------ */
+.docente-turma-head {
+  display: none;
+}
+.docente-turma-list {
+  border-top: 1px solid var(--line);
+}
+.docente-turma-list > li + li,
+.docente-turma-list > .docente-turma-row + .docente-turma-row {
+  border-top: 1px solid var(--line-2);
+}
+/* celular: o nome e o curso em cima; período e alunos embaixo, numa linha cada; a seta à direita */
+.docente-turma-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  grid-template-areas:
+    "main go"
+    "per go"
+    "num go";
+  align-items: center;
+  gap: 6px 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 20px 14px 24px;
+  text-align: left;
+  font-size: 14px;
+  color: var(--ink);
+  background: #fff;
+  transition: background-color 0.16s ease;
+}
+button.docente-turma-row:hover {
+  background: var(--surface-2);
+}
+.docente-turma-row.sel {
+  background: var(--brand-50);
+}
+/* o card corta o que passa da borda: o anel de foco fica por dentro da linha */
+.docente-turma-row:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: -3px;
+}
+.docente-turma-row.is-skel {
+  cursor: default;
+}
+.docente-turma-row .t {
+  font-weight: 650;
+}
+.docente-turma-row .s {
+  color: var(--muted);
+}
+.docente-turma-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.docente-turma-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.docente-turma-line .t {
+  font-size: 15px;
+  margin-right: 2px;
+  overflow-wrap: anywhere;
+}
+.docente-turma-main .s {
+  overflow-wrap: anywhere;
+}
+.docente-turma-subj {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.docente-turma-subj svg {
+  margin-top: 3px;
+}
+.docente-turma-per,
+.docente-turma-num {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  min-width: 0;
+}
+.docente-turma-per {
+  grid-area: per;
+}
+.docente-turma-num {
+  grid-area: num;
+  gap: 0 4px;
+}
+.docente-turma-go {
+  grid-area: go;
+  width: 18px;
+  height: 18px;
+  color: var(--faint);
+}
+
+/* largura de tabela (o card tem container-type): Turma | Período | Alunos | seta, com cabeçalho */
+@container (min-width: 640px) {
+  .docente-turma-head,
+  .docente-turma-row {
+    grid-template-columns: minmax(0, 1fr) 168px 112px 20px;
+    grid-template-areas: "main per num go";
+    gap: 0 16px;
+  }
+  .docente-turma-head {
+    display: grid;
+    padding: 12px 20px 12px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--surface-2);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  /* na tabela, o período e o "alunos ativos" ficam embaixo do valor, como na lista da administração */
+  .docente-turma-per,
+  .docente-turma-num {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Painel da turma (Drawer), como o painel da amostra admin-turma-painel */
+/* ------------------------------------------------------------------ */
+.docente-foot-note {
+  flex-basis: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.docente-dsec {
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line-2);
+}
+.docente-dsec + .docente-dsec {
+  padding-top: 20px;
+}
+.docente-dsec:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.docente-dsec-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.docente-dsec-t {
+  font-size: 16.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.docente-dsec-s {
+  margin-top: 2px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* disciplinas e docentes: as da docente em verde, a sem docente em âmbar */
+.docente-ofertas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.docente-oferta {
+  padding: 12px 12px 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+.docente-oferta.mine {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+}
+.docente-oferta.warn {
+  border-color: #f3dca4;
+  background: #fff8e6;
+}
+.docente-of-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.docente-of-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.docente-of-name b {
+  font-size: 14.5px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.docente-code-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.docente-pill-mine {
+  flex-shrink: 0;
+  background: var(--brand);
+  color: #fff;
+}
+.docente-pill-wt {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-3);
+}
+.docente-docs {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  font-size: 13.5px;
+}
+.docente-oferta.warn .docente-docs {
+  gap: 6px 10px;
+  color: #92400e;
+}
+.docente-doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.docente-av-xs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--night);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* alunos: pedidos de entrada em âmbar, com Aprovar e Recusar; ativos só para leitura */
+.docente-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.docente-group::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-2);
+}
+.docente-pend-box {
+  margin-bottom: 18px;
+  border: 1px solid #f3dca4;
+  border-radius: 14px;
+  background: #fff8e6;
+}
+.docente-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3dca4;
+}
+.docente-ck {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.docente-panel input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+@media (pointer: coarse) {
+  .docente-panel input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+  }
+}
+/* sem espaço para nome e botões lado a lado (celular), os botões descem para a linha de baixo */
+.docente-prow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px;
+}
+.docente-prow + .docente-prow {
+  border-top: 1px solid #f3dca4;
+}
+.docente-p-main {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.docente-p-name {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.docente-p-sub {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.docente-p-acts {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.docente-slist {
+  display: flex;
+  flex-direction: column;
+}
+.docente-srow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 4px;
+}
+.docente-srow + .docente-srow {
+  border-top: 1px solid var(--line-2);
+}
+.docente-av-sm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--neutral-tint);
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.docente-s-main {
+  flex: 1;
+  min-width: 0;
+}
+.docente-s-name {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.docente-s-mail {
+  margin-top: 1px;
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.docente-more {
+  min-height: 32px;
+  margin-top: 10px;
+}
+
+/* código da turma */
+.docente-codebox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+.docente-code-big {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+}
+.docente-code-acts {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

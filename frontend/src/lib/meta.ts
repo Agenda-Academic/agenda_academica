@@ -1,5 +1,22 @@
 import { Check, Clock, Pencil, X, type LucideIcon } from "lucide-react";
-import type { AcademicEvent, Category, EventSource, UserRole } from "./types";
+import type {
+  AcademicEvent,
+  Category,
+  ClassShift,
+  CourseModality,
+  EnrollmentSource,
+  EnrollmentStatus,
+  EventSource,
+  GradeImportRowKind,
+  GradeImportSource,
+  GradeStatus,
+  GuardianLinkOrigin,
+  GuardianLinkStatus,
+  GuardianRelationship,
+  NotificationKind,
+  TeachingRole,
+  UserRole,
+} from "./types";
 
 export type CategoryMeta = {
   label: string;
@@ -93,7 +110,11 @@ export const roleLabels: Record<UserRole, string> = {
   student: "Aluno",
   teacher: "Docente",
   admin: "Administração",
+  guardian: "Responsável",
 };
+
+/** Papéis que o front conhece (sessão guardada com outro papel é descartada). */
+export const knownRoles = Object.keys(roleLabels) as UserRole[];
 
 // quem publica evento oficial é a administração (glossário); o importado vem do calendário oficial
 export const sourceLabels: Record<EventSource, string> = {
@@ -188,4 +209,133 @@ export const demoAccounts = [
     email: "admin@agenda.test",
     password: "password123",
   },
+  {
+    label: roleLabels.guardian,
+    description: "Acompanha a agenda e as notas de um aluno",
+    email: "maria@agenda.test",
+    password: "password123",
+  },
 ];
+
+/* ------------------------------------------------------------------ */
+/* Turmas, matrículas e ofertas                                        */
+/* ------------------------------------------------------------------ */
+
+/** Modalidade do curso. O integrado tem turma anual (sem semestre). */
+export const modalityLabels: Record<CourseModality, string> = {
+  superior: "Superior",
+  integrado: "Integrado",
+};
+
+/** Turno, como aparece na tela. */
+export const shiftLabels: Record<ClassShift, string> = {
+  matutino: "Matutino",
+  vespertino: "Vespertino",
+  noturno: "Noturno",
+  integral: "Integral",
+};
+
+export const shiftOptions = (Object.keys(shiftLabels) as ClassShift[]).map((value) => ({ value, label: shiftLabels[value] }));
+
+/** Situação da matrícula na turma. */
+export const enrollmentStatusLabels: Record<EnrollmentStatus, string> = {
+  pending: "Pedido pendente",
+  active: "Ativa",
+  inactive: "Inativa",
+  completed: "Concluída",
+};
+
+/** Como o aluno entrou na turma. */
+export const enrollmentSourceLabels: Record<EnrollmentSource, string> = {
+  admin: "Incluído pela secretaria",
+  list: "Lista de e-mails",
+  code: "Código da turma",
+  invite: "Convite da turma",
+};
+
+/** Tipo do vínculo da docente com a oferta. */
+export const teachingRoleLabels: Record<TeachingRole, string> = {
+  titular: "Titular",
+  substituto: "Substituto",
+};
+
+/* ------------------------------------------------------------------ */
+/* Responsável                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Parentesco (valores da API para o texto). */
+export const relationshipLabels: Record<GuardianRelationship, string> = {
+  mae: "Mãe",
+  pai: "Pai",
+  responsavel_legal: "Responsável legal",
+  outro: "Outro",
+};
+
+/** Opções do select de parentesco, na ordem da tela. */
+export const relationshipOptions = (Object.keys(relationshipLabels) as GuardianRelationship[]).map((value) => ({
+  value,
+  label: relationshipLabels[value],
+}));
+
+/** Situação do vínculo do responsável. */
+export const linkStatusLabels: Record<GuardianLinkStatus, string> = {
+  pending: "Aguardando a secretaria",
+  active: "Ativo",
+  revoked: "Desfeito",
+  blocked: "Bloqueado",
+};
+
+/** De onde veio o vínculo. */
+export const linkOriginLabels: Record<GuardianLinkOrigin, string> = {
+  student_code: "Código do aluno",
+  admin_code: "Código da secretaria",
+  admin: "Vinculado pela secretaria",
+};
+
+/** Tipo do aviso do sistema (para um rótulo curto ou um ícone). */
+export const notificationKindLabels: Record<NotificationKind, string> = {
+  guardian_linked: "Novo responsável",
+  guardian_unlinked: "Vínculo desfeito",
+  guardian_pending: "Vínculo aguardando a secretaria",
+  guardian_review: "Confira quem acompanha sua agenda",
+  grades_published: "Nota publicada",
+};
+
+/* ------------------------------------------------------------------ */
+/* Notas                                                               */
+/* ------------------------------------------------------------------ */
+
+/** Situação da nota. */
+export const gradeStatusLabels: Record<GradeStatus, string> = {
+  graded: "Com nota",
+  absent: "Falta",
+  excused: "Dispensa",
+};
+
+/** Origem do arquivo de notas ("Fonte: SUAP, importada em 04/11/2026"). */
+export const gradeImportSourceLabels: Record<GradeImportSource, string> = {
+  modelo: "Modelo da Agenda",
+  suap: "SUAP",
+  moodle: "Moodle",
+  classroom: "Google Classroom",
+};
+
+/** Classificação de cada linha da prévia da importação. */
+export const gradeImportKindLabels: Record<GradeImportRowKind, string> = {
+  new: "Nova",
+  changed: "Alterada",
+  same: "Igual",
+  no_match: "Sem aluno",
+  not_enrolled: "Fora da turma",
+  invalid: "Nota inválida",
+  duplicate: "Repetida",
+  newer_in_agenda: "Mudou na Agenda",
+};
+
+/** Categorias que recebem nota (prova e trabalho de turma). */
+export const gradableCategories: Category[] = ["exam", "assignment"];
+
+/** O evento recebe nota? Só prova e trabalho de turma. */
+export function isGradable(event: Pick<AcademicEvent, "category" | "academicClassId">) {
+  return gradableCategories.includes(event.category) && event.academicClassId !== null;
+}

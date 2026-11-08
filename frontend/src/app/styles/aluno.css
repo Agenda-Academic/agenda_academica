@@ -1,0 +1,521 @@
+/* ==================================================================
+   Área Aluno: card Entrar em uma turma (student-join-card.tsx), seção Quem acompanha minha agenda (profile-guardians.tsx) e dashboard-student.tsx.
+
+   Importado por globals.css dentro de @layer components (depois de @import "tailwindcss"): os
+   utilitários do Tailwind continuam valendo por cima destas regras. Use os tokens de :root
+   (--brand, --ink, --muted, --line...) e as classes de globals.css (card, pad, btn, pill, callout,
+   field-error, drawer...) antes de criar algo novo. Prefixe as classes novas com o nome da área
+   (ex.: .aluno-...) para não colidir com as outras áreas. Só a área Aluno edita este arquivo.
+
+   As regras de globals.css vêm depois destas na mesma camada: para mudar uma classe global aqui,
+   a regra usa as duas classes (ex.: .hero.aluno-join, .input.aluno-code-input).
+   ================================================================== */
+
+/* ------------------------------------------------------------------ */
+/* Card "Entrar em uma turma" (amostra aluno-entrar-turma)             */
+/* ------------------------------------------------------------------ */
+
+/* o destaque do Painel enquanto o aluno não tem turma: bloco verde à esquerda, título, campo e,
+   embaixo na largura toda, o status dos pedidos */
+.hero.aluno-join {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  column-gap: 28px;
+  row-gap: 22px;
+  align-items: start;
+  align-content: start;
+}
+.aluno-join-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 132px;
+  flex-shrink: 0;
+  border-radius: 18px;
+  background: var(--brand);
+  color: #fff;
+}
+.aluno-join-ico svg {
+  width: 46px;
+  height: 46px;
+  stroke-width: 1.7;
+}
+.aluno-join-body {
+  min-width: 0;
+}
+.aluno-join .hero-title {
+  margin-top: 0;
+}
+.aluno-join-sub {
+  margin-top: 8px;
+  max-width: 520px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+.aluno-join-form {
+  margin-top: 20px;
+}
+.aluno-join-field .lbl {
+  margin-bottom: 8px;
+}
+.aluno-join-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* o código em letra de máquina e maiúsculo (como ele aparece para quem passa); o exemplo, não */
+.input.aluno-code-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 360px;
+  font-family: var(--mono);
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.input.aluno-code-input::placeholder {
+  font-family: var(--font);
+  font-size: 14.5px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+/* no painel lateral o campo ocupa a largura toda */
+.drawer .input.aluno-code-input {
+  max-width: none;
+}
+.aluno-join-status {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+}
+
+/* pedido de entrada ainda sem decisão: faixa azul com ampulheta e "Aguardando" */
+.callout.aluno-pending {
+  align-items: center;
+  padding: 12px 16px 12px 12px;
+}
+.aluno-pending-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  background: #fff;
+  color: #1e40af;
+}
+.aluno-pending-tx {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.aluno-pending-tx b {
+  font-weight: 700;
+}
+.aluno-pending-when {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: #3b5596;
+}
+.aluno-pending .pill {
+  flex-shrink: 0;
+}
+/* no card da turma (coluna de 360 px): mais justo, sem a pílula */
+.callout.aluno-pending.compact {
+  align-items: flex-start;
+  padding: 10px 12px;
+  font-size: 13.5px;
+}
+.aluno-pending.compact .aluno-pending-ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+
+@media (max-width: 639px) {
+  /* celular: sem o bloco verde, o título e o campo na largura toda */
+  .hero.aluno-join {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 16px;
+  }
+  .aluno-join-ico {
+    display: none;
+  }
+  .aluno-join-sub {
+    font-size: 14px;
+  }
+  .aluno-join-form {
+    margin-top: 16px;
+  }
+  .input.aluno-code-input {
+    max-width: none;
+  }
+  .callout.aluno-pending {
+    flex-wrap: wrap;
+  }
+  .aluno-pending .pill {
+    margin-left: 48px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Painel do aluno                                                     */
+/* ------------------------------------------------------------------ */
+
+/* aviso fixo do aluno que deixou de ser menor (desenho 6.3) */
+.callout.aluno-review {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  border: 1px solid #f5d9a8;
+}
+.callout.aluno-review .btn {
+  margin-left: auto;
+}
+
+/* mais de uma turma no card "Suas turmas" */
+.aluno-classes {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+.aluno-class {
+  padding-top: 12px;
+  border-top: 1px solid var(--line-2);
+}
+.aluno-class:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.aluno-class-name {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.aluno-class-course {
+  margin-top: 2px;
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.aluno-class .chips {
+  margin-top: 8px;
+}
+.aluno-class-subjects {
+  margin-top: 8px;
+  font-size: 13.5px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* com três cards de apoio (lembretes, últimas notas e categorias), a linha do tempo ocupa as três
+   linhas da coluna de apoio: as duas colunas começam e terminam juntas */
+@media (min-width: 1200px) {
+  .board.aluno-board > .tall {
+    grid-row: span 3;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Perfil: Quem acompanha minha agenda (amostra aluno-quem-acompanha)  */
+/* ------------------------------------------------------------------ */
+
+.aluno-sec {
+  padding-top: 22px;
+  border-top: 1px solid var(--line-2);
+}
+.aluno-sec-t {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.aluno-sec-t:focus {
+  outline: none;
+}
+.aluno-sec-t:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.aluno-sec-s {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.link.aluno-sec-link {
+  min-height: 24px;
+  margin-top: 6px;
+  font-size: 13.5px;
+}
+
+/* um quadro por responsável: nome, parentesco, status e ações; embaixo, a chave das notas */
+.aluno-guards {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+.aluno-guard {
+  border-radius: 16px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+.aluno-guard.review {
+  border-color: #f5d9a8;
+}
+.aluno-g-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.aluno-g-av {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--brand-100);
+  color: var(--brand-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+.aluno-g-name {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.aluno-g-meta {
+  margin-top: 2px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.aluno-g-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+.aluno-g-note {
+  padding: 0 16px 12px 68px;
+  margin-top: -4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.aluno-g-share {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-2);
+}
+.aluno-g-share-t {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.aluno-g-share-s {
+  margin-top: 1px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* chave liga e desliga (role="switch"): verde ligada, cinza desligada */
+.aluno-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+.aluno-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(var(--shadow-rgb) / 0.25);
+  transition: transform 0.16s ease;
+}
+.aluno-switch[aria-checked="true"] {
+  background: var(--brand);
+}
+.aluno-switch[aria-checked="true"]::after {
+  transform: translateX(18px);
+}
+.aluno-switch:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aluno-switch,
+  .aluno-switch::after {
+    transition: none;
+  }
+}
+
+/* gerar código */
+.btn.aluno-gen {
+  margin-top: 12px;
+  width: 100%;
+}
+
+/* o código recém-gerado: grande, com o prazo e o Copiar */
+.aluno-codebox {
+  margin-top: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1.5px solid var(--brand-200);
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+.aluno-cb-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  font-size: 13.5px;
+}
+.aluno-cb-top b {
+  font-weight: 700;
+}
+.aluno-cb-top span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.aluno-cb-code {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.aluno-cb-code code {
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.aluno-cb-code .btn {
+  margin-left: auto;
+}
+.aluno-cb-note {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.aluno-cb-minor {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  font-weight: 650;
+}
+.aluno-cb-minor svg {
+  margin-top: 3px;
+}
+.aluno-cb-foot {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.aluno-cb-cancel {
+  min-height: 24px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--danger);
+  cursor: pointer;
+}
+.aluno-cb-cancel:hover {
+  text-decoration: underline;
+}
+
+/* códigos ainda válidos (só o prazo: o código em claro nunca volta) */
+.aluno-codes {
+  margin-top: 16px;
+}
+.aluno-codes-t {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.aluno-codes-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+.aluno-code-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.aluno-code-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--brand);
+}
+.btn.aluno-code-cancel {
+  margin-left: auto;
+  color: var(--danger);
+}
+.aluno-code-note {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+@media (max-width: 639px) {
+  .aluno-g-note {
+    padding-left: 16px;
+  }
+  .aluno-cb-code code {
+    font-size: 26px;
+  }
+}

@@ -3,6 +3,7 @@
 import {
   CalendarPlus,
   CheckCircle2,
+  ClipboardCheck,
   Pencil,
   Plus,
   RotateCcw,
@@ -12,14 +13,59 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { cx, dateParts, isAllDay, isSameDay } from "@/lib/format";
-import { categoryMeta, showsOfficialPill, statusMeta } from "@/lib/meta";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent,
+} from "react";
+import { countText, cx, dateParts, isAllDay, isSameDay } from "@/lib/format";
+import { categoryMeta, isGradable, showsOfficialPill, statusMeta } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, TeachingAssignment, UserRole } from "@/lib/types";
 import { calendarUpcomingCount, delay, isOfficialDate, upcomingOfficialDates } from "./dashboard-bits";
 import { reactivatedStatus } from "./event-bits";
-import { NoAssignmentsNotice, eventWhen, eventWhenLabel, type EventStatusChange } from "./event-editor";
+import {
+  NoAssignmentsNotice,
+  activeAssignments,
+  eventWhen,
+  eventWhenLabel,
+  type EventStatusChange,
+} from "./event-editor";
+import { MyClasses, type MyClassesSummary } from "./my-classes";
 import { SegmentedButton } from "./ui";
+
+/* ------------------------------------------------------------------ */
+/* Abas da docente: Eventos e Minhas turmas                            */
+/* ------------------------------------------------------------------ */
+
+type ManagePane = "events" | "classes";
+
+const PANE_KEY = "agenda.gestao.aba";
+
+/** Aba da Gestão da docente guardada na sessão do navegador (o F5 volta para ela). */
+function readPane(): ManagePane {
+  try {
+    return window.sessionStorage.getItem(PANE_KEY) === "classes" ? "classes" : "events";
+  } catch {
+    return "events";
+  }
+}
+
+function writePane(pane: ManagePane) {
+  try {
+    window.sessionStorage.setItem(PANE_KEY, pane);
+  } catch {
+    // navegação privada sem armazenamento: a aba só não fica guardada
+  }
+}
+
+/** Turmas com vínculo em vigor (o mesmo que GET /classes devolve para a docente), até a lista carregar. */
+function classCount(assignments: TeachingAssignment[]) {
+  return new Set(assignments.filter((item) => !item.endedAt).map((item) => item.academicClassId)).size;
+}
 
 /* ------------------------------------------------------------------ */
 /* Abas, busca e ordem                                                 */
@@ -269,6 +315,13 @@ export type ManageViewProps = {
   onEdit: (event: AcademicEvent) => void;
   onDelete: (event: AcademicEvent) => void;
   onSetStatus?: (event: AcademicEvent, status: EventStatusChange) => void;
+  /**
+   * Abre a gaveta de notas da avaliação (EventGradesDrawer), pela ação "Notas" na linha do evento avaliativo
+   * (prova ou trabalho de turma; isGradable de lib/meta). A página cuida da gaveta.
+   */
+  onOpenGrades?: (eventId: number) => void;
+  /** Texto da busca do menu: a aba "Minhas turmas" (MyClasses) filtra a lista com ele. */
+  search?: string;
 };
 
 export function ManageView({
@@ -286,11 +339,19 @@ export function ManageView({
   onEdit,
   onDelete,
   onSetStatus,
+  onOpenGrades,
+  search: menuSearch = "",
 }: ManageViewProps) {
   const admin = isAdmin || role === "admin";
   const wide = useSyncExternalStore(tabsMedia.subscribe, tabsMedia.read, onServer);
   const tableWide = useSyncExternalStore(tableMedia.subscribe, tableMedia.read, onServer);
   const headingId = useId();
+  const paneIds = { events: useId(), classes: useId() };
+  // a docente tem as abas Eventos e Minhas turmas; a administração continua só com os eventos (ela tem a tela Turmas)
+  const teacherTabs = !admin && role === "teacher";
+  const [pane, setPane] = useState<ManagePane>(() => (teacherTabs ? readPane() : "events"));
+  const [classesSummary, setClassesSummary] = useState<MyClassesSummary | null>(null);
+  const paneTabsRef = useRef<HTMLDivElement>(null);
   const [now] = useState(() => Date.now());
   const [tab, setTab] = useState<StatusTab>("upcoming");
   const [search, setSearch] = useState("");
@@ -318,6 +379,8 @@ export function ManageView({
   const moreFocusRef = useRef<number | null>(null);
 
   const assignments = context?.teachingAssignments ?? [];
+  // "Novo evento de ..." só nas ofertas que aceitam evento novo (sem disciplina arquivada), como o seletor do painel
+  const publishable = activeAssignments(context);
   const term = normalize(search);
   const filtered = (searchTerm: string, official: boolean) =>
     manageableEvents.filter(
@@ -325,10 +388,14 @@ export function ManageView({
     );
 
   // salvou (p2 avisa por savedTick): mostrar a linha salva, trocando de aba e de página se preciso
+  // (na docente, volta para a aba Eventos, que é onde a linha está)
   if (savedTick !== seenTick) {
     setSeenTick(savedTick);
     if (lastSavedId != null) {
       setReveal({ id: lastSavedId, list: manageableEvents, waited: false, ready: false });
+      if (pane !== "events") {
+        setPane("events");
+      }
     }
   }
   if (reveal && !reveal.ready && (reveal.waited || manageableEvents !== reveal.list)) {
@@ -471,6 +538,38 @@ export function ManageView({
     };
   }, [sideNode]);
 
+  // a aba escolhida fica guardada na sessão do navegador
+  useEffect(() => {
+    if (teacherTabs) {
+      writePane(pane);
+    }
+  }, [pane, teacherTabs]);
+
+  function choosePane(next: ManagePane) {
+    pendingRef.current = null;
+    setPane(next);
+  }
+
+  /** Abas (WAI-ARIA): setas, Home e End trocam de aba e levam o foco junto. */
+  function paneKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const order: ManagePane[] = ["events", "classes"];
+    const index = order.indexOf(pane);
+    let next: ManagePane | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+      next = order[(index + (event.key === "ArrowRight" ? 1 : order.length - 1)) % order.length];
+    } else if (event.key === "Home") {
+      next = order[0];
+    } else if (event.key === "End") {
+      next = order[order.length - 1];
+    }
+    if (!next) {
+      return;
+    }
+    event.preventDefault();
+    choosePane(next);
+    paneTabsRef.current?.querySelector<HTMLElement>(`[data-pane="${next}"]`)?.focus();
+  }
+
   function chooseTab(next: StatusTab) {
     pendingRef.current = null;
     setTab(next);
@@ -590,6 +689,35 @@ export function ManageView({
     );
   };
 
+  // "Notas" na prova e no trabalho de turma: abre a gaveta de notas da avaliação (a página cuida dela)
+  const gradesButton = (event: AcademicEvent, asText: boolean) => {
+    if (!onOpenGrades || !isGradable(event)) {
+      return null;
+    }
+    return (
+      <button
+        className={asText ? "btn btn-s flex-1 px-3" : "ib sm"}
+        aria-label={`Notas de ${event.title}`}
+        aria-haspopup="dialog"
+        title={asText ? undefined : "Notas"}
+        onClick={() => onOpenGrades(event.id)}
+        type="button"
+      >
+        <ClipboardCheck className="h-4 w-4" aria-hidden />
+        {asText ? "Notas" : null}
+      </button>
+    );
+  };
+  // a coluna das ações ganha a largura de um botão quando alguma linha à vista tem "Notas"
+  const gradesColumn = Boolean(onOpenGrades) && visibleRows.some(isGradable);
+  const actionsColumn = onSetStatus
+    ? gradesColumn
+      ? "w-[200px] pointer-coarse:w-[224px]"
+      : "w-[156px] pointer-coarse:w-[174px]"
+    : gradesColumn
+      ? "w-[156px] pointer-coarse:w-[174px]"
+      : "w-[112px] pointer-coarse:w-[124px]";
+
   const savedPill = (
     <span className="pill bg-brand text-white">
       <CheckCircle2 className="h-3 w-3" aria-hidden />
@@ -666,7 +794,7 @@ export function ManageView({
           <col className="w-[184px]" />
           <col className="w-[128px]" />
           <col className="w-[132px]" />
-          <col className={onSetStatus ? "w-[156px] pointer-coarse:w-[174px]" : "w-[112px] pointer-coarse:w-[124px]"} />
+          <col className={actionsColumn} />
         </colgroup>
         <thead>
           <tr>
@@ -742,6 +870,7 @@ export function ManageView({
                     >
                       <Pencil className="h-4 w-4" aria-hidden />
                     </button>
+                    {gradesButton(event, false)}
                     {statusButton(event, index, false)}
                     <button
                       className="ib sm text-[#B4234A] hover:bg-[#FFF1F3]"
@@ -815,6 +944,7 @@ export function ManageView({
                 <Pencil className="h-4 w-4" aria-hidden />
                 Editar
               </button>
+              {gradesButton(event, true)}
               {statusButton(event, index, true)}
               <button
                 className="btn btn-danger flex-1 px-3"
@@ -864,10 +994,18 @@ export function ManageView({
     </div>
   );
 
-  // a tabela fica rente às bordas do card, como no Figma; cabeçalho, cartões e rodapé têm o respiro do card
-  const listCard = (
-    <section className="card rise min-w-0 overflow-hidden" style={delay(0)} aria-labelledby={headingId}>
-      <div className={cx("px-6 pt-6", manageableEvents.length ? "pb-5" : "pb-6")}>
+  const newEventButton = canCreate ? (
+    <button className="btn btn-p" onClick={onNewEvent} type="button">
+      <Plus className="h-4 w-4" aria-hidden />
+      {newLabel}
+    </button>
+  ) : null;
+
+  // a tabela fica rente às bordas do card, como no Figma; cabeçalho, cartões e rodapé têm o respiro do card.
+  // Na docente, as abas ficam no alto do card (amostra docente-notas-evento), com o "Novo evento" ao lado
+  const eventsContent = (
+    <>
+      <div className={cx("px-6", teacherTabs ? "pt-[18px]" : "pt-6", manageableEvents.length ? "pb-5" : "pb-6")}>
         <div className="head">
           <div className="min-w-0">
             <h2 id={headingId} ref={headingRef} tabIndex={-1} className="h2">
@@ -875,12 +1013,7 @@ export function ManageView({
             </h2>
             <p className="sub">{summaryLine(overall)}</p>
           </div>
-          {canCreate ? (
-            <button className="btn btn-p" onClick={onNewEvent} type="button">
-              <Plus className="h-4 w-4" aria-hidden />
-              {newLabel}
-            </button>
-          ) : null}
+          {teacherTabs ? null : newEventButton}
         </div>
 
         {manageableEvents.length ? (
@@ -1001,10 +1134,84 @@ export function ManageView({
           ) : null}
         </>
       ) : null}
+    </>
+  );
+
+  const classTotal = classesSummary?.classes ?? classCount(assignments);
+  const pendingTotal = classesSummary?.pending ?? 0;
+  const paneTabs = [
+    {
+      id: "events" as const,
+      label: "Eventos",
+      count: manageableEvents.length,
+      aria: `Eventos, ${countText(manageableEvents.length, "evento", "eventos")}`,
+    },
+    {
+      id: "classes" as const,
+      label: "Minhas turmas",
+      count: classTotal,
+      aria: `Minhas turmas, ${countText(classTotal, "turma", "turmas")}${
+        pendingTotal ? `, ${countText(pendingTotal, "pedido de entrada", "pedidos de entrada")}` : ""
+      }`,
+    },
+  ];
+
+  const listCard = teacherTabs ? (
+    <section className="card rise min-w-0 overflow-hidden" style={delay(0)}>
+      <div className="docente-tabs-row">
+        <div ref={paneTabsRef} className="seg docente-tabs" role="tablist" aria-label="Gestão">
+          {paneTabs.map((item) => {
+            const selected = pane === item.id;
+            return (
+              <button
+                key={item.id}
+                id={`${paneIds[item.id]}-aba`}
+                className={cx(selected && "on")}
+                data-pane={item.id}
+                role="tab"
+                aria-selected={selected}
+                aria-controls={paneIds[item.id]}
+                aria-label={item.aria}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => choosePane(item.id)}
+                onKeyDown={paneKeyDown}
+                type="button"
+              >
+                {item.label}
+                <span className="n">{item.count}</span>
+                {item.id === "classes" && pendingTotal ? (
+                  <span className="docente-tab-pend">{countText(pendingTotal, "pedido", "pedidos")}</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+        {pane === "events" ? newEventButton : null}
+      </div>
+      <div
+        id={paneIds.events}
+        role="tabpanel"
+        aria-labelledby={`${paneIds.events}-aba`}
+        hidden={pane !== "events"}
+      >
+        {eventsContent}
+      </div>
+      <div
+        id={paneIds.classes}
+        role="tabpanel"
+        aria-labelledby={`${paneIds.classes}-aba`}
+        hidden={pane !== "classes"}
+      >
+        <MyClasses context={context} search={menuSearch} onSummary={setClassesSummary} />
+      </div>
+    </section>
+  ) : (
+    <section className="card rise min-w-0 overflow-hidden" style={delay(0)} aria-labelledby={headingId}>
+      {eventsContent}
     </section>
   );
 
-  const sideCard = admin ? (
+  const sideCard = pane !== "events" ? null : admin ? (
     <OfficialDatesCard
       events={officialSoon}
       total={officialTotal}
@@ -1012,8 +1219,8 @@ export function ManageView({
       onNewEvent={onNewEvent}
       onShowAll={showAllOfficial}
     />
-  ) : assignments.length ? (
-    <AssignmentsCard assignments={assignments} events={manageableEvents} now={now} onNewEventFor={onNewEventFor} />
+  ) : publishable.length ? (
+    <AssignmentsCard assignments={publishable} events={manageableEvents} now={now} onNewEventFor={onNewEventFor} />
   ) : null;
 
   // lado a lado a partir de 1600px: cada card tem a altura do conteúdo (nada de coluna branca até o fim)
@@ -1023,7 +1230,7 @@ export function ManageView({
   // clicável fica embaixo do aviso.
   return (
     <div className={cx("manage-view grid items-start gap-5", sideCard && SIDE_COLUMNS)}>
-      {noAssignments ? (
+      {noAssignments && pane === "events" ? (
         <section className="card pad rise">
           <NoAssignmentsNotice heading="h2" />
         </section>

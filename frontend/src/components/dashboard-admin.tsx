@@ -13,9 +13,10 @@ import {
   Users,
 } from "lucide-react";
 import { useState } from "react";
-import { formatOnDayAt, formatShortDateTime, formatWeekday, shiftLabel, startOfDay } from "@/lib/format";
+import { formatOnDayAt, formatShortDateTime, formatWeekday, latestTermLabel, shiftLabel, startOfDay } from "@/lib/format";
 import { allCategories } from "@/lib/meta";
-import type { AcademicClass, AcademicContext, AcademicEvent, CalendarImport, Reminder } from "@/lib/types";
+import type { AcademicContext, AcademicEvent, CalendarImport, Reminder } from "@/lib/types";
+import { AdminPendingCard } from "./admin-pending-card";
 import {
   AvisosCard,
   CategoryBreakdown,
@@ -41,20 +42,6 @@ function shortDate(value: string) {
 
 function datesLabel(count: number) {
   return count === 1 ? "1 data" : `${count} datas`;
-}
-
-/** Semestre das turmas do catálogo (o mais recente) ou, sem turma, o do dia: "2026/2". */
-function currentTerm(classes: AcademicClass[], now: number) {
-  const latest = classes.reduce<AcademicClass | null>(
-    (best, item) =>
-      !best || item.year > best.year || (item.year === best.year && item.semester > best.semester) ? item : best,
-    null
-  );
-  if (latest) {
-    return `${latest.year}/${latest.semester}`;
-  }
-  const today = new Date(now);
-  return `${today.getFullYear()}/${today.getMonth() < 6 ? 1 : 2}`;
 }
 
 export function AdminDashboard({
@@ -98,6 +85,8 @@ export function AdminDashboard({
 }) {
   // referência de "agora" fixada na montagem (render precisa ser puro)
   const [now] = useState(() => Date.now());
+  // o card Pendências chega depois (busca própria): a altura dele entra na conta das colunas
+  const [pendingLayout, setPendingLayout] = useState("");
   const { rootRef, savedId } = useSavedReveal<HTMLDivElement>(lastSavedId, savedTick, upcomingEvents);
   const classes = context?.catalog.classes ?? [];
   const subjects = context?.catalog.subjects ?? [];
@@ -168,6 +157,7 @@ export function AdminDashboard({
       classes.map((academicClass) => `${academicClass.id}:${upcomingByClass(academicClass.id)}`).join(","),
       categoryCounts.map((item) => item.count).join(","),
       campusEvents,
+      pendingLayout,
     ].join("|")
   );
 
@@ -198,7 +188,7 @@ export function AdminDashboard({
                 </span>
               )}
             </div>
-            <h2 className="hero-title">Visão institucional do semestre {currentTerm(classes, now)}</h2>
+            <h2 className="hero-title">Visão institucional do semestre {latestTermLabel(classes, now)}</h2>
             {/* o nome da fonte vem da importação: palavra ou link longo quebra em qualquer ponto */}
             <div className="hero-meta wrap-anywhere">
               <span>
@@ -339,6 +329,8 @@ export function AdminDashboard({
         </div>
 
         <div className="duo-col duo-side">
+          <AdminPendingCard order={7} onLayoutChange={setPendingLayout} />
+
           <section className="card pad rise" style={delay(7)} aria-label="Importações recentes">
             <SectionTitle
               title="Importações recentes"

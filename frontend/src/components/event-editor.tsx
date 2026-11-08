@@ -30,9 +30,23 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { addDays, cx, dateParts, isSameDay, isWholeDay, startOfDay, toDateTimeLocal, weekdayLabels } from "@/lib/format";
-import { adminOnlyCategories, allCategories, categoryMeta, statusMeta } from "@/lib/meta";
-import type { AcademicContext, AcademicEvent, Category, UserRole } from "@/lib/types";
+import { getEventGrades } from "@/lib/api";
+import {
+  addDays,
+  classLabel,
+  countText,
+  cx,
+  dateParts,
+  formatScore,
+  isSameDay,
+  isWholeDay,
+  startOfDay,
+  toDateTimeLocal,
+  weekdayLabels,
+} from "@/lib/format";
+import { adminOnlyCategories, allCategories, categoryMeta, gradableCategories, isGradable, statusMeta } from "@/lib/meta";
+import type { AcademicClass, AcademicContext, AcademicEvent, Category, Subject, UserRole } from "@/lib/types";
+import { useOptionalAppActions } from "./app-actions";
 import { StatusPill, eventLastDay, onDay, reactivatedStatus, type EventStatusChange } from "./event-bits";
 import { ConfirmDialog, Drawer, isOnTopLayer, type ConfirmState } from "./ui";
 
@@ -74,9 +88,20 @@ function nextClassDay() {
   return day;
 }
 
+/**
+ * Vínculos da docente que valem no seletor de disciplina e turma (desenho 5.4): só os em vigor, em turma e
+ * disciplina não arquivadas. O /context já manda só os em vigor de turma não arquivada; a disciplina
+ * arquivada (subject.archivedAt) sai daqui.
+ */
+export function activeAssignments(context?: AcademicContext | null) {
+  return (context?.teachingAssignments ?? []).filter(
+    (item) => !item.endedAt && !item.academicClass?.archivedAt && !item.subject?.archivedAt
+  );
+}
+
 /** Formulário vazio. Com o contexto, o docente de um vínculo só já vem com disciplina e turma. */
 export const createInitialEventForm = (role?: UserRole, context?: AcademicContext | null): EventFormState => {
-  const assignments = context?.teachingAssignments ?? [];
+  const assignments = activeAssignments(context);
   const only = role === "teacher" && assignments.length === 1 ? assignments[0] : null;
   return {
     title: "",
@@ -182,6 +207,7 @@ const isEvaluation = (category: Category) => category === "exam" || category ===
 
 const fieldOrder: FieldKey[] = [
   "title",
+  "category",
   "startsAt",
   "endsAt",
   "academicClassId",
@@ -191,7 +217,66 @@ const fieldOrder: FieldKey[] = [
   "description",
 ];
 
-function validateForm(form: EventFormState, role: UserRole, pointsUnreadable: boolean): EventFieldErrors {
+/**
+ * Avaliação que já tem nota lançada (GET /events/:id/grades). A API recusa mudar a turma, a disciplina ou tirar
+ * a categoria de prova ou trabalho (409 HAS_GRADES) e a pontuação vazia, 0 ou abaixo da maior nota (422 em
+ * points, rule grades). O painel diz isso antes de salvar, abaixo do campo certo.
+ */
+export type GradeLock = {
+  /** Notas lançadas: com nota, falta ou dispensa. */
+  count: number;
+  /** Maior nota lançada, em centésimos (null: só falta ou dispensa). */
+  maxScore: number | null;
+};
+
+type GradeRules = GradeLock & { original: EventFormState };
+
+function gradeErrors(form: EventFormState, rules: GradeRules | null, isAdmin: boolean): EventFieldErrors {
+  const errors: EventFieldErrors = {};
+  if (!rules) {
+    return errors;
+  }
+  const { original } = rules;
+  const classChanged = form.academicClassId !== original.academicClassId;
+  const subjectChanged = form.subjectId !== original.subjectId;
+  if (isAdmin) {
+    if (classChanged) {
+      errors.academicClassId = "Este evento já tem notas lançadas e não muda de turma. Volte para a turma de antes.";
+    }
+    if (subjectChanged) {
+      errors.subjectId = "Este evento já tem notas lançadas e não muda de disciplina. Volte para a disciplina de antes.";
+    }
+  } else if (classChanged || subjectChanged) {
+    errors.subjectId =
+      "Este evento já tem notas lançadas e não muda de disciplina nem de turma. Volte para a de antes ou crie um evento novo para a outra turma.";
+  }
+  if (!gradableCategories.includes(form.category)) {
+    errors.category = "Este evento já tem notas lançadas e continua prova ou trabalho. Escolha Prova ou Trabalho.";
+  }
+  const text = form.points.trim();
+  const value = text ? Number(text) : null;
+  // nota 0 lançada não muda o mínimo: a avaliação só precisa valer mais que 0
+  const highest = rules.maxScore ? formatScore(rules.maxScore) : null;
+  if (value === null) {
+    errors.points = highest
+      ? `Já há nota ${highest} lançada. Informe a pontuação, de pelo menos ${highest}.`
+      : "Já há notas lançadas. Informe a pontuação da avaliação.";
+  } else if (Number.isFinite(value)) {
+    if (value <= 0) {
+      errors.points = "Já há notas lançadas. A avaliação precisa valer mais que 0.";
+    } else if (rules.maxScore && Math.round(value * 100) < rules.maxScore) {
+      errors.points = `Já há nota ${highest} lançada. A avaliação não pode valer menos que isso.`;
+    }
+  }
+  return errors;
+}
+
+function validateForm(
+  form: EventFormState,
+  role: UserRole,
+  pointsUnreadable: boolean,
+  gradeRules: GradeRules | null = null
+): EventFieldErrors {
   const errors: EventFieldErrors = {};
   const title = form.title.trim();
   if (!title) {
@@ -231,7 +316,50 @@ function validateForm(form: EventFormState, role: UserRole, pointsUnreadable: bo
       errors.points = "Use pontos inteiros ou meio ponto, como 10 ou 2,5.";
     }
   }
+
+  // avaliação com nota lançada: as regras da API valem aqui antes de salvar
+  const fromGrades = gradeErrors(form, gradeRules, role === "admin");
+  for (const key of Object.keys(fromGrades) as FieldKey[]) {
+    if (!errors[key]) {
+      errors[key] = fromGrades[key];
+    }
+  }
   return errors;
+}
+
+/**
+ * Notas lançadas na avaliação que o painel edita: busca GET /events/:id/grades ao abrir uma prova ou trabalho de
+ * turma (e de novo quando um envio não salva, `attempt`). Sem acesso às notas ou sem conexão, devolve null e a
+ * API confere ao salvar (o 409 sai no aviso da página e o 422 abaixo da pontuação).
+ */
+function useGradeLock(open: boolean, event: AcademicEvent | null, attempt: number): GradeLock | null {
+  const token = useOptionalAppActions()?.token ?? null;
+  const eventId = open && event && isGradable(event) ? event.id : null;
+  const [result, setResult] = useState<{ eventId: number; lock: GradeLock } | null>(null);
+  useEffect(() => {
+    if (!token || eventId === null) {
+      return;
+    }
+    let alive = true;
+    getEventGrades(token, eventId)
+      .then((data) => {
+        if (!alive) {
+          return;
+        }
+        const rows = data.students.filter((row) => row.grade);
+        const scores = rows.flatMap((row) =>
+          row.grade?.status === "graded" && typeof row.grade.score === "number" ? [row.grade.score] : []
+        );
+        setResult({ eventId, lock: { count: rows.length, maxScore: scores.length ? Math.max(...scores) : null } });
+      })
+      .catch(() => {
+        // 403 (docente de outra disciplina) ou sem conexão: sem aviso antecipado; a API confere ao salvar
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token, eventId, attempt]);
+  return result && result.eventId === eventId && result.lock.count > 0 ? result.lock : null;
 }
 
 function joinTitles(titles: string[]) {
@@ -680,6 +808,21 @@ export type EventEditorProps = {
   onSetStatus?: (event: AcademicEvent, status: EventStatusChange) => void;
 };
 
+/** Opção do seletor que ficou fora da lista porque a turma ou a disciplina foi arquivada: "TADS 5, 2026/2 (arquivada)". */
+function withArchivedNote(
+  label: string,
+  academicClass: Pick<AcademicClass, "archivedAt"> | null | undefined,
+  subject: Pick<Subject, "archivedAt"> | null | undefined
+) {
+  if (academicClass?.archivedAt) {
+    return `${label} (turma arquivada)`;
+  }
+  if (subject?.archivedAt) {
+    return `${label} (disciplina arquivada)`;
+  }
+  return label;
+}
+
 /** Para quem vai o evento, em poucas palavras ("Matemática, TADS 5", "Toda a instituição"). */
 function audienceOf(form: EventFormState, context: AcademicContext | null, isAdmin: boolean) {
   const classId = Number(form.academicClassId);
@@ -733,8 +876,8 @@ export function EventEditor({
   const hintId = useId();
   const noticeId = useId();
   const isAdmin = role === "admin";
-  const assignments = context?.teachingAssignments ?? [];
-  // docente sem vínculo não tem para quem publicar
+  const assignments = activeAssignments(context);
+  // docente sem vínculo (em vigor, de turma e disciplina não arquivadas) não tem para quem publicar
   const blocked = !isAdmin && !editingEvent && context !== null && assignments.length === 0;
   const changed = dirty || (editingEvent ? !isSameEventForm(form, eventToForm(editingEvent)) : false);
   // salvando, ou com uma mudança de situação a caminho: nada sai em dobro
@@ -792,6 +935,21 @@ export function EventEditor({
     setSaveTrack(nextTrack);
   }
   const saveFailed = nextTrack.failed;
+
+  // notas lançadas na avaliação: o painel avisa antes de salvar. Um envio que não salvou (o 409 HAS_GRADES de
+  // uma nota lançada depois de o painel abrir, por exemplo) busca as notas de novo
+  const [failSeen, setFailSeen] = useState(saveFailed);
+  const [gradeAttempt, setGradeAttempt] = useState(0);
+  if (failSeen !== saveFailed) {
+    setFailSeen(saveFailed);
+    if (saveFailed) {
+      setGradeAttempt((value) => value + 1);
+    }
+  }
+  const gradeLock = useGradeLock(open, editingEvent, gradeAttempt);
+  const gradeRules: GradeRules | null =
+    gradeLock && editingEvent ? { ...gradeLock, original: eventToForm(editingEvent) } : null;
+  const gradeBlocked = Object.keys(gradeErrors(form, gradeRules, isAdmin)).length > 0;
 
   // depois de mudar a situação por aqui, o botão clicado some (Concluir vira Reativar):
   // o foco vai para o Desfazer da faixa, ou para um lugar que continua na tela.
@@ -1011,9 +1169,11 @@ export function EventEditor({
         {saveFailed ? (
           <>
             <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            {editingEvent
-              ? "Não foi possível salvar agora. Suas alterações continuam aqui."
-              : "Não foi possível publicar agora. O que você preencheu continua aqui."}
+            {editingEvent && gradeBlocked
+              ? "Não foi possível salvar: esta avaliação já tem notas lançadas. Corrija o campo marcado. Suas alterações continuam aqui."
+              : editingEvent
+                ? "Não foi possível salvar agora. Suas alterações continuam aqui."
+                : "Não foi possível publicar agora. O que você preencheu continua aqui."}
           </>
         ) : slowSave === "late" ? (
           <>
@@ -1060,6 +1220,7 @@ export function EventEditor({
           saving={saving}
           locked={lockedSave}
           audience={audience}
+          gradeRules={gradeRules}
           phoneActions={eventActions}
           onSubmit={onSubmit}
         />
@@ -1081,6 +1242,7 @@ function EditorForm({
   saving,
   locked,
   audience,
+  gradeRules = null,
   phoneActions,
   onSubmit,
 }: {
@@ -1096,6 +1258,8 @@ function EditorForm({
   saving: boolean;
   locked: boolean;
   audience: { className: string | null; label: string | null };
+  /** Avaliação com nota lançada: turma, disciplina, categoria e pontuação têm regras (gradeErrors). */
+  gradeRules?: GradeRules | null;
   phoneActions?: ReactNode;
   onSubmit: () => void;
 }) {
@@ -1109,6 +1273,7 @@ function EditorForm({
   const [pointsUnreadable, setPointsUnreadable] = useState(false);
   const [confirmPast, setConfirmPast] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
+  const categoryRef = useRef<HTMLDivElement>(null);
   const startsRef = useRef<HTMLInputElement>(null);
   const endsRef = useRef<HTMLInputElement>(null);
   const pairRef = useRef<HTMLSelectElement>(null);
@@ -1129,7 +1294,11 @@ function EditorForm({
     subjectId: isAdmin ? subjectRef : pairRef,
   };
 
-  const assignments = context?.teachingAssignments ?? [];
+  const assignments = activeAssignments(context);
+
+  // a categoria é um grupo de botões: o foco vai para o botão que tem a parada de Tab (o escolhido)
+  const categoryTarget = () => categoryRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]') ?? null;
+  const fieldTarget = (key: FieldKey) => (key === "category" ? categoryTarget() : (fieldRefs[key]?.current ?? null));
 
   // erros do servidor valem até a pessoa mexer no campo
   const serverKey = JSON.stringify(serverErrors ?? {});
@@ -1140,8 +1309,13 @@ function EditorForm({
     setServerForm(form);
   }
 
-  const localErrors = validateForm(form, role, pointsUnreadable);
+  const localErrors = validateForm(form, role, pointsUnreadable, gradeRules);
+  // avaliação com nota: trocar a disciplina, a turma ou a categoria mostra o erro na hora (são escolhas, não digitação)
+  const gradeIssues = gradeErrors(form, gradeRules, isAdmin);
   function errorFor(key: FieldKey) {
+    if ((key === "academicClassId" || key === "subjectId" || key === "category") && gradeIssues[key]) {
+      return gradeIssues[key];
+    }
     if ((submitted || touched[key]) && localErrors[key]) {
       return localErrors[key];
     }
@@ -1166,6 +1340,7 @@ function EditorForm({
     const first = fieldOrder.find((key) => errors[key]);
     const targets: Partial<Record<FieldKey, HTMLElement | null>> = {
       title: titleRef.current,
+      category: categoryRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]') ?? null,
       startsAt: startsRef.current,
       endsAt: endsRef.current,
       academicClassId: pairRef.current ?? classRef.current,
@@ -1238,10 +1413,10 @@ function EditorForm({
     setSubmitted(true);
     const unreadable = Boolean(pointsRef.current?.validity.badInput);
     setPointsUnreadable(unreadable);
-    const errors = validateForm(form, role, unreadable);
+    const errors = validateForm(form, role, unreadable, gradeRules);
     const first = fieldOrder.find((key) => errors[key]);
     if (first) {
-      revealField(fieldRefs[first]?.current, summaryRef.current);
+      revealField(fieldTarget(first), summaryRef.current);
       return;
     }
     if (askAboutPast) {
@@ -1261,18 +1436,69 @@ function EditorForm({
       ? `Corrija ${wrongFields} ${wrongFields === 1 ? "campo" : "campos"} para ${editingEvent ? "salvar" : "publicar"}.`
       : "";
 
-  // opções de vínculo do docente ("Matemática, TADS 5")
-  const pairs = assignments.map((assignment) => ({
-    value: `${assignment.academicClassId}:${assignment.subjectId}`,
-    label: [assignment.subject?.name, assignment.academicClass?.name].filter(Boolean).join(", "),
-  }));
+  // opções de vínculo do docente ("Matemática, TADS 5, 2026/2"; turma anual: "INF 3A, 2026", nunca "/0"): só as
+  // ofertas com vínculo em vigor, sem turma nem disciplina arquivada (activeAssignments)
+  const pairs: Array<{ value: string; label: string }> = [];
+  for (const assignment of assignments) {
+    const value = `${assignment.academicClassId}:${assignment.subjectId}`;
+    if (!pairs.some((pair) => pair.value === value)) {
+      pairs.push({
+        value,
+        label: [assignment.subject?.name, assignment.academicClass ? classLabel(assignment.academicClass) : null]
+          .filter(Boolean)
+          .join(", "),
+      });
+    }
+  }
   const pairValue = form.academicClassId || form.subjectId ? `${form.academicClassId}:${form.subjectId}` : "";
   if (pairValue && !pairs.some((pair) => pair.value === pairValue)) {
+    // o evento editado mostra a oferta dele mesmo quando ela saiu da lista (disciplina ou turma arquivada)
+    const sameAsEvent =
+      editingEvent !== null &&
+      String(editingEvent.academicClassId ?? "") === form.academicClassId &&
+      String(editingEvent.subjectId ?? "") === form.subjectId;
     pairs.push({
       value: pairValue,
-      label:
-        [editingEvent?.subject?.name, editingEvent?.academicClass?.name].filter(Boolean).join(", ") ||
-        "Vínculo atual",
+      label: sameAsEvent
+        ? withArchivedNote(
+            [editingEvent.subject?.name, editingEvent.academicClass ? classLabel(editingEvent.academicClass) : null]
+              .filter(Boolean)
+              .join(", ") || "Vínculo atual",
+            editingEvent.academicClass,
+            editingEvent.subject
+          )
+        : "Vínculo atual",
+    });
+  }
+
+  // administração: turmas e disciplinas do catálogo, sem as arquivadas; a turma com o período ("TADS 5, 2026/2")
+  const classOptions = (context?.catalog.classes ?? [])
+    .filter((item) => !item.archivedAt)
+    .map((item) => ({ value: String(item.id), label: classLabel(item) }));
+  const subjectOptions = (context?.catalog.subjects ?? [])
+    .filter((item) => !item.archivedAt)
+    .map((item) => ({ value: String(item.id), label: item.name }));
+  // o evento editado mostra a turma e a disciplina dele mesmo quando elas saíram do catálogo
+  if (
+    form.academicClassId &&
+    !classOptions.some((option) => option.value === form.academicClassId) &&
+    editingEvent?.academicClass &&
+    String(editingEvent.academicClass.id) === form.academicClassId
+  ) {
+    classOptions.push({
+      value: form.academicClassId,
+      label: withArchivedNote(classLabel(editingEvent.academicClass), editingEvent.academicClass, null),
+    });
+  }
+  if (
+    form.subjectId &&
+    !subjectOptions.some((option) => option.value === form.subjectId) &&
+    editingEvent?.subject &&
+    String(editingEvent.subject.id) === form.subjectId
+  ) {
+    subjectOptions.push({
+      value: form.subjectId,
+      label: withArchivedNote(editingEvent.subject.name, null, editingEvent.subject),
     });
   }
 
@@ -1284,6 +1510,7 @@ function EditorForm({
   const lockedCategories = isAdmin ? [] : categoryOptions.filter((category) => adminOnlyCategories.includes(category));
 
   const titleError = errorFor("title");
+  const categoryError = errorFor("category");
   const startsError = errorFor("startsAt");
   const endsError = errorFor("endsAt");
   const pairError = errorFor("subjectId") ?? errorFor("academicClassId");
@@ -1336,6 +1563,17 @@ function EditorForm({
         <div className="grid grid-cols-1 gap-5">
           <p className="text-sm leading-6 text-muted wrap-anywhere">{helpLine}</p>
 
+          {gradeRules ? (
+            <p className="callout blue">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              {`Esta avaliação já tem ${countText(gradeRules.count, "nota lançada", "notas lançadas")}. Ela continua prova ou trabalho, na mesma disciplina e turma${
+                gradeRules.maxScore
+                  ? `, e não pode valer menos que ${formatScore(gradeRules.maxScore)} ${gradeRules.maxScore === 100 ? "ponto" : "pontos"}`
+                  : ", e precisa valer mais que 0"
+              }.`}
+            </p>
+          ) : null}
+
           <FormField
             id={fid("titulo")}
             label="Título"
@@ -1364,7 +1602,7 @@ function EditorForm({
             </span>
           </FormField>
 
-          <div className="grid gap-2">
+          <div ref={categoryRef} className="grid gap-2" data-field="">
             <span className="lbl" id={fid("categoria")}>
               Categoria
             </span>
@@ -1373,12 +1611,21 @@ function EditorForm({
               options={categoryOptions}
               locked={lockedCategories}
               labelId={fid("categoria")}
-              helpId={isAdmin ? undefined : fid("categoria-ajuda")}
+              helpId={describedBy(!isAdmin && fid("categoria-ajuda"), categoryError && fid("categoria-erro"))}
               onChange={(category) => change({ category })}
             />
             {!isAdmin ? (
               <p id={fid("categoria-ajuda")} className="field-help !mt-0">
                 Institucional, feriado e recesso são exclusivas da administração.
+              </p>
+            ) : null}
+            {categoryError ? (
+              <p
+                id={fid("categoria-erro")}
+                className="field-error !mt-0 flex items-start gap-1.5 text-[13px] font-semibold leading-5 text-[var(--danger)]"
+              >
+                <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                {categoryError}
               </p>
             ) : null}
           </div>
@@ -1460,9 +1707,9 @@ function EditorForm({
                   aria-describedby={describedBy(classError && `${fid("turma")}-erro`)}
                 >
                   <option value="">Toda a instituição</option>
-                  {(context?.catalog.classes ?? []).map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
+                  {classOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </select>
@@ -1479,9 +1726,9 @@ function EditorForm({
                   aria-describedby={describedBy(subjectError && `${fid("disciplina")}-erro`)}
                 >
                   <option value="">Sem disciplina</option>
-                  {(context?.catalog.subjects ?? []).map((subject) => (
-                    <option key={subject.id} value={subject.id}>
-                      {subject.name}
+                  {subjectOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </select>

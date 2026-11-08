@@ -870,6 +870,7 @@ export function CalendarView({
   setCategories,
   setReminderOffset,
   setSearch,
+  studentName,
   toggleCategory,
   onDelete,
   onEdit,
@@ -895,6 +896,8 @@ export function CalendarView({
   setCategories?: (categories: Category[]) => void;
   setReminderOffset: (value: string) => void;
   setSearch: (value: string) => void;
+  /** Responsável: o primeiro nome do aluno acompanhado ("Cronograma de Diogo"). */
+  studentName?: string | null;
   toggleCategory: (category: Category) => void;
   onDelete: (event: AcademicEvent) => void;
   onEdit: (event: AcademicEvent) => void;
@@ -1315,7 +1318,15 @@ export function CalendarView({
   }
 
   const title =
-    role === "admin" ? "Cronograma institucional" : role === "teacher" ? "Cronograma das suas turmas" : "Cronograma da sua turma";
+    role === "admin"
+      ? "Cronograma institucional"
+      : role === "teacher"
+        ? "Cronograma das suas turmas"
+        : role === "guardian"
+          ? studentName
+            ? `Cronograma de ${studentName}`
+            : "Cronograma do aluno"
+          : "Cronograma da sua turma";
   const subtitle = monthMode
     ? `${touch ? "Toque" : "Clique"} num dia para ver os eventos dele`
     : `${touch ? "Toque" : "Clique"} num evento para ver os detalhes`;
@@ -1332,7 +1343,7 @@ export function CalendarView({
                   <EventRow
                     key={event.id}
                     event={event}
-                    hideClass={role === "student"}
+                    hideClass={role === "student" || role === "guardian"}
                     selected={selectedEventId === event.id}
                     showMonth={spansMonths}
                     showTeacher={showTeacher(event)}
@@ -1597,7 +1608,7 @@ export function CalendarView({
                     <DayEvents
                       date={selectedDayDate}
                       events={dayEvents}
-                      hideClass={role === "student"}
+                      hideClass={role === "student" || role === "guardian"}
                       level={3}
                       selectedEventId={selectedEventId}
                       showTeacher={showTeacher}

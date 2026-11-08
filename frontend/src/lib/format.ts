@@ -1,5 +1,26 @@
 import { isTimeoutError } from "./api";
-import type { AcademicEvent, Category } from "./types";
+import {
+  enrollmentSourceLabels,
+  enrollmentStatusLabels,
+  gradeImportSourceLabels,
+  gradeStatusLabels,
+  linkOriginLabels,
+  linkStatusLabels,
+  relationshipLabels,
+} from "./meta";
+import type {
+  AcademicClass,
+  AcademicEvent,
+  Category,
+  Course,
+  EnrollmentSource,
+  EnrollmentStatus,
+  Grade,
+  GradeSourceInfo,
+  GuardianLinkOrigin,
+  GuardianLinkStatus,
+  GuardianRelationship,
+} from "./types";
 
 export function formatDate(value: string) {
   return new Date(value).toLocaleString("pt-BR", {
@@ -233,7 +254,50 @@ const fieldNames: Record<string, string> = {
   checksum: "a identificação do arquivo",
   sourceExternalId: "o código na fonte",
   events: "a lista de datas",
+  // fase 1: cursos, turmas, disciplinas, ofertas e alunos da turma
+  name: "o nome",
+  code: "o código",
+  campus: "o campus",
+  modality: "a modalidade",
+  courseId: "o curso",
+  year: "o ano",
+  semester: "o semestre",
+  shift: "o turno",
+  period: "o período",
+  workloadHours: "a carga horária",
+  teacherId: "a docente",
+  userId: "o aluno",
+  emails: "a lista de e-mails",
+  enrollmentIds: "os pedidos",
+  q: "a busca",
+  // fase 2: responsável
+  relationship: "o parentesco",
+  reason: "o motivo",
+  shareGrades: "o compartilhamento das notas",
+  confirm: "a confirmação",
+  isMinor: "a marcação de menor de idade",
+  studentId: "o aluno",
+  unblock: "o desbloqueio",
+  // fase 3: notas
+  score: "a nota",
+  eventId: "a avaliação",
+  fileName: "o nome do arquivo",
+  fileModifiedAt: "a data do arquivo",
+  mapping: "as colunas",
+  identifierType: "o tipo de identificação do aluno",
+  identifierColumn: "a coluna do aluno",
+  scoreColumn: "a coluna da nota",
+  nameColumn: "a coluna do nome",
+  rows: "as linhas",
+  rowNumber: "o número da linha",
+  identifier: "o e-mail ou a matrícula",
+  keepAgendaWhenNewer: "a opção de manter as notas da Agenda",
 };
+
+/** Nome do campo da API como aparece numa frase ("o curso", "a nota"). Campo desconhecido: "este campo". */
+export function fieldLabel(field: string) {
+  return fieldNames[field] ?? "este campo";
+}
 
 const minuteFields = new Set(["offsetMinutes", "defaultReminderMinutes"]);
 
@@ -252,8 +316,24 @@ function minutesText(value: unknown) {
   return `${minutes} minutos`;
 }
 
-/** Frase de um erro de validação, a partir do campo e da regra. */
+/**
+ * A frase já veio em português da API (validadores novos: "Código inválido ou expirado. Confira com quem passou o
+ * código.", "A nota precisa estar entre 0 e 10.")? Os validadores antigos mandam o padrão do VineJS, em inglês.
+ */
+export function isPortugueseMessage(value: string | null | undefined) {
+  const text = (value ?? "").trim();
+  if (!text) return false;
+  return (
+    /[áàâãéêíóôõúç]/i.test(text) ||
+    /\b(campo|preencha|informe|escolha|precisa|envie|confira|deixe|nenhum|nenhuma|linha|turma|aluno|nota)\b/i.test(text)
+  );
+}
+
+/** Frase de um erro de validação: a da API, se já veio em português; senão, montada a partir do campo e da regra. */
 function validationMessage(item: FieldErrorLike) {
+  if (isPortugueseMessage(item.message)) {
+    return item.message!.trim();
+  }
   const path = item.field ?? "";
   // itens de lista chegam como "events.0.title"
   const nested = /^events\.(\d+)\.(\w+)$/.exec(path);
@@ -315,11 +395,19 @@ export function errorMessage(error: unknown) {
   if (!error || typeof error !== "object") return "Algo deu errado. Tente de novo.";
   // o prazo estourado também tem situação 0, mas não é falta de conexão: fica com a frase dele
   if (isTimeoutError(error)) return error.message;
-  const err = error as ErrorLike;
+  const err = error as ErrorLike & { code?: unknown };
   const validation = err.errors?.find((item) => item.rule);
   if (validation) return validationMessage(validation);
   const raw = err.message ?? "";
   if (apiMessages[raw]) return apiMessages[raw];
+  // 409 e 429 com código (ARCHIVED_DUPLICATE, HAS_DEPENDENTS, LINK_LIMIT, TOO_MANY_ATTEMPTS...): a frase da API diz
+  // o que aconteceu e como sair; nunca o genérico "Isso já foi registrado antes."
+  if ((err.status === 409 || err.status === 429) && typeof err.code === "string" && raw) return raw;
+  // as rotas novas respondem 403, 404, 409 e 429 com frases em português ("Turma não encontrada.", "Este vínculo foi
+  // feito pela secretaria..."): elas valem mais que a reserva genérica
+  if (typeof err.status === "number" && err.status >= 403 && err.status < 500 && err.status !== 422 && isPortugueseMessage(raw)) {
+    return raw;
+  }
   if (typeof err.status === "number") {
     // erro que veio da API sem tradução conhecida
     return statusMessages[err.status] ?? (err.status >= 500 ? statusMessages[500] : "Algo deu errado. Tente de novo.");
@@ -527,4 +615,195 @@ export function groupByWeek<T extends { startsAt: string }>(items: T[], now = ne
     groups[index].items.push(item);
   }
   return groups.filter((group) => group.items.length);
+}
+
+/* ------------------------------------------------------------------ */
+/* Contagens e códigos                                                 */
+/* ------------------------------------------------------------------ */
+
+/** "1 turma", "3 turmas", "0 pedidos". */
+export function countText(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+/** "04/11/2026". */
+export function formatDateBR(value: string | Date) {
+  const date = new Date(value);
+  return `${two(date.getDate())}/${two(date.getMonth() + 1)}/${date.getFullYear()}`;
+}
+
+/** Código como a pessoa digitou ("tads 5k7q", "TADS-5K7Q") no formato que a API compara: maiúsculo, sem espaço nem hífen. */
+export function normalizeCode(value: string) {
+  return value.toUpperCase().replace(/[\s-]+/g, "");
+}
+
+/** "K7QM3XPD" vira "K7QM-3XPD" (prefira o codeFormatted ou joinCodeFormatted que a API manda). */
+export function formatCode(value: string) {
+  const clean = normalizeCode(value);
+  return clean.length === 8 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+}
+
+/** Espera do 429 numa frase: "Tente de novo em 15 minutos." (retryAfter vem em segundos). */
+export function retryAfterText(seconds?: number | null) {
+  if (!seconds || seconds <= 0) {
+    return "Espere alguns minutos e tente de novo.";
+  }
+  const minutes = Math.ceil(seconds / 60);
+  return minutes <= 1 ? "Tente de novo em 1 minuto." : `Tente de novo em ${minutes} minutos.`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Turmas: período letivo (turma anual sem "/0")                       */
+/* ------------------------------------------------------------------ */
+
+/** Turma anual do curso integrado: o semestre é 0. */
+export function isAnnualClass(value: Pick<AcademicClass, "semester">) {
+  return !value.semester;
+}
+
+/** Curso integrado: a turma é anual e o campo semestre some do formulário. */
+export function isIntegratedCourse(course?: Pick<Course, "modality"> | null) {
+  return course?.modality === "integrado";
+}
+
+/**
+ * Período letivo da turma: "2026/2". Turma anual: "2026" (ou "2026, anual" com long). Nunca "2026/0".
+ * Serve também para chaves e filtros ("Todos os períodos").
+ */
+export function classTermLabel(value: Pick<AcademicClass, "year" | "semester">, options: { long?: boolean } = {}) {
+  if (isAnnualClass(value)) {
+    return options.long ? `${value.year}, anual` : String(value.year);
+  }
+  return `${value.year}/${value.semester}`;
+}
+
+/**
+ * O semestre mais recente entre as turmas ("2026/2"), sem contar as anuais (o 0 não é semestre). Sem turma
+ * semestral, o semestre do dia (1 até junho, 2 depois). Serve para "semestre atual" no Painel e nos filtros.
+ */
+export function latestTermLabel(classes: Array<Pick<AcademicClass, "year" | "semester">>, now = Date.now()) {
+  let latest: Pick<AcademicClass, "year" | "semester"> | null = null;
+  for (const item of classes) {
+    if (!item.semester) {
+      continue;
+    }
+    if (!latest || item.year > latest.year || (item.year === latest.year && item.semester > latest.semester)) {
+      latest = item;
+    }
+  }
+  if (latest) {
+    return `${latest.year}/${latest.semester}`;
+  }
+  const today = new Date(now);
+  return `${today.getFullYear()}/${today.getMonth() < 6 ? 1 : 2}`;
+}
+
+/** "TADS 5, 2026/2" ou "INF 3A, 2026". */
+export function classLabel(value: Pick<AcademicClass, "name" | "year" | "semester">) {
+  return `${value.name}, ${classTermLabel(value)}`;
+}
+
+/** "5º período, noturno" (período e turno da turma, como na lista de turmas). */
+export function classPeriodLine(value: Pick<AcademicClass, "period" | "shift">) {
+  return [value.period, value.shift ? value.shift.toLocaleLowerCase("pt-BR") : null].filter(Boolean).join(", ");
+}
+
+/* ------------------------------------------------------------------ */
+/* Responsável e matrícula                                             */
+/* ------------------------------------------------------------------ */
+
+/** "Mãe", "Pai", "Responsável legal", "Outro". */
+export function relationshipText(value: GuardianRelationship | string | null | undefined) {
+  return relationshipLabels[value as GuardianRelationship] ?? relationshipLabels.outro;
+}
+
+/** "Ativo", "Aguardando a secretaria", "Desfeito", "Bloqueado". */
+export function linkStatusText(value: GuardianLinkStatus | string) {
+  return linkStatusLabels[value as GuardianLinkStatus] ?? value;
+}
+
+/** "Código do aluno", "Código da secretaria", "Vinculado pela secretaria". */
+export function linkOriginText(value: GuardianLinkOrigin | string) {
+  return linkOriginLabels[value as GuardianLinkOrigin] ?? value;
+}
+
+/** "Ativa", "Pedido pendente", "Inativa", "Concluída". */
+export function enrollmentStatusText(value: EnrollmentStatus | string) {
+  return enrollmentStatusLabels[value as EnrollmentStatus] ?? value;
+}
+
+/** "Código da turma", "Convite da turma", "Lista de e-mails", "Incluído pela secretaria". */
+export function enrollmentSourceText(value: EnrollmentSource | string) {
+  return enrollmentSourceLabels[value as EnrollmentSource] ?? value;
+}
+
+/** "Mãe, desde 02/11/2026". */
+export function linkSinceText(relationship: GuardianRelationship | string, since?: string | null) {
+  return since ? `${relationshipText(relationship)}, desde ${formatDateBR(since)}` : relationshipText(relationship);
+}
+
+/* ------------------------------------------------------------------ */
+/* Notas (centésimos e vírgula decimal)                                */
+/* ------------------------------------------------------------------ */
+
+/** Centésimos para texto com vírgula: 750 vira "7,5", 1000 vira "10", 725 vira "7,25". Sem valor: "". */
+export function formatScore(hundredths: number | null | undefined) {
+  if (hundredths === null || hundredths === undefined || !Number.isFinite(hundredths)) {
+    return "";
+  }
+  return (hundredths / 100).toLocaleString("pt-BR", { maximumFractionDigits: 2, useGrouping: false });
+}
+
+/**
+ * Nota digitada para centésimos: "7,5" e "7.5" viram 750, "10" vira 1000. Vazio: null (nunca vira zero).
+ * Texto que não é número, negativo ou com mais de duas casas: NaN (mostre o erro abaixo do campo).
+ */
+export function parseScore(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : Number.NaN;
+  }
+  const text = value.trim().replace(/\s+/g, "");
+  if (!text) {
+    return null;
+  }
+  if (!/^\d+([.,]\d{1,2})?$/.test(text)) {
+    return Number.NaN;
+  }
+  return Math.round(Number(text.replace(",", ".")) * 100);
+}
+
+/** "7,5 de 10". Aceita os textos da API (scoreText, maxScoreText) ou centésimos. Sem máximo, só a nota. */
+export function gradeText(score: number | string | null | undefined, max?: number | string | null) {
+  const scoreLabel = typeof score === "number" ? formatScore(score) : (score ?? "");
+  if (!scoreLabel) {
+    return "";
+  }
+  const maxLabel = typeof max === "number" ? formatScore(max) : (max ?? "");
+  return maxLabel ? `${scoreLabel} de ${maxLabel}` : scoreLabel;
+}
+
+/** O que mostrar no lugar da nota: "7,5 de 10", "Falta", "Dispensa" ou "Sem nota". */
+export function gradeDisplay(grade: Pick<Grade, "status" | "score" | "scoreText"> | null | undefined, maxScoreText?: string | null) {
+  if (!grade) {
+    return "Sem nota";
+  }
+  if (grade.status !== "graded") {
+    return gradeStatusLabels[grade.status];
+  }
+  return gradeText(grade.scoreText ?? grade.score, maxScoreText) || "Sem nota";
+}
+
+/** "Fonte: SUAP, importada em 04/11/2026" ou "Fonte: lançada na Agenda em 06/11/2026". */
+export function gradeSourceText(source: GradeSourceInfo | null | undefined, updatedAt?: string | null) {
+  if (!source) {
+    return "";
+  }
+  if (source.type === "import") {
+    const origin = gradeImportSourceLabels[source.source] ?? source.source;
+    return `Fonte: ${origin}, importada em ${formatDateBR(source.importedAt)}`;
+  }
+  return updatedAt ? `Fonte: lançada na Agenda em ${formatDateBR(updatedAt)}` : "Fonte: lançada na Agenda";
 }

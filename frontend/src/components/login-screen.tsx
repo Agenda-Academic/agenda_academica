@@ -22,14 +22,19 @@ import { ApiError, login, signup, wakeApi } from "@/lib/api";
 import { cx, errorMessage } from "@/lib/format";
 import { demoAccounts } from "@/lib/meta";
 import type { Session } from "@/lib/types";
+import { GuardianDataDialog } from "./guardian-data-dialog";
 import { Field, primaryButton } from "./ui";
 
 type Mode = "login" | "signup";
-type FieldName = "fullName" | "registration" | "email" | "password" | "passwordConfirmation";
+type SignupRole = "student" | "teacher" | "guardian";
+type FieldName = "fullName" | "registration" | "email" | "password" | "passwordConfirmation" | "consent";
 type FieldErrors = Partial<Record<FieldName, string>>;
 
 // ordem dos campos na tela: o foco vai para o primeiro com erro
-const fieldOrder: FieldName[] = ["fullName", "registration", "email", "password", "passwordConfirmation"];
+const fieldOrder: FieldName[] = ["fullName", "registration", "email", "password", "passwordConfirmation", "consent"];
+
+// o "Li e concordo" do responsável (LGPD, desenho 6.1) é só da tela: a API não guarda o aceite
+const consentMissing = "Marque Li e concordo para criar a conta de responsável.";
 
 const emailTaken = "Este e-mail já tem conta. Entre ou use outro e-mail.";
 const registrationTaken = "Esta matrícula já tem conta. Entre ou confira o número.";
@@ -77,7 +82,7 @@ function serverErrors(err: unknown, mode: Mode): FieldErrors | null {
     } else if (item.field === "passwordConfirmation") {
       result.passwordConfirmation ??= "As senhas não são iguais.";
     } else if (item.field === "fullName") {
-      result.fullName ??= "Digite seu nome completo.";
+      result.fullName ??= item.message && /[áéíóúãõç]/i.test(item.message) ? item.message : "Digite seu nome completo.";
     } else if (item.field === "registration") {
       result.registration ??= item.rule === "database.unique" ? registrationTaken : "Confira a matrícula.";
     }
@@ -181,10 +186,14 @@ export function LoginScreen({
     fullName: "",
     email: "",
     registration: "",
-    role: "student" as "student" | "teacher",
+    role: "student" as SignupRole,
     password: "",
     passwordConfirmation: "",
+    consent: false,
   });
+  // "Quais dados o responsável vê", aberto pelo aviso do cadastro do responsável
+  const [dataOpen, setDataOpen] = useState(false);
+  const guardian = mode === "signup" && signupForm.role === "guardian";
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [slow, setSlow] = useState(false);
@@ -199,6 +208,7 @@ export function LoginScreen({
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
+  const consentRef = useRef<HTMLInputElement>(null);
 
   // Acorda a API enquanto a pessoa ainda está lendo a tela de login.
   useEffect(() => {
@@ -232,6 +242,7 @@ export function LoginScreen({
         email: emailRef,
         password: passwordRef,
         passwordConfirmation: confirmRef,
+        consent: consentRef,
       }[first];
       window.requestAnimationFrame(() => target.current?.focus());
     }
@@ -274,6 +285,9 @@ export function LoginScreen({
     if (mode === "signup" && !next.password && signupForm.passwordConfirmation !== signupForm.password) {
       next.passwordConfirmation = "As senhas não são iguais.";
     }
+    if (guardian && !signupForm.consent) {
+      next.consent = consentMissing;
+    }
     return next;
   }
 
@@ -301,7 +315,8 @@ export function LoginScreen({
             password: signupForm.password,
             passwordConfirmation: signupForm.passwordConfirmation,
             role: signupForm.role,
-            registration: signupForm.registration.trim() || null,
+            // o responsável não tem matrícula (mandar uma dá 422)
+            registration: guardian ? null : signupForm.registration.trim() || null,
           })
         );
       }
@@ -438,40 +453,56 @@ export function LoginScreen({
                       maxLength={120}
                     />
                   </Field>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field
-                      label="Matrícula"
-                      hint="opcional"
-                      error={fieldErrors.registration}
-                      errorId={errorId("registration")}
-                    >
-                      <input
-                        ref={registrationRef}
-                        className="input"
-                        value={signupForm.registration}
-                        onChange={(event) => {
-                          setSignupForm({ ...signupForm, registration: event.target.value });
-                          touched("registration");
-                        }}
-                        placeholder="ALU-000"
-                      />
-                    </Field>
+                  <div className={cx("grid gap-3", !guardian && "sm:grid-cols-2")}>
+                    {/* o responsável não tem matrícula: o campo some (o que foi digitado fica guardado) */}
+                    {guardian ? null : (
+                      <Field
+                        label="Matrícula"
+                        hint="opcional"
+                        error={fieldErrors.registration}
+                        errorId={errorId("registration")}
+                      >
+                        <input
+                          ref={registrationRef}
+                          className="input"
+                          value={signupForm.registration}
+                          onChange={(event) => {
+                            setSignupForm({ ...signupForm, registration: event.target.value });
+                            touched("registration");
+                          }}
+                          placeholder="ALU-000"
+                        />
+                      </Field>
+                    )}
                     <Field label="Perfil">
                       <select
                         className="input"
                         value={signupForm.role}
-                        onChange={(event) =>
+                        onChange={(event) => {
                           setSignupForm({
                             ...signupForm,
-                            role: event.target.value as "student" | "teacher",
-                          })
-                        }
+                            role: event.target.value as SignupRole,
+                          });
+                          touched("registration");
+                        }}
                       >
                         <option value="student">Aluno</option>
                         <option value="teacher">Docente</option>
+                        <option value="guardian">Responsável</option>
                       </select>
                     </Field>
                   </div>
+                  {guardian ? (
+                    <p className="callout blue">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                      <span className="min-w-0">
+                        Usamos seu nome e e-mail só para mostrar a agenda do aluno que você acompanha.{" "}
+                        <button className="link inline min-h-6" onClick={() => setDataOpen(true)} type="button">
+                          Quais dados o responsável vê
+                        </button>
+                      </span>
+                    </p>
+                  ) : null}
                 </>
               ) : null}
 
@@ -529,6 +560,27 @@ export function LoginScreen({
                   }}
                 />
               ) : null}
+
+              {guardian ? (
+                <div className="grid gap-1.5">
+                  <label className="flex min-h-6 cursor-pointer items-start gap-2.5 text-sm leading-6 text-ink-2">
+                    <input
+                      ref={consentRef}
+                      className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
+                      type="checkbox"
+                      checked={signupForm.consent}
+                      onChange={(event) => {
+                        setSignupForm({ ...signupForm, consent: event.target.checked });
+                        touched("consent");
+                      }}
+                      aria-invalid={fieldErrors.consent ? true : undefined}
+                      aria-describedby={fieldErrors.consent ? errorId("consent") : undefined}
+                    />
+                    <span>Li e concordo com o uso do meu nome e e-mail para acompanhar a agenda do aluno.</span>
+                  </label>
+                  {fieldErrors.consent ? <FieldMessage id={errorId("consent")}>{fieldErrors.consent}</FieldMessage> : null}
+                </div>
+              ) : null}
             </div>
 
             {error ? (
@@ -565,11 +617,16 @@ export function LoginScreen({
                   <ShieldCheck className="h-4 w-4 text-muted" aria-hidden />
                   Contas de demonstração
                 </p>
-                <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
+                <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
                   {demoAccounts.map((account, index) => {
                     const on = loginForm.email === account.email;
-                    const Icon = [GraduationCap, BookOpen, ShieldCheck][index % 3];
-                    const tone = ["bg-brand-50 text-brand", "bg-[#EDE9FE] text-[#5B21B6]", "bg-[#DBEAFE] text-[#1E40AF]"][index % 3];
+                    const Icon = [GraduationCap, BookOpen, ShieldCheck, Users][index % 4];
+                    const tone = [
+                      "bg-brand-50 text-brand",
+                      "bg-[#EDE9FE] text-[#5B21B6]",
+                      "bg-[#DBEAFE] text-[#1E40AF]",
+                      "bg-[#FEF3C7] text-[#92400E]",
+                    ][index % 4];
                     return (
                       <button
                         key={account.email}
@@ -611,6 +668,7 @@ export function LoginScreen({
           </form>
         </div>
       </section>
+      <GuardianDataDialog open={dataOpen} onClose={() => setDataOpen(false)} />
     </main>
   );
 }

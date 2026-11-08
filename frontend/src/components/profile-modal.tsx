@@ -4,6 +4,8 @@ import { Bell, Loader2, Save } from "lucide-react";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { reminderOptions, roleLabels } from "@/lib/meta";
 import type { User } from "@/lib/types";
+import { ProfileGuardians } from "./profile-guardians";
+import { ProfileStudents } from "./profile-students";
 import { ConfirmDialog, Field, Modal } from "./ui";
 
 export type ProfileFormState = {
@@ -102,7 +104,7 @@ export function ProfileModal({
               <p className="truncate text-sm text-muted">{user.email}</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <span className="pill st-ag">{roleLabels[user.role]}</span>
-                {user.registration ? (
+                {user.registration && user.role !== "guardian" ? (
                   // matrícula comprida e sem espaço: corta com reticência na largura do cartão, inteira no title
                   <span className="pill st-ag min-w-0 max-w-full" title={user.registration}>
                     <span className="truncate">{user.registration}</span>
@@ -155,6 +157,18 @@ export function ProfileModal({
             </div>
           </div>
         </form>
+
+        {/* fora do formulário: as ações dessas seções valem na hora, sem o Salvar preferências */}
+        {user.role === "student" ? (
+          <div className="mt-5">
+            <ProfileGuardians user={user} />
+          </div>
+        ) : null}
+        {user.role === "guardian" ? (
+          <div className="mt-5">
+            <ProfileStudents />
+          </div>
+        ) : null}
       </Modal>
 
       {askDiscard ? (

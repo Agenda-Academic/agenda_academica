@@ -1,0 +1,856 @@
+/* ==================================================================
+   Área Admin: Turmas e disciplinas (classes-view.tsx, classes-*.tsx), card Pendências (admin-pending-card.tsx) e dashboard-admin.tsx.
+
+   Importado por globals.css dentro de @layer components (depois de @import "tailwindcss"): os
+   utilitários do Tailwind continuam valendo por cima destas regras. Use os tokens de :root
+   (--brand, --ink, --muted, --line...) e as classes de globals.css (card, pad, btn, pill, callout,
+   field-error, drawer...) antes de criar algo novo. Prefixe as classes novas com o nome da área
+   (ex.: .admin-...) para não colidir com as outras áreas. Só a área Admin edita este arquivo.
+   ================================================================== */
+
+/* âmbar das pendências (amostra aprovada) */
+.admin-duo,
+.admin-panel,
+.admin-pend-list {
+  --admin-amber-bg: #fff8e6;
+  --admin-amber-line: #f3dca4;
+  --admin-amber-ink: #92400e;
+}
+
+/* ------------------------------------------------------------------ */
+/* Tela: dois cards lado a lado, que começam e terminam na mesma linha  */
+/* ------------------------------------------------------------------ */
+
+.admin-duo > .card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-duo > .duo-side {
+  flex-basis: 360px;
+}
+
+.admin-turmas {
+  overflow: hidden;
+}
+.admin-card-head {
+  display: flex;
+  padding: 24px 24px 18px;
+}
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 24px 20px;
+}
+.admin-filters select.input {
+  width: auto;
+  flex: 1 1 190px;
+  max-width: 240px;
+}
+.admin-clear {
+  min-height: 36px;
+  padding: 0 4px;
+}
+.admin-seg {
+  margin-left: auto;
+  max-width: 100%;
+}
+@container (max-width: 599px) {
+  .admin-filters select.input {
+    max-width: none;
+  }
+  .admin-seg {
+    margin-left: 0;
+    width: 100%;
+  }
+  .admin-seg .seg {
+    display: flex;
+    width: 100%;
+  }
+  .admin-seg .seg button {
+    flex: 1 1 auto;
+  }
+}
+@container (max-width: 420px) {
+  .admin-card-head {
+    padding: 20px 18px 14px;
+  }
+  .admin-filters {
+    padding: 0 18px 16px;
+  }
+}
+.admin-rows-pad {
+  padding: 0 24px 24px;
+}
+
+/* lista de turmas: cabeçalho e linhas na mesma grade; no card estreito, uma coluna só */
+.admin-thead {
+  display: none;
+}
+.admin-rows {
+  border-top: 1px solid var(--line);
+}
+.admin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  column-gap: 12px;
+  row-gap: 6px;
+  align-items: center;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 20px 14px 24px;
+  border-bottom: 1px solid var(--line-2);
+  text-align: left;
+  font-size: 14px;
+  transition: background-color 0.16s ease;
+}
+.admin-rows li:last-child .admin-row {
+  border-bottom: 0;
+}
+.admin-row:focus-visible,
+.admin-drow:focus-visible,
+.admin-srow:focus-visible {
+  outline-offset: -2px;
+}
+.admin-c-main,
+.admin-c-term,
+.admin-c-num {
+  grid-column: 1;
+  min-width: 0;
+}
+.admin-c-term,
+.admin-c-num {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+.admin-c-term .admin-s,
+.admin-c-num .admin-s {
+  margin-top: 0;
+}
+.admin-row > .admin-go {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+}
+.admin-t-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.admin-t {
+  font-weight: 650;
+  color: var(--ink);
+}
+.admin-t-line .admin-t {
+  margin-right: 2px;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.admin-s {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.admin-go {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--faint);
+}
+@container (min-width: 600px) {
+  .admin-thead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 168px 84px 20px;
+    column-gap: 12px;
+    padding: 12px 20px 12px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--surface-2);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .admin-thead + .admin-rows {
+    border-top: 1px solid var(--line);
+  }
+  .admin-row {
+    grid-template-columns: minmax(0, 1fr) 168px 84px 20px;
+  }
+  .admin-c-term,
+  .admin-c-num {
+    display: block;
+    grid-row: 1;
+  }
+  .admin-c-term {
+    grid-column: 2;
+  }
+  .admin-c-num {
+    grid-column: 3;
+  }
+  .admin-c-term .admin-s,
+  .admin-c-num .admin-s {
+    margin-top: 4px;
+  }
+  .admin-row > .admin-go {
+    grid-column: 4;
+    grid-row: 1;
+  }
+}
+.admin-card-foot {
+  padding: 14px 24px 20px;
+  border-top: 1px solid var(--line-2);
+}
+
+/* disciplinas */
+.admin-dlist {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+}
+.admin-drow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line-2);
+  border-radius: 10px;
+  text-align: left;
+  transition: background-color 0.16s ease;
+}
+.admin-dlist li:last-child .admin-drow {
+  border-bottom: 0;
+}
+.admin-d-main {
+  flex: 1;
+  min-width: 0;
+}
+.admin-d-t {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.admin-d-s {
+  margin-top: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.admin-d-s.none {
+  color: var(--admin-amber-ink);
+}
+.admin-link-muted {
+  color: var(--ink-3);
+}
+.admin-link-muted:hover {
+  color: var(--ink);
+}
+
+/* código da disciplina e da matrícula (fonte mono, como na amostra) */
+.admin-code {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 7px;
+  background: var(--neutral-tint);
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.admin-code.wt {
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.admin-mono {
+  font-family: var(--mono);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-row:hover,
+  .admin-drow:hover,
+  .admin-srow:hover {
+    background: var(--surface-2);
+  }
+  .admin-row:hover .admin-go,
+  .admin-drow:hover .admin-go,
+  .admin-srow:hover .admin-go {
+    color: var(--ink-3);
+  }
+}
+
+/* esqueleto das listas */
+.admin-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0;
+}
+.admin-skel-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pessoas (alunos, docentes, convites, códigos)                       */
+/* ------------------------------------------------------------------ */
+
+.admin-people {
+  display: flex;
+  flex-direction: column;
+}
+.admin-srow,
+.admin-irow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--line-2);
+  text-align: left;
+}
+.admin-srow {
+  border-radius: 10px;
+  transition: background-color 0.16s ease;
+}
+.admin-people > li:last-child > .admin-srow,
+.admin-people > li.admin-irow:last-child {
+  border-bottom: 0;
+}
+.admin-av-sm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--neutral-tint);
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.admin-av-xs {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--night);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.admin-s-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.admin-s-name {
+  font-size: 14px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.admin-s-mail {
+  margin-top: 1px;
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.admin-s-reg {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+@media (max-width: 479px) {
+  .admin-s-reg {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Painel lateral                                                      */
+/* ------------------------------------------------------------------ */
+
+/* o rodapé de cada conteúdo entra no pé fixo do Drawer, com os botões como filhos dele */
+.admin-foot-slot {
+  display: contents;
+}
+.admin-foot-note {
+  flex-basis: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.admin-foot-gap {
+  margin-left: auto;
+}
+@media (max-width: 639px) {
+  .admin-foot-slot > .btn {
+    flex: 1 1 auto;
+  }
+  .admin-foot-gap {
+    display: none;
+  }
+}
+
+.admin-sec {
+  padding: 20px 0 22px;
+  border-bottom: 1px solid var(--line-2);
+}
+.admin-panel > .admin-sec:first-child,
+.admin-panel > .callout:first-child + .admin-sec {
+  padding-top: 4px;
+}
+.admin-panel > .admin-sec:last-child {
+  border-bottom: 0;
+}
+.admin-sec-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 12px;
+  margin-bottom: 14px;
+}
+.admin-sec-t {
+  font-size: 16.5px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.admin-sec-s {
+  margin-top: 2px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* formulário da turma e da disciplina: 6 colunas, como na amostra */
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 16px 12px;
+}
+.admin-span6 {
+  grid-column: span 6;
+}
+.admin-span4 {
+  grid-column: span 4;
+}
+.admin-span3 {
+  grid-column: span 3;
+}
+.admin-span2 {
+  grid-column: span 2;
+}
+@media (max-width: 479px) {
+  .admin-span4,
+  .admin-span3 {
+    grid-column: span 6;
+  }
+  .admin-span2 {
+    grid-column: span 3;
+  }
+}
+.admin-annual {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-2);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink-3);
+}
+
+/* "Novo curso" dentro do campo Curso */
+.admin-subform {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.admin-subform-t {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.admin-subform-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.admin-subform-row > * {
+  flex: 1 1 160px;
+}
+
+/* disciplinas e docentes */
+.admin-offers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-offer {
+  padding: 12px 12px 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+.admin-offer.warn {
+  background: var(--admin-amber-bg);
+  border-color: var(--admin-amber-line);
+}
+.admin-of-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-of-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.admin-of-name b {
+  font-size: 14.5px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.admin-docs {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.admin-docs.warn {
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 13.5px;
+  color: var(--admin-amber-ink);
+}
+.admin-doc {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.admin-pill-wt {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+}
+.admin-pill-warn {
+  background: #fff;
+  border: 1px solid var(--admin-amber-line);
+  color: var(--admin-amber-ink);
+}
+.admin-role-select.input {
+  width: auto;
+  min-height: 38px;
+  padding-left: 10px;
+  font-size: 13.5px;
+}
+
+/* alunos */
+.admin-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.admin-group::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-2);
+}
+.admin-people + .admin-group,
+.admin-pend-box + .admin-group {
+  margin-top: 16px;
+}
+.admin-pend-box {
+  border: 1px solid var(--admin-amber-line);
+  background: var(--admin-amber-bg);
+  border-radius: 14px;
+}
+.admin-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--admin-amber-line);
+}
+.admin-ck {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.admin-panel input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--brand);
+  flex-shrink: 0;
+}
+.admin-prow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--admin-amber-line);
+}
+.admin-prow:last-child {
+  border-bottom: 0;
+}
+.admin-p-main {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.admin-p-name {
+  font-size: 14px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.admin-p-sub {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.admin-p-acts {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.admin-list-foot {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* código da turma e do responsável */
+.admin-codebox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+.admin-codebox-new {
+  align-items: flex-start;
+  margin-bottom: 12px;
+  border: 1.5px dashed var(--brand-200);
+  background: var(--brand-50);
+}
+.admin-code-big {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.admin-code-acts {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-rejected {
+  margin-top: 8px;
+  display: grid;
+  gap: 4px;
+  font-size: 13.5px;
+}
+
+/* formulário de uma linha (matrícula escolar, motivo do bloqueio) */
+.admin-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+}
+.admin-inline-form > .min-w-0 {
+  flex: 1 1 220px;
+}
+
+/* chave "Menor de idade" */
+.admin-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.admin-switch input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  cursor: pointer;
+}
+.admin-switch-track {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  flex-shrink: 0;
+  transition: background-color 0.16s ease;
+}
+.admin-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(var(--shadow-rgb) / 0.25);
+  transition: transform 0.16s ease;
+}
+.admin-switch input:checked + .admin-switch-track {
+  background: var(--brand);
+}
+.admin-switch input:checked + .admin-switch-track::after {
+  transform: translateX(18px);
+}
+.admin-switch input:focus-visible + .admin-switch-track {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.admin-switch input:disabled + .admin-switch-track {
+  opacity: 0.55;
+}
+.admin-switch-label {
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+@media (forced-colors: active) {
+  .admin-switch-track {
+    border: 1px solid CanvasText;
+  }
+  .admin-switch input:checked + .admin-switch-track {
+    background: Highlight;
+  }
+}
+
+/* responsáveis */
+.admin-glist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-guard {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+.admin-guard.warn {
+  background: var(--admin-amber-bg);
+  border-color: var(--admin-amber-line);
+}
+.admin-guard.muted {
+  background: #fff;
+}
+.admin-guard-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-guard-meta {
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.admin-guard-acts {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Card Pendências (Painel da administração)                           */
+/* ------------------------------------------------------------------ */
+
+.admin-pend-list {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-mini {
+  align-items: flex-start;
+}
+.admin-mini-warn .mini-ico {
+  background: var(--admin-amber-bg);
+  border-color: var(--admin-amber-line);
+  color: var(--admin-amber-ink);
+}
+.admin-mini-blue .mini-ico {
+  background: #eaf1fe;
+  border-color: #c9d8f5;
+  color: var(--night);
+}

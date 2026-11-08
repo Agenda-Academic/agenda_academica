@@ -1,0 +1,565 @@
+/* ==================================================================
+   Área Notas (docente): tela Notas da docente (grades-teacher.tsx), gaveta de notas (event-grades-drawer.tsx) e importação (grade-import*.tsx).
+
+   Importado por globals.css dentro de @layer components (depois de @import "tailwindcss"): os
+   utilitários do Tailwind continuam valendo por cima destas regras. Use os tokens de :root
+   (--brand, --ink, --muted, --line...) e as classes de globals.css (card, pad, btn, pill, callout,
+   field-error, drawer...) antes de criar algo novo. Prefixe as classes novas com o nome da área
+   (ex.: .notas-docente-...) para não colidir com as outras áreas. Só a área Notas (docente) edita este arquivo.
+   ================================================================== */
+
+/* ---------- títulos e seções da gaveta (amostra docente-notas-evento) ---------- */
+.notas-docente-h3 {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.notas-docente-h3 .n {
+  font-weight: 600;
+  color: var(--muted);
+}
+.notas-docente-h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.notas-docente-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-2);
+}
+.notas-docente-sec-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.notas-docente-help {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.notas-docente-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  background: var(--neutral-tint);
+  color: var(--ink-3);
+}
+.notas-docente-tag.is-bad {
+  background: #ffe4e8;
+  color: #9f1239;
+}
+
+/* ---------- importações feitas ---------- */
+.notas-docente-imp {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+.notas-docente-imp-t {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.notas-docente-imp-s {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.notas-docente-imp-lock {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+/* ---------- lista de alunos: lançar à mão ---------- */
+.notas-docente-grades {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.notas-docente-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line-2);
+}
+.notas-docente-grade:first-child {
+  border-top: 0;
+}
+.notas-docente-grade.is-bad {
+  background: #fff8f9;
+}
+.notas-docente-grade-who {
+  min-width: 0;
+}
+.notas-docente-grade-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.notas-docente-grade-meta {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.notas-docente-grade-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notas-docente-grade-err {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+.notas-docente-score-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.input.notas-docente-score {
+  width: 7.25rem;
+  min-height: 40px;
+  padding: 0 52px 0 12px;
+  text-align: right;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.notas-docente-of {
+  position: absolute;
+  right: 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.input.notas-docente-score:disabled {
+  padding-right: 12px;
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.input.notas-docente-score:disabled + .notas-docente-of {
+  display: none;
+}
+.input.notas-docente-score[readonly] {
+  background: var(--surface-2);
+}
+.input.notas-docente-status {
+  width: 7.5rem;
+  min-height: 40px;
+  padding-left: 12px;
+  font-size: 14px;
+}
+.input.notas-docente-status:disabled {
+  background-color: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.notas-docente-state {
+  display: inline-flex;
+  width: 16px;
+  flex-shrink: 0;
+}
+/* celular: o nome em cima e os campos embaixo */
+@media (max-width: 479px) {
+  .notas-docente-grade {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- passos da importação (amostra docente-importar-previa) ---------- */
+.notas-docente-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.notas-docente-step {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.notas-docente-step:last-child {
+  flex: 0 0 auto;
+}
+.notas-docente-step:not(:last-child)::after {
+  content: "";
+  flex: 1;
+  min-width: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.notas-docente-step.is-done::after {
+  background: var(--brand-200);
+}
+.notas-docente-step-n {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-strong);
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.notas-docente-step.is-done {
+  color: var(--ink-3);
+}
+.notas-docente-step.is-done .notas-docente-step-n {
+  background: var(--brand-50);
+  border-color: var(--brand-200);
+  color: var(--brand);
+}
+.notas-docente-step.is-cur {
+  font-weight: 700;
+  color: var(--ink);
+}
+.notas-docente-step.is-cur .notas-docente-step-n {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  box-shadow: 0 0 0 4px rgb(var(--brand-rgb) / 0.14);
+}
+/* celular: só o passo atual mostra o nome (os outros ficam com o número, e o nome segue para o leitor de tela) */
+@media (max-width: 479px) {
+  .notas-docente-step:not(.is-cur) .notas-docente-step-t {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* ---------- arquivo escolhido e área de soltar ---------- */
+.notas-docente-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+.notas-docente-file > .min-w-0 {
+  flex: 1 1 200px;
+}
+.notas-docente-file-t {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.notas-docente-file-s {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.notas-docente-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1.5px dashed var(--line-strong);
+  background: var(--surface-2);
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease;
+}
+.notas-docente-drop > .min-w-0 {
+  flex: 1 1 200px;
+}
+.notas-docente-drop.is-over {
+  border-color: var(--brand);
+  background: var(--brand-50);
+}
+.notas-docente-drop.is-bad {
+  border-color: #f3c6d0;
+  background: #fff8f9;
+}
+
+/* ---------- prévia: totais, pergunta e linhas ---------- */
+.notas-docente-tot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.notas-docente-tot li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.notas-docente-tot b {
+  font-weight: 800;
+}
+.notas-docente-tot .is-new {
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+.notas-docente-tot .is-chg {
+  background: #fef3c7;
+  color: #92400e;
+}
+.notas-docente-tot .is-same {
+  background: var(--neutral-tint);
+  color: var(--ink-3);
+}
+.notas-docente-tot .is-bad {
+  background: #ffe4e8;
+  color: #9f1239;
+}
+.notas-docente-ask {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff7e0;
+}
+.notas-docente-ask-q {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #7a3b06;
+}
+.notas-docente-ask .opt {
+  cursor: pointer;
+}
+.notas-docente-ask .opt:has(input:focus-visible) {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.notas-docente-rows {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.notas-docente-rows > li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--line-2);
+}
+.notas-docente-rows > li:first-child {
+  border-top: 0;
+}
+.notas-docente-rows.is-bad {
+  border-color: #f3c6d0;
+}
+.notas-docente-rows.is-bad > li {
+  align-items: flex-start;
+  background: #fff8f9;
+}
+.notas-docente-r-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: #ffe4e8;
+  color: #be123c;
+}
+.notas-docente-r-body {
+  flex: 1;
+  min-width: 0;
+}
+.notas-docente-r-t {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.notas-docente-r-t .mat {
+  font-weight: 500;
+  color: var(--muted);
+}
+.notas-docente-r-msg {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.notas-docente-r-s {
+  margin-top: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.notas-docente-r-v {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink);
+}
+.notas-docente-r-v s {
+  font-weight: 500;
+  color: var(--muted-2);
+}
+.notas-docente-r-v .to {
+  margin: 0 4px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* ---------- tela Notas da docente e da administração ---------- */
+.notas-docente-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px 16px;
+  padding: 24px 24px 18px;
+}
+.notas-docente-card-head > .min-w-0 {
+  flex: 1 1 260px;
+}
+.notas-docente-evs {
+  border-top: 1px solid var(--line);
+}
+.notas-docente-ev {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  grid-template-areas:
+    "date body"
+    ". status"
+    ". acts";
+  align-items: center;
+  gap: 10px 16px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line-2);
+  transition: background-color 0.16s ease;
+}
+.notas-docente-ev:first-child {
+  border-top: 0;
+}
+.notas-docente-ev:hover {
+  background: var(--surface-2);
+}
+.notas-docente-ev.is-focus {
+  background: var(--brand-50);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+.notas-docente-ev > .ev-date {
+  grid-area: date;
+  align-self: start;
+}
+.notas-docente-ev-body {
+  grid-area: body;
+  min-width: 0;
+}
+.notas-docente-ev-status {
+  grid-area: status;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.notas-docente-ev-line {
+  flex-basis: 100%;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.notas-docente-ev-acts {
+  grid-area: acts;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.notas-docente-more {
+  padding: 12px 24px 18px;
+  border-top: 1px solid var(--line-2);
+}
+/* card largo: uma linha por avaliação (data, avaliação, situação e ações), como a tabela da Gestão */
+@container (min-width: 760px) {
+  .notas-docente-ev {
+    grid-template-columns: 54px minmax(0, 1fr) 230px auto;
+    grid-template-areas: "date body status acts";
+  }
+  .notas-docente-ev > .ev-date {
+    align-self: center;
+  }
+  .notas-docente-ev-acts {
+    justify-content: flex-end;
+  }
+}
+/* celular: menos respiro nas bordas */
+@container (max-width: 420px) {
+  .notas-docente-card-head {
+    padding: 20px 16px 16px;
+  }
+  .notas-docente-ev {
+    gap: 8px 12px;
+    padding: 14px 16px;
+  }
+  .notas-docente-more {
+    padding: 12px 16px 16px;
+  }
+}

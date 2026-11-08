@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* CSS de cada área (um arquivo por área, sem conflito entre elas). Entram na camada components: os
+   utilitários do Tailwind valem por cima, e as regras deste arquivo vêm depois delas na mesma camada.
+   Os @import precisam ficar aqui no alto, antes de qualquer outra regra. */
+@import "./styles/admin.css" layer(components);
+@import "./styles/aluno.css" layer(components);
+@import "./styles/responsavel.css" layer(components);
+@import "./styles/docente.css" layer(components);
+@import "./styles/notas.css" layer(components);
+@import "./styles/notas-docente.css" layer(components);
+
 /* ==================================================================
    Tokens do produto — azul + verde IF (mesmos do protótipo no Figma,
    docs/telas/src/00-head.html)
@@ -430,6 +440,62 @@ button:disabled {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* responsável: o bloco "Aluno: Diogo, TADS 5" no menu, acima dos itens (amostra responsavel-painel). Com
+     mais de um aluno vira seletor: um select nativo transparente cobre o bloco (toque, teclado e leitor de
+     tela), e o anel do foco aparece no bloco (app-shell.tsx, StudentPick) */
+  .student-pick {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 56px;
+    margin-top: -8px;
+    padding: 8px 12px 8px 8px;
+    border-radius: 12px;
+    background: rgb(255 255 255 / 0.08);
+    border: 1px solid rgb(255 255 255 / 0.16);
+    color: #fff;
+    text-align: left;
+  }
+  .student-pick .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .student-pick svg {
+    color: var(--on-night-2);
+  }
+  .student-pick.is-select:hover {
+    background: rgb(255 255 255 / 0.12);
+  }
+  .student-pick select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    /* a lista do select (nativa) fica legível; 16 px para o iPhone não ampliar a página */
+    color: var(--ink);
+    background: #fff;
+    font-size: 16px;
+  }
+  .student-pick:has(select:focus-visible) {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+  .pick-t {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+  .pick-s {
+    margin-top: 1px;
+    font-size: 12px;
+    color: var(--on-night-2);
   }
   .ubtn {
     margin-left: auto;

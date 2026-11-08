@@ -12,11 +12,23 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
-import { AppShell, type View } from "@/components/app-shell";
+import {
+  AppActionsProvider,
+  type AppActions,
+  type BackLayers,
+  type ClassesTarget,
+  type NavigateParams,
+  type ToastOptions as AreaToastOptions,
+} from "@/components/app-actions";
+import { AppShell, type SearchScope, type View } from "@/components/app-shell";
 import { CalendarView, type CalendarMode } from "@/components/calendar-view";
+import { ClassesView } from "@/components/classes-view";
 import { AdminDashboard } from "@/components/dashboard-admin";
+import { AvisosCard } from "@/components/dashboard-bits";
+import { GuardianDashboard } from "@/components/dashboard-guardian";
 import { StudentDashboard } from "@/components/dashboard-student";
 import { TeacherDashboard } from "@/components/dashboard-teacher";
+import { EventGradesDrawer } from "@/components/event-grades-drawer";
 import {
   EventEditor,
   createInitialEventForm,
@@ -26,6 +38,8 @@ import {
   type EventStatusChange,
   type StatusNotice,
 } from "@/components/event-editor";
+import { GradesView } from "@/components/grades-view";
+import { GuardianLinkCard } from "@/components/guardian-link-card";
 import { LoginScreen } from "@/components/login-screen";
 import { ManageView } from "@/components/manage-view";
 import { ProfileModal, type ProfileFormState } from "@/components/profile-modal";
@@ -50,11 +64,14 @@ import {
   getCalendarImports,
   getContext,
   getEvents,
+  getNotifications,
   getReminders,
   importCalendar,
   isNetworkError,
   isTimeoutError,
   logout,
+  readAllNotifications,
+  readNotification,
   saveReminder,
   setReachableHandler,
   setUnauthorizedHandler,
@@ -74,12 +91,15 @@ import {
   matchesSearch,
   startOfDay,
 } from "@/lib/format";
-import { allCategories } from "@/lib/meta";
+import { allCategories, isGradable, knownRoles } from "@/lib/meta";
 import type {
   AcademicContext,
   AcademicEvent,
+  AppNotification,
   CalendarImport,
   Category,
+  LinkedStudent,
+  NotificationList,
   Reminder,
   Session,
   User,
@@ -101,17 +121,34 @@ const EVENT_GONE = "Esse evento não existe mais. Ele pode ter sido removido.";
 const viewSlugs: Record<View, string> = {
   dashboard: "painel",
   calendar: "cronograma",
+  grades: "notas",
   manage: "gestao",
+  classes: "turmas",
   reminders: "lembretes",
   sync: "importar",
 };
 
+// quem vê cada tela (desenho, tabela 5.2); o responsável vê Painel, Cronograma (só leitura), Notas e Lembretes
 const viewRoles: Record<View, UserRole[]> = {
-  dashboard: ["student", "teacher", "admin"],
-  calendar: ["student", "teacher", "admin"],
+  dashboard: ["student", "teacher", "admin", "guardian"],
+  calendar: ["student", "teacher", "admin", "guardian"],
+  grades: ["student", "teacher", "admin", "guardian"],
   manage: ["teacher", "admin"],
-  reminders: ["student", "teacher", "admin"],
+  classes: ["admin"],
+  reminders: ["student", "teacher", "admin", "guardian"],
   sync: ["admin"],
+};
+
+/** Quem cria, edita e conclui evento: só a docente e a administração (o aluno e o responsável só leem). */
+function writesEvents(role: UserRole | undefined) {
+  return role === "teacher" || role === "admin";
+}
+
+// a busca do menu na tela Turmas e disciplinas procura turmas, disciplinas e alunos (nas outras, eventos)
+const classesSearch: SearchScope = {
+  placeholder: "Buscar turma ou aluno",
+  label: "Buscar turma, disciplina ou aluno",
+  noun: ["resultado", "resultados"],
 };
 
 // antecedências aceitas pela API (15 minutos a 7 dias)
@@ -139,8 +176,11 @@ const eventFormKeys: Array<keyof EventFormState> = [
 /** Como o detalhe do Cronograma foi aberto: diz o que fechar faz. */
 type DetailOrigin = "outside" | "here" | "switched";
 
-/** Camada leve por cima da tela, com entrada própria no histórico: o Voltar fecha só ela. */
-type HistoryLayer = "menu" | "perfil" | "confirmar";
+/**
+ * Camada leve por cima da tela, com entrada própria no histórico: o Voltar fecha só ela. "painel" é o painel
+ * lateral de uma área (useBackLayer) ou a gaveta de notas.
+ */
+type HistoryLayer = "menu" | "perfil" | "confirmar" | "painel";
 
 /**
  * Onde estava o botão ou a linha que abriu o detalhe: o card (pelo nome dele) e a ordem entre os que abrem o
@@ -166,6 +206,14 @@ type HistoryEntry = {
   opener?: number;
   /** Qual dos botões ou linhas desse evento abriu o detalhe. */
   openerSpot?: OpenerSpot;
+  /** Responsável: o aluno acompanhado (&aluno=). Vale para todas as telas dele. */
+  aluno?: number;
+  /** Turmas e disciplinas: a turma a abrir (&turma=). Sai do endereço depois que a tela abre o painel. */
+  turma?: number;
+  /** Turmas e disciplinas: o aluno da turma a abrir (&membro=, id da conta). */
+  membro?: number;
+  /** Notas: a avaliação a destacar (&evento=). */
+  gradeEventId?: number;
 };
 
 type ResumeEditor = {
@@ -233,6 +281,8 @@ let entrySeq = 0;
 let shownEntry: HistoryEntry | null = null;
 // quem está na sessão (0 sem sessão): cada entrada gravada leva o dono
 let entryOwner = 0;
+// responsável: o aluno escolhido (0 sem aluno, e sempre 0 nos outros papéis): cada entrada nova leva &aluno=
+let entryStudent = 0;
 
 /** Estado da entrada com a parte do Next (__NA e a árvore do roteador dele, que ele copia a cada pushState). */
 type RouterHistoryState = { __NA?: boolean; __PRIVATE_NEXTJS_INTERNALS_TREE?: unknown; [key: string]: unknown };
@@ -311,6 +361,11 @@ function setEntryOwner(userId: number) {
   entryOwner = userId;
 }
 
+/** Responsável: o aluno que as entradas novas do histórico levam (&aluno=); 0 sem aluno. */
+function setEntryStudent(studentId: number) {
+  entryStudent = studentId;
+}
+
 function isView(value: unknown): value is View {
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(viewSlugs, value);
 }
@@ -319,21 +374,48 @@ function canSee(view: View, role: UserRole) {
   return viewRoles[view].includes(role);
 }
 
-/** Lê ?tela= e &evento= do endereço, aceitando só telas do perfil. */
+/** Número inteiro positivo de um parâmetro do endereço (ou undefined). */
+function idParam(params: URLSearchParams, name: string) {
+  const value = Number(params.get(name));
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * Lê ?tela=, &evento=, &turma=, &membro= e &aluno= do endereço, aceitando só telas do perfil. O &aluno= só vale
+ * para o responsável; &turma= e &membro=, só em Turmas e disciplinas; &evento=, no Cronograma e em Notas.
+ */
 function entryFromSearch(search: string, role: UserRole): Omit<HistoryEntry, "key"> {
   const params = new URLSearchParams(search);
   const slug = params.get("tela");
   const found = (Object.keys(viewSlugs) as View[]).find((view) => viewSlugs[view] === slug);
   const view = found && canSee(found, role) ? found : "dashboard";
-  const eventParam = Number(params.get("evento"));
-  const eventId = view === "calendar" && Number.isInteger(eventParam) && eventParam > 0 ? eventParam : null;
-  return { view, eventId };
+  const eventParam = idParam(params, "evento");
+  return {
+    view,
+    eventId: view === "calendar" ? (eventParam ?? null) : null,
+    gradeEventId: view === "grades" ? eventParam : undefined,
+    turma: view === "classes" ? idParam(params, "turma") : undefined,
+    membro: view === "classes" ? idParam(params, "membro") : undefined,
+    aluno: role === "guardian" ? idParam(params, "aluno") : undefined,
+  };
 }
 
 function entryUrl(entry: HistoryEntry) {
   const params = new URLSearchParams({ tela: viewSlugs[entry.view] });
   if (entry.view === "calendar" && entry.eventId) {
     params.set("evento", String(entry.eventId));
+  }
+  if (entry.view === "grades" && entry.gradeEventId) {
+    params.set("evento", String(entry.gradeEventId));
+  }
+  if (entry.view === "classes" && entry.turma) {
+    params.set("turma", String(entry.turma));
+  }
+  if (entry.view === "classes" && entry.membro) {
+    params.set("membro", String(entry.membro));
+  }
+  if (entry.aluno) {
+    params.set("aluno", String(entry.aluno));
   }
   if (entry.editar !== undefined) {
     params.set("editar", String(entry.editar));
@@ -363,6 +445,8 @@ function writeHistory(mode: "push" | "replace", entry: HistoryEntry): HistoryEnt
   const base = currentEntry();
   const full: HistoryEntry = {
     ...entry,
+    // responsável: a entrada nova leva o aluno escolhido (a que já tem um aluno fica com ele)
+    aluno: entry.aluno ?? (entryStudent || undefined),
     // dono desconhecido (ex.: módulo recarregado no desenvolvimento): fica o da própria entrada, sem marcar outra conta
     uid: entryOwner || entry.uid,
     pos: mode === "push" ? (base?.pos ?? 0) + 1 : (entry.pos ?? base?.pos ?? 0),
@@ -406,6 +490,7 @@ function adoptEntry(entry: HistoryEntry, rewrite: boolean) {
 /** Sem sessão: a entrada vira a tela de entrada ("/"), sem dono, e não serve de Voltar para quem entrar depois. */
 function markSignedOut() {
   entryOwner = 0;
+  entryStudent = 0;
   const entry: HistoryEntry = { key: newEntryKey(), view: "dashboard", eventId: null, uid: 0, pos: currentEntry()?.pos };
   urlWrites += 1;
   window.history.replaceState({ agenda: entry }, "", "/");
@@ -430,7 +515,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const userRoles: UserRole[] = ["student", "teacher", "admin"];
+// papéis que o front conhece: sem o "guardian" aqui, a sessão do responsável era descartada no F5
+const userRoles: UserRole[] = knownRoles;
 
 function readSession(): Session | null {
   const value = readStorage("local", SESSION_KEY);
@@ -597,6 +683,35 @@ function canManage(event: AcademicEvent, user: User | null, context: AcademicCon
       assignment.academicClassId === event.academicClassId &&
       (!event.subjectId || assignment.subjectId === event.subjectId)
   );
+}
+
+/** Responsável: o aluno com vínculo ativo pedido (endereço ou seletor) ou, sem ele, o primeiro ativo. */
+function pickStudent(context: AcademicContext | null, wanted: number | null): LinkedStudent | null {
+  const active = (context?.linkedStudents ?? []).filter((item) => item.status === "active");
+  return active.find((item) => item.id === wanted) ?? active[0] ?? null;
+}
+
+/** Endereço de um aviso do sistema ("?tela=notas&aluno=4&evento=1") em tela e parâmetros. "perfil" não é tela. */
+function noticeTarget(link: string): { view: View | "perfil"; params: NavigateParams } | null {
+  const search = link.includes("?") ? link.slice(link.indexOf("?")) : link;
+  const params = new URLSearchParams(search);
+  const slug = params.get("tela");
+  if (!slug) {
+    return null;
+  }
+  const view = slug === "perfil" ? "perfil" : (Object.keys(viewSlugs) as View[]).find((item) => viewSlugs[item] === slug);
+  if (!view) {
+    return null;
+  }
+  return {
+    view,
+    params: {
+      eventId: idParam(params, "evento") ?? null,
+      classId: idParam(params, "turma") ?? null,
+      memberId: idParam(params, "membro") ?? null,
+      studentId: idParam(params, "aluno") ?? null,
+    },
+  };
 }
 
 function sameForm(a: EventFormState, b: EventFormState) {
@@ -1028,10 +1143,26 @@ export default function Home() {
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // painel lateral de uma área (useBackLayer) ou a gaveta de notas aberto, com entrada no histórico
+  const [panelLayerOpen, setPanelLayerOpen] = useState(false);
+
+  // avisos do sistema (GET /notifications): os não lidos e o número do menu
+  const [notices, setNotices] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  // responsável: o aluno pedido (endereço ou seletor); o escolhido de fato sai dos vínculos ativos
+  const [studentChoice, setStudentChoice] = useState<number | null>(null);
+  // Turmas e disciplinas: a turma (e o aluno) a abrir; Notas: a avaliação a destacar
+  const [classesTarget, setClassesTarget] = useState<ClassesTarget | null>(null);
+  const [gradeFocus, setGradeFocus] = useState<number | null>(null);
+  // quantos resultados a busca do menu acha na tela Turmas e disciplinas (a tela conta)
+  const [localSearchCount, setLocalSearchCount] = useState<number | undefined>(undefined);
+  // gaveta de notas de uma avaliação (EventGradesDrawer), aberta pela Gestão e pela tela Notas da docente
+  const [gradesEventId, setGradesEventId] = useState<number | null>(null);
 
   const user = session?.user ?? null;
-  const canWrite = user?.role === "teacher" || user?.role === "admin";
+  const canWrite = writesEvents(user?.role);
   const isAdmin = user?.role === "admin";
+  const isGuardian = user?.role === "guardian";
 
   // valores lidos fora do render: respostas em voo, histórico e rolagem
   const sessionRef = useRef<Session | null>(null);
@@ -1061,6 +1192,13 @@ export default function Home() {
   const loadSeqRef = useRef(0);
   const loadCountRef = useRef(0);
   const lastCreateRef = useRef<Pick<EventFormState, "academicClassId" | "subjectId" | "category"> | null>(null);
+  // responsável: o aluno pedido, lido pela carga em voo (o estado de agora, não o de quando ela começou)
+  const studentRef = useRef<number | null>(null);
+  // painel lateral registrado por useBackLayer: o Voltar chama o requestClose dele
+  const backLayerRef = useRef<{ id: string; requestClose: () => void } | null>(null);
+  // funções do render de agora para o registro dos painéis (o objeto backLayers não muda)
+  const panelFnsRef = useRef<{ open: BackLayers["open"]; close: BackLayers["close"] } | null>(null);
+  const classesTargetSeq = useRef(0);
 
   useLayoutEffect(() => {
     sessionRef.current = session;
@@ -1118,6 +1256,15 @@ export default function Home() {
     );
   }, []);
 
+  /** A tela Turmas abriu o painel pedido: turma e membro saem do endereço (o F5 não reabre o painel). */
+  const handleClassesTarget = useCallback(() => {
+    setClassesTarget(null);
+    const current = currentEntry();
+    if (current?.view === "classes" && (current.turma || current.membro)) {
+      writeHistory("replace", { ...current, turma: undefined, membro: undefined });
+    }
+  }, []);
+
   /* ---------------------------------------------------------------- */
   /* Carregamento de dados                                             */
   /* ---------------------------------------------------------------- */
@@ -1127,22 +1274,54 @@ export default function Home() {
     loadCountRef.current += 1;
     setLoading(true);
     try {
-      const [contextData, eventsData, remindersData, importsData] = await Promise.all([
-        getContext(activeSession.token),
-        getEvents(activeSession.token),
-        getReminders(activeSession.token),
-        activeSession.user.role === "admin"
-          ? getCalendarImports(activeSession.token)
-          : Promise.resolve<CalendarImport[]>([]),
-      ]);
+      const { token } = activeSession;
+      const role = activeSession.user.role;
+      // avisos do sistema: uma falha aqui não derruba a carga (o número do menu fica como estava)
+      const noticesLoad = getNotifications(token).catch(() => null);
+      let contextData: AcademicContext;
+      let eventsData: AcademicEvent[];
+      let remindersData: Reminder[];
+      let importsData: CalendarImport[] = [];
+      let noticesData: NotificationList | null;
+      let guardianStudent: number | null = null;
+      if (role === "guardian") {
+        // o responsável escolhe o aluno pelos vínculos ativos do contexto: os eventos vêm depois, com o studentId
+        [contextData, remindersData, noticesData] = await Promise.all([getContext(token), getReminders(token), noticesLoad]);
+        guardianStudent = pickStudent(contextData, studentRef.current)?.id ?? null;
+        // sem vínculo ativo, só os eventos oficiais
+        eventsData = await getEvents(token, guardianStudent);
+      } else {
+        [contextData, eventsData, remindersData, importsData, noticesData] = await Promise.all([
+          getContext(token),
+          getEvents(token),
+          getReminders(token),
+          role === "admin" ? getCalendarImports(token) : Promise.resolve<CalendarImport[]>([]),
+          noticesLoad,
+        ]);
+      }
       if (sessionRef.current?.token !== activeSession.token || seq !== loadSeqRef.current) {
         // resposta antiga: logout, troca de usuário ou outra carga mais nova
         return { ok: false, error: null };
+      }
+      if (role === "guardian" && guardianStudent !== studentRef.current) {
+        // o aluno do endereço não tem (mais) vínculo ativo, ou nenhum foi pedido: vale o primeiro ativo, e o
+        // endereço passa a dizer qual
+        studentRef.current = guardianStudent;
+        setEntryStudent(guardianStudent ?? 0);
+        setStudentChoice(guardianStudent);
+        const current = currentEntry();
+        if (current) {
+          writeHistory("replace", { ...current, aluno: guardianStudent ?? undefined });
+        }
       }
       setContext(contextData);
       setEvents(eventsData);
       setReminders(remindersData);
       setImports(importsData);
+      if (noticesData) {
+        setNotices(noticesData.notifications.filter((notice) => !notice.readAt));
+        setUnreadCount(noticesData.unreadCount);
+      }
       setLoadFailure(null);
       setLastLoadedAt(new Date());
       setReferenceNow(Date.now());
@@ -1249,10 +1428,19 @@ export default function Home() {
 
   const canManageEvent = useCallback((event: AcademicEvent) => canManage(event, user, context), [context, user]);
 
+  // responsável: vínculos ativos (o seletor do menu), pendentes (o card de vincular) e o aluno escolhido
+  const linkedStudents = useMemo(() => context?.linkedStudents ?? [], [context]);
+  const activeStudents = useMemo(() => linkedStudents.filter((item) => item.status === "active"), [linkedStudents]);
+  const pendingStudents = useMemo(() => linkedStudents.filter((item) => item.status === "pending"), [linkedStudents]);
+  const guardianStudent = isGuardian ? pickStudent(context, studentChoice) : null;
+
   const manageableEvents = useMemo(
     () => joinedEvents.filter(canManageEvent).sort(byStart),
     [joinedEvents, canManageEvent]
   );
+
+  // tela Notas da docente e da administração: as provas e os trabalhos de turma que a pessoa gerencia
+  const gradableEvents = useMemo(() => manageableEvents.filter(isGradable), [manageableEvents]);
 
   const selectedEvent = useMemo(
     () => (selectedEventId === null ? null : (joinedEvents.find((event) => event.id === selectedEventId) ?? null)),
@@ -1381,12 +1569,43 @@ export default function Home() {
     patchCurrentEntry({ scrollY: y, ...extra });
   }
 
+  /** Parâmetros próprios da tela (turma e aluno em Turmas, avaliação em Notas) passam a valer para ela. */
+  function applyViewParams(view: View, entry: Pick<HistoryEntry, "turma" | "membro" | "gradeEventId">) {
+    if (view === "classes" && (entry.turma || entry.membro)) {
+      classesTargetSeq.current += 1;
+      setClassesTarget({ classId: entry.turma ?? null, memberId: entry.membro ?? null, key: classesTargetSeq.current });
+    } else {
+      setClassesTarget(null);
+    }
+    setGradeFocus(view === "grades" ? (entry.gradeEventId ?? null) : null);
+    if (view !== "classes") {
+      setLocalSearchCount(undefined);
+    }
+  }
+
   /** Troca de tela com endereço próprio, começando no topo. */
-  function goTo(view: View, options: { eventId?: number | null; replace?: boolean } = {}) {
+  function goTo(
+    view: View,
+    options: {
+      eventId?: number | null;
+      replace?: boolean;
+      classId?: number | null;
+      memberId?: number | null;
+      gradeEventId?: number | null;
+    } = {}
+  ) {
     const eventId = view === "calendar" ? (options.eventId ?? null) : null;
+    const params: Pick<HistoryEntry, "turma" | "membro" | "gradeEventId"> = {
+      turma: view === "classes" ? (options.classId ?? undefined) : undefined,
+      membro: view === "classes" ? (options.memberId ?? undefined) : undefined,
+      gradeEventId: view === "grades" ? (options.gradeEventId ?? undefined) : undefined,
+    };
+    const withParams = Boolean(params.turma || params.membro || params.gradeEventId);
     // navegação nova: a trava de rolagem de um Voltar recente não vale para ela
     scrollGuardRef.current = null;
-    if (view === activeView && eventId === selectedEventId && !options.replace) {
+    // a gaveta de notas não fica aberta por cima de outra tela
+    setGradesEventId(null);
+    if (view === activeView && eventId === selectedEventId && !options.replace && !withParams) {
       changeMenu(false);
       requestScroll(0);
       setFocusHeadingToken((token) => token + 1);
@@ -1401,23 +1620,28 @@ export default function Home() {
       setMenuOpen(false);
       setProfileOpen(false);
       setConfirmState(null);
+      // o painel lateral da tela de antes sai junto com ela
+      backLayerRef.current = null;
+      setPanelLayerOpen(false);
     }
     writeHistory(options.replace || current?.layer ? "replace" : "push", {
       key: newEntryKey(),
       view,
       eventId,
       detail: eventId ? "outside" : undefined,
+      ...params,
     });
     setActiveView(view);
     setSelectedEventId(eventId);
     setReminderDraft(null);
+    applyViewParams(view, params);
     requestScroll(0);
     setFocusHeadingToken((token) => token + 1);
   }
 
   /** "Ver eventos" (ou Enter) na busca do menu: fora do Cronograma, leva ao resultado em todas as categorias. */
   function showSearchResults() {
-    if (activeView === "calendar") {
+    if (activeView === "calendar" || activeView === "classes") {
       // o resultado já está na tela (e o detalhe aberto continua): no celular, só fecha o menu
       changeMenu(false);
       return;
@@ -1653,12 +1877,40 @@ export default function Home() {
     if (!current || current.layer === layer) {
       return;
     }
-    if (current.layer) {
+    // a confirmação aberta de dentro de um painel lateral ou das Preferências fica por cima deles (o Voltar fecha
+    // só ela); as outras camadas leves trocam de lugar
+    const stack = layer === "confirmar" && (current.layer === "painel" || current.layer === "perfil");
+    if (current.layer && !stack) {
       writeHistory("replace", { ...current, layer });
       return;
     }
     rememberScroll();
     writeHistory("push", { ...current, key: newEntryKey(), layer });
+  }
+
+  /* Painel lateral das áreas (useBackLayer) e gaveta de notas: entrada própria no histórico */
+
+  /** Um painel abriu: o Voltar passa a fechá-lo (pelo requestClose dele). Trocar de painel não mexe no histórico. */
+  function openPanelLayer(id: string, requestClose: () => void) {
+    backLayerRef.current = { id, requestClose };
+    setPanelLayerOpen(true);
+    openLayerEntry("painel");
+  }
+
+  /** O painel fechou pelo X, Esc, Salvar ou Fechar: a entrada dele sai do histórico (se outro não abriu no lugar). */
+  function closePanelLayer(id: string) {
+    if (backLayerRef.current?.id !== id) {
+      return;
+    }
+    backLayerRef.current = null;
+    // outro painel pode abrir logo em seguida (troca de conteúdo): ele fica com a mesma entrada
+    window.setTimeout(() => {
+      if (backLayerRef.current) {
+        return;
+      }
+      setPanelLayerOpen(false);
+      closeLayerEntry("painel");
+    }, 0);
   }
 
   /** Fecha uma camada leve pelo X, Esc, clique fora ou botão: a entrada dela sai do histórico. */
@@ -1726,7 +1978,14 @@ export default function Home() {
 
   /** "Ver no cronograma" de um aviso: nunca troca a tela por trás do painel ou de um diálogo aberto. */
   function openFromToast(eventId: number) {
-    const go = () => goTo("calendar", { eventId });
+    whenClear(() => goTo("calendar", { eventId }));
+  }
+
+  /**
+   * Roda `go` (uma troca de tela) depois de fechar o que está por cima: o painel de edição (perguntando antes de
+   * descartar), a confirmação e as Preferências. Nunca troca a tela por trás de um painel ou diálogo aberto.
+   */
+  function whenClear(go: () => void) {
     if (editorOpen) {
       // com rascunho, pergunta antes; o painel fecha e só então a tela troca
       if (!savingEvent) {
@@ -1749,6 +2008,158 @@ export default function Home() {
       return;
     }
     go();
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Responsável: aluno escolhido                                      */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Passa a mostrar outro aluno: os dados do anterior saem da tela na hora (esqueleto até a carga nova) e a carga
+   * pede os eventos com o studentId novo. O endereço é de quem chama.
+   */
+  function switchStudent(studentId: number) {
+    const active = sessionRef.current;
+    if (!active || active.user.role !== "guardian") {
+      return;
+    }
+    studentRef.current = studentId;
+    setEntryStudent(studentId);
+    setStudentChoice(studentId);
+    setEvents([]);
+    setLastLoadedAt(null);
+    setLoadFailure(null);
+    setReminderDraft(null);
+    void loadAll(active);
+  }
+
+  /** Seletor do menu (ou um aviso de outro aluno): troca o aluno, com entrada nova no histórico (&aluno=). */
+  function chooseStudent(studentId: number, view: View = activeView, gradeEventId?: number | null) {
+    if (!isGuardian || (studentId === guardianStudent?.id && view === activeView && !gradeEventId)) {
+      return;
+    }
+    whenClear(() => {
+      const current = currentEntry();
+      if (current?.layer) {
+        // pelo menu do celular: a tela do outro aluno ocupa a entrada do menu
+        setMenuOpen(false);
+      }
+      rememberScroll();
+      setEntryStudent(studentId);
+      // avisos de nota de outro aluno trazem a avaliação a destacar (?tela=notas&aluno=4&evento=1)
+      const params = { gradeEventId: view === "grades" ? (gradeEventId ?? undefined) : undefined };
+      writeHistory(current?.layer ? "replace" : "push", { key: newEntryKey(), view, eventId: null, aluno: studentId, ...params });
+      setActiveView(view);
+      setSelectedEventId(null);
+      applyViewParams(view, params);
+      requestScroll(0);
+      setFocusHeadingToken((token) => token + 1);
+      if (studentId !== studentRef.current) {
+        switchStudent(studentId);
+      }
+    });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Ações para as áreas (useAppActions)                               */
+  /* ---------------------------------------------------------------- */
+
+  /** Troca de tela pedida por uma área ou por um aviso, com os parâmetros dela, sem passar por cima de um painel aberto. */
+  function navigate(target: View, params: NavigateParams = {}) {
+    const active = sessionRef.current;
+    if (!active) {
+      return;
+    }
+    const view = canSee(target, active.user.role) ? target : "dashboard";
+    if (active.user.role === "guardian" && params.studentId && params.studentId !== studentRef.current) {
+      // aviso de nota de outro aluno: troca o aluno e abre a tela
+      chooseStudent(params.studentId, view, params.eventId);
+      return;
+    }
+    whenClear(() =>
+      goTo(view, {
+        eventId: params.eventId,
+        classId: params.classId,
+        memberId: params.memberId,
+        gradeEventId: view === "grades" ? params.eventId : undefined,
+      })
+    );
+  }
+
+  /** Abre a gaveta de notas da avaliação (nunca por cima do painel de edição). */
+  function openGrades(eventId: number) {
+    if (!writesEvents(sessionRef.current?.user.role)) {
+      return;
+    }
+    if (editorOpen) {
+      if (!savingEvent) {
+        guardDraft(() => closeEditor(() => setGradesEventId(eventId)));
+      }
+      return;
+    }
+    setGradesEventId(eventId);
+  }
+
+  /** Marca o aviso do sistema como lido: sai da lista e do número do menu na hora. */
+  async function readNotice(id: number) {
+    const active = sessionRef.current;
+    if (!active) {
+      return;
+    }
+    if (notices.some((notice) => notice.id === id)) {
+      setUnreadCount((count) => Math.max(0, count - 1));
+    }
+    setNotices((list) => list.filter((notice) => notice.id !== id));
+    try {
+      await readNotification(active.token, id);
+    } catch (err) {
+      if (!(err instanceof ApiError && err.status === 404)) {
+        actionFailed(err, active, `aviso-${id}`);
+        void refreshNotices(active);
+      }
+    }
+  }
+
+  async function readAllNotices() {
+    const active = sessionRef.current;
+    if (!active) {
+      return;
+    }
+    setNotices([]);
+    setUnreadCount(0);
+    try {
+      await readAllNotifications(active.token);
+    } catch (err) {
+      actionFailed(err, active, "avisos");
+      void refreshNotices(active);
+    }
+  }
+
+  /** Só os avisos do sistema (o número do menu), sem recarregar a agenda. */
+  async function refreshNotices(active: Session) {
+    try {
+      const data = await getNotifications(active.token);
+      if (sessionRef.current?.token === active.token) {
+        setNotices(data.notifications.filter((notice) => !notice.readAt));
+        setUnreadCount(data.unreadCount);
+      }
+    } catch {
+      // sem conexão: o número fica como estava, e a próxima carga tenta de novo
+    }
+  }
+
+  /** "Abrir" de um aviso do sistema: marca como lido e leva à tela do link (o perfil abre as Preferências). */
+  function openNotice(notice: AppNotification) {
+    void readNotice(notice.id);
+    const target = notice.link ? noticeTarget(notice.link) : null;
+    if (!target) {
+      return;
+    }
+    if (target.view === "perfil") {
+      whenClear(() => openProfile());
+      return;
+    }
+    navigate(target.view, target.params);
   }
 
   const onPopState = useEffectEvent((event: PopStateEvent) => {
@@ -1808,8 +2219,26 @@ export default function Home() {
     if (menuOpen && entry.layer !== "menu") {
       setMenuOpen(false);
     }
+    if (!ours && panelLayerOpen && entry.layer !== "painel") {
+      const panel = backLayerRef.current;
+      if (panel) {
+        // painel lateral de uma área ou gaveta de notas: o Voltar pede para fechar (o requestClose pode perguntar
+        // antes de descartar). A entrada volta para o topo; quando o painel fechar, ela sai de novo
+        keepEntry(left);
+        panel.requestClose();
+        return;
+      }
+      setPanelLayerOpen(false);
+    }
 
-    const layerOpen = entry.layer === "confirmar" ? confirm : entry.layer === "perfil" ? profileOpen : menuOpen;
+    const layerOpen =
+      entry.layer === "confirmar"
+        ? confirm
+        : entry.layer === "perfil"
+          ? profileOpen
+          : entry.layer === "painel"
+            ? panelLayerOpen
+            : menuOpen;
     if ((entry.layer && !layerOpen) || (entry.editar !== undefined && !editorOpen)) {
       // camada ou edição que já fechou (ex.: Avançar até ela): pula, para o Voltar nunca ficar parado
       skipEntry(entry, left);
@@ -1836,7 +2265,16 @@ export default function Home() {
     if (left) {
       scrollByKeyRef.current.set(left.key, window.scrollY);
     }
-    if (entry.view === "calendar" && entry.eventId && lastLoadedAt && !eventsById.has(entry.eventId)) {
+    // responsável: Voltar ou Avançar até outro aluno; os eventos dele ainda não estão na tela
+    const otherStudent =
+      active.user.role === "guardian" && entry.aluno !== undefined && entry.aluno !== studentRef.current ? entry.aluno : null;
+    if (
+      otherStudent === null &&
+      entry.view === "calendar" &&
+      entry.eventId &&
+      lastLoadedAt &&
+      !eventsById.has(entry.eventId)
+    ) {
       skipGoneEntry(entry, left);
       return;
     }
@@ -1848,6 +2286,12 @@ export default function Home() {
     setSelectedEventId(eventId);
     if (viewChanged || eventId !== selectedEventId) {
       setReminderDraft(null);
+    }
+    if (viewChanged || view === "grades" || (view === "classes" && (entry.turma || entry.membro))) {
+      applyViewParams(view, entry);
+    }
+    if (otherStudent !== null) {
+      switchStudent(otherStudent);
     }
     if (viewChanged) {
       const known = scrollByKeyRef.current.get(entry.key);
@@ -2024,7 +2468,8 @@ export default function Home() {
   }
 
   function openNewEvent() {
-    if (!user) {
+    // o aluno e o responsável só leem: nunca abrem o painel de novo evento
+    if (!user || !writesEvents(user.role)) {
       return;
     }
     const role = user.role;
@@ -2038,7 +2483,7 @@ export default function Home() {
   }
 
   function openNewEventFor(academicClassId: number, subjectId: number) {
-    if (!user) {
+    if (!user || !writesEvents(user.role)) {
       return;
     }
     const role = user.role;
@@ -2731,6 +3176,18 @@ export default function Home() {
     lastCreateRef.current = null;
     pendingBootRef.current = null;
     setEntryOwner(0);
+    // fases novas: avisos do sistema, aluno do responsável, alvos das telas, gaveta de notas e painel das áreas
+    setNotices([]);
+    setUnreadCount(0);
+    studentRef.current = null;
+    setEntryStudent(0);
+    setStudentChoice(null);
+    setClassesTarget(null);
+    setGradeFocus(null);
+    setLocalSearchCount(undefined);
+    setGradesEventId(null);
+    backLayerRef.current = null;
+    setPanelLayerOpen(false);
   }
 
   async function startSession(next: Session, mode: "boot" | "login") {
@@ -2759,6 +3216,8 @@ export default function Home() {
     let view: View;
     let eventId: number | null;
     let kept: HistoryEntry | null = null;
+    // parâmetros da tela no endereço (só no F5): turma e aluno em Turmas, avaliação em Notas, aluno do responsável
+    let params: Pick<HistoryEntry, "turma" | "membro" | "gradeEventId" | "aluno"> = {};
     if (mode === "login") {
       // quem entra começa no Painel: o endereço e as entradas de quem saiu não valem, a não ser na volta da mesma pessoa
       view = resume && canSee(resume.view, role) ? resume.view : "dashboard";
@@ -2773,11 +3232,16 @@ export default function Home() {
       const fromUrl = entryFromSearch(window.location.search, role);
       view = fromUrl.view;
       eventId = fromUrl.eventId;
+      params = { turma: fromUrl.turma, membro: fromUrl.membro, gradeEventId: fromUrl.gradeEventId, aluno: fromUrl.aluno };
       // F5 (ou Voltar até uma entrada de antes do F5): mantém a entrada, a rolagem e o painel que estava aberto
       const previous = currentEntry();
       const own = previous && (previous.uid === undefined || previous.uid === next.user.id) ? previous : null;
       kept = own && own.view === view && (own.eventId ?? null) === eventId ? own : null;
     }
+    // responsável: o aluno do endereço (F5) vale até a carga conferir que o vínculo dele está ativo
+    studentRef.current = role === "guardian" ? (params.aluno ?? null) : null;
+    setEntryStudent(studentRef.current ?? 0);
+    setStudentChoice(studentRef.current);
     const entry = writeHistory("replace", {
       key: kept?.key ?? newEntryKey(),
       view,
@@ -2788,10 +3252,12 @@ export default function Home() {
       pos: kept?.pos,
       opener: kept?.opener,
       openerSpot: kept?.openerSpot,
+      ...params,
     });
     setActiveView(view);
     setSelectedEventId(eventId);
     setReminderDraft(null);
+    applyViewParams(view, params);
     scrollGuardRef.current = null;
     requestScroll(0);
     if (mode === "login") {
@@ -2865,7 +3331,7 @@ export default function Home() {
     if (here && pending.editar !== undefined) {
       // F5 com o painel aberto e sem mudanças: o painel volta, com os dados de agora
       const target = pending.editar === "novo" ? null : (list.find((item) => item.id === pending.editar) ?? null);
-      if (pending.editar === "novo" ? user.role !== "student" : target !== null && canManage(target, user, loadedContext)) {
+      if (pending.editar === "novo" ? writesEvents(user.role) : target !== null && canManage(target, user, loadedContext)) {
         const form = target ? eventToForm(target) : createInitialEventForm(user.role, loadedContext);
         openEditor(target, form, form, false);
         return;
@@ -3123,7 +3589,39 @@ export default function Home() {
       }
     };
     toastActionsRef.current = { openFromToast };
+    panelFnsRef.current = { open: openPanelLayer, close: closePanelLayer };
   });
+
+  // registro dos painéis das áreas (useBackLayer): o objeto não muda, e as funções são sempre as de agora
+  const backLayers = useMemo<BackLayers>(
+    () => ({
+      open: (id, requestClose) => panelFnsRef.current?.open(id, requestClose),
+      close: (id) => panelFnsRef.current?.close(id),
+    }),
+    []
+  );
+
+  // avisos do sistema chegam sem recarregar a agenda: confere a cada minuto, com a aba à vista
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      const active = sessionRef.current;
+      if (!active || document.visibilityState !== "visible") {
+        return;
+      }
+      getNotifications(active.token)
+        .then((data) => {
+          if (sessionRef.current?.token === active.token) {
+            setNotices(data.notifications.filter((notice) => !notice.readAt));
+            setUnreadCount(data.unreadCount);
+          }
+        })
+        .catch(() => undefined);
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [session]);
 
   // relógio dos avisos: um lembrete vira aviso quando a hora dele chega
   useEffect(() => {
@@ -3222,18 +3720,77 @@ export default function Home() {
   }
 
   // a contagem da busca do menu não depende de filtro escondido: fora do Cronograma vale para todas as categorias;
-  // no Cronograma, segue os filtros que estão à vista
+  // no Cronograma, segue os filtros que estão à vista; em Turmas e disciplinas, a tela conta o que achou
   const searchResultCount = search.trim()
     ? activeView === "calendar"
       ? filteredEvents.length
-      : searchedEvents.length
+      : activeView === "classes"
+        ? localSearchCount
+        : searchedEvents.length
     : undefined;
 
+  // avisos do sistema: no Painel, o card de avisos dos painéis só aparece com lembrete avisando; com só avisos do
+  // sistema, a página mostra o mesmo card no lugar dele (o responsável sem vínculo vê só o card de vincular)
+  const noticesOnlyCard =
+    activeView === "dashboard" && !avisos.length && notices.length > 0 && !(isGuardian && !guardianStudent);
+
+  const actions: AppActions = {
+    token: session.token,
+    user,
+    role: user.role,
+    context,
+    events: joinedEvents,
+    loading,
+    toast: (text: string, options: AreaToastOptions = {}) =>
+      pushToast(options.tone ?? "success", text, {
+        action: options.undo
+          ? { label: "Desfazer", onClick: () => void Promise.resolve(options.undo?.()) }
+          : options.action,
+        keys: options.key ? [options.key] : undefined,
+        duration: options.duration,
+      }),
+    showError: (error: unknown, key?: string) => {
+      const active = sessionRef.current;
+      if (active) {
+        actionFailed(error, active, key ?? "area");
+      }
+    },
+    confirm: (options) =>
+      setConfirm({
+        title: options.title,
+        message: options.message,
+        confirmLabel: options.confirmLabel,
+        cancelLabel: options.cancelLabel,
+        tone: options.tone,
+        action: async () => {
+          await options.action();
+        },
+      }),
+    reload: async () => {
+      const active = sessionRef.current;
+      return active ? (await loadAll(active)).ok : false;
+    },
+    navigate,
+    openEvent: (eventId: number) => navigate("calendar", { eventId }),
+    openClasses: (target = {}) => navigate("classes", { classId: target.classId, memberId: target.memberId }),
+    openGrades,
+    openProfile: () => whenClear(openProfile),
+    linkedStudents,
+    student: guardianStudent,
+    chooseStudent: (studentId: number) => chooseStudent(studentId),
+    notices,
+    unreadCount,
+    readNotice,
+    readAllNotices,
+    openNotice,
+    backLayers,
+  };
+
   return withToasts(
-    <>
+    <AppActionsProvider value={actions}>
       <AppShell
         activeView={activeView}
-        badges={{ reminders: avisos.length }}
+        badges={{ reminders: avisos.length + unreadCount }}
         canWrite={canWrite}
         context={context}
         focusHeadingToken={focusHeadingToken}
@@ -3241,10 +3798,14 @@ export default function Home() {
         menuOpen={menuOpen}
         refreshing={loading}
         search={search}
-        searchInPlace={activeView === "calendar"}
+        searchInPlace={activeView === "calendar" || activeView === "classes"}
         searchResultCount={searchResultCount}
+        searchScope={activeView === "classes" ? classesSearch : undefined}
+        student={guardianStudent}
+        students={activeStudents}
         updatedAt={lastLoadedAt}
         user={user}
+        onChooseStudent={(studentId) => chooseStudent(studentId)}
         onLogout={requestLogout}
         onMenuChange={changeMenu}
         onNavigate={(view) => goTo(view)}
@@ -3287,6 +3848,36 @@ export default function Home() {
             )
           ) : (
             <>
+              {noticesOnlyCard ? (
+                <div className="mb-5">
+                  <AvisosCard avisos={[]} events={upcomingEvents} onDismiss={dismissAviso} onOpen={selectEvent} />
+                </div>
+              ) : null}
+
+              {activeView === "dashboard" && user.role === "guardian" ? (
+                guardianStudent ? (
+                  <GuardianDashboard
+                    avisos={avisos}
+                    context={context}
+                    defaultReminderMinutes={user.defaultReminderMinutes}
+                    events={joinedEvents}
+                    reminders={remindersWithEvents}
+                    savingReminder={savingReminder}
+                    student={guardianStudent}
+                    upcomingEvents={upcomingEvents}
+                    onDismissAviso={dismissAviso}
+                    onOpenCalendar={openCalendar}
+                    onOpenGrades={(eventId) => goTo("grades", { gradeEventId: eventId ?? null })}
+                    onOpenReminders={() => goTo("reminders")}
+                    onQuickReminder={quickReminder}
+                    onSelect={selectEvent}
+                  />
+                ) : (
+                  // sem vínculo ativo, o Painel do responsável é só o card de vincular
+                  <GuardianLinkCard pendingStudents={pendingStudents} onLinked={() => void actions.reload()} />
+                )
+              ) : null}
+
               {activeView === "dashboard" && user.role === "student" ? (
                 <StudentDashboard
                   avisos={avisos}
@@ -3361,6 +3952,7 @@ export default function Home() {
                   setCategories={setSelectedCategories}
                   setReminderOffset={setReminderOffset}
                   setSearch={setSearch}
+                  studentName={guardianStudent ? firstName(guardianStudent.fullName ?? "Aluno") : null}
                   toggleCategory={toggleCategory}
                   onDelete={requestDeleteEvent}
                   onEdit={beginEdit}
@@ -3383,11 +3975,36 @@ export default function Home() {
                   role={user.role}
                   savedTick={savedTick}
                   saving={savingEvent || statusBusy !== null}
+                  search={search}
                   onDelete={requestDeleteEvent}
                   onEdit={beginEdit}
                   onNewEvent={openNewEvent}
                   onNewEventFor={openNewEventFor}
+                  onOpenGrades={openGrades}
                   onSetStatus={requestStatusChange}
+                />
+              ) : null}
+
+              {activeView === "grades" ? (
+                <GradesView
+                  context={context}
+                  events={gradableEvents}
+                  focusEventId={gradeFocus}
+                  role={user.role}
+                  search={search}
+                  student={guardianStudent}
+                  onOpenEvent={(eventId) => goTo("calendar", { eventId })}
+                  onOpenGrades={openGrades}
+                />
+              ) : null}
+
+              {activeView === "classes" ? (
+                <ClassesView
+                  context={context}
+                  search={search}
+                  target={classesTarget}
+                  onSearchCount={setLocalSearchCount}
+                  onTargetHandled={handleClassesTarget}
                 />
               ) : null}
 
@@ -3444,6 +4061,15 @@ export default function Home() {
         onSubmit={() => void saveEvent()}
       />
 
+      {writesEvents(user.role) ? (
+        <EventGradesDrawer
+          event={gradesEventId === null ? null : (eventsById.get(gradesEventId) ?? null)}
+          eventId={gradesEventId}
+          onChanged={() => void actions.reload()}
+          onClose={() => setGradesEventId(null)}
+        />
+      ) : null}
+
       {profileOpen ? (
         <ProfileModal
           saving={savingProfile}
@@ -3461,6 +4087,6 @@ export default function Home() {
           onConfirm={() => runConfirm(confirm)}
         />
       ) : null}
-    </>
+    </AppActionsProvider>
   );
 }

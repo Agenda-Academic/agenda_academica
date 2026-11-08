@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import {
   addDays,
+  classTermLabel,
   cx,
   dateParts,
   dayMonthRange,
@@ -225,7 +226,8 @@ export function TeacherDashboard({
         .map((assignment) => [assignment.academicClassId, assignment.academicClass!] as const)
     ).values(),
   ];
-  const term = classes[0] ? `${classes[0].year}/${classes[0].semester}` : null;
+  // turma anual (integrado) sai como "2026", nunca "2026/0"
+  const term = classes[0] ? classTermLabel(classes[0]) : null;
   const classesHint =
     classes.length === 1
       ? [classes[0].name, shiftLabel(classes[0].shift)].filter(Boolean).join(", ")

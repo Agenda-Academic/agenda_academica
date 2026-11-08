@@ -6,6 +6,8 @@ import {
   CalendarArrowDown,
   CalendarDays,
   CalendarPlus,
+  ChevronsUpDown,
+  ClipboardCheck,
   Edit3,
   GraduationCap,
   LayoutDashboard,
@@ -13,26 +15,31 @@ import {
   LogOut,
   Menu,
   RefreshCw,
+  School,
   Search,
   Settings2,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { cx, formatTime, startOfDay } from "@/lib/format";
+import { cx, firstName, formatTime, startOfDay } from "@/lib/format";
 import { roleLabels } from "@/lib/meta";
 import { personClasses, semesterWeek, type SemesterWeek } from "@/lib/semester";
-import type { AcademicContext, User, UserRole } from "@/lib/types";
+import type { AcademicClass, AcademicContext, LinkedStudent, User, UserRole } from "@/lib/types";
 import { isOnTopLayer, primaryButton, useDialogLayer } from "./ui";
 
-export type View = "dashboard" | "calendar" | "manage" | "reminders" | "sync";
+/** Telas do app. O endereço de cada uma (?tela=) fica em app/page.tsx (viewSlugs). */
+export type View = "dashboard" | "calendar" | "grades" | "manage" | "classes" | "reminders" | "sync";
 
+// menu por papel (desenho, tabela 5.2), na ordem da tabela; o responsável vê o Cronograma só para leitura
 const navItems: Array<{ view: View; label: string; icon: LucideIcon; roles: UserRole[] }> = [
-  { view: "dashboard", label: "Painel", icon: LayoutDashboard, roles: ["student", "teacher", "admin"] },
-  { view: "calendar", label: "Cronograma", icon: CalendarDays, roles: ["student", "teacher", "admin"] },
+  { view: "dashboard", label: "Painel", icon: LayoutDashboard, roles: ["student", "teacher", "admin", "guardian"] },
+  { view: "calendar", label: "Cronograma", icon: CalendarDays, roles: ["student", "teacher", "admin", "guardian"] },
+  { view: "grades", label: "Notas", icon: ClipboardCheck, roles: ["student", "teacher", "admin", "guardian"] },
   { view: "manage", label: "Gestão", icon: Edit3, roles: ["teacher", "admin"] },
-  { view: "reminders", label: "Lembretes", icon: Bell, roles: ["student", "teacher", "admin"] },
+  { view: "classes", label: "Turmas e disciplinas", icon: School, roles: ["admin"] },
+  { view: "reminders", label: "Lembretes", icon: Bell, roles: ["student", "teacher", "admin", "guardian"] },
   { view: "sync", label: "Importar calendário", icon: CalendarArrowDown, roles: ["admin"] },
 ];
 
@@ -226,12 +233,29 @@ function Brand({
   );
 }
 
+/** O que a busca do menu procura na tela de agora: o texto do campo, o rótulo e o nome do resultado. */
+export type SearchScope = {
+  /** "Buscar evento" */
+  placeholder: string;
+  /** "Buscar evento, disciplina ou docente" */
+  label: string;
+  /** ["evento", "eventos"] para "3 eventos encontrados" e "Ver 3 eventos". */
+  noun: [string, string];
+};
+
+const eventSearch: SearchScope = {
+  placeholder: "Buscar evento",
+  label: "Buscar evento, disciplina ou docente",
+  noun: ["evento", "eventos"],
+};
+
 /** Busca geral e atalho de criação, logo abaixo da marca no menu. */
 function SideTools({
   inPlace,
   inputRef,
   newEventLabel,
   resultCount,
+  scope = eventSearch,
   search,
   shortcut,
   onNewEvent,
@@ -244,6 +268,8 @@ function SideTools({
   inputRef: RefObject<HTMLInputElement | null>;
   newEventLabel: string | null;
   resultCount?: number;
+  /** O que a busca procura nesta tela (padrão: eventos). */
+  scope?: SearchScope;
   search: string;
   /** "Ctrl K" no chip do campo e "Control+K" para o leitor de tela (Cmd no Mac). */
   shortcut: Shortcut;
@@ -253,12 +279,13 @@ function SideTools({
 }) {
   const term = search.trim();
   const count = term ? resultCount : undefined;
+  const [one, many] = scope.noun;
   const status =
     count === undefined
       ? ""
       : count === 0
-        ? "Nenhum evento encontrado."
-        : `${count} ${count === 1 ? "evento encontrado" : "eventos encontrados"}.`;
+        ? `Nenhum ${one} encontrado.`
+        : `${count} ${count === 1 ? `${one} encontrado` : `${many} encontrados`}.`;
   // botão que leva ao resultado: funciona no toque, onde o teclado não tem Enter (o Enter continua valendo)
   const showButton = count !== undefined && count > 0 && !inPlace;
 
@@ -277,8 +304,8 @@ function SideTools({
           ref={inputRef}
           // vazio, o texto não passa por baixo do chip do atalho (que some no toque)
           className={search ? "pr-10 pointer-coarse:pr-12" : "pr-[66px] pointer-coarse:pr-3.5"}
-          placeholder="Buscar evento"
-          aria-label="Buscar evento, disciplina ou docente"
+          placeholder={scope.placeholder}
+          aria-label={scope.label}
           aria-keyshortcuts={shortcut.aria}
           enterKeyHint="search"
           value={search}
@@ -320,7 +347,7 @@ function SideTools({
       </p>
       {showButton ? (
         <button className="nav nav-sm -mt-1 justify-between border border-white/15 pointer-coarse:h-11" onClick={onSubmit} type="button">
-          Ver {count} {count === 1 ? "evento" : "eventos"}
+          Ver {count} {count === 1 ? one : many}
           <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
         </button>
       ) : null}
@@ -330,6 +357,79 @@ function SideTools({
           {newEventLabel}
         </button>
       ) : null}
+    </div>
+  );
+}
+
+/** "TADS 5" (ou "TADS 5 e INF 3A"): as turmas ativas do aluno acompanhado. */
+function studentClassesText(student: LinkedStudent) {
+  const names = student.classes.map((item) => item.name);
+  if (!names.length) {
+    return "Sem turma ativa";
+  }
+  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
+}
+
+/**
+ * Responsável: o bloco "Aluno: Diogo, TADS 5" no menu azul, acima dos itens (amostra responsavel-painel).
+ * Com mais de um aluno ativo, vira seletor: um select nativo por cima do bloco, que funciona no toque, no
+ * teclado e no leitor de tela. A escolha vai para o endereço (?aluno=) e para o histórico.
+ */
+function StudentPick({
+  student,
+  students,
+  onChoose,
+}: {
+  student: LinkedStudent;
+  /** Só os vínculos ativos (o pendente não dá acesso). */
+  students: LinkedStudent[];
+  onChoose?: (studentId: number) => void;
+}) {
+  const selectId = useId();
+  const name = firstName(student.fullName ?? "Aluno");
+  const classes = studentClassesText(student);
+  const many = students.length > 1 && Boolean(onChoose);
+
+  const body = (
+    <>
+      <span className="avatar" aria-hidden>
+        {student.initials}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="pick-t block truncate">Aluno: {name}</span>
+        <span className="pick-s block truncate">{classes}</span>
+      </span>
+      {many ? <ChevronsUpDown className="h-[18px] w-[18px] shrink-0" aria-hidden /> : null}
+    </>
+  );
+
+  if (!many) {
+    return (
+      <div className="student-pick">{body}</div>
+    );
+  }
+
+  return (
+    <div className="student-pick is-select">
+      {/* o texto à vista repete o select: o leitor de tela lê só o select */}
+      <span className="contents" aria-hidden>
+        {body}
+      </span>
+      <label htmlFor={selectId} className="sr-only">
+        Aluno acompanhado
+      </label>
+      <select
+        id={selectId}
+        value={student.id}
+        onChange={(event) => onChoose?.(Number(event.target.value))}
+        title="Trocar aluno"
+      >
+        {students.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.fullName ?? "Aluno"}, {studentClassesText(item)}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -373,8 +473,8 @@ function SideFoot({
   onRefresh: () => void;
 }) {
   const name = user.fullName ?? user.email;
-  // "Aluno, ALU-001", "Docente, DOC-001", "Admin, ADM-001"
-  const role = [cardRoleLabels[user.role], user.registration].filter(Boolean).join(", ");
+  // "Aluno, ALU-001", "Docente, DOC-001", "Admin, ADM-001"; o responsável não tem matrícula: só "Responsável"
+  const role = [cardRoleLabels[user.role], user.role === "guardian" ? null : user.registration].filter(Boolean).join(", ");
   const time = updatedAt ? formatTime(updatedAt.toISOString()) : null;
   const offline = Boolean(loadError) && !refreshing;
   const refreshLabel = refreshing
@@ -455,8 +555,12 @@ export function AppShell({
   search,
   searchInPlace = false,
   searchResultCount,
+  searchScope,
+  student,
+  students,
   updatedAt,
   user,
+  onChooseStudent,
   onLogout,
   onMenuChange,
   onNavigate,
@@ -483,10 +587,18 @@ export function AppShell({
   search: string;
   /** O resultado da busca já está na tela (Cronograma): no computador, sem botão de ver. */
   searchInPlace?: boolean;
-  /** Quantos eventos a busca do menu encontra. */
+  /** Quantos resultados a busca do menu encontra (eventos, ou o que searchScope disser). */
   searchResultCount?: number;
+  /** O que a busca procura na tela de agora (padrão: eventos). Em Turmas e disciplinas: turmas, disciplinas e alunos. */
+  searchScope?: SearchScope;
+  /** Responsável: o aluno escolhido (bloco "Aluno: Diogo, TADS 5" acima dos itens do menu). */
+  student?: LinkedStudent | null;
+  /** Responsável: os alunos com vínculo ativo; com mais de um, o bloco vira seletor. */
+  students?: LinkedStudent[];
   updatedAt?: Date | null;
   user: User;
+  /** Responsável: trocou de aluno no seletor do menu. */
+  onChooseStudent?: (studentId: number) => void;
   onLogout: () => void;
   /** Abrir ou fechar o menu do celular. Navegar, abrir as configurações do perfil ou o painel pelo menu já fecha. */
   onMenuChange: (open: boolean) => void;
@@ -511,9 +623,13 @@ export function AppShell({
   const [drawerStart, setDrawerStart] = useState<"close" | "search">("close");
   const shortcut = useSearchShortcut();
   const today = useToday();
-  const semester = semesterWeek(today, personClasses(context));
+  const guardian = user.role === "guardian";
+  // o responsável vê o semestre das turmas do aluno escolhido
+  const termClasses: AcademicClass[] = guardian ? (student?.classes ?? []) : personClasses(context);
+  const semester = semesterWeek(today, termClasses);
   const semesterFits = useSemesterFits(sideRef, Boolean(semester));
-  const newEventLabel = canWrite ? (user.role === "admin" ? "Evento oficial" : "Novo evento") : null;
+  // o responsável só lê: nunca cria evento
+  const newEventLabel = canWrite && !guardian ? (user.role === "admin" ? "Evento oficial" : "Novo evento") : null;
   const pageTitle = visibleNavItems(user.role).find((item) => item.view === activeView)?.label ?? "Agenda Acadêmica";
 
   // gaveta do celular: foco em "Fechar menu", Tab preso dentro e, ao fechar, volta para "Abrir menu".
@@ -623,6 +739,12 @@ export function AppShell({
     );
   }
 
+  function pick() {
+    return guardian && student ? (
+      <StudentPick student={student} students={students ?? [student]} onChoose={onChooseStudent} />
+    ) : null;
+  }
+
   function tools(inDrawer: boolean) {
     return (
       <SideTools
@@ -631,6 +753,7 @@ export function AppShell({
         inputRef={inDrawer ? drawerSearchRef : sideSearchRef}
         newEventLabel={newEventLabel}
         resultCount={searchResultCount}
+        scope={searchScope}
         search={search}
         shortcut={shortcut}
         onNewEvent={onNewEvent}
@@ -719,6 +842,7 @@ export function AppShell({
                   }
                 />
                 {tools(true)}
+                {pick()}
                 <NavButtons activeView={activeView} badges={badges} role={user.role} onNavigate={onNavigate} />
                 {foot(true)}
               </aside>
@@ -732,6 +856,7 @@ export function AppShell({
         <aside ref={sideRef} className="side max-md:hidden" aria-label="Menu">
           <Brand onDark />
           {tools(false)}
+          {pick()}
           <NavButtons activeView={activeView} badges={badges} role={user.role} onNavigate={onNavigate} />
           {foot(false)}
         </aside>

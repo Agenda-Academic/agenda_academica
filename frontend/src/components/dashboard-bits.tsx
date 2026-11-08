@@ -37,7 +37,8 @@ import {
   startOfDay,
 } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
-import type { AcademicEvent, Category, Reminder } from "@/lib/types";
+import type { AcademicEvent, AppNotification, Category, Reminder } from "@/lib/types";
+import { useOptionalAppActions } from "./app-actions";
 import { EventRow, StatusPill, eventLastDay } from "./event-bits";
 import { EmptyState } from "./ui";
 
@@ -999,10 +1000,26 @@ function avisoWhen(event: AcademicEvent) {
   return `${capitalize(relativeDue(event.startsAt))}, ${isWholeDay(event.startsAt, event.endsAt) ? "dia todo" : formatTime(event.startsAt)}`;
 }
 
+/** Quando chegou o aviso do sistema: "hoje, 14:20", "ontem, 09:05" ou "qua, 04/11". */
+function noticeWhen(value: string) {
+  const days = Math.round((startOfDay(new Date()).getTime() - startOfDay(new Date(value)).getTime()) / 86400000);
+  if (days === 0) {
+    return `hoje, ${formatTime(value)}`;
+  }
+  if (days === 1) {
+    return `ontem, ${formatTime(value)}`;
+  }
+  return formatShortDate(value);
+}
+
 /**
- * Avisos do sistema: lembretes cuja hora chegou, com o evento ainda por vir. É o mesmo bloco
- * no Painel e em Lembretes. Ao dispensar, o foco vai para o "Dispensar" que fica no lugar
- * ou, sem mais avisos, para fallbackFocus (padrão: o título da tela).
+ * Avisos: lembretes cuja hora chegou, com o evento ainda por vir, e os avisos do sistema ainda não lidos
+ * (vínculo de responsável, pedido aprovado, nota publicada; GET /notifications, lidos do useAppActions). É o
+ * mesmo bloco no Painel e em Lembretes. Ao dispensar (ou marcar como lido), o foco vai para o botão que fica no
+ * lugar ou, sem mais avisos, para fallbackFocus (padrão: o título da tela).
+ *
+ * O card some sem nenhum dos dois. Os painéis o mostram quando há lembrete avisando; com só avisos do
+ * sistema, a página (app/page.tsx) mostra o card acima do painel, no mesmo lugar.
  */
 export function AvisosCard({
   avisos,
@@ -1010,6 +1027,7 @@ export function AvisosCard({
   fallbackFocus,
   note = true,
   order = 0,
+  systemNotices = true,
   onDismiss,
   onOpen,
 }: {
@@ -1021,25 +1039,51 @@ export function AvisosCard({
   /** Mostra a frase sobre onde o aviso aparece. */
   note?: boolean;
   order?: number;
+  /** Mostra também os avisos do sistema não lidos (padrão: sim). */
+  systemNotices?: boolean;
   onDismiss?: (reminderId: number) => void;
   onOpen: (eventId: number) => void;
 }) {
   const titleId = useId();
-  const dismissButtons = useRef(new Map<number, HTMLButtonElement>());
-  if (!avisos.length) {
+  const dismissButtons = useRef(new Map<string, HTMLButtonElement>());
+  const actions = useOptionalAppActions();
+  const notices: AppNotification[] = systemNotices && actions ? actions.notices : [];
+  const total = avisos.length + notices.length;
+  if (!total) {
     return null;
   }
 
-  function dismiss(id: number) {
-    const ids = avisos.map((aviso) => aviso.id);
-    const at = ids.indexOf(id);
-    const rest = ids.filter((item) => item !== id);
-    const nextId = rest[Math.min(at, rest.length - 1)];
-    onDismiss?.(id);
-    // o aviso sai da lista: o foco vai para o "Dispensar" que fica no lugar, nunca para o início da página
-    const next = nextId !== undefined ? (dismissButtons.current.get(nextId) ?? null) : null;
+  // a ordem dos botões "Dispensar" e "Marcar como lido" na tela: o foco vai para o vizinho de quem saiu
+  const keys = [...avisos.map((aviso) => `r${aviso.id}`), ...notices.map((notice) => `n${notice.id}`)];
+
+  function focusAfter(key: string) {
+    const at = keys.indexOf(key);
+    const rest = keys.filter((item) => item !== key);
+    const nextKey = rest[Math.min(at, rest.length - 1)];
+    const next = nextKey !== undefined ? (dismissButtons.current.get(nextKey) ?? null) : null;
     const target = next ?? fallbackFocus?.() ?? screenHeading();
     target?.focus({ preventScroll: !next });
+  }
+
+  function dismiss(id: number) {
+    onDismiss?.(id);
+    // o aviso sai da lista: o foco vai para o "Dispensar" que fica no lugar, nunca para o início da página
+    focusAfter(`r${id}`);
+  }
+
+  function markRead(notice: AppNotification) {
+    void actions?.readNotice(notice.id);
+    focusAfter(`n${notice.id}`);
+  }
+
+  function keepButton(key: string) {
+    return (node: HTMLButtonElement | null) => {
+      if (node) {
+        dismissButtons.current.set(key, node);
+      } else {
+        dismissButtons.current.delete(key);
+      }
+    };
   }
 
   return (
@@ -1050,7 +1094,7 @@ export function AvisosCard({
         </span>
         <div className="min-w-0">
           <h2 className="h2" id={titleId}>
-            Avisos ({avisos.length})
+            Avisos ({total})
           </h2>
           {note ? <p className="sub">O aviso aparece aqui no sistema. O envio por e-mail é o próximo passo.</p> : null}
         </div>
@@ -1060,7 +1104,7 @@ export function AvisosCard({
           const event = aviso.academicEvent ?? events.find((item) => item.id === aviso.academicEventId);
           const details = event ? [avisoWhen(event), event.location].filter(Boolean).join(", ") : null;
           return (
-            <li key={aviso.id} className="aviso">
+            <li key={`r${aviso.id}`} className="aviso">
               {/* título e local vêm da pessoa: palavra ou link longo quebra em qualquer ponto */}
               <p className="aviso-t wrap-anywhere">
                 {event?.title ?? "Evento da sua agenda"}
@@ -1078,13 +1122,7 @@ export function AvisosCard({
                 </button>
                 {onDismiss ? (
                   <button
-                    ref={(node) => {
-                      if (node) {
-                        dismissButtons.current.set(aviso.id, node);
-                      } else {
-                        dismissButtons.current.delete(aviso.id);
-                      }
-                    }}
+                    ref={keepButton(`r${aviso.id}`)}
                     className="btn btn-g btn-sm"
                     aria-label={`Dispensar o aviso de ${event?.title ?? "evento"}`}
                     onClick={() => dismiss(aviso.id)}
@@ -1097,6 +1135,36 @@ export function AvisosCard({
             </li>
           );
         })}
+        {notices.map((notice) => (
+          <li key={`n${notice.id}`} className="aviso">
+            <p className="aviso-t wrap-anywhere">
+              {notice.title}
+              {notice.body ? <span className="block text-sm font-normal text-muted">{notice.body}</span> : null}
+              <span className="block text-[13px] font-normal text-muted">{capitalize(noticeWhen(notice.createdAt))}</span>
+            </p>
+            <div className="aviso-acts">
+              {notice.link ? (
+                <button
+                  className="btn btn-s btn-sm"
+                  aria-label={`Abrir o aviso: ${notice.title}`}
+                  onClick={() => actions?.openNotice(notice)}
+                  type="button"
+                >
+                  Abrir
+                </button>
+              ) : null}
+              <button
+                ref={keepButton(`n${notice.id}`)}
+                className="btn btn-g btn-sm"
+                aria-label={`Marcar como lido: ${notice.title}`}
+                onClick={() => markRead(notice)}
+                type="button"
+              >
+                Marcar como lido
+              </button>
+            </div>
+          </li>
+        ))}
       </ul>
     </section>
   );
