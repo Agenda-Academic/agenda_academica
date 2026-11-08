@@ -1,12 +1,30 @@
 import AcademicEvent from '#models/academic_event'
 import Reminder from '#models/reminder'
-import AcademicAccessService from '#services/academic_access_service'
+import AcademicAccessService, { type VisibilityOptions } from '#services/academic_access_service'
+import { guardianChoiceError } from '#services/api_errors'
+import { publicTeacher } from '#services/query_helpers'
 import type { HttpContext } from '@adonisjs/core/http'
 import { DateTime } from 'luxon'
 
 export default class DashboardController {
-  async show({ auth }: HttpContext) {
+  async show({ auth, request, response }: HttpContext) {
     const user = auth.getUserOrFail()
+    if (!AcademicAccessService.isKnownRole(user)) {
+      return response.forbidden({ message: 'Seu perfil não tem acesso à agenda.' })
+    }
+
+    // O responsável vê o painel de um aluno vinculado por vez (`studentId`).
+    let options: VisibilityOptions = {}
+    if (AcademicAccessService.isGuardian(user)) {
+      const choice = await AcademicAccessService.guardianStudentChoice(
+        user,
+        request.input('studentId')
+      )
+      if (!choice.ok) {
+        return guardianChoiceError(response, choice.reason)
+      }
+      options = { studentId: choice.studentId }
+    }
     const now = DateTime.now()
     const horizon = now.plus({ days: 30 })
 
@@ -16,27 +34,29 @@ export default class DashboardController {
       // Eventos "changed" continuam ativos; so cancelados/concluidos saem.
       .whereNotIn('status', ['cancelled', 'completed'])
       .preload('subject')
-      .preload('teacher')
+      .preload('teacher', publicTeacher)
       .preload('academicClass', (classQuery) => classQuery.preload('course'))
       .orderBy('startsAt', 'asc')
 
-    const visibleClassIds = await AcademicAccessService.visibleClassIdsFor(user)
+    const visibleClassIds = await AcademicAccessService.visibleClassIdsFor(user, options)
     if (visibleClassIds !== null) {
-      upcomingQuery.where((scope) => {
-        scope.whereIn('source', ['official', 'imported']).orWhere('officialPriority', true)
-        if (visibleClassIds.length) {
-          scope.orWhereIn('academicClassId', visibleClassIds)
-        }
-      })
+      AcademicAccessService.scopeVisibleEvents(upcomingQuery, visibleClassIds)
     }
 
     const upcoming = await upcomingQuery.limit(12)
-    const reminders = await Reminder.query()
+    const remindersQuery = Reminder.query()
       .where('userId', user.id)
       .where('enabled', true)
       .whereNull('sentAt')
       .orderBy('sendAt', 'asc')
       .limit(5)
+    // Lembretes do responsável: só os de eventos que ele ainda vê, do aluno escolhido.
+    if (AcademicAccessService.isGuardian(user)) {
+      remindersQuery.whereHas('academicEvent', (eventQuery) => {
+        AcademicAccessService.scopeVisibleEvents(eventQuery, visibleClassIds ?? [])
+      })
+    }
+    const reminders = await remindersQuery
 
     const categories = upcoming.reduce<Record<string, number>>((acc, event) => {
       acc[event.category] = (acc[event.category] ?? 0) + 1

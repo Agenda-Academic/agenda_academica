@@ -7,12 +7,16 @@ import hash from '@adonisjs/core/services/hash'
 import { compose } from '@adonisjs/core/helpers'
 import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
 import { type AccessToken, DbAccessTokensProvider } from '@adonisjs/auth/access_tokens'
-import { hasMany } from '@adonisjs/lucid/orm'
+import { column, hasMany } from '@adonisjs/lucid/orm'
 import type { HasMany } from '@adonisjs/lucid/types/relations'
 
 export default class User extends compose(UserSchema, withAuthFinder(hash)) {
   static accessTokens = DbAccessTokensProvider.forModel(User)
   declare currentAccessToken?: AccessToken
+
+  // O SQLite devolve 0 ou 1; a API responde true ou false.
+  @column({ consume: (value) => Boolean(value) })
+  declare isMinor: boolean
 
   @hasMany(() => Enrollment)
   declare enrollments: HasMany<typeof Enrollment>
@@ -31,7 +35,9 @@ export default class User extends compose(UserSchema, withAuthFinder(hash)) {
 
   get initials() {
     // "Prof." e "Profa." não entram nas iniciais
-    const words = this.fullName ? this.fullName.split(' ').filter((w) => !/^profa?\.$/i.test(w)) : this.email.split('@')
+    const words = this.fullName
+      ? this.fullName.split(' ').filter((w) => !/^profa?\.$/i.test(w))
+      : this.email.split('@')
     const [first, last] = words
     if (first && last) {
       return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()

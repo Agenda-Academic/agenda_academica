@@ -5,9 +5,84 @@
 
 /// <reference path="./manifest.d.ts" />
 import type { InferData, InferVariants } from '@adonisjs/core/types/transformers'
+import type AcademicClassTransformer from '#transformers/academic_class_transformer'
+import type ClassDetailTransformer from '#transformers/class_detail_transformer'
+import type ClassInviteTransformer from '#transformers/class_invite_transformer'
+import type ClassStudentTransformer from '#transformers/class_student_transformer'
+import type CourseTransformer from '#transformers/course_transformer'
+import type DirectoryUserTransformer from '#transformers/directory_user_transformer'
+import type GradeImportRowTransformer from '#transformers/grade_import_row_transformer'
+import type GradeImportTransformer from '#transformers/grade_import_transformer'
+import type GuardianCodeTransformer from '#transformers/guardian_code_transformer'
+import type GuardianLinkSummaryTransformer from '#transformers/guardian_link_summary_transformer'
+import type GuardianLinkTransformer from '#transformers/guardian_link_transformer'
+import type LinkedStudentTransformer from '#transformers/linked_student_transformer'
+import type NotificationTransformer from '#transformers/notification_transformer'
+import type SubjectTransformer from '#transformers/subject_transformer'
+import type TeachingAssignmentTransformer from '#transformers/teaching_assignment_transformer'
 import type UserTransformer from '#transformers/user_transformer'
 
 export namespace Data {
+  export type AcademicClass = InferData<AcademicClassTransformer>
+  export namespace AcademicClass {
+    export type Variants = InferVariants<AcademicClassTransformer>
+  }
+  export type ClassDetail = InferData<ClassDetailTransformer>
+  export namespace ClassDetail {
+    export type Variants = InferVariants<ClassDetailTransformer>
+  }
+  export type ClassInvite = InferData<ClassInviteTransformer>
+  export namespace ClassInvite {
+    export type Variants = InferVariants<ClassInviteTransformer>
+  }
+  export type ClassStudent = InferData<ClassStudentTransformer>
+  export namespace ClassStudent {
+    export type Variants = InferVariants<ClassStudentTransformer>
+  }
+  export type Course = InferData<CourseTransformer>
+  export namespace Course {
+    export type Variants = InferVariants<CourseTransformer>
+  }
+  export type DirectoryUser = InferData<DirectoryUserTransformer>
+  export namespace DirectoryUser {
+    export type Variants = InferVariants<DirectoryUserTransformer>
+  }
+  export type GradeImportRow = InferData<GradeImportRowTransformer>
+  export namespace GradeImportRow {
+    export type Variants = InferVariants<GradeImportRowTransformer>
+  }
+  export type GradeImport = InferData<GradeImportTransformer>
+  export namespace GradeImport {
+    export type Variants = InferVariants<GradeImportTransformer>
+  }
+  export type GuardianCode = InferData<GuardianCodeTransformer>
+  export namespace GuardianCode {
+    export type Variants = InferVariants<GuardianCodeTransformer>
+  }
+  export type GuardianLinkSummary = InferData<GuardianLinkSummaryTransformer>
+  export namespace GuardianLinkSummary {
+    export type Variants = InferVariants<GuardianLinkSummaryTransformer>
+  }
+  export type GuardianLink = InferData<GuardianLinkTransformer>
+  export namespace GuardianLink {
+    export type Variants = InferVariants<GuardianLinkTransformer>
+  }
+  export type LinkedStudent = InferData<LinkedStudentTransformer>
+  export namespace LinkedStudent {
+    export type Variants = InferVariants<LinkedStudentTransformer>
+  }
+  export type Notification = InferData<NotificationTransformer>
+  export namespace Notification {
+    export type Variants = InferVariants<NotificationTransformer>
+  }
+  export type Subject = InferData<SubjectTransformer>
+  export namespace Subject {
+    export type Variants = InferVariants<SubjectTransformer>
+  }
+  export type TeachingAssignment = InferData<TeachingAssignmentTransformer>
+  export namespace TeachingAssignment {
+    export type Variants = InferVariants<TeachingAssignmentTransformer>
+  }
   export type User = InferData<UserTransformer>
   export namespace User {
     export type Variants = InferVariants<UserTransformer>

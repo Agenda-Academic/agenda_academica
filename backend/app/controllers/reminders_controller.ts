@@ -1,6 +1,7 @@
 import AcademicEvent from '#models/academic_event'
 import Reminder from '#models/reminder'
 import AcademicAccessService from '#services/academic_access_service'
+import { publicTeacher } from '#services/query_helpers'
 import { reminderSendAt } from '#services/date_time_service'
 import { reminderValidator } from '#validators/academic'
 import type { HttpContext } from '@adonisjs/core/http'
@@ -8,16 +9,25 @@ import type { HttpContext } from '@adonisjs/core/http'
 export default class RemindersController {
   async index({ auth }: HttpContext) {
     const user = auth.getUserOrFail()
-    const reminders = await Reminder.query()
+    const query = Reminder.query()
       .where('userId', user.id)
       .preload('academicEvent', (eventQuery) => {
         eventQuery
           .preload('subject')
-          .preload('teacher')
+          .preload('teacher', publicTeacher)
           .preload('academicClass', (classQuery) => classQuery.preload('course'))
       })
       .orderBy('sendAt', 'asc')
 
+    // O responsável que perdeu o vínculo deixa de ver os lembretes sobre a agenda do aluno.
+    if (AcademicAccessService.isGuardian(user)) {
+      const classIds = (await AcademicAccessService.visibleClassIdsFor(user)) ?? []
+      query.whereHas('academicEvent', (eventQuery) => {
+        AcademicAccessService.scopeVisibleEvents(eventQuery, classIds)
+      })
+    }
+
+    const reminders = await query
     return { data: reminders.map((reminder) => reminder.serialize()) }
   }
 
@@ -31,6 +41,10 @@ export default class RemindersController {
     }
 
     if (!(await AcademicAccessService.canViewEvent(user, event))) {
+      // O responsável cria lembretes só sobre eventos do aluno vinculado; fora disso, 404.
+      if (AcademicAccessService.isGuardian(user)) {
+        return response.notFound({ message: 'Evento nao encontrado.' })
+      }
       return response.forbidden({ message: 'Voce nao pode criar lembrete para este evento.' })
     }
 

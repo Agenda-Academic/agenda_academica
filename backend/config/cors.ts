@@ -39,7 +39,9 @@ const corsConfig = defineConfig({
    * In development, allow every origin to simplify local front/backend setup.
    * In production, use the CORS_ORIGIN allowlist (empty blocks all).
    */
-  origin: app.inDev ? true : (requestOrigin) => allowlist.some((pattern) => pattern.test(requestOrigin)),
+  origin: app.inDev
+    ? true
+    : (requestOrigin) => allowlist.some((pattern) => pattern.test(requestOrigin)),
 
   /**
    * HTTP methods accepted for cross-origin requests.

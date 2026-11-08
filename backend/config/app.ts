@@ -10,9 +10,41 @@ import { defineConfig } from '@adonisjs/core/http'
 export const appUrl = env.get('APP_URL')
 
 /**
+ * Endereços de proxy em que a API confia para ler o X-Forwarded-For: loopback, link-local e
+ * redes privadas (10/8, 172.16/12, 192.168/16, fc00::/7), os mesmos de `loopback`,
+ * `linklocal` e `uniquelocal` do proxy-addr.
+ *
+ * No Render o pedido chega pelo proxy da plataforma, que conecta de um endereço da rede
+ * interna. Sem confiar nele, `request.ip()` devolve o IP do proxy para todo mundo, e o
+ * limite de tentativas por IP vira um limite único para o sistema inteiro. Lendo o
+ * cabeçalho da direita para a esquerda e parando no primeiro endereço público, o IP vem
+ * de quem acessou, e um X-Forwarded-For inventado pelo cliente não passa na frente.
+ */
+function isTrustedProxy(address: string) {
+  const ip = address.toLowerCase().replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/, '')
+  const v4 = ip.match(/^(\d+)\.(\d+)\.\d+\.\d+$/)
+  if (v4) {
+    const [first, second] = [Number(v4[1]), Number(v4[2])]
+    return (
+      first === 127 ||
+      first === 10 ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168) ||
+      (first === 169 && second === 254)
+    )
+  }
+  return ip === '::1' || /^f[cd][0-9a-f]{2}:/.test(ip) || /^fe[89ab][0-9a-f]:/.test(ip)
+}
+
+/**
  * The configuration settings used by the HTTP server
  */
 export const http = defineConfig({
+  /**
+   * Proxies confiáveis para `request.ip()`; ver `isTrustedProxy` acima.
+   */
+  trustProxy: (address) => isTrustedProxy(address),
+
   /**
    * Generate a unique request id for each incoming request.
    * Useful to correlate logs and debug a request flow.
