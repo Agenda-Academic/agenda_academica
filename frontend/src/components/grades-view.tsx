@@ -69,6 +69,8 @@ export type GradesViewProps = {
   onOpenGrades: (eventId: number) => void;
   /** Abre o detalhe do evento no Cronograma. */
   onOpenEvent: (eventId: number) => void;
+  /** Quantas avaliações a busca do menu acha nesta tela (undefined sem busca ou enquanto carrega). */
+  onSearchCount?: (count: number | undefined) => void;
 };
 
 export function GradesView(props: GradesViewProps) {
@@ -84,6 +86,7 @@ export function GradesView(props: GradesViewProps) {
         search={props.search}
         onOpenEvent={props.onOpenEvent}
         onOpenGrades={props.onOpenGrades}
+        onSearchCount={props.onSearchCount}
       />
     );
   }
@@ -137,15 +140,14 @@ function whenText(value: string) {
 
 /** "Fonte: SUAP, importada em 04/11/2026", "Fonte: modelo da Agenda, importada em 04/11/2026" ou "Fonte: lançada na Agenda em 06/11/2026". */
 function sourceLine(grade: NonNullable<StudentEvaluation["grade"]>) {
-  // o rótulo "Modelo da Agenda" (lib/meta) vai em minúscula no meio da frase, como na amostra
-  return gradeSourceText(grade.source, grade.updatedAt).replace("Fonte: Modelo da Agenda", "Fonte: modelo da Agenda");
+  return gradeSourceText(grade.source, grade.updatedAt);
 }
 
 function pointsText(max: string) {
   return max === "1" ? "vale 1 ponto" : `vale ${max} pontos`;
 }
 
-function ReaderGrades({ role, context, student, focusEventId, search, onOpenEvent }: GradesViewProps) {
+function ReaderGrades({ role, context, student, focusEventId, search, onOpenEvent, onSearchCount }: GradesViewProps) {
   const { navigate, linkedStudents, events, openProfile } = useAppActions();
   const isGuardian = role === "guardian";
   const grades = useStudentGrades(isGuardian ? (student?.id ?? null) : null);
@@ -238,6 +240,12 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         .filter((group) => group.items.length)
     : groups;
   const matchCount = visibleGroups.reduce((sum, group) => sum + group.items.length, 0);
+
+  // a busca do menu conta as avaliações achadas aqui (sem as notas na tela, ainda não há o que contar)
+  const searchCount = words.length && grades.status === "ready" ? matchCount : undefined;
+  useEffect(() => {
+    onSearchCount?.(searchCount);
+  }, [onSearchCount, searchCount]);
 
   const all = groups.flatMap((group) => group.items);
   const focusKnown = focusEventId !== null && Boolean(data?.subjects.some((group) => group.evaluations.some((item) => item.eventId === focusEventId)));

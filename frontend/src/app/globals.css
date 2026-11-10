@@ -11,7 +11,7 @@
 @import "./styles/notas-docente.css" layer(components);
 
 /* ==================================================================
-   Tokens do produto — azul + verde IF (mesmos do protótipo no Figma,
+   Tokens do produto: azul e verde IF (mesmos do protótipo no Figma,
    docs/telas/src/00-head.html)
    ================================================================== */
 :root {

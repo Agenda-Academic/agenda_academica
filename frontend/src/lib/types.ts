@@ -199,6 +199,8 @@ export type Enrollment = {
   source?: EnrollmentSource;
   decidedById?: number | null;
   decidedAt?: string | null;
+  /** Quando a matrícula (ou o pedido de entrada) foi criada. */
+  createdAt?: string | null;
   academicClass?: AcademicClass;
 };
 

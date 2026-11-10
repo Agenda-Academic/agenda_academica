@@ -29,9 +29,6 @@ export type StudentJoinCardProps = {
   onJoined?: (result: JoinClassResult) => void;
 };
 
-/** A matrícula do /context traz a data do pedido (a API serializa createdAt), que o tipo da Base não lista. */
-type EnrollmentWithDate = Enrollment & { createdAt?: string | null };
-
 const DAY = 24 * 60 * 60 * 1000;
 
 function startOfDayTime(value: number) {
@@ -251,7 +248,7 @@ export function pendingList(
     .map((enrollment) => ({
       id: enrollment.id,
       academicClass: enrollment.academicClass as AcademicClass,
-      sentAt: (enrollment as EnrollmentWithDate).createdAt ?? null,
+      sentAt: enrollment.createdAt ?? null,
     }));
   if (
     sent &&

@@ -46,6 +46,8 @@
 }
 .admin-filters select.input {
   width: auto;
+  /* sem isso, o nome de curso mais comprido vira a largura mínima e o campo passa da borda em 390 px */
+  min-width: 0;
   flex: 1 1 190px;
   max-width: 240px;
 }

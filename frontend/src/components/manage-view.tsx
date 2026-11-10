@@ -41,7 +41,7 @@ import { SegmentedButton } from "./ui";
 /* Abas da docente: Eventos e Minhas turmas                            */
 /* ------------------------------------------------------------------ */
 
-type ManagePane = "events" | "classes";
+export type ManagePane = "events" | "classes";
 
 const PANE_KEY = "agenda.gestao.aba";
 
@@ -322,6 +322,10 @@ export type ManageViewProps = {
   onOpenGrades?: (eventId: number) => void;
   /** Texto da busca do menu: a aba "Minhas turmas" (MyClasses) filtra a lista com ele. */
   search?: string;
+  /** Aba aberta (a administração fica sempre em "events"): em Minhas turmas, a busca do menu procura turmas. */
+  onPaneChange?: (pane: ManagePane) => void;
+  /** Quantas turmas a busca do menu acha na aba Minhas turmas (undefined sem busca ou sem a lista). */
+  onSearchCount?: (count: number | undefined) => void;
 };
 
 export function ManageView({
@@ -341,6 +345,8 @@ export function ManageView({
   onSetStatus,
   onOpenGrades,
   search: menuSearch = "",
+  onPaneChange,
+  onSearchCount,
 }: ManageViewProps) {
   const admin = isAdmin || role === "admin";
   const wide = useSyncExternalStore(tabsMedia.subscribe, tabsMedia.read, onServer);
@@ -544,6 +550,11 @@ export function ManageView({
       writePane(pane);
     }
   }, [pane, teacherTabs]);
+
+  // a página sabe qual aba está aberta (a busca do menu muda de assunto em Minhas turmas)
+  useEffect(() => {
+    onPaneChange?.(teacherTabs ? pane : "events");
+  }, [onPaneChange, pane, teacherTabs]);
 
   function choosePane(next: ManagePane) {
     pendingRef.current = null;
@@ -1202,7 +1213,7 @@ export function ManageView({
         aria-labelledby={`${paneIds.classes}-aba`}
         hidden={pane !== "classes"}
       >
-        <MyClasses context={context} search={menuSearch} onSummary={setClassesSummary} />
+        <MyClasses context={context} search={menuSearch} onSearchCount={onSearchCount} onSummary={setClassesSummary} />
       </div>
     </section>
   ) : (

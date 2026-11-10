@@ -144,7 +144,8 @@
   letter-spacing: -0.01em;
   color: var(--ink);
 }
-.resp-vinc-sub {
+/* .sub, .input, .field-help e .callout vêm depois em globals.css: aqui o seletor leva as duas classes */
+.sub.resp-vinc-sub {
   max-width: 560px;
   font-size: 15px;
 }
@@ -164,7 +165,7 @@
   flex: 1 1 200px;
   min-width: 0;
 }
-.resp-vinc-help {
+.field-help.resp-vinc-help {
   flex-basis: 100%;
   margin-top: -10px;
 }
@@ -177,20 +178,20 @@
   margin-top: 6px;
 }
 /* código: grande, espaçado e em maiúsculas; o exemplo do placeholder fica no tamanho normal */
-.resp-code {
+.input.resp-code {
   font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.12em;
 }
-.resp-code::placeholder {
+.input.resp-code::placeholder {
   font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.06em;
 }
-.resp-select-empty {
+.input.resp-select-empty {
   color: var(--muted-2);
 }
-.resp-select-empty option {
+.input.resp-select-empty option {
   color: var(--ink);
 }
 .resp-vinc-side {
@@ -233,7 +234,7 @@
   flex-shrink: 0;
 }
 /* o aviso do menor fica no pé do quadro quando o card estica; a folga mínima vem dos passos */
-.resp-vinc-callout {
+.callout.resp-vinc-callout {
   margin-top: auto;
 }
 .resp-pend {

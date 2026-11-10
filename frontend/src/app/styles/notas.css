@@ -236,7 +236,8 @@
   }
   .notas-disc-count {
     order: 3;
-    flex-basis: 100%;
+    /* a linha inteira menos o recuo do ícone: com 100% e o recuo, passava da borda em 390 px */
+    flex-basis: calc(100% - 52px);
     margin-left: 52px;
     margin-top: -6px;
     text-align: left;

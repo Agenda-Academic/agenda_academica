@@ -146,8 +146,23 @@ function writesEvents(role: UserRole | undefined) {
 
 // a busca do menu na tela Turmas e disciplinas procura turmas, disciplinas e alunos (nas outras, eventos)
 const classesSearch: SearchScope = {
-  placeholder: "Buscar turma ou aluno",
+  // curto para caber antes do atalho Ctrl K; o rótulo completo vai no aria-label
+  placeholder: "Turma ou aluno",
   label: "Buscar turma, disciplina ou aluno",
+  noun: ["resultado", "resultados"],
+};
+
+// na tela Notas, a busca filtra as avaliações da própria tela
+const gradesSearch: SearchScope = {
+  placeholder: "Buscar avaliação",
+  label: "Buscar prova, trabalho ou disciplina",
+  noun: ["resultado", "resultados"],
+};
+
+// na aba Minhas turmas da Gestão (docente), a busca filtra as turmas da aba
+const myClassesSearch: SearchScope = {
+  placeholder: "Buscar turma",
+  label: "Buscar turma, curso ou disciplina",
   noun: ["resultado", "resultados"],
 };
 
@@ -1154,8 +1169,11 @@ export default function Home() {
   // Turmas e disciplinas: a turma (e o aluno) a abrir; Notas: a avaliação a destacar
   const [classesTarget, setClassesTarget] = useState<ClassesTarget | null>(null);
   const [gradeFocus, setGradeFocus] = useState<number | null>(null);
-  // quantos resultados a busca do menu acha na tela Turmas e disciplinas (a tela conta)
+  // quantos resultados a busca do menu acha nas telas que filtram no lugar (Turmas, Notas e a aba Minhas turmas
+  // da Gestão): a própria tela conta
   const [localSearchCount, setLocalSearchCount] = useState<number | undefined>(undefined);
+  // aba aberta na Gestão da docente: em Minhas turmas, a busca do menu procura turmas
+  const [managePane, setManagePane] = useState<"events" | "classes">("events");
   // gaveta de notas de uma avaliação (EventGradesDrawer), aberta pela Gestão e pela tela Notas da docente
   const [gradesEventId, setGradesEventId] = useState<number | null>(null);
 
@@ -1578,7 +1596,8 @@ export default function Home() {
       setClassesTarget(null);
     }
     setGradeFocus(view === "grades" ? (entry.gradeEventId ?? null) : null);
-    if (view !== "classes") {
+    // a tela nova conta de novo ao montar; na mesma tela (outro alvo), a contagem continua valendo
+    if (view !== activeView) {
       setLocalSearchCount(undefined);
     }
   }
@@ -1639,9 +1658,14 @@ export default function Home() {
     setFocusHeadingToken((token) => token + 1);
   }
 
+  // telas em que a busca do menu filtra a própria tela (o resultado já está à vista, sem "Ver eventos")
+  const myClassesPaneOpen = activeView === "manage" && managePane === "classes";
+  const searchStaysInPlace =
+    activeView === "calendar" || activeView === "classes" || activeView === "grades" || myClassesPaneOpen;
+
   /** "Ver eventos" (ou Enter) na busca do menu: fora do Cronograma, leva ao resultado em todas as categorias. */
   function showSearchResults() {
-    if (activeView === "calendar" || activeView === "classes") {
+    if (searchStaysInPlace) {
       // o resultado já está na tela (e o detalhe aberto continua): no celular, só fecha o menu
       changeMenu(false);
       return;
@@ -3720,14 +3744,22 @@ export default function Home() {
   }
 
   // a contagem da busca do menu não depende de filtro escondido: fora do Cronograma vale para todas as categorias;
-  // no Cronograma, segue os filtros que estão à vista; em Turmas e disciplinas, a tela conta o que achou
+  // no Cronograma, segue os filtros que estão à vista; em Turmas, Notas e Minhas turmas, a tela conta o que achou
   const searchResultCount = search.trim()
     ? activeView === "calendar"
       ? filteredEvents.length
-      : activeView === "classes"
+      : activeView === "classes" || activeView === "grades" || myClassesPaneOpen
         ? localSearchCount
         : searchedEvents.length
     : undefined;
+  const searchScope =
+    activeView === "classes"
+      ? classesSearch
+      : activeView === "grades"
+        ? gradesSearch
+        : myClassesPaneOpen
+          ? myClassesSearch
+          : undefined;
 
   // avisos do sistema: no Painel, o card de avisos dos painéis só aparece com lembrete avisando; com só avisos do
   // sistema, a página mostra o mesmo card no lugar dele (o responsável sem vínculo vê só o card de vincular)
@@ -3744,7 +3776,19 @@ export default function Home() {
     toast: (text: string, options: AreaToastOptions = {}) =>
       pushToast(options.tone ?? "success", text, {
         action: options.undo
-          ? { label: "Desfazer", onClick: () => void Promise.resolve(options.undo?.()) }
+          ? {
+              label: "Desfazer",
+              // o Desfazer que falha (prazo vencido, limite) mostra a frase da API, no mesmo assunto do aviso
+              onClick: () =>
+                void Promise.resolve()
+                  .then(() => options.undo?.())
+                  .catch((error: unknown) => {
+                    const active = sessionRef.current;
+                    if (active) {
+                      actionFailed(error, active, options.key ?? "area");
+                    }
+                  }),
+            }
           : options.action,
         keys: options.key ? [options.key] : undefined,
         duration: options.duration,
@@ -3798,9 +3842,9 @@ export default function Home() {
         menuOpen={menuOpen}
         refreshing={loading}
         search={search}
-        searchInPlace={activeView === "calendar" || activeView === "classes"}
+        searchInPlace={searchStaysInPlace}
         searchResultCount={searchResultCount}
-        searchScope={activeView === "classes" ? classesSearch : undefined}
+        searchScope={searchScope}
         student={guardianStudent}
         students={activeStudents}
         updatedAt={lastLoadedAt}
@@ -3981,6 +4025,8 @@ export default function Home() {
                   onNewEvent={openNewEvent}
                   onNewEventFor={openNewEventFor}
                   onOpenGrades={openGrades}
+                  onPaneChange={setManagePane}
+                  onSearchCount={setLocalSearchCount}
                   onSetStatus={requestStatusChange}
                 />
               ) : null}
@@ -3995,6 +4041,7 @@ export default function Home() {
                   student={guardianStudent}
                   onOpenEvent={(eventId) => goTo("calendar", { eventId })}
                   onOpenGrades={openGrades}
+                  onSearchCount={setLocalSearchCount}
                 />
               ) : null}
 

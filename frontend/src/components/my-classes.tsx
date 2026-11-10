@@ -68,6 +68,8 @@ export type MyClassesProps = {
   search: string;
   /** Turmas e pedidos de entrada carregados (para o número da aba). null enquanto carrega ou com erro. */
   onSummary?: (summary: MyClassesSummary | null) => void;
+  /** Quantas turmas a busca do menu acha (undefined sem busca ou enquanto a lista não chegou). */
+  onSearchCount?: (count: number | undefined) => void;
 };
 
 export type MyClassesSummary = { classes: number; pending: number };
@@ -166,7 +168,7 @@ function focusWhenOnTop(target: () => HTMLElement | null | undefined) {
 /* Lista de turmas                                                     */
 /* ------------------------------------------------------------------ */
 
-export function MyClasses({ context, search, onSummary }: MyClassesProps) {
+export function MyClasses({ context, search, onSummary, onSearchCount }: MyClassesProps) {
   const { token } = useAppActions();
   const headingId = useId();
   const [state, setState] = useState<ListState>({ status: "loading" });
@@ -237,6 +239,12 @@ export function MyClasses({ context, search, onSummary }: MyClassesProps) {
     return words.every((word) => haystack.includes(word));
   });
   const openClass = classes?.find((item) => item.id === openId) ?? null;
+
+  // a busca do menu conta as turmas achadas (a página mostra "2 resultados encontrados")
+  const searchCount = words.length && classes ? shown.length : undefined;
+  useEffect(() => {
+    onSearchCount?.(searchCount);
+  }, [onSearchCount, searchCount]);
 
   function patchCounts(classId: number, patch: CountsPatch) {
     seqRef.current += 1;

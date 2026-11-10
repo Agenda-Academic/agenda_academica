@@ -29,6 +29,8 @@ export type GradesTeacherProps = {
   onOpenGrades: (eventId: number) => void;
   /** Abre o detalhe do evento no Cronograma. */
   onOpenEvent: (eventId: number) => void;
+  /** Quantas avaliações a busca do menu acha nesta tela (undefined sem busca). */
+  onSearchCount?: (count: number | undefined) => void;
 };
 
 /** Situação das notas de uma avaliação (GET /events/:id/grades e as importações dela). */
@@ -80,7 +82,16 @@ function inMyOffers(event: AcademicEvent, role: UserRole, userId: number, contex
 const byStartAsc = (a: AcademicEvent, b: AcademicEvent) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
 const byStartDesc = (a: AcademicEvent, b: AcademicEvent) => byStartAsc(b, a);
 
-export function GradesTeacher({ context, events, focusEventId, onOpenEvent, onOpenGrades, role, search }: GradesTeacherProps) {
+export function GradesTeacher({
+  context,
+  events,
+  focusEventId,
+  onOpenEvent,
+  onOpenGrades,
+  onSearchCount,
+  role,
+  search,
+}: GradesTeacherProps) {
   const { loading, navigate, token, user } = useAppActions();
   const [now] = useState(() => Date.now());
   // null: a aba escolhida pela tela (a da avaliação destacada ou "Já aconteceram" quando há)
@@ -103,6 +114,12 @@ export function GradesTeacher({ context, events, focusEventId, onOpenEvent, onOp
   const past = useMemo(() => found.filter((event) => new Date(event.startsAt).getTime() <= now).sort(byStartDesc), [found, now]);
   const upcoming = useMemo(() => found.filter((event) => new Date(event.startsAt).getTime() > now).sort(byStartAsc), [found, now]);
   const all = useMemo(() => [...found].sort(byStartDesc), [found]);
+
+  // a busca do menu conta as avaliações achadas aqui
+  const searchCount = search.trim() ? found.length : undefined;
+  useEffect(() => {
+    onSearchCount?.(searchCount);
+  }, [onSearchCount, searchCount]);
 
   let autoTab: Tab = past.length ? "past" : "next";
   if (focusEventId !== null) {

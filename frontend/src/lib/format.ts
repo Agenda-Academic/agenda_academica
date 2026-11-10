@@ -802,7 +802,9 @@ export function gradeSourceText(source: GradeSourceInfo | null | undefined, upda
     return "";
   }
   if (source.type === "import") {
-    const origin = gradeImportSourceLabels[source.source] ?? source.source;
+    // no meio da frase, "modelo da Agenda" vai em minúscula ("Fonte: modelo da Agenda, importada em ...")
+    const origin =
+      source.source === "modelo" ? "modelo da Agenda" : (gradeImportSourceLabels[source.source] ?? source.source);
     return `Fonte: ${origin}, importada em ${formatDateBR(source.importedAt)}`;
   }
   return updatedAt ? `Fonte: lançada na Agenda em ${formatDateBR(updatedAt)}` : "Fonte: lançada na Agenda";
