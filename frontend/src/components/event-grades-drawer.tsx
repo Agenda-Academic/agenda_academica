@@ -127,8 +127,11 @@ const importStatus: Record<GradeImport["status"], { label: string; pill: string 
   discarded: { label: "Descartada", pill: "st-ag" },
 };
 
-/** Ordem da lista de importações: as aplicadas primeiro (a mais recente em cima), depois rascunhos, desfeitas e descartadas. */
-const importOrder: Record<GradeImport["status"], number> = { applied: 0, draft: 1, undone: 2, discarded: 3 };
+/**
+ * Ordem da lista de importações: o rascunho em andamento primeiro (é o que pede uma ação), depois as aplicadas, da
+ * mais nova para a mais antiga, e por fim as desfeitas e as descartadas. Dentro de cada grupo, a mais nova em cima.
+ */
+const importOrder: Record<GradeImport["status"], number> = { draft: 0, applied: 1, undone: 2, discarded: 3 };
 
 function importWhen(item: GradeImport) {
   return item.status === "applied" || item.status === "undone" ? (item.appliedAt ?? item.createdAt) : item.createdAt;
@@ -320,6 +323,7 @@ export function EventGradesTab({
   onChanged,
   onClose,
   onState,
+  reloadKey = 0,
 }: {
   active: boolean;
   controlRef: { current: GradesTabControl | null };
@@ -329,8 +333,13 @@ export function EventGradesTab({
   onChanged: () => void;
   onClose: () => void;
   onState: (state: GradesTabState) => void;
+  /**
+   * Muda quando o painel descobre que as notas podem ter mudado por fora (o 409 HAS_GRADES ao salvar a aba Dados):
+   * a aba busca de novo a lista e as importações, e o número da aba, "N com nota" e a lista acompanham.
+   */
+  reloadKey?: number;
 }) {
-  const panel = useGradesPanel({ event, eventId, onChanged, onClose });
+  const panel = useGradesPanel({ event, eventId, onChanged, onClose, reloadKey });
   const { back, busy, guardLeave, importSubtitle, inSubView, launched, published, view } = panel;
 
   useLayoutEffect(() => {
@@ -366,11 +375,14 @@ function useGradesPanel({
   eventId,
   onChanged,
   onClose,
+  reloadKey = 0,
 }: {
   event: AcademicEvent | null;
   eventId: number;
   onChanged: () => void;
   onClose: () => void;
+  /** Ao mudar, busca de novo as notas e as importações (sem voltar ao esqueleto: o que está na tela fica até chegar). */
+  reloadKey?: number;
 }) {
   const { confirm, role, showError, toast, token, user } = useAppActions();
   const [view, setView] = useState<GradesPart>("overview");
@@ -391,7 +403,8 @@ function useGradesPanel({
   const focusTarget = useRef<FocusTarget>(null);
   const firstView = useRef(true);
 
-  // primeira carga: a lista de notas e as importações da avaliação
+  // primeira carga: a lista de notas e as importações da avaliação. De novo a cada reloadKey (o painel do evento
+  // pede depois de um 409 HAS_GRADES): a tela fica como está até a resposta chegar
   useEffect(() => {
     let alive = true;
     Promise.all([getEventGrades(token, eventId), getGradeImports(token, eventId)])
@@ -407,7 +420,7 @@ function useGradesPanel({
     return () => {
       alive = false;
     };
-  }, [eventId, token]);
+  }, [eventId, reloadKey, token]);
 
   async function refresh() {
     try {
@@ -878,10 +891,10 @@ function Overview({
   const launched = launchedCount(counts);
   const published = Boolean(info.gradesPublishedAt);
   const noPoints = info.maxScore === null;
-  const drafts = imports.filter((item) => item.status === "draft");
-  // "Importações feitas" conta só as aplicadas; a aplicada mais recente fica em cima (é a que dá para desfazer)
-  const appliedTotal = imports.filter((item) => item.status === "applied").length;
+  // o rascunho em andamento fica no alto da lista e o aviso do topo traz o botão para continuar ali mesmo
   const ordered = sortImports(imports);
+  const drafts = ordered.filter((item) => item.status === "draft");
+  const nextDraft = archived ? null : (drafts.find((item) => item.canApply) ?? null);
   const shownImports = allImports ? ordered : ordered.slice(0, FIRST_IMPORTS);
   const kind = isAssignment ? "deste trabalho" : "desta prova";
 
@@ -906,15 +919,38 @@ function Overview({
         </span>
       </p>
     );
+  } else if (nextDraft) {
+    // o botão fica no próprio aviso: no celular o item do rascunho, na lista, fica abaixo da dobra
+    const openingDraft = opening === nextDraft.id;
+    callout = (
+      <div className="callout past">
+        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <div className="grid min-w-0 gap-2.5">
+          <p>
+            <b>Nenhuma nota lançada ainda.</b> Há um rascunho de importação esperando: continue a importação para
+            conferir e aplicar.
+          </p>
+          <button
+            className={cx(secondaryButton, "btn-sm justify-self-start aria-disabled:cursor-not-allowed aria-disabled:opacity-55")}
+            aria-busy={openingDraft || undefined}
+            aria-disabled={openingDraft || undefined}
+            onClick={() => {
+              if (!openingDraft) onContinue(nextDraft);
+            }}
+            type="button"
+          >
+            {openingDraft ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <FileClock className="h-4 w-4" aria-hidden />}
+            Continuar importação
+          </button>
+        </div>
+      </div>
+    );
   } else {
     callout = (
       <p className="callout past">
         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         <span>
-          <b>Nenhuma nota lançada ainda.</b>{" "}
-          {drafts.length
-            ? "Há um rascunho de importação esperando: continue a importação para conferir e aplicar."
-            : `Importe o arquivo com as notas ${kind} ou lance à mão em Ver notas.`}
+          <b>Nenhuma nota lançada ainda.</b> {`Importe o arquivo com as notas ${kind} ou lance à mão em Ver notas.`}
         </span>
       </p>
     );
@@ -1015,7 +1051,8 @@ function Overview({
       <section className="notas-docente-sec" aria-labelledby="notas-docente-importacoes">
         <div className="notas-docente-sec-h">
           <h3 className="notas-docente-h3" id="notas-docente-importacoes">
-            Importações feitas <span className="n">({appliedTotal})</span>
+            {/* o número é o da lista toda (o mesmo do "Ver todas"), nunca "(0)" sobre itens na tela */}
+            Importações feitas {imports.length ? <span className="n">({imports.length})</span> : null}
           </h3>
           {!archived ? (
             <button ref={importButtonRef} className={cx(secondaryButton, "btn-sm")} onClick={onImport} type="button">

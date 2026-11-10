@@ -241,15 +241,11 @@ export function GuardianLinkCard({
           ref={codeRef}
           className="input resp-code"
           value={code}
+          // sem validar ao sair do campo: o erro entra entre o campo e o Vincular e, se aparecesse no blur, o botão
+          // desceria entre apertar e soltar o mouse e o clique se perderia. Quem valida é o envio; digitar limpa o erro
           onChange={(event) => {
             setCode(event.target.value.toUpperCase());
             setCodeError(null);
-          }}
-          onBlur={() => {
-            // ao sair do campo, só avisa o que está claramente errado (o vazio fica para o Vincular)
-            if (normalizeCode(code)) {
-              setCodeError(codeProblem(code));
-            }
           }}
           aria-describedby={helpId}
           autoCapitalize="characters"

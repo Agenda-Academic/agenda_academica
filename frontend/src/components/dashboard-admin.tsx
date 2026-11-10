@@ -13,7 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { useState } from "react";
-import { formatOnDayAt, formatShortDateTime, formatWeekday, latestTermLabel, shiftLabel, startOfDay } from "@/lib/format";
+import { cx, formatOnDayAt, formatShortDateTime, formatWeekday, latestTermLabel, shiftLabel, startOfDay } from "@/lib/format";
 import { allCategories } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, CalendarImport, Reminder } from "@/lib/types";
 import { AdminPendingCard } from "./admin-pending-card";
@@ -43,6 +43,12 @@ function shortDate(value: string) {
 function datesLabel(count: number) {
   return count === 1 ? "1 data" : `${count} datas`;
 }
+
+/**
+ * Turmas que "Atividade por turma" mostra antes do "Ver todas (N)": duas linhas de duas. Com a lista toda, a
+ * coluna larga passava muito da de apoio, e "Distribuição geral" esticava com um buraco grande no fim.
+ */
+const CLASS_LIMIT = 4;
 
 export function AdminDashboard({
   avisos,
@@ -86,7 +92,9 @@ export function AdminDashboard({
   // referência de "agora" fixada na montagem (render precisa ser puro)
   const [now] = useState(() => Date.now());
   const { rootRef, savedId } = useSavedReveal<HTMLDivElement>(lastSavedId, savedTick, upcomingEvents);
+  const [allClasses, setAllClasses] = useState(false);
   const classes = context?.catalog.classes ?? [];
+  const shownClasses = allClasses ? classes : classes.slice(0, CLASS_LIMIT);
   const subjects = context?.catalog.subjects ?? [];
   const lastImport = imports[0] ?? null;
   // datas oficiais: a regra única de dashboard-bits (a mesma do card da Gestão e do filtro do Cronograma)
@@ -154,7 +162,8 @@ export function AdminDashboard({
         .slice(0, 6)
         .map((item) => `${item.id}:${item.sourceName}:${item.status}:${currentDates(item)}`)
         .join(","),
-      classes.map((academicClass) => `${academicClass.id}:${upcomingByClass(academicClass.id)}`).join(","),
+      shownClasses.map((academicClass) => `${academicClass.id}:${upcomingByClass(academicClass.id)}`).join(","),
+      classes.length > CLASS_LIMIT ? "ver-todas" : "",
       categoryCounts.map((item) => item.count).join(","),
       campusEvents,
     ].join("|")
@@ -303,7 +312,7 @@ export function AdminDashboard({
             />
             {classes.length ? (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {classes.map((academicClass) => {
+                {shownClasses.map((academicClass) => {
                   const count = upcomingByClass(academicClass.id);
                   // min-w-0: abaixo de 640 px a grade tem uma coluna só, do tamanho do conteúdo, e um
                   // nome longo de turma a alargaria para fora do card em vez de cortar com reticências
@@ -329,6 +338,14 @@ export function AdminDashboard({
               </div>
             )}
             <div ref={mainGapRef} className="fill-gap" aria-hidden />
+            {classes.length > CLASS_LIMIT ? (
+              <div className="card-foot">
+                <button className="link" aria-expanded={allClasses} onClick={() => setAllClasses((value) => !value)} type="button">
+                  {allClasses ? "Mostrar menos" : `Ver todas (${classes.length})`}
+                  <ArrowRight className={cx("h-[15px] w-[15px]", allClasses && "-rotate-90")} aria-hidden />
+                </button>
+              </div>
+            ) : null}
           </section>
         </div>
 

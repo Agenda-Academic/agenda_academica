@@ -491,7 +491,7 @@ export function SubjectPanel({ api, data, subtitle, view }: PanelProps<"subject"
       action: async () => {
         try {
           await deleteSubject(token, current.id);
-          api.changed({ catalog: true });
+          // fecha o painel e só depois a tela recarrega (api.removed)
           api.removed("subject");
           toast(`Disciplina ${current.name} excluída.`, { key: `disciplina-${current.id}` });
         } catch (error) {

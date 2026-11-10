@@ -460,8 +460,9 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         <div className={cx("card kpi rise notas-kpi-next", nextEval && "is-link")} style={delay(2)}>
           <div className="kpi-top">
             {nextEval ? (
+              // alvo de no mínimo 24 px de altura (o rótulo tem 18 px); centrado ao lado do ícone, o texto não sai do lugar
               <button
-                className="kpi-hit kpi-label"
+                className="kpi-hit kpi-label inline-flex min-h-6 items-center"
                 onClick={() => onOpenEvent(nextEval.eventId)}
                 aria-label={`Próxima avaliação: ${nextEval.title}, ${whenText(nextEval.startsAt)}. Ver no Cronograma`}
                 type="button"

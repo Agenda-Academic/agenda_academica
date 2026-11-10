@@ -589,8 +589,15 @@ export function templateCsv(students: TemplateStudent[]) {
   ]);
 }
 
-/** Relatório das linhas que ficaram de fora da importação, com o motivo de cada uma. */
-export function rejectedCsv(rows: GradeImportRow[], kindLabel: (row: GradeImportRow) => string) {
+/**
+ * Relatório das linhas que ficaram de fora da importação, com o motivo de cada uma. A situação e o motivo vêm da
+ * prévia (`kindLabel` e `reason`), para o relatório dizer o mesmo que a etiqueta e o chip da tela.
+ */
+export function rejectedCsv(
+  rows: GradeImportRow[],
+  kindLabel: (row: GradeImportRow) => string,
+  reason: (row: GradeImportRow) => string = (row) => row.message ?? ""
+) {
   return toCsv([
     ["linha", "situação", "e-mail ou matrícula", "nome no arquivo", "nota no arquivo", "aluno encontrado", "motivo"],
     ...rows.map((row) => [
@@ -600,7 +607,7 @@ export function rejectedCsv(rows: GradeImportRow[], kindLabel: (row: GradeImport
       row.nameHint ?? "",
       row.rawScore ?? "",
       row.student?.fullName ?? "",
-      row.message ?? "",
+      reason(row),
     ]),
   ]);
 }

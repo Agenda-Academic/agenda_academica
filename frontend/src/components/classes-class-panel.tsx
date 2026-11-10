@@ -20,7 +20,16 @@ import {
   X,
 } from "lucide-react";
 import { createPortal } from "react-dom";
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   ApiError,
   archiveClass,
@@ -54,7 +63,7 @@ import {
 } from "@/lib/format";
 import { modalityLabels, shiftLabels, shiftOptions, teachingRoleLabels } from "@/lib/meta";
 import type { ClassDetail, ClassInvite, ClassStudent, Course, CourseModality } from "@/lib/types";
-import { useAppActions } from "./app-actions";
+import { useAppActions, type AppActions } from "./app-actions";
 import type { ClassesData } from "./classes-view";
 import {
   CopyButton,
@@ -94,6 +103,79 @@ function isNotFound(error: unknown) {
 }
 
 const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
+
+/**
+ * "Gerar código" do aviso de turma restaurada: restaurar deixa o código desligado (regra da API), e o aviso já
+ * oferece ligar de novo. O painel da turma tem o mesmo botão em Código da turma.
+ */
+function generateCodeAction(actions: Pick<AppActions, "token" | "toast" | "showError">, api: PanelApi, classId: number) {
+  return {
+    label: "Gerar código",
+    onClick: () => {
+      void (async () => {
+        try {
+          await createJoinCode(actions.token, classId);
+          api.changed();
+          actions.toast("Código da turma ligado. Mostre o código no painel da turma para passar aos alunos.", {
+            key: `codigo-${classId}`,
+          });
+        } catch (error) {
+          actions.showError(error, `codigo-${classId}`);
+        }
+      })();
+    },
+  };
+}
+
+/**
+ * Leva o foco para `target` assim que der, depois de uma ação que tira da tela o botão que tinha o foco (o pedido
+ * aprovado sai da lista, o Desligar vira Gerar código). Espera a confirmação aberta fechar e só mexe se o foco se
+ * perdeu (no body ou no próprio painel) ou ainda está em `from`, o botão da ação. Para se a pessoa usar o teclado
+ * ou o mouse antes.
+ */
+function focusSoon(target: HTMLElement, from: Element | null, limit = 120) {
+  const attempt = () => {
+    if (!target.isConnected) {
+      return true;
+    }
+    if (document.querySelector('[role="alertdialog"]')) {
+      return false;
+    }
+    const active = document.activeElement;
+    if (active === target) {
+      return true;
+    }
+    const lost =
+      !active || active === document.body || active === from || (active instanceof HTMLElement && active.matches(".drawer, .modal-box"));
+    if (!lost) {
+      return true;
+    }
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: "nearest" });
+    return document.activeElement === target;
+  };
+  if (attempt()) {
+    return;
+  }
+  let frame = 0;
+  let tries = 0;
+  const stop = () => {
+    window.cancelAnimationFrame(frame);
+    document.removeEventListener("keydown", stop, true);
+    document.removeEventListener("pointerdown", stop, true);
+  };
+  document.addEventListener("keydown", stop, true);
+  document.addEventListener("pointerdown", stop, true);
+  const run = () => {
+    tries += 1;
+    if (attempt() || tries >= limit) {
+      stop();
+      return;
+    }
+    frame = window.requestAnimationFrame(run);
+  };
+  frame = window.requestAnimationFrame(run);
+}
 
 export type PanelProps<V extends PanelView["kind"]> = {
   api: PanelApi;
@@ -683,7 +765,8 @@ function focusFirstError(root: HTMLElement | null) {
 /* ------------------------------------------------------------------ */
 
 export function NewClassPanel({ api, data, view }: PanelProps<"newClass">) {
-  const { token, toast, showError } = useAppActions();
+  const actions = useAppActions();
+  const { token, toast, showError } = actions;
   const [createdCourses, setCreatedCourses] = useState<Course[]>([]);
   const courses = mergeCourses(data?.courses, createdCourses);
   const formId = useId();
@@ -758,7 +841,11 @@ export function NewClassPanel({ api, data, view }: PanelProps<"newClass">) {
     try {
       const restored = await restoreClass(token, id);
       api.changed({ catalog: true });
-      toast(`Turma ${restored.name} restaurada. ${CODE_OFF_TEXT}`, { key: `turma-${id}` });
+      // o mesmo aviso de restaurar pelo rodapé ou pelo Desfazer: o código ficou desligado, e o botão liga de novo
+      toast(`Turma ${restored.name} restaurada. ${CODE_OFF_TEXT}`, {
+        key: `turma-${id}`,
+        action: generateCodeAction(actions, api, id),
+      });
       api.replace({ kind: "class", classId: id });
     } catch (error) {
       handleRestoreError(error, id);
@@ -783,7 +870,10 @@ export function NewClassPanel({ api, data, view }: PanelProps<"newClass">) {
                 await restoreCourse(token, courseId);
                 await restoreClass(token, id);
                 api.changed({ catalog: true });
-                toast("Curso e turma restaurados.", { key: `turma-${id}` });
+                toast(`Curso e turma restaurados. ${CODE_OFF_TEXT}`, {
+                  key: `turma-${id}`,
+                  action: generateCodeAction(actions, api, id),
+                });
                 api.replace({ kind: "class", classId: id });
               } catch (inner) {
                 showError(inner, `turma-${id}`);
@@ -927,24 +1017,13 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
     });
   }
 
-  /** Liga o código de uma turma restaurada (o botão do aviso; o painel tem o mesmo em Código da turma). */
-  async function generateCodeFor(classId: number) {
-    try {
-      await createJoinCode(token, classId);
-      api.changed();
-      toast("Código da turma ligado. Mostre o código no painel da turma para passar aos alunos.", { key: `codigo-${classId}` });
-    } catch (error) {
-      showError(error, `codigo-${classId}`);
-    }
-  }
-
   async function restoreTo(classId: number) {
     try {
       const restored = await restoreClass(token, classId);
       // o código fica desligado depois de restaurar (regra da API): o aviso diz e oferece gerar um novo
       toast(`Turma ${restored.name} restaurada. ${CODE_OFF_TEXT}`, {
         key: `turma-${classId}`,
-        action: { label: "Gerar código", onClick: () => void generateCodeFor(classId) },
+        action: generateCodeAction(actions, api, classId),
       });
       if (classId === id) {
         refreshAll(true);
@@ -1016,7 +1095,7 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
         try {
           await deleteClass(token, id);
           forgetRemote(`admin:turma:${id}`);
-          api.changed({ catalog: true });
+          // fecha o painel e só depois a tela recarrega (api.removed): nada da turma excluída é buscado de novo
           api.removed("class");
           toast(`Turma ${item.name} excluída.`, { key: `turma-${id}` });
         } catch (error) {
@@ -1361,6 +1440,16 @@ function OffersSection({ api, archived, item }: { api: PanelApi; archived: boole
 /* Alunos                                                              */
 /* ------------------------------------------------------------------ */
 
+/** Pedidos decididos agora e a ordem dos pedidos na hora: o foco vai para o mesmo botão do pedido ao lado. */
+type DecisionFocus = {
+  action: "approve" | "reject";
+  decided: number[];
+  /** Os pedidos pendentes (enrollmentId), na ordem da lista, na hora da decisão. */
+  order: number[];
+  /** O botão que decidiu (Aprovar, Recusar ou o do lote). */
+  from: Element | null;
+};
+
 function sourceLine(student: ClassStudent) {
   const when = formatOnDayAt(student.createdAt);
   switch (student.source) {
@@ -1407,8 +1496,12 @@ function StudentsSection({
 }) {
   const { token, toast, showError, confirm } = useAppActions();
   const headingId = useId();
+  const sectionRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [working, setWorking] = useState<string | null>(null);
+  // para onde o foco vai quando o pedido decidido sair da lista (ver o efeito abaixo)
+  const decisionFocus = useRef<DecisionFocus | null>(null);
   // curso integrado: quem fica ativo na turma passa a contar como menor de idade (regra da API)
   const integrated = isIntegratedCourse(item.course);
 
@@ -1428,6 +1521,43 @@ function StudentsSection({
   const hiddenCount = listTotal - shown.length - shownInvites.length;
   const selectedPending = selected.filter((id) => pending.some((student) => student.enrollmentId === id));
   const allSelected = shownPending.length > 0 && shownPending.every((student) => selected.includes(student.enrollmentId));
+
+  // Depois de aprovar ou recusar (um ou em lote), quando a lista volta da API sem os pedidos decididos: o foco vai
+  // para o mesmo botão do pedido seguinte; sem ele, do anterior; sem pedido nenhum, para o título Alunos. Roda
+  // antes da pintura, e o foco não passa pelo painel
+  useLayoutEffect(() => {
+    const plan = decisionFocus.current;
+    const section = sectionRef.current;
+    if (!plan || !section || !students) {
+      return;
+    }
+    // a lista ainda é a de antes da decisão: espera a próxima
+    if (students.some((student) => student.status === "pending" && plan.decided.includes(student.enrollmentId))) {
+      return;
+    }
+    decisionFocus.current = null;
+    const firstButton = (ids: number[]) => {
+      for (const id of ids) {
+        const found = section.querySelector<HTMLElement>(`[data-decide="${plan.action}-${id}"]`);
+        if (found) {
+          return found;
+        }
+      }
+      return null;
+    };
+    const places = plan.decided.map((id) => plan.order.indexOf(id)).filter((index) => index >= 0);
+    const after = places.length ? plan.order.slice(Math.max(...places) + 1) : plan.order;
+    const before = places.length ? plan.order.slice(0, Math.min(...places)).reverse() : [];
+    const target =
+      firstButton(after) ??
+      firstButton(before) ??
+      // um pedido que chegou depois (não estava na lista na hora da decisão)
+      section.querySelector<HTMLElement>(`[data-decide^="${plan.action}-"]`) ??
+      headingRef.current;
+    if (target) {
+      focusSoon(target, plan.from);
+    }
+  }, [students]);
 
   async function run(key: string, task: () => Promise<void>) {
     if (working) {
@@ -1494,10 +1624,18 @@ function StudentsSection({
     const name = student.fullName ?? student.email;
     const key = `matricula-${student.enrollmentId}`;
     const becomesMinor = status === "active" && integrated && student.isMinor === false;
+    const from = document.activeElement;
+    const order = pending.map((request) => request.enrollmentId);
     const go = () =>
       run(`decide-${student.enrollmentId}`, async () => {
         try {
           await updateEnrollment(token, student.enrollmentId, { status });
+          decisionFocus.current = {
+            action: status === "active" ? "approve" : "reject",
+            decided: [student.enrollmentId],
+            order,
+            from,
+          };
           setSelected((current) => current.filter((id) => id !== student.enrollmentId));
           onChanged();
           toast(
@@ -1524,11 +1662,15 @@ function StudentsSection({
     }
     const key = `turma-${item.id}-lote`;
     const adults = pending.filter((student) => ids.includes(student.enrollmentId) && student.isMinor === false);
+    const from = document.activeElement;
+    const order = pending.map((student) => student.enrollmentId);
     const go = () =>
       run("bulk", async () => {
         try {
           const result = await decideEnrollments(token, item.id, ids, "active");
           const approved = ids.filter((id) => !result.skipped.includes(id));
+          // os que já tinham sido decididos também saem dos pendentes
+          decisionFocus.current = { action: "approve", decided: ids, order, from };
           setSelected([]);
           onChanged();
           toast(
@@ -1589,10 +1731,11 @@ function StudentsSection({
   const busyAttr = working !== null || undefined;
 
   return (
-    <section className="admin-sec" aria-labelledby={headingId} aria-busy={students === null || undefined}>
+    <section ref={sectionRef} className="admin-sec" aria-labelledby={headingId} aria-busy={students === null || undefined}>
       <div className="admin-sec-head">
         <div className="min-w-0">
-          <h3 id={headingId} className="admin-sec-t">
+          {/* recebe o foco quando o último pedido de entrada é decidido */}
+          <h3 ref={headingRef} id={headingId} className="admin-sec-t" tabIndex={-1}>
             Alunos
           </h3>
           <p className="admin-sec-s">{students === null ? "Carregando alunos" : summary}</p>
@@ -1711,6 +1854,7 @@ function StudentsSection({
                             className={cx(primaryButton, "btn-sm", busyLook)}
                             aria-disabled={busyAttr}
                             aria-label={`Aprovar ${name}`}
+                            data-decide={`approve-${student.enrollmentId}`}
                             onClick={() => decide(student, "active")}
                             type="button"
                           >
@@ -1720,6 +1864,7 @@ function StudentsSection({
                             className={cx(secondaryButton, "btn-sm", busyLook)}
                             aria-disabled={busyAttr}
                             aria-label={`Recusar ${name}`}
+                            data-decide={`reject-${student.enrollmentId}`}
                             onClick={() => decide(student, "inactive")}
                             type="button"
                           >
@@ -1879,6 +2024,19 @@ function CodeSection({
   const on = item.joinCodeActive && !archived;
   const code = item.joinCodeFormatted ?? (item.joinCode ? normalizeCode(item.joinCode) : null);
   const busy = working !== null || undefined;
+  const generateRef = useRef<HTMLButtonElement>(null);
+  // desligou: o botão que pediu (o Desligar) sai quando a turma recarrega, e o foco vai para o Gerar código
+  const focusGenerate = useRef<{ from: Element | null } | null>(null);
+
+  useLayoutEffect(() => {
+    const pending = focusGenerate.current;
+    const target = generateRef.current;
+    if (!pending || on || !target) {
+      return;
+    }
+    focusGenerate.current = null;
+    focusSoon(target, pending.from);
+  }, [on]);
 
   function generateNow(replacing: boolean) {
     return onRun("code-new", async () => {
@@ -1911,10 +2069,11 @@ function CodeSection({
     });
   }
 
-  function disableNow() {
+  function disableNow(from: Element | null) {
     return onRun("code-off", async () => {
       try {
         await disableJoinCode(token, item.id);
+        focusGenerate.current = { from };
         onUpdated();
         onShown(false);
         toast("Código da turma desligado. Ninguém pede para entrar com ele até você gerar um novo.", { key: `codigo-${item.id}` });
@@ -1926,13 +2085,14 @@ function CodeSection({
 
   /** Desligar não tem volta (o código de agora não liga de novo): pergunta antes, com o foco em manter. */
   function disable() {
+    const from = document.activeElement;
     confirm({
       title: "Desligar o código da turma?",
       message:
         "O código de agora deixa de funcionar na hora, e ninguém pede para entrar com ele. Para aceitar pedidos de novo, gere um código novo: o de agora não volta.",
       confirmLabel: "Desligar o código",
       cancelLabel: "Manter o código ligado",
-      action: disableNow,
+      action: () => disableNow(from),
     });
   }
 
@@ -1985,7 +2145,13 @@ function CodeSection({
               </button>
             ) : null}
             {on && shown && code ? <CopyButton text={code} /> : null}
-            <button className={cx(secondaryButton, "btn-sm", busyLook)} aria-disabled={busy} onClick={generate} type="button">
+            <button
+              ref={generateRef}
+              className={cx(secondaryButton, "btn-sm", busyLook)}
+              aria-disabled={busy}
+              onClick={generate}
+              type="button"
+            >
               <RefreshCw className="h-4 w-4" aria-hidden />
               {on ? "Gerar novo" : "Gerar código"}
             </button>

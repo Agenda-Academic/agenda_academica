@@ -414,17 +414,20 @@ export function StudentDashboard({
               </ul>
             </>
           ) : (
-            // o /context do aluno não traz as disciplinas da turma: elas saem dos eventos. Sem nenhum, o
-            // vazio diz quando chegam e leva ao Cronograma (o card não fica com o vão até o rodapé)
+            // o /context do aluno não traz as disciplinas da turma: elas saem dos eventos. Sem nenhum, uma linha
+            // e o link para o Cronograma, no lugar da lista: o card fica baixo e o destaque ao lado não estica
             <>
-              <hr className="divider mt-[18px] mb-4" />
-              <EmptyState
-                compact
-                icon={BookOpen}
-                text="Nenhuma disciplina com prova ou trabalho ainda"
-                hint={`As disciplinas da ${classes[0].name} aparecem aqui quando a docente marcar a primeira prova ou o primeiro trabalho.`}
-                action={{ label: "Ver cronograma", onClick: () => onOpenCalendar() }}
-              />
+              <hr className="divider mt-[18px] mb-3.5" />
+              <div className="aluno-class-empty">
+                <p className="aluno-class-empty-tx">
+                  <BookOpen className="h-4 w-4 shrink-0" aria-hidden />
+                  <span>Nenhuma disciplina com prova ainda.</span>
+                </p>
+                <button className="link min-h-6" onClick={() => onOpenCalendar()} type="button">
+                  Ver cronograma
+                  <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
+                </button>
+              </div>
             </>
           )}
         </>

@@ -26,18 +26,41 @@ const allKinds: GradeImportRowKind[] = [
 /** Linhas que ficam de fora (o "rejected" dos totais). */
 export const rejectedKinds: GradeImportRowKind[] = ["invalid", "no_match", "not_enrolled", "duplicate"];
 
+/**
+ * Categorias da prévia: as da API e "no_identifier", a linha sem e-mail ou matrícula. A API classifica essa linha
+ * como "invalid"; a tela separa, para o chip, a etiqueta e o relatório dizerem a mesma coisa ("Sem identificação").
+ */
+export type ImportKind = GradeImportRowKind | "no_identifier";
+
+export type ImportCounts = Record<ImportKind, number>;
+
+/** A linha não traz e-mail nem matrícula (a API manda como "invalid", sem identificador). */
+export function isWithoutIdentifier(row: GradeImportRow) {
+  return row.kind === "invalid" && !row.identifier;
+}
+
+/** Categoria da linha na prévia (a linha sem identificação sai da "invalid"). */
+export function rowKind(row: GradeImportRow): ImportKind {
+  return isWithoutIdentifier(row) ? "no_identifier" : row.kind;
+}
+
 /** Contagem de cada classificação: o breakdown do rascunho ou, sem ele, a conta das linhas. */
-export function importKindCounts(draft: GradeImport): Record<GradeImportRowKind, number> {
-  const counts = Object.fromEntries(allKinds.map((kind) => [kind, 0])) as Record<GradeImportRowKind, number>;
+export function importKindCounts(draft: GradeImport): ImportCounts {
+  const counts = Object.fromEntries([...allKinds, "no_identifier"].map((kind) => [kind, 0])) as ImportCounts;
   if (draft.breakdown) {
     for (const kind of allKinds) {
       counts[kind] = draft.breakdown[kind] ?? 0;
     }
+    // a linha sem identificação vem dentro de "invalid" no breakdown: passa para a categoria dela
+    const withoutId = (draft.rows ?? []).filter(isWithoutIdentifier).length;
+    const moved = Math.min(withoutId, counts.invalid);
+    counts.invalid -= moved;
+    counts.no_identifier = moved;
     return counts;
   }
   if (draft.rows?.length) {
     for (const row of draft.rows) {
-      counts[row.kind] += 1;
+      counts[rowKind(row)] += 1;
     }
     return counts;
   }
@@ -51,17 +74,23 @@ export function importKindCounts(draft: GradeImport): Record<GradeImportRowKind,
 }
 
 /** Quantas notas o Aplicar grava: novas, alteradas e, se a docente escolheu substituir, as mudadas na Agenda. */
-export function importableCount(counts: Record<GradeImportRowKind, number>, keepAgenda: boolean) {
+export function importableCount(counts: ImportCounts, keepAgenda: boolean) {
   return counts.new + counts.changed + (keepAgenda ? 0 : counts.newer_in_agenda);
+}
+
+/** Linhas que ficam de fora, somando todas as categorias. */
+export function rejectedCount(counts: ImportCounts) {
+  return counts.no_identifier + counts.no_match + counts.not_enrolled + counts.invalid + counts.duplicate;
 }
 
 type ChipTone = "new" | "chg" | "same" | "bad";
 
-const chips: Array<{ kind: GradeImportRowKind; tone: ChipTone; one: string; many: string }> = [
+const chips: Array<{ kind: ImportKind; tone: ChipTone; one: string; many: string }> = [
   { kind: "new", tone: "new", one: "nova", many: "novas" },
   { kind: "changed", tone: "chg", one: "alterada", many: "alteradas" },
   { kind: "newer_in_agenda", tone: "chg", one: "mudou na Agenda", many: "mudaram na Agenda" },
   { kind: "same", tone: "same", one: "igual", many: "iguais" },
+  { kind: "no_identifier", tone: "bad", one: "sem identificação", many: "sem identificação" },
   { kind: "no_match", tone: "bad", one: "sem aluno", many: "sem aluno" },
   { kind: "not_enrolled", tone: "bad", one: "fora da turma", many: "fora da turma" },
   { kind: "invalid", tone: "bad", one: "nota inválida", many: "notas inválidas" },
@@ -69,7 +98,7 @@ const chips: Array<{ kind: GradeImportRowKind; tone: ChipTone; one: string; many
 ];
 
 /** Chips dos totais: "18 novas", "2 alteradas", "1 sem aluno", "1 nota inválida". */
-export function ImportTotals({ counts }: { counts: Record<GradeImportRowKind, number> }) {
+export function ImportTotals({ counts }: { counts: ImportCounts }) {
   const visible = chips.filter((chip) => counts[chip.kind] > 0);
   if (!visible.length) {
     return null;
@@ -85,9 +114,20 @@ export function ImportTotals({ counts }: { counts: Record<GradeImportRowKind, nu
   );
 }
 
-/** Situação da linha no relatório e na etiqueta ("Sem aluno", "Nota inválida"). */
+/** Situação da linha no relatório e na etiqueta ("Sem identificação", "Sem aluno", "Nota inválida"). */
 export function rowKindLabel(row: GradeImportRow) {
-  return gradeImportKindLabels[row.kind] ?? row.kind;
+  return isWithoutIdentifier(row) ? "Sem identificação" : (gradeImportKindLabels[row.kind] ?? row.kind);
+}
+
+/**
+ * Motivo da linha no relatório: a frase da API, menos a do aluno fora da turma, que a API escreve no masculino
+ * ("O aluno não está ativo"); aqui ela sai neutra, como o título da prévia.
+ */
+export function rowReason(row: GradeImportRow) {
+  if (row.kind === "not_enrolled") {
+    return "Não está com matrícula ativa na turma (pedido pendente, matrícula inativa ou concluída).";
+  }
+  return row.message ?? "";
 }
 
 /** Valor anterior da linha: a nota da Agenda, "Falta" ou "Dispensa". */
@@ -127,7 +167,7 @@ function rejectedTitle(row: GradeImportRow, by: IdentifierType, maxScore: number
       : `${row.identifier} não está na turma`;
   }
   if (row.kind === "not_enrolled") {
-    return `${who} não está ativo na turma`;
+    return `${who} não está com matrícula ativa na turma`;
   }
   if (row.kind === "duplicate") {
     return `${who} aparece mais de uma vez`;
@@ -170,7 +210,7 @@ function RejectedRow({
   ]
     .filter(Boolean)
     .join(", ");
-  const tag = row.kind === "invalid" && !row.identifier ? "Sem identificação" : rowKindLabel(row);
+  const tag = rowKindLabel(row);
   return (
     <li>
       <span className="notas-docente-r-ico">

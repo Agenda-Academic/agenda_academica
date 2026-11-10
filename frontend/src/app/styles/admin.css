@@ -61,6 +61,8 @@
 .admin-turmas {
   overflow: hidden;
 }
+/* o mesmo recuo do .pad (24 px) em qualquer largura: o título e o botão ficam alinhados com os do card
+   Disciplinas e com os dos outros cards do app, também em 390 px */
 .admin-card-head {
   display: flex;
   padding: 24px 24px 18px;
@@ -101,14 +103,6 @@
   }
   .admin-seg .seg button {
     flex: 1 1 auto;
-  }
-}
-@container (max-width: 420px) {
-  .admin-card-head {
-    padding: 20px 18px 14px;
-  }
-  .admin-filters {
-    padding: 0 18px 16px;
   }
 }
 .admin-rows-pad {

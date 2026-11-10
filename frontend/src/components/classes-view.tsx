@@ -406,6 +406,19 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
   const { savedRow, reveal } = useRowReveal();
   useToastRoom(open, contentRef);
 
+  // Excluiu a turma ou a disciplina (api.removed): a tela recarrega só depois que o painel fechou. Fechado, o
+  // conteúdo dele já parou de acompanhar o que saiu (a turma, os alunos e os convites dela) e nada disso é pedido
+  // de novo à API, o que daria 404
+  const refreshWhenClosed = useRef(false);
+  useEffect(() => {
+    if (open || !refreshWhenClosed.current) {
+      return;
+    }
+    refreshWhenClosed.current = false;
+    void refreshRemotes("admin:");
+    void reloadPage();
+  }, [open, reloadPage]);
+
   // pedido de fora (endereço, card Pendências, aviso): abre a turma e, nela, o aluno
   const [handledKey, setHandledKey] = useState<number | null>(null);
   if (target && target.key !== handledKey) {
@@ -638,6 +651,7 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
     close: closeNow,
     cancel: () => requestClose(),
     removed: (kind) => {
+      refreshWhenClosed.current = true;
       closeNow();
       const id = top?.view.kind === "class" ? top.view.classId : top?.view.kind === "subject" ? top.view.subjectId : null;
       focusAfterRemoval(`${kind}-${id ?? ""}`);

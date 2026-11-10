@@ -476,33 +476,109 @@ function findConflicts({
   return lines;
 }
 
+/** Fim da área visível do corpo do painel: a borda de baixo dele ou o topo do rodapé, o que vier antes. */
+function visibleBottom(body: HTMLElement) {
+  const bottom = body.getBoundingClientRect().bottom;
+  const foot = body.parentElement?.querySelector<HTMLElement>(".drawer-foot");
+  return foot ? Math.min(bottom, foot.getBoundingClientRect().top) : bottom;
+}
+
+/**
+ * Rola o corpo do painel para o campo (rótulo, opções e a frase de erro abaixo) ficar inteiro na área visível,
+ * acima do rodapé: com o resumo junto quando cabem; senão, o campo a partir do rótulo.
+ */
+function scrollFieldIntoView(body: HTMLElement, box: HTMLElement, summary: HTMLElement | null) {
+  const viewTop = body.getBoundingClientRect().top;
+  const viewBottom = visibleBottom(body);
+  const boxRect = box.getBoundingClientRect();
+  const summaryTop = summary?.isConnected ? summary.getBoundingClientRect().top : boxRect.top;
+  const fromTop = boxRect.bottom - summaryTop + 20 <= viewBottom - viewTop ? summaryTop : boxRect.top;
+  // já à vista: do resumo (ou do rótulo) até a frase de erro, com folga para a borda do rodapé
+  if (fromTop - 8 >= viewTop && boxRect.bottom + 12 <= viewBottom) {
+    return;
+  }
+  const target = body.scrollTop + (fromTop - viewTop) - 20;
+  body.scrollTo({ top: Math.max(0, target) });
+}
+
+/** Para de segurar o campo do último revealField (um campo novo com erro troca o anterior). */
+let stopHoldingField: (() => void) | null = null;
+
 /**
  * Leva o foco ao campo com erro sem esconder o resumo: rola o corpo do painel para mostrar
- * o resumo e o campo juntos quando cabem; senão, o campo com o rótulo.
+ * o resumo e o campo juntos quando cabem; senão, o campo com o rótulo. O campo e a frase de erro
+ * ficam inteiros acima do rodapé.
+ *
+ * Por alguns segundos o painel segura o campo à vista: o aviso das notas lançadas (que chega depois
+ * do 409 HAS_GRADES) e a frase do rodapé entram acima ou abaixo dele e o empurrariam para trás do
+ * rodapé. Para de segurar quando a pessoa rola, toca ou leva o foco para fora do campo.
  */
 function revealField(field: HTMLElement | null | undefined, summary: HTMLElement | null) {
   if (!field) {
     return;
   }
+  stopHoldingField?.();
+  stopHoldingField = null;
   field.focus({ preventScroll: true });
-  // no quadro seguinte o resumo já está na tela
-  window.requestAnimationFrame(() => {
-    const body = field.closest<HTMLElement>(".drawer-body");
-    const box = field.closest<HTMLElement>("[data-field]") ?? field;
-    if (!body) {
-      box.scrollIntoView({ block: "nearest" });
-      return;
+  const body = field.closest<HTMLElement>(".drawer-body");
+  const box = field.closest<HTMLElement>("[data-field]") ?? field;
+  if (!body) {
+    window.requestAnimationFrame(() => box.scrollIntoView({ block: "nearest" }));
+    return;
+  }
+
+  let frame = 0;
+  let timer = 0;
+  const place = () => {
+    window.cancelAnimationFrame(frame);
+    // no quadro seguinte o resumo e a frase de erro já estão na tela
+    frame = window.requestAnimationFrame(() => {
+      if (box.isConnected) {
+        scrollFieldIntoView(body, box, summary);
+      }
+    });
+  };
+  place();
+
+  // o corpo (muda quando o rodapé cresce), o conteúdo dele (um aviso que entra acima do campo) e o rodapé
+  const watcher = typeof ResizeObserver !== "undefined" ? new ResizeObserver(place) : null;
+  watcher?.observe(body);
+  for (const child of Array.from(body.children)) {
+    watcher?.observe(child);
+  }
+  const foot = body.parentElement?.querySelector<HTMLElement>(".drawer-foot");
+  if (foot) {
+    watcher?.observe(foot);
+  }
+  const stop = () => {
+    watcher?.disconnect();
+    window.cancelAnimationFrame(frame);
+    window.clearTimeout(timer);
+    body.removeEventListener("wheel", stop);
+    body.removeEventListener("touchstart", stop);
+    body.removeEventListener("pointerdown", onPointer);
+    box.removeEventListener("focusout", onFocusOut);
+    if (stopHoldingField === stop) {
+      stopHoldingField = null;
     }
-    const origin = body.getBoundingClientRect().top - body.scrollTop;
-    const boxTop = box.getBoundingClientRect().top - origin;
-    const boxBottom = box.getBoundingClientRect().bottom - origin;
-    const summaryTop = summary ? summary.getBoundingClientRect().top - origin : boxTop;
-    const fromTop = boxBottom - summaryTop + 20 <= body.clientHeight ? summaryTop : boxTop;
-    if (fromTop - 8 >= body.scrollTop && boxBottom <= body.scrollTop + body.clientHeight) {
-      return;
+  };
+  // clicar numa opção do próprio campo não para: a frase de erro some ou muda e o campo segue à vista
+  const onPointer = (event: PointerEvent) => {
+    if (!(event.target instanceof Node) || !box.contains(event.target)) {
+      stop();
     }
-    body.scrollTo({ top: Math.max(0, fromTop - 20) });
-  });
+  };
+  const onFocusOut = (event: FocusEvent) => {
+    if (!(event.relatedTarget instanceof Node) || !box.contains(event.relatedTarget)) {
+      stop();
+    }
+  };
+  timer = window.setTimeout(stop, 5000);
+  body.addEventListener("wheel", stop, { passive: true });
+  body.addEventListener("touchstart", stop, { passive: true });
+  body.addEventListener("pointerdown", onPointer);
+  box.addEventListener("focusout", onFocusOut);
+  stopHoldingField = stop;
 }
 
 /** Roda `run` quando nenhum diálogo estiver por cima do painel (ex.: a confirmação de cancelar). Devolve como desistir. */
@@ -987,10 +1063,14 @@ export function EventEditor({
   // uma nota lançada depois de o painel abrir, por exemplo) busca as notas de novo
   const [failSeen, setFailSeen] = useState(saveFailed);
   const [gradeAttempt, setGradeAttempt] = useState(0);
+  // a aba Notas também busca de novo (contagem da aba, lista e "N com nota"), para não contradizer a aba Dados.
+  // Contador próprio: o gradeAttempt sobe também com as mudanças feitas na própria aba Notas, que já está em dia
+  const [gradesReload, setGradesReload] = useState(0);
   if (failSeen !== saveFailed) {
     setFailSeen(saveFailed);
     if (saveFailed) {
       setGradeAttempt((value) => value + 1);
+      setGradesReload((value) => value + 1);
     }
   }
   // a frase da API voltou num campo de turma, disciplina ou categoria (409 HAS_GRADES): as notas são buscadas de novo
@@ -1000,6 +1080,7 @@ export function EventEditor({
     setGradeServerSeen(gradeServerKey);
     if (gradeServerKey.replace(/\|/g, "")) {
       setGradeAttempt((value) => value + 1);
+      setGradesReload((value) => value + 1);
     }
   }
   // nota lançada, apagada ou importada na aba Notas: as regras da aba Dados (turma, categoria, pontuação) acompanham
@@ -1439,6 +1520,7 @@ export function EventEditor({
                 onChanged={() => void actions?.reload()}
                 onClose={onClose}
                 onState={setGradesState}
+                reloadKey={gradesReload}
               />
             </div>
           ) : null}

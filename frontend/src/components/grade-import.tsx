@@ -36,7 +36,15 @@ import type {
   GradeImportSource,
 } from "@/lib/types";
 import { useAppActions } from "./app-actions";
-import { GradeImportPreview, importKindCounts, importableCount, rejectedKinds, rowKindLabel } from "./grade-import-preview";
+import {
+  GradeImportPreview,
+  importKindCounts,
+  importableCount,
+  rejectedCount,
+  rejectedKinds,
+  rowKindLabel,
+  rowReason,
+} from "./grade-import-preview";
 import { Field, Segmented, SegmentedButton, primaryButton, secondaryButton } from "./ui";
 
 /**
@@ -392,7 +400,7 @@ export function useGradeImport({
   function downloadRejected() {
     if (!draft?.rows || !info) return;
     const rows = draft.rows.filter((row) => rejectedKinds.includes(row.kind));
-    downloadCsv(`rejeitadas-${fileSlug(info.title)}.csv`, rejectedCsv(rows, rowKindLabel));
+    downloadCsv(`rejeitadas-${fileSlug(info.title)}.csv`, rejectedCsv(rows, rowKindLabel, rowReason));
   }
 
   /** Botão principal do rodapé: Continuar, Ver prévia, Importar N notas ou, sem nada para importar, Escolher outro arquivo. */
@@ -904,11 +912,11 @@ export function GradeImportBody({ flow, headingRef }: { flow: GradeImportFlow; h
   );
 }
 
-/** Por que a prévia não tem nada para importar (fica ao lado do botão "Escolher outro arquivo"). */
+/** Por que a prévia não tem nada para importar (fica acima do botão "Escolher outro arquivo"). */
 function nothingToImportText(flow: GradeImportFlow) {
   const counts = flow.counts;
   if (!counts) return "Nada para importar. Escolha outro arquivo.";
-  const rejected = counts.no_match + counts.not_enrolled + counts.invalid + counts.duplicate;
+  const rejected = rejectedCount(counts);
   if (counts.newer_in_agenda && flow.keepAgenda) {
     return "Nada para importar: você manteve as notas da Agenda. Para trocar por estas, escolha Substituir pelas do arquivo.";
   }
@@ -922,7 +930,7 @@ function nothingToImportText(flow: GradeImportFlow) {
 export function GradeImportFooter({ flow }: { flow: GradeImportFlow }) {
   const { applying, busy, importCount, sending, step } = flow;
   const hintId = useId();
-  // prévia sem nada para importar: o botão diz o que fazer, e a razão fica ao lado dele
+  // prévia sem nada para importar: o botão diz o que fazer, e a razão fica acima dele
   const nothing = step === "preview" && Boolean(flow.draft) && importCount === 0;
   let label = "Continuar";
   let hint = "Só CSV por enquanto";
@@ -944,11 +952,19 @@ export function GradeImportFooter({ flow }: { flow: GradeImportFlow }) {
   const disabled = Boolean(flow.blocked) || (step === "preview" && !nothing && !flow.draft?.canApply);
   return (
     <>
-      <p className="mr-auto basis-full text-[13px] leading-5 text-muted sm:basis-auto sm:max-w-[16rem]" id={hintId}>
+      {/* o motivo de "nada para importar" é longo: fica numa linha só dele, acima dos botões, e os botões seguem à
+          direita como no rodapé normal (Voltar e, na ponta, o principal) */}
+      <p
+        className={cx(
+          "mr-auto basis-full text-[13px] leading-5 text-muted",
+          !nothing && "sm:basis-auto sm:max-w-[16rem]"
+        )}
+        id={hintId}
+      >
         {hint}
       </p>
       <button
-        className={cx(secondaryButton, "aria-disabled:opacity-55")}
+        className={cx(secondaryButton, "aria-disabled:opacity-55", nothing && "sm:ml-auto")}
         aria-disabled={busy || undefined}
         onClick={flow.back}
         type="button"

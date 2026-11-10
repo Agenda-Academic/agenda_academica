@@ -218,6 +218,27 @@
   line-height: 1.5;
 }
 
+/* turma sem disciplina ainda: uma linha e o "Ver cronograma", no lugar da lista. Na coluna de 360 px o link
+   desce para a linha de baixo; com largura (celular e tablet, o card na largura toda) fica ao lado do texto */
+.aluno-class-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+}
+.aluno-class-empty-tx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.aluno-class-empty-tx svg {
+  color: var(--brand);
+}
+
 /* com três cards de apoio (lembretes, últimas notas e categorias), a linha do tempo ocupa as três
    linhas da coluna de apoio: as duas colunas começam e terminam juntas */
 @media (min-width: 1200px) {

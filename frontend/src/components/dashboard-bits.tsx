@@ -559,7 +559,8 @@ export function InsightTile({
       <div className="kpi-top">
         <p className="kpi-label">
           {onClick ? (
-            <button className="kpi-hit" aria-label={name} onClick={onClick} type="button">
+            // alvo de no mínimo 24 px de altura (o rótulo tem 18 px); centrado ao lado do ícone, o texto não sai do lugar
+            <button className="kpi-hit inline-flex min-h-6 items-center" aria-label={name} onClick={onClick} type="button">
               {label}
             </button>
           ) : (
@@ -863,8 +864,10 @@ export function NextEventHero({
   onEmptyAction?: { label: string; onClick: () => void };
 }) {
   if (!event) {
+    // vazio esticado pelo card ao lado (Painel do aluno, junto da turma): o texto fica no alto, sem flutuar no
+    // meio de um vão
     return (
-      <section className="hero h-full" aria-label={kicker}>
+      <section className="hero h-full items-start content-start" aria-label={kicker}>
         <div className="hero-body">
           <p className="eyebrow text-brand">{kicker}</p>
           <h2 className="hero-title">{emptyTitle}</h2>

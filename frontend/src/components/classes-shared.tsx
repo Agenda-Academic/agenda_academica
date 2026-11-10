@@ -58,8 +58,9 @@ export type PanelApi = {
   /** Cancelar do rodapé: fecha o painel, perguntando antes se há rascunho (como o X e o Esc). */
   cancel: () => void;
   /**
-   * Excluiu a turma ou a disciplina: fecha o painel e, quando a linha sai da lista, o foco vai para "Nova
-   * turma" ou "Nova disciplina" (não cai no body).
+   * Excluiu a turma ou a disciplina: fecha o painel e, depois de fechado, recarrega a tela (as listas e o
+   * catálogo), sem pedir de novo o que foi excluído. Não chame `changed` antes. Quando a linha sai da lista, o
+   * foco vai para "Nova turma" ou "Nova disciplina" (não cai no body).
    */
   removed: (kind: "class" | "subject") => void;
   /** Troca este conteúdo por outro, sem Voltar para ele (ex.: depois de restaurar a turma arquivada). */
@@ -232,10 +233,10 @@ export function useRemote<T>(key: string | null, load: () => Promise<T>): Remote
   };
 }
 
-/** Esquece o guardado de uma chave (ex.: depois de excluir). */
+/** Esquece o guardado de uma chave e das que saem dela (ex.: "admin:turma:1" e "admin:turma:1:alunos", não a 12). */
 export function forgetRemote(prefix: string) {
   for (const key of Array.from(remoteCache.keys())) {
-    if (key.startsWith(prefix)) {
+    if (key === prefix || key.startsWith(`${prefix}:`)) {
       remoteCache.delete(key);
     }
   }
