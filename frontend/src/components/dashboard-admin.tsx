@@ -85,8 +85,6 @@ export function AdminDashboard({
 }) {
   // referência de "agora" fixada na montagem (render precisa ser puro)
   const [now] = useState(() => Date.now());
-  // o card Pendências chega depois (busca própria): a altura dele entra na conta das colunas
-  const [pendingLayout, setPendingLayout] = useState("");
   const { rootRef, savedId } = useSavedReveal<HTMLDivElement>(lastSavedId, savedTick, upcomingEvents);
   const classes = context?.catalog.classes ?? [];
   const subjects = context?.catalog.subjects ?? [];
@@ -144,7 +142,9 @@ export function AdminDashboard({
 
   // colunas do Figma: datas oficiais e turmas na larga, importações e distribuição na de apoio. As
   // duas terminam juntas: "Próximas datas oficiais" e "Importações recentes" mostram mais itens
-  // enquanto a coluna delas for a mais baixa, e o card de baixo de cada uma guarda a sobra
+  // enquanto a coluna delas for a mais baixa, e o card de baixo de cada uma guarda a sobra. O card
+  // Pendências fica na largura toda, acima das colunas: a altura dele muda muito (de "Tudo em dia" a
+  // "Ver todos") e, numa coluna só, deixava a outra com um buraco grande no fim
   const { gridRef, mainGapRef, sideGapRef, mainCount, sideCount } = useColumnFill(
     { total: officialDates.length, min: 3, max: 8 },
     { total: imports.length, min: 3, max: 6 },
@@ -157,12 +157,11 @@ export function AdminDashboard({
       classes.map((academicClass) => `${academicClass.id}:${upcomingByClass(academicClass.id)}`).join(","),
       categoryCounts.map((item) => item.count).join(","),
       campusEvents,
-      pendingLayout,
     ].join("|")
   );
 
   return (
-    <div ref={rootRef} className="grid gap-5">
+    <div ref={rootRef} className="admin-dash grid gap-5">
       {avisos?.length ? (
         <AvisosCard avisos={avisos} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
       ) : null}
@@ -260,6 +259,11 @@ export function AdminDashboard({
         <InsightTile icon={BookOpen} label="Disciplinas ativas" order={5} value={String(subjects.length)} tone="c-ativ" hint="no catálogo" />
       </div>
 
+      {/* Pendências na largura toda, com os itens em duas colunas no computador */}
+      <div className="admin-pend-wide">
+        <AdminPendingCard order={6} />
+      </div>
+
       {/* Colunas do Figma (png 13): começam e terminam juntas, sem rolagem por dentro (useColumnFill) */}
       <div ref={gridRef} className="duo">
         <div className="duo-col duo-main">
@@ -329,8 +333,6 @@ export function AdminDashboard({
         </div>
 
         <div className="duo-col duo-side">
-          <AdminPendingCard order={7} onLayoutChange={setPendingLayout} />
-
           <section className="card pad rise" style={delay(7)} aria-label="Importações recentes">
             <SectionTitle
               title="Importações recentes"

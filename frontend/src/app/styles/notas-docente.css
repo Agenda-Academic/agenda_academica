@@ -38,6 +38,29 @@
   justify-content: space-between;
   gap: 8px 12px;
 }
+/* abas "Dados do evento" e "Notas" do painel de uma prova ou trabalho (amostra docente-notas-evento) */
+.notas-docente-tabs {
+  margin-bottom: 20px;
+}
+.notas-docente-tabs .n {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+}
+/* rodapé do painel com as notas (Fechar, Voltar e os botões da importação): como o .drawer-foot, e no celular
+   os botões dividem a largura */
+.notas-docente-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+@media (max-width: 639px) {
+  .notas-docente-foot > .btn {
+    flex: 1 1 auto;
+  }
+}
 .notas-docente-help {
   margin-top: 6px;
   font-size: 13px;
@@ -286,8 +309,15 @@
   border: 1px solid var(--line-2);
   background: var(--surface-2);
 }
-.notas-docente-file > .min-w-0 {
-  flex: 1 1 200px;
+/* nome e detalhes do arquivo: com pouco espaço (celular), o botão ao lado desce para a linha de baixo e o nome
+   fica com a largura toda, sem quebrar no meio */
+.notas-docente-file-main {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.notas-docente-file-act {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 .notas-docente-file-t {
   font-size: 14px;
@@ -314,9 +344,6 @@
   transition:
     border-color 0.16s ease,
     background-color 0.16s ease;
-}
-.notas-docente-drop > .min-w-0 {
-  flex: 1 1 200px;
 }
 .notas-docente-drop.is-over {
   border-color: var(--brand);
@@ -479,6 +506,18 @@
 .notas-docente-card-head > .min-w-0 {
   flex: 1 1 260px;
 }
+/* a avaliação pedida pelo link aparece mesmo escondida pela busca do menu: o aviso e "Limpar busca" */
+.notas-docente-busca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 0 24px 16px;
+}
+.notas-docente-busca > .callout {
+  flex: 1 1 260px;
+  min-width: 0;
+}
 .notas-docente-evs {
   border-top: 1px solid var(--line);
 }
@@ -561,5 +600,8 @@
   }
   .notas-docente-more {
     padding: 12px 16px 16px;
+  }
+  .notas-docente-busca {
+    padding: 0 16px 14px;
   }
 }

@@ -4,17 +4,28 @@ import { ArrowRight, Check, CircleAlert, Clock, Copy, Info, KeyRound, Loader2, S
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   cancelMyGuardianCode,
+  conflictOf,
   createMyGuardianCode,
   getMyGuardians,
   restoreGuardianLink,
   revokeGuardianLink,
   updateMyGuardianLink,
 } from "@/lib/api";
-import { cx, errorMessage, firstName, formatDateBR, formatShortDate, linkSinceText, linkStatusText, relationshipText } from "@/lib/format";
+import {
+  cx,
+  errorMessage,
+  firstName,
+  formatDateBR,
+  formatShortDate,
+  formatTime,
+  linkSinceText,
+  linkStatusText,
+  relationshipText,
+} from "@/lib/format";
 import type { GuardianCodeCreated, GuardianCodeInfo, GuardianLink, MyGuardians, User } from "@/lib/types";
 import { useAppActions } from "./app-actions";
-import { GuardianDataDialog } from "./guardian-data-dialog";
-import { EmptyState } from "./ui";
+import { GuardianDataView } from "./guardian-data-dialog";
+import { EmptyState, isOnTopLayer } from "./ui";
 
 /**
  * Seção "Quem acompanha minha agenda" do perfil do aluno (desenho 5.5, amostra aluno-quem-acompanha), dentro do
@@ -22,7 +33,8 @@ import { EmptyState } from "./ui";
  * Copiar, "Entregue só a quem você quer que acompanhe sua agenda"); "Remover" quando canRemove (direto, com
  * toast e Desfazer: revokeGuardianLink e restoreGuardianLink); chave "Compartilhar minhas notas" quando
  * canShareGrades; aluno menor: "A secretaria confirma antes de liberar"; vínculo com needsReview (o aluno
- * deixou de ser menor): Confirmar ou Remover. Dona: área Aluno.
+ * deixou de ser menor): Confirmar ou Remover. "Quais dados o responsável vê" troca o conteúdo da seção, com
+ * Voltar (o perfil já é um diálogo: nunca diálogo sobre diálogo). Dona: área Aluno.
  */
 export type ProfileGuardiansProps = {
   user: User;
@@ -34,6 +46,42 @@ const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
 /** Vínculo que ainda conta no limite de 4 (ativo ou pendente). */
 function isOpenLink(link: GuardianLink) {
   return link.status === "active" || link.status === "pending";
+}
+
+/**
+ * Quando o código foi gerado, para cada linha da lista ser diferente: "10/11/2026 às 09:27"; com os segundos se
+ * outro código é do mesmo minuto e, se ainda assim empatar, com a posição na lista ("código 2").
+ */
+function generatedAt(code: GuardianCodeInfo, codes: GuardianCodeInfo[]) {
+  const byMinute = (value: string) => `${formatDateBR(value)} às ${formatTime(value)}`;
+  const bySecond = (value: string) =>
+    `${formatDateBR(value)} às ${new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+  const minute = byMinute(code.createdAt);
+  if (!codes.some((other) => other.id !== code.id && byMinute(other.createdAt) === minute)) {
+    return minute;
+  }
+  const second = bySecond(code.createdAt);
+  if (!codes.some((other) => other.id !== code.id && bySecond(other.createdAt) === second)) {
+    return second;
+  }
+  return `${second}, código ${codes.findIndex((other) => other.id === code.id) + 1}`;
+}
+
+/** Foco no alvo assim que ele estiver na camada de cima (a confirmação fechou), por até uns 3 segundos. */
+function focusWhenOnTop(getTarget: () => HTMLElement | null) {
+  let tries = 0;
+  const step = () => {
+    const target = getTarget();
+    if (target && isOnTopLayer(target)) {
+      target.focus();
+      return;
+    }
+    tries += 1;
+    if (tries < 180) {
+      window.requestAnimationFrame(step);
+    }
+  };
+  window.requestAnimationFrame(step);
 }
 
 /** "K7QM-3XPD" lido caractere por caractere: "K 7 Q M, 3 X P D". */
@@ -59,6 +107,10 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
   const [announce, setAnnounce] = useState("");
   const [dataOpen, setDataOpen] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const generateRef = useRef<HTMLButtonElement>(null);
+  // "Quais dados o responsável vê": o Voltar devolve o foco a este link
+  const dataLinkRef = useRef<HTMLButtonElement>(null);
+  const focusDataLink = useRef(false);
   const copyRef = useRef<HTMLButtonElement>(null);
   const codeRef = useRef<HTMLElement>(null);
   const focusHeadingOnLoad = useRef(false);
@@ -104,6 +156,19 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
     }
   }, [created]);
 
+  // voltou de "Quais dados o responsável vê": o foco volta ao link que abriu
+  useEffect(() => {
+    if (!dataOpen && focusDataLink.current) {
+      focusDataLink.current = false;
+      dataLinkRef.current?.focus();
+    }
+  }, [dataOpen]);
+
+  function closeData() {
+    focusDataLink.current = true;
+    setDataOpen(false);
+  }
+
   // "Copiado" volta a "Copiar" depois de alguns segundos
   useEffect(() => {
     if (!copied) {
@@ -125,7 +190,10 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
   /** Lista atualizada depois de uma ação (sem esqueleto: a lista de agora fica até a nova chegar). */
   async function refresh() {
     try {
-      setData(await getMyGuardians(token));
+      const result = await getMyGuardians(token);
+      setData(result);
+      // o código do quadro saiu da lista (usado ou vencido): o quadro sai junto, sem "Cancelar código"
+      setCreated((current) => (current && !result.codes.some((code) => code.id === current.id) ? null : current));
     } catch {
       // a ação já deu certo; a lista se acerta na próxima abertura do perfil
     }
@@ -290,11 +358,19 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
           setGenerateError(null);
           toast(result.message || "Código cancelado.", { key: `codigo-${code.id}` });
         } catch (error) {
-          // já usado: 409 CODE_USED (o responsável novo aparece na lista)
+          if (conflictOf(error, "CODE_USED")) {
+            // já usado: o quadro do código sai (não dá mais para cancelar) e o responsável novo entra na lista
+            setCreated((current) => (current?.id === code.id ? null : current));
+            setCopied(false);
+            void reload();
+          }
           showError(error, `codigo-${code.id}`);
         } finally {
           setBusy(null);
           await refresh();
+          // o botão que abriu a confirmação saiu da tela: o foco vai para "Gerar código" (ou o título da seção)
+          // quando a confirmação fechar, nunca para o começo do perfil
+          focusWhenOnTop(() => generateRef.current ?? headingRef.current);
         }
       },
     });
@@ -444,140 +520,147 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
       <h3 ref={headingRef} id={titleId} className="aluno-sec-t" tabIndex={-1}>
         Quem acompanha minha agenda
       </h3>
-      <p className="aluno-sec-s">
-        Quem você autoriza vê a agenda da turma e as datas do campus, nunca os seus lembretes. O que você muda aqui vale
-        na hora.
-        {isMinor ? " Como você é menor de idade, a secretaria confirma cada vínculo antes de liberar." : null}
-      </p>
-      <button className="link aluno-sec-link" onClick={() => setDataOpen(true)} type="button">
-        Quais dados o responsável vê
-        <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
-      </button>
-
-      {toReview.length ? (
-        <div className="callout amber mt-3.5">
-          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <p className="min-w-0">
-            <b>Confira cada vínculo.</b> A secretaria atualizou seu cadastro e você não é mais menor de idade. Confirme
-            quem continua acompanhando sua agenda ou remova. Até você decidir, ninguém vê suas notas.
-          </p>
-        </div>
-      ) : null}
-
-      {body}
-
-      {data ? (
+      {dataOpen ? (
+        // o perfil já é um diálogo: o texto entra no lugar da seção, com Voltar (o código gerado volta junto)
+        <GuardianDataView className="mt-3.5" level={4} onBack={closeData} />
+      ) : (
         <>
-          <button
-            className={cx("btn btn-s aluno-gen", busyLook)}
-            aria-disabled={generating || Boolean(limitText) || undefined}
-            aria-busy={generating || undefined}
-            aria-describedby={
-              [generateError ? generateErrorId : null, limitText || isMinor ? generateHelpId : null].filter(Boolean).join(" ") ||
-              undefined
-            }
-            onClick={() => void generateCode()}
-            type="button"
-          >
-            {generating ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <KeyRound className="h-4 w-4" aria-hidden />}
-            {generating ? "Gerando código" : "Gerar código para responsável"}
+          <p className="aluno-sec-s">
+            Quem você autoriza vê a agenda da turma e as datas do campus, nunca os seus lembretes. O que você muda aqui vale
+            na hora.
+            {isMinor ? " Como você é menor de idade, a secretaria confirma cada vínculo antes de liberar." : null}
+          </p>
+          <button ref={dataLinkRef} className="link aluno-sec-link" onClick={() => setDataOpen(true)} type="button">
+            Quais dados o responsável vê
+            <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
           </button>
-          {generateError ? (
-            <p className="field-error" id={generateErrorId} role="alert">
-              <CircleAlert aria-hidden />
-              <span>{generateError}</span>
-            </p>
+
+          {toReview.length ? (
+            <div className="callout amber mt-3.5">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <p className="min-w-0">
+                <b>Confira cada vínculo.</b> A secretaria atualizou seu cadastro e você não é mais menor de idade. Confirme
+                quem continua acompanhando sua agenda ou remova. Até você decidir, ninguém vê suas notas.
+              </p>
+            </div>
           ) : null}
-          {limitText || isMinor ? (
-            <p className="field-help" id={generateHelpId}>
-              {limitText ?? "A secretaria confirma antes de liberar."}
-            </p>
+
+          {body}
+
+          {data ? (
+            <>
+              <button
+                ref={generateRef}
+                className={cx("btn btn-s aluno-gen", busyLook)}
+                aria-disabled={generating || Boolean(limitText) || undefined}
+                aria-busy={generating || undefined}
+                aria-describedby={
+                  [generateError ? generateErrorId : null, limitText || isMinor ? generateHelpId : null].filter(Boolean).join(" ") ||
+                  undefined
+                }
+                onClick={() => void generateCode()}
+                type="button"
+              >
+                {generating ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <KeyRound className="h-4 w-4" aria-hidden />}
+                {generating ? "Gerando código" : "Gerar código para responsável"}
+              </button>
+              {generateError ? (
+                <p className="field-error" id={generateErrorId} role="alert">
+                  <CircleAlert aria-hidden />
+                  <span>{generateError}</span>
+                </p>
+              ) : null}
+              {limitText || isMinor ? (
+                <p className="field-help" id={generateHelpId}>
+                  {limitText ?? "A secretaria confirma antes de liberar."}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+
+          {created ? (
+            <div className="aluno-codebox">
+              <div className="aluno-cb-top">
+                <b>Código para responsável</b>
+                <span>
+                  <Clock className="h-4 w-4" aria-hidden />
+                  vale até {formatShortDate(created.expiresAt)}
+                </span>
+              </div>
+              <div className="aluno-cb-code">
+                <code ref={codeRef} aria-hidden>
+                  {created.codeFormatted}
+                </code>
+                <span className="sr-only">Código: {spelled(created.codeFormatted)}</span>
+                <button ref={copyRef} className="btn btn-s btn-sm" onClick={() => void copyCode(created)} type="button">
+                  {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
+                  {copied ? "Copiado" : "Copiar"}
+                </button>
+              </div>
+              <p className="aluno-cb-note">Entregue só a quem você quer que acompanhe sua agenda. Vale uma vez só.</p>
+              {created.linkWillBePending ? (
+                <p className="aluno-cb-note aluno-cb-minor">
+                  <Info className="h-4 w-4 shrink-0" aria-hidden />A secretaria confirma antes de liberar.
+                </p>
+              ) : null}
+              <div className="aluno-cb-foot">
+                <span>O código aparece só agora. Depois, fica só o prazo.</span>
+                {createdCancelable ? (
+                  <button className="aluno-cb-cancel" onClick={() => cancelCode(created)} type="button">
+                    Cancelar código
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {otherCodes.length ? (
+            <div className="aluno-codes">
+              <p className="aluno-codes-t">
+                {otherCodes.length === 1 ? "Código ainda válido" : "Códigos ainda válidos"} ({codes.length} de {limits.maxCodes})
+              </p>
+              <ul className="aluno-codes-list">
+                {otherCodes.map((code) => {
+                  const when = `gerado em ${generatedAt(code, codes)}`;
+                  return (
+                    <li key={code.id} className="aluno-code-row">
+                      <span className="aluno-code-ico" aria-hidden>
+                        <KeyRound className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold text-ink">
+                          {code.kind === "admin" ? "Código da secretaria" : "Código gerado por você"}
+                        </span>
+                        <span className="block text-muted">
+                          {when.charAt(0).toUpperCase() + when.slice(1)}, vale até {formatShortDate(code.expiresAt)}
+                        </span>
+                      </span>
+                      {code.canCancel === false ? (
+                        <span className="aluno-code-note">Só a secretaria cancela</span>
+                      ) : (
+                        <button
+                          className={cx("btn btn-g btn-sm aluno-code-cancel", busyLook)}
+                          aria-disabled={busy === `cancelar-${code.id}` || undefined}
+                          aria-label={`Cancelar código ${when}`}
+                          onClick={() => cancelCode(code)}
+                          type="button"
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="field-help">O código não aparece de novo. Se ninguém usou, cancele e gere outro.</p>
+            </div>
           ) : null}
         </>
-      ) : null}
-
-      {created ? (
-        <div className="aluno-codebox">
-          <div className="aluno-cb-top">
-            <b>Código para responsável</b>
-            <span>
-              <Clock className="h-4 w-4" aria-hidden />
-              vale até {formatShortDate(created.expiresAt)}
-            </span>
-          </div>
-          <div className="aluno-cb-code">
-            <code ref={codeRef} aria-hidden>
-              {created.codeFormatted}
-            </code>
-            <span className="sr-only">Código: {spelled(created.codeFormatted)}</span>
-            <button ref={copyRef} className="btn btn-s btn-sm" onClick={() => void copyCode(created)} type="button">
-              {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
-              {copied ? "Copiado" : "Copiar"}
-            </button>
-          </div>
-          <p className="aluno-cb-note">Entregue só a quem você quer que acompanhe sua agenda. Vale uma vez só.</p>
-          {created.linkWillBePending ? (
-            <p className="aluno-cb-note aluno-cb-minor">
-              <Info className="h-4 w-4 shrink-0" aria-hidden />A secretaria confirma antes de liberar.
-            </p>
-          ) : null}
-          <div className="aluno-cb-foot">
-            <span>O código aparece só agora. Depois, fica só o prazo.</span>
-            {createdCancelable ? (
-              <button className="aluno-cb-cancel" onClick={() => cancelCode(created)} type="button">
-                Cancelar código
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {otherCodes.length ? (
-        <div className="aluno-codes">
-          <p className="aluno-codes-t">
-            {otherCodes.length === 1 ? "Código ainda válido" : "Códigos ainda válidos"} ({codes.length} de {limits.maxCodes})
-          </p>
-          <ul className="aluno-codes-list">
-            {otherCodes.map((code) => {
-              const when = `gerado em ${formatDateBR(code.createdAt)}`;
-              return (
-                <li key={code.id} className="aluno-code-row">
-                  <span className="aluno-code-ico" aria-hidden>
-                    <KeyRound className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-semibold text-ink">
-                      {code.kind === "admin" ? "Código da secretaria" : "Código gerado por você"}
-                    </span>
-                    <span className="block text-muted">
-                      {when.charAt(0).toUpperCase() + when.slice(1)}, vale até {formatShortDate(code.expiresAt)}
-                    </span>
-                  </span>
-                  {code.canCancel === false ? (
-                    <span className="aluno-code-note">Só a secretaria cancela</span>
-                  ) : (
-                    <button
-                      className={cx("btn btn-g btn-sm aluno-code-cancel", busyLook)}
-                      aria-disabled={busy === `cancelar-${code.id}` || undefined}
-                      aria-label={`Cancelar código ${when}`}
-                      onClick={() => cancelCode(code)}
-                      type="button"
-                    >
-                      Cancelar
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-          <p className="field-help">O código não aparece de novo. Se ninguém usou, cancele e gere outro.</p>
-        </div>
-      ) : null}
+      )}
 
       <p className="sr-only" role="status">
         {announce}
       </p>
-      <GuardianDataDialog open={dataOpen} onClose={() => setDataOpen(false)} />
     </section>
   );
 }

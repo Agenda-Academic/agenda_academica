@@ -1,8 +1,9 @@
 "use client";
 
-import { Ban, Check, CircleAlert, KeyRound, Link2, ShieldBan, Undo2, UserCheck, UserMinus, UserPlus } from "lucide-react";
+import { Ban, Check, CircleAlert, Info, KeyRound, Link2, ShieldBan, Undo2, UserCheck, UserMinus, UserPlus, X } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import {
+  ApiError,
   approveGuardianLink,
   blockGuardianLink,
   cancelStudentGuardianCode,
@@ -26,6 +27,7 @@ import {
   fieldErrors,
   firstName,
   formatDateBR,
+  isIntegratedCourse,
   linkOriginText,
   linkStatusText,
   relationshipText,
@@ -42,8 +44,19 @@ import type {
 } from "@/lib/types";
 import { useAppActions } from "./app-actions";
 import { PanelSubtitle, type PanelProps } from "./classes-class-panel";
-import { CopyButton, PanelFooter, PrintButton, SkeletonRows, initialsOf, plural, printGuardianCode, useRemote } from "./classes-shared";
-import { ErrorState, Field, primaryButton, secondaryButton } from "./ui";
+import {
+  CopyButton,
+  PanelFooter,
+  PrintButton,
+  SkeletonRows,
+  initialsOf,
+  minorWarning,
+  plural,
+  printGuardianCode,
+  undoEnrollments,
+  useRemote,
+} from "./classes-shared";
+import { EmptyState, ErrorState, Field, primaryButton, secondaryButton } from "./ui";
 
 const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
 
@@ -121,6 +134,7 @@ export function StudentPanel({ api, subtitle, view }: PanelProps<"student">) {
   }
 
   const common = { first, working, onRun: run, onChanged: refresh };
+  const missing = guardians.error instanceof ApiError && guardians.error.status === 404 && !guardians.data;
 
   return (
     <>
@@ -134,19 +148,38 @@ export function StudentPanel({ api, subtitle, view }: PanelProps<"student">) {
         {name}
       </h3>
 
-      {classId ? (
+      {missing ? (
+        <div className="admin-sec !pt-1">
+          <EmptyState
+            icon={Info}
+            text="Aluno não encontrado"
+            hint="A conta pode ter saído do sistema, ou não é de aluno. Volte e confira a lista."
+          />
+        </div>
+      ) : null}
+
+      {classId && !missing ? (
         <EnrollmentBlock
           {...common}
           className={klass.data?.name ?? "turma"}
           enrollment={enrollment}
           error={roster.error}
           headingId={`${ids}-matricula`}
+          integrated={isIntegratedCourse(klass.data?.course)}
+          isMinor={student ? student.isMinor : null}
+          linksBack={
+            guardians.data
+              ? guardians.data.guardians.filter(
+                  (link) => link.status === "active" && link.origin === "student_code" && !link.approvedAt
+                ).length
+              : null
+          }
           loading={roster.data === null}
           onRetry={() => void roster.reload()}
         />
       ) : null}
 
-      {guardians.data === null ? (
+      {missing ? null : guardians.data === null ? (
         <div className="admin-sec">
           {guardians.error ? (
             <ErrorState
@@ -187,6 +220,9 @@ function EnrollmentBlock({
   error,
   first,
   headingId,
+  integrated,
+  isMinor,
+  linksBack,
   loading,
   working,
   onChanged,
@@ -196,10 +232,16 @@ function EnrollmentBlock({
   className: string;
   enrollment: ClassStudent | null;
   error: unknown;
+  /** A turma é do curso integrado: quem fica ativo nela passa a contar como menor de idade. */
+  integrated: boolean;
+  /** O aluno já conta como menor de idade (null: ainda não se sabe). */
+  isMinor: boolean | null;
+  /** Vínculos de responsável que voltam a pendente se o aluno passar a ser menor (null: ainda não se sabe). */
+  linksBack: number | null;
   loading: boolean;
   onRetry: () => void;
 }) {
-  const { token, toast, showError } = useAppActions();
+  const { token, toast, showError, confirm } = useAppActions();
   const [registration, setRegistration] = useState<string | null>(null);
   const [regError, setRegError] = useState<string | null>(null);
   const busy = working !== null || undefined;
@@ -247,24 +289,56 @@ function EnrollmentBlock({
   }
 
   function decide(status: EnrollmentStatus, text: string, undoTo: EnrollmentStatus) {
-    void onRun(`status-${status}`, async () => {
-      try {
-        await setStatus(status);
-        onChanged();
-        toast(text, {
-          key: `matricula-${item.enrollmentId}`,
-          undo: async () => {
-            try {
-              await setStatus(undoTo);
-              onChanged();
-            } catch (failure) {
-              showError(failure, `matricula-${item.enrollmentId}`);
-            }
-          },
-        });
-      } catch (failure) {
-        showError(failure, `matricula-${item.enrollmentId}`);
-      }
+    const key = `matricula-${item.enrollmentId}`;
+    // curso integrado: o adulto que fica ativo na turma passa a contar como menor de idade (regra da API)
+    const becomesMinor = status === "active" && integrated && isMinor === false;
+    const go = () =>
+      onRun(`status-${status}`, async () => {
+        try {
+          await setStatus(status);
+          onChanged();
+          toast(`${text}${becomesMinor ? ` ${first} passou a contar como menor de idade.` : ""}`, {
+            key,
+            // o Desfazer só volta a matrícula que continua como esta ação deixou; depois, tudo recarrega
+            undo: async () => {
+              try {
+                const result = await undoEnrollments(token, item.academicClassId, [
+                  { enrollmentId: item.enrollmentId, now: status, before: undoTo },
+                ]);
+                if (!result.undone) {
+                  toast(`Nada para desfazer: a matrícula de ${first} mudou depois desta ação e ficou como está.`, {
+                    tone: "info",
+                    key,
+                  });
+                }
+              } catch (failure) {
+                showError(failure, key);
+              } finally {
+                onChanged();
+              }
+            },
+          });
+        } catch (failure) {
+          showError(failure, key);
+        }
+      });
+    if (!becomesMinor) {
+      void go();
+      return;
+    }
+    const reactivating = item.status !== "pending";
+    const warning = minorWarning(
+      [{ name: item.fullName ?? first, links: linksBack }],
+      className,
+      reactivating ? "reativar" : "aprovar"
+    );
+    confirm({
+      title: warning.title,
+      message: warning.message,
+      confirmLabel: reactivating ? "Reativar mesmo assim" : "Aprovar mesmo assim",
+      cancelLabel: reactivating ? "Manter fora da turma" : "Deixar o pedido pendente",
+      tone: "primary",
+      action: go,
     });
   }
 
@@ -483,36 +557,70 @@ function GuardiansBlock({
   );
   const open = links.filter((link) => link.status === "active" || link.status === "pending").length;
 
+  /**
+   * Aprovar o pedido pendente. A API não tem como voltar um vínculo aprovado para pendente: o Desfazer encerra o
+   * vínculo (o responsável deixa de ver a agenda) e o aviso diz isso. Depois, tudo recarrega.
+   */
   function approve(link: AdminGuardianLink) {
+    const name = link.fullName ?? link.email;
+    const key = `vinculo-${link.id}`;
     void onRun(`approve-${link.id}`, async () => {
       try {
-        const result = await approveGuardianLink(token, link.id);
+        await approveGuardianLink(token, link.id);
         onChanged();
-        toast(`${result.message} ${link.fullName ?? "O responsável"} já vê a agenda de ${first}.`, { key: `vinculo-${link.id}` });
-      } catch (failure) {
-        showError(failure, `vinculo-${link.id}`);
-      }
-    });
-  }
-
-  function revoke(link: AdminGuardianLink) {
-    void onRun(`revoke-${link.id}`, async () => {
-      try {
-        await revokeGuardianLink(token, link.id);
-        onChanged();
-        toast(`${link.fullName ?? "O responsável"} deixou de acompanhar a agenda de ${first}.`, {
-          key: `vinculo-${link.id}`,
+        toast(`Pedido de ${name} aprovado. ${name} já vê a agenda de ${first}.`, {
+          key,
           undo: async () => {
             try {
-              await restoreGuardianLink(token, link.id);
-              onChanged();
+              await revokeGuardianLink(token, link.id);
+              toast(
+                `Aprovação desfeita: ${name} não vê mais a agenda de ${first}, e o pedido ficou encerrado. Para liberar de novo, use Vincular de novo.`,
+                { tone: "info", key }
+              );
             } catch (failure) {
-              showError(failure, `vinculo-${link.id}`);
+              showError(failure, key);
+            } finally {
+              onChanged();
             }
           },
         });
       } catch (failure) {
-        showError(failure, `vinculo-${link.id}`);
+        showError(failure, key);
+      }
+    });
+  }
+
+  /**
+   * Desfazer o vínculo ativo ou recusar o pedido pendente (a mesma rota, DELETE /guardian-links/:id). O Desfazer
+   * do aviso restaura o que era (ativo ou pendente). Depois, tudo recarrega.
+   */
+  function revoke(link: AdminGuardianLink) {
+    const name = link.fullName ?? link.email;
+    const key = `vinculo-${link.id}`;
+    const wasPending = link.status === "pending";
+    void onRun(`revoke-${link.id}`, async () => {
+      try {
+        await revokeGuardianLink(token, link.id);
+        onChanged();
+        toast(
+          wasPending
+            ? `Pedido de ${name} recusado. ${name} não vai acompanhar a agenda de ${first}.`
+            : `${name} deixou de acompanhar a agenda de ${first}.`,
+          {
+            key,
+            undo: async () => {
+              try {
+                await restoreGuardianLink(token, link.id);
+              } catch (failure) {
+                showError(failure, key);
+              } finally {
+                onChanged();
+              }
+            },
+          }
+        );
+      } catch (failure) {
+        showError(failure, key);
       }
     });
   }
@@ -660,7 +768,7 @@ function GuardiansBlock({
                       <button
                         className={cx(primaryButton, "btn-sm", busyLook)}
                         aria-disabled={busy}
-                        aria-label={`Aprovar ${label}`}
+                        aria-label={`Aprovar o pedido de ${label}`}
                         onClick={() => approve(link)}
                         type="button"
                       >
@@ -668,18 +776,32 @@ function GuardiansBlock({
                         Aprovar
                       </button>
                     ) : null}
+                    {link.status === "pending" ? (
+                      <button
+                        className={cx(secondaryButton, "btn-sm", busyLook)}
+                        aria-disabled={busy}
+                        aria-label={`Recusar o pedido de ${label}`}
+                        onClick={() => revoke(link)}
+                        type="button"
+                      >
+                        <X className="h-4 w-4" aria-hidden />
+                        Recusar
+                      </button>
+                    ) : null}
                     {link.status === "active" || link.status === "pending" ? (
                       <>
-                        <button
-                          className={cx(secondaryButton, "btn-sm", busyLook)}
-                          aria-disabled={busy}
-                          aria-label={`Desfazer o vínculo de ${label}`}
-                          onClick={() => revoke(link)}
-                          type="button"
-                        >
-                          <UserMinus className="h-4 w-4" aria-hidden />
-                          Desfazer vínculo
-                        </button>
+                        {link.status === "active" ? (
+                          <button
+                            className={cx(secondaryButton, "btn-sm", busyLook)}
+                            aria-disabled={busy}
+                            aria-label={`Desfazer o vínculo de ${label}`}
+                            onClick={() => revoke(link)}
+                            type="button"
+                          >
+                            <UserMinus className="h-4 w-4" aria-hidden />
+                            Desfazer vínculo
+                          </button>
+                        ) : null}
                         <button
                           className={cx(secondaryButton, "btn-sm", busyLook)}
                           aria-disabled={busy}
@@ -762,9 +884,10 @@ function LinkByEmailBlock({ first, headingId, studentId, working, onChanged, onR
         undo: async () => {
           try {
             await revokeGuardianLink(token, link.id);
-            onChanged();
           } catch (failure) {
             showError(failure, `vinculo-${link.id}`);
+          } finally {
+            onChanged();
           }
         },
       });

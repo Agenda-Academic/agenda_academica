@@ -17,9 +17,37 @@
   --admin-amber-ink: #92400e;
 }
 
+/* Alvos de no mínimo 24 px (WCAG 2.5.8): os links de texto ("Ver todas (N)", "Arquivadas (N)", "Importar
+   calendário") e o rótulo clicável dos indicadores do Painel. Com :where, a regra fica com o peso de .link: as
+   classes daqui de baixo (.admin-clear, 36 px) e o toque do globals.css (44 px) continuam valendo por cima. */
+:where(.admin-duo, .admin-panel, .admin-dash) .link {
+  min-height: 24px;
+}
+:where(.admin-dash) .kpi-hit {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
 /* ------------------------------------------------------------------ */
 /* Tela: dois cards lado a lado, que começam e terminam na mesma linha  */
 /* ------------------------------------------------------------------ */
+
+/* cabeçalho dos cards Turmas e Disciplinas: o título à esquerda e o botão à direita, numa linha só em qualquer
+   largura (os dois cards iguais). O título encolhe e o subtítulo quebra; a lista começa logo abaixo */
+.admin-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.admin-head > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-head > .btn {
+  flex-shrink: 0;
+}
 
 .admin-duo > .card {
   display: flex;
@@ -399,6 +427,11 @@
 .admin-foot-slot {
   display: contents;
 }
+/* no celular os avisos ficam acima do rodapé, por cima do corpo: o corpo ganha embaixo o espaço deles
+   (--admin-toast-room, medido em classes-view.tsx), e o fim do conteúdo rola até acima dos avisos */
+.drawer-body > .admin-panel {
+  padding-bottom: var(--admin-toast-room, 0px);
+}
 .admin-foot-note {
   flex-basis: 100%;
   display: flex;
@@ -641,6 +674,24 @@
   accent-color: var(--brand);
   flex-shrink: 0;
 }
+/* caixa de seleção do pedido: o rótulo em volta dá a área de toque (32 px; 44 px no toque) sem mudar o desenho */
+.admin-ck-hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  margin: -7px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+@media (pointer: coarse) {
+  .admin-ck-hit {
+    min-width: 44px;
+    min-height: 44px;
+    margin: -13px;
+  }
+}
 .admin-prow {
   display: flex;
   flex-wrap: wrap;
@@ -842,6 +893,16 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+/* no Painel o card fica na largura toda, acima das colunas: com espaço, os itens ficam em duas colunas */
+@container (min-width: 640px) {
+  .admin-pend-wide .admin-pend-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.admin-pend-wide .admin-pend-list > li > .mini {
+  height: 100%;
 }
 .admin-mini {
   align-items: flex-start;

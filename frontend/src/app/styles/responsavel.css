@@ -271,6 +271,17 @@
 }
 
 /* ---------------- Quais dados o responsável vê ---------------- */
+/* no lugar do conteúdo do painel lateral ou da seção do perfil (nunca diálogo sobre painel): Voltar, título e texto */
+.resp-data-view {
+  display: grid;
+  gap: 14px;
+}
+.btn.resp-data-back {
+  justify-self: start;
+}
+.resp-data-title {
+  scroll-margin-top: 16px;
+}
 .resp-sees {
   display: grid;
 }

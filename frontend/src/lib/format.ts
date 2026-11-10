@@ -775,6 +775,30 @@ export function parseScore(value: string | number | null | undefined): number | 
   return Math.round(Number(text.replace(",", ".")) * 100);
 }
 
+/** Centésimos, ou o texto da API ("9", "7,5"), para centésimos. Sem valor ou texto que não é nota: null. */
+function scoreHundredths(value: number | string | null | undefined) {
+  const hundredths = typeof value === "number" ? value : parseScore(value);
+  return hundredths === null || !Number.isFinite(hundredths) ? null : hundredths;
+}
+
+/**
+ * Nota que o aluno e o responsável veem (tela Notas e cards de notas): sempre com uma casa e vírgula, 900 vira
+ * "9,0" e 750 vira "7,5"; com centésimos, as duas casas (725 vira "7,25"). Aceita centésimos ou o texto da API.
+ */
+export function formatGradeScore(value: number | string | null | undefined) {
+  const hundredths = scoreHundredths(value);
+  if (hundredths === null) {
+    return "";
+  }
+  return (hundredths / 100).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2, useGrouping: false });
+}
+
+/** Máximo da nota ao lado dela: sem casa quando é inteiro (1000 vira "10", 500 vira "5"), com vírgula quando não ("7,5"). */
+export function formatGradeMax(value: number | string | null | undefined) {
+  const hundredths = scoreHundredths(value);
+  return hundredths === null ? "" : formatScore(hundredths);
+}
+
 /** "7,5 de 10". Aceita os textos da API (scoreText, maxScoreText) ou centésimos. Sem máximo, só a nota. */
 export function gradeText(score: number | string | null | undefined, max?: number | string | null) {
   const scoreLabel = typeof score === "number" ? formatScore(score) : (score ?? "");

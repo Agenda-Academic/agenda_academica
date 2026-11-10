@@ -41,7 +41,7 @@ import { useAppActions } from "./app-actions";
 import { delay, showAllText } from "./dashboard-bits";
 import { GradesTeacher } from "./grades-teacher";
 import { GuardianDataDialog } from "./guardian-data-dialog";
-import { GradeValue, scoreParts, useApiLoad, useStudentGrades } from "./latest-grades-card";
+import { GradeValue, awaitingGrades, isAwaitingGrade, scoreParts, useApiLoad, useStudentGrades } from "./latest-grades-card";
 import { EmptyState, ErrorState, RetryButton, SectionTitle, primaryButton, secondaryButton } from "./ui";
 
 /**
@@ -71,6 +71,8 @@ export type GradesViewProps = {
   onOpenEvent: (eventId: number) => void;
   /** Quantas avaliações a busca do menu acha nesta tela (undefined sem busca ou enquanto carrega). */
   onSearchCount?: (count: number | undefined) => void;
+  /** Apaga a busca do menu (o "Limpar busca" da tela da docente). */
+  onClearSearch?: () => void;
 };
 
 export function GradesView(props: GradesViewProps) {
@@ -87,6 +89,7 @@ export function GradesView(props: GradesViewProps) {
         onOpenEvent={props.onOpenEvent}
         onOpenGrades={props.onOpenGrades}
         onSearchCount={props.onSearchCount}
+        onClearSearch={props.onClearSearch}
       />
     );
   }
@@ -107,11 +110,13 @@ type GroupView = {
   sub: string;
   /** Docente que publica (para "quando a Profa. Maraísa publicar"). */
   teacher: string | null;
-  /** As que já aconteceram ou já têm nota, da mais recente para a mais antiga. */
+  /**
+   * As que já aconteceram ou já têm nota, da mais recente para a mais antiga. Em todos os grupos, as futuras
+   * ficam de fora (amostra notas-aluno): a próxima aparece só no indicador "Próxima avaliação".
+   */
   items: StudentEvaluation[];
-  /** Próxima avaliação (para o grupo em que nada aconteceu ainda). */
+  /** Próxima avaliação do grupo (o "Ver no Cronograma" do grupo em que nada aconteceu ainda). */
   next: StudentEvaluation | null;
-  upcomingCount: number;
   published: number;
   awaiting: number;
   /** Turma com matrícula ativa (vem antes das turmas que o aluno já deixou). */
@@ -213,9 +218,8 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         teacher: teachers[0] ?? null,
         items,
         next: upcoming[0] ?? null,
-        upcomingCount: upcoming.length,
         published: items.filter((item) => item.published).length,
-        awaiting: items.filter((item) => !item.published && new Date(item.startsAt).getTime() <= now).length,
+        awaiting: items.filter((item) => isAwaitingGrade(item, now)).length,
         current: activeClassIds.has(group.academicClass.id),
         annual: !group.academicClass.semester,
       };
@@ -404,9 +408,8 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
       scope = " neste ano";
     }
   }
-  const waiting = all
-    .filter((item) => !item.published && new Date(item.startsAt).getTime() <= now)
-    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
+  // o mesmo número do card "Últimas notas" do Painel: só as que já aconteceram e ainda não têm nota publicada
+  const waiting = awaitingGrades(data, now);
   const nextEval =
     groups
       .map((group) => group.next)
@@ -507,12 +510,13 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         const open = expanded[group.key] ?? hiddenFocus;
         const shown = open ? group.items : group.items.slice(0, GROUP_LIMIT);
         const listId = `notas-lista-${group.key}`;
+        // o mesmo critério em todos os grupos: publicadas e aguardando, nunca as futuras
         const countParts = [
           group.published ? countText(group.published, "publicada", "publicadas") : null,
           group.awaiting ? `${group.awaiting} aguardando` : null,
         ].filter(Boolean);
-        if (!countParts.length && group.upcomingCount) {
-          countParts.push(countText(group.upcomingCount, "agendada", "agendadas"));
+        if (!countParts.length) {
+          countParts.push("Nenhuma nota ainda");
         }
         return (
           <section key={group.key} className="card notas-disc rise" style={delay(3 + index)} aria-labelledby={`notas-d-${group.key}`}>
@@ -526,7 +530,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
                 </h2>
                 {group.sub ? <p className="sub">{group.sub}</p> : null}
               </div>
-              {countParts.length ? <p className="notas-disc-count">{countParts.join(", ")}</p> : null}
+              <p className="notas-disc-count">{countParts.join(", ")}</p>
             </div>
 
             {shown.length ? (
@@ -544,16 +548,16 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
               </ul>
             ) : (
               <div className="notas-soon">
-                <p>
-                  Nenhuma avaliação aconteceu ainda.
-                  {group.next ? ` A próxima é ${group.next.title}, ${whenText(group.next.startsAt)}.` : null}
-                </p>
-                {group.next ? (
-                  <button className="link min-h-6" onClick={() => group.next && onOpenEvent(group.next.eventId)} type="button">
-                    Ver no Cronograma
-                    <ArrowRight className="h-4 w-4" aria-hidden />
-                  </button>
-                ) : null}
+                <p>Nenhuma prova ou trabalho desta disciplina aconteceu ainda. A nota aparece aqui depois da avaliação.</p>
+                <button
+                  className="link min-h-6"
+                  aria-label={`Ver no Cronograma: ${group.next ? group.next.title : group.title}`}
+                  onClick={() => (group.next ? onOpenEvent(group.next.eventId) : navigate("calendar"))}
+                  type="button"
+                >
+                  Ver no Cronograma
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </button>
               </div>
             )}
 

@@ -33,6 +33,8 @@ import {
   EventEditor,
   createInitialEventForm,
   eventToForm,
+  type EditorBack,
+  type EditorTab,
   type EventFieldErrors,
   type EventFormState,
   type EventStatusChange,
@@ -58,6 +60,7 @@ import {
 } from "@/components/ui";
 import {
   ApiError,
+  conflictOf,
   createEvent,
   deleteEvent,
   deleteReminder,
@@ -91,7 +94,7 @@ import {
   matchesSearch,
   startOfDay,
 } from "@/lib/format";
-import { allCategories, isGradable, knownRoles } from "@/lib/meta";
+import { allCategories, gradableCategories, isGradable, knownRoles } from "@/lib/meta";
 import type {
   AcademicContext,
   AcademicEvent,
@@ -1174,8 +1177,12 @@ export default function Home() {
   const [localSearchCount, setLocalSearchCount] = useState<number | undefined>(undefined);
   // aba aberta na Gestão da docente: em Minhas turmas, a busca do menu procura turmas
   const [managePane, setManagePane] = useState<"events" | "classes">("events");
-  // gaveta de notas de uma avaliação (EventGradesDrawer), aberta pela Gestão e pela tela Notas da docente
+  // notas de uma avaliação: a aba Notas do painel do evento (editorTab), aberta pela ação "Notas" da Gestão e da
+  // tela Notas; a gaveta sozinha (EventGradesDrawer) só quando o evento não está na lista da página
+  const [editorTab, setEditorTab] = useState<EditorTab>("details");
   const [gradesEventId, setGradesEventId] = useState<number | null>(null);
+  // o painel do evento preenche: o Voltar do navegador passa pela aba Notas (lista de alunos, importação)
+  const editorBackRef = useRef<EditorBack | null>(null);
 
   const user = session?.user ?? null;
   const canWrite = writesEvents(user?.role);
@@ -2110,18 +2117,35 @@ export default function Home() {
     );
   }
 
-  /** Abre a gaveta de notas da avaliação (nunca por cima do painel de edição). */
+  /**
+   * Abre as notas da avaliação: o painel do evento na aba Notas (um painel só, com a aba Dados do evento ao lado).
+   * Com o painel já aberto no mesmo evento, só troca de aba; em outro, pergunta antes de descartar o rascunho.
+   * Sem o evento na lista da página, abre a gaveta sozinha (nunca por cima do painel de edição).
+   */
   function openGrades(eventId: number) {
     if (!writesEvents(sessionRef.current?.user.role)) {
       return;
     }
-    if (editorOpen) {
-      if (!savingEvent) {
-        guardDraft(() => closeEditor(() => setGradesEventId(eventId)));
+    const event = eventsById.get(eventId);
+    if (!event || !isGradable(event)) {
+      if (editorOpen) {
+        if (!savingEvent) {
+          guardDraft(() => closeEditor(() => setGradesEventId(eventId)));
+        }
+        return;
       }
+      setGradesEventId(eventId);
       return;
     }
-    setGradesEventId(eventId);
+    if (editorOpen && editingEventId === eventId) {
+      setEditorTab("grades");
+      return;
+    }
+    if (editorOpen && savingEvent) {
+      return;
+    }
+    setGradesEventId(null);
+    guardDraft(() => openEditor(event, eventToForm(event), undefined, true, "grades"));
   }
 
   /** Marca o aviso do sistema como lido: sai da lista e do número do menu na hora. */
@@ -2275,6 +2299,13 @@ export default function Home() {
         keepEntry(editorEntryRef.current ?? left);
         return;
       }
+      const inner = editorBackRef.current;
+      if (inner?.pending()) {
+        // aba Notas na lista de alunos ou na importação: o Voltar volta para o resumo dela, e o painel continua
+        keepEntry(editorEntryRef.current ?? left);
+        inner.go();
+        return;
+      }
       if (dirty) {
         // o Voltar não joga o rascunho fora: devolve a entrada e pergunta
         keepEntry(editorEntryRef.current ?? left);
@@ -2358,6 +2389,7 @@ export default function Home() {
   /* ---------------------------------------------------------------- */
   function resetEditorState() {
     setEditorOpen(false);
+    setEditorTab("details");
     setFormSnapshot(null);
     setServerErrorState(null);
     setEditingEventId(null);
@@ -2389,10 +2421,12 @@ export default function Home() {
     event: AcademicEvent | null,
     form: EventFormState,
     snapshot: EventFormState = form,
-    rememberHere = true
+    rememberHere = true,
+    tab: EditorTab = "details"
   ) {
     setEditingEventId(event?.id ?? null);
     setEditingFallback(event);
+    setEditorTab(tab);
     setEventForm(form);
     setFormSnapshot(snapshot);
     setServerErrorState(null);
@@ -2486,6 +2520,8 @@ export default function Home() {
 
   function beginEdit(event: AcademicEvent) {
     if (editorOpen && editingEventId === event.id) {
+      // já aberto no evento (na aba Notas, por exemplo): Editar mostra a aba Dados do evento
+      setEditorTab("details");
       return;
     }
     guardDraft(() => openEditor(event, eventToForm(event)));
@@ -2583,6 +2619,19 @@ export default function Home() {
         if (!Object.keys(errors).length) {
           pushToast("danger", errorMessage(err), { keys: [subject] });
         }
+        return;
+      }
+      const gradesConflict = original ? conflictOf(err, "HAS_GRADES") : null;
+      if (original && gradesConflict) {
+        // avaliação com nota: a frase da API fica no painel, abaixo do campo que não pode mudar (categoria, turma ou
+        // disciplina), no lugar de um aviso fora dele; o rascunho continua
+        const classChanged = form.academicClassId !== String(original.academicClassId ?? "");
+        const field: keyof EventFormState = !gradableCategories.includes(form.category)
+          ? "category"
+          : classChanged && active.user.role === "admin"
+            ? "academicClassId"
+            : "subjectId";
+        setServerErrorState({ errors: { [field]: gradesConflict.message }, form });
         return;
       }
       if (!original && isTimeoutError(err)) {
@@ -4042,6 +4091,7 @@ export default function Home() {
                   onOpenEvent={(eventId) => goTo("calendar", { eventId })}
                   onOpenGrades={openGrades}
                   onSearchCount={setLocalSearchCount}
+                  onClearSearch={() => setSearch("")}
                 />
               ) : null}
 
@@ -4102,6 +4152,9 @@ export default function Home() {
         setForm={changeEventForm}
         statusBusy={statusBusy !== null}
         statusNotice={editorStatusNotice}
+        tab={editorTab}
+        onTabChange={setEditorTab}
+        backRef={editorBackRef}
         onClose={requestCloseEditor}
         onDelete={requestDeleteEvent}
         onSetStatus={requestStatusChange}

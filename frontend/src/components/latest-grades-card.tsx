@@ -3,7 +3,7 @@
 import { ArrowRight, ClipboardCheck, Lock, TriangleAlert, Users } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { getMyGrades, getStudentGrades } from "@/lib/api";
-import { countText, cx, errorMessage, firstName, formatScore } from "@/lib/format";
+import { countText, cx, errorMessage, firstName, formatGradeMax, formatGradeScore } from "@/lib/format";
 import { gradeStatusLabels } from "@/lib/meta";
 import type { StudentEvaluation, StudentGradeGroup, StudentGrades } from "@/lib/types";
 import { useAppActions } from "./app-actions";
@@ -161,12 +161,27 @@ export function publishedGrades(data: StudentGrades): GradeItem[] {
     });
 }
 
-/** "7,5" e "10" da avaliação (textos da API; centésimos como reserva). */
+/** "9,0" e "10" da avaliação, como nas amostras (centésimos; o texto da API como reserva). */
 export function scoreParts(evaluation: StudentEvaluation) {
   const grade = evaluation.grade;
-  const score = grade ? (grade.scoreText ?? formatScore(grade.score)) : "";
-  const max = evaluation.maxScoreText ?? (evaluation.maxScore !== null ? formatScore(evaluation.maxScore) : "");
+  const score = grade ? formatGradeScore(grade.score ?? grade.scoreText) : "";
+  const max = formatGradeMax(evaluation.maxScore ?? evaluation.maxScoreText);
   return { score, max };
+}
+
+/** Já aconteceu e ainda não tem nota publicada: "Aguardando publicação" (a futura não conta). */
+export function isAwaitingGrade(evaluation: StudentEvaluation, now: number) {
+  return !evaluation.published && new Date(evaluation.startsAt).getTime() <= now;
+}
+
+/**
+ * As que aguardam a docente publicar, da mais recente para a mais antiga. O card do Painel e a tela Notas contam
+ * por aqui (counts.awaiting da API inclui as provas futuras).
+ */
+export function awaitingGrades(data: StudentGrades, now: number): GradeItem[] {
+  return data.subjects
+    .flatMap((group) => group.evaluations.filter((item) => isAwaitingGrade(item, now)).map((item) => ({ ...item, group })))
+    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
 }
 
 /**
@@ -231,6 +246,8 @@ export function LatestGradesCard({
   const titleId = useId();
   const targetId = role === "guardian" ? (studentId ?? student?.id ?? null) : (studentId ?? null);
   const grades = useStudentGrades(targetId);
+  // referência de "agora" fixada na montagem (render precisa ser puro): separa as que já aconteceram
+  const [now] = useState(() => Date.now());
   const data = grades.data;
   const list = data && data.shareGrades ? publishedGrades(data) : [];
   const shown = list.slice(0, Math.max(1, limit));
@@ -286,7 +303,8 @@ export function LatestGradesCard({
       </div>
     );
   } else if (!shown.length) {
-    const awaiting = data?.counts?.awaiting ?? 0;
+    // o mesmo critério da tela Notas: só as que já aconteceram e ainda não têm nota publicada
+    const awaiting = data ? awaitingGrades(data, now).length : 0;
     body = (
       <div className="mt-3.5">
         <EmptyState

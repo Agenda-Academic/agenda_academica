@@ -100,15 +100,25 @@ function studentName(student: Pick<ClassStudent, "fullName" | "email">) {
   return student.fullName?.trim() || student.email;
 }
 
-/** "AB" de "Ana Beatriz Rocha". */
+/** Tratamentos que não entram nas iniciais: Prof., Profa., Dr., Dra. e Dr(a). */
+const honorific = /^(prof|profa|profª|dr|dra|dr\(a\))\.?$/i;
+
+/**
+ * Iniciais do primeiro e do último nome, sem o tratamento: "Ana Beatriz Rocha" vira "AR" e "Profa. Paula Souza",
+ * "PS". Com um nome só, as duas primeiras letras, como o menu ("Profa. Maraísa" vira "MA").
+ */
 function initials(name: string) {
-  const words = name.replace(/[^\p{L}\s]/gu, " ").split(/\s+/).filter(Boolean);
+  const words = name
+    .split(/\s+/)
+    .filter((word) => word && !honorific.test(word))
+    .map((word) => word.replace(/[^\p{L}]/gu, ""))
+    .filter(Boolean);
   if (!words.length) {
     return "?";
   }
-  const first = words[0].charAt(0);
-  const last = words.length > 1 ? words[words.length - 1].charAt(0) : "";
-  return `${first}${last}`.toLocaleUpperCase("pt-BR");
+  const first = words[0];
+  const text = words.length > 1 ? `${first.charAt(0)}${words[words.length - 1].charAt(0)}` : first.slice(0, 2);
+  return text.toLocaleUpperCase("pt-BR");
 }
 
 /** Pendentes primeiro, depois por nome (a mesma ordem da API). */
@@ -925,21 +935,33 @@ function ClassPanelBody({
                   {pending.map((student, index) => {
                     const name = studentName(student);
                     const rowBusy = busy && "id" in busy && busy.id === student.enrollmentId ? busy.kind : null;
+                    const nameId = `${ids.students}-pedido-${student.enrollmentId}`;
                     return (
                       <li key={student.enrollmentId} className="docente-prow">
                         {pending.length > 1 ? (
-                          <input
-                            type="checkbox"
-                            aria-label={`Selecionar ${name}`}
-                            checked={chosen.includes(student.enrollmentId)}
-                            onChange={() => toggleOne(student.enrollmentId)}
-                          />
-                        ) : null}
-                        <div className="docente-p-main">
-                          <p className="docente-p-name">{name}</p>
-                          {student.fullName ? <p className="docente-p-sub">{student.email}</p> : null}
-                          <p className="docente-p-sub">{requestedText(student)}</p>
-                        </div>
+                          // a caixa fica dentro do rótulo com o nome: clicar no nome também marca (alvo maior que 24 px)
+                          <label className="docente-p-pick">
+                            <input
+                              type="checkbox"
+                              aria-labelledby={nameId}
+                              checked={chosen.includes(student.enrollmentId)}
+                              onChange={() => toggleOne(student.enrollmentId)}
+                            />
+                            <span className="docente-p-main">
+                              <span className="docente-p-name" id={nameId}>
+                                {name}
+                              </span>
+                              {student.fullName ? <span className="docente-p-sub">{student.email}</span> : null}
+                              <span className="docente-p-sub">{requestedText(student)}</span>
+                            </span>
+                          </label>
+                        ) : (
+                          <div className="docente-p-main">
+                            <p className="docente-p-name">{name}</p>
+                            {student.fullName ? <p className="docente-p-sub">{student.email}</p> : null}
+                            <p className="docente-p-sub">{requestedText(student)}</p>
+                          </div>
+                        )}
                         <div className="docente-p-acts">
                           <button
                             className="btn btn-p btn-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-60"

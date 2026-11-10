@@ -17,7 +17,8 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import {
   conflictOf,
   deleteGradeImport,
@@ -40,7 +41,7 @@ import {
   gradeSourceText,
   parseScore,
 } from "@/lib/format";
-import { gradeImportSourceLabels, gradeStatusLabels } from "@/lib/meta";
+import { gradeImportSourceLabels, gradeStatusLabels, statusMeta } from "@/lib/meta";
 import type {
   AcademicEvent,
   EventGradeRow,
@@ -55,13 +56,15 @@ import { GradeImportBody, GradeImportFooter, useGradeImport } from "./grade-impo
 import { Drawer, EmptyState, ErrorState, Segmented, SegmentedButton, primaryButton, secondaryButton } from "./ui";
 
 /**
- * Gaveta de notas de uma avaliação (desenho 5.7, amostras docente-notas-evento e docente-importar-previa),
- * aberta pela Gestão (ação "Notas" na linha do evento avaliativo) e pela tela Notas da docente, via
- * useAppActions().openGrades(eventId). A página guarda qual avaliação está aberta e monta esta gaveta uma vez.
+ * Notas de uma avaliação (desenho 5.7, amostras docente-notas-evento e docente-importar-previa).
+ *
+ * O lugar normal delas é a aba Notas do painel "Editar evento" (EventGradesTab, montada pelo event-editor.tsx):
+ * a ação "Notas" da Gestão e da tela Notas abre o painel do evento nessa aba, e "Editar" abre na aba Dados do
+ * evento. A gaveta sozinha (EventGradesDrawer) fica para quando o evento não está na lista da página.
  *
  * Conteúdo: GET /events/:id/grades (lista com e sem nota, lançar com saveGrade, salva na hora), "Publicar para
  * alunos e responsáveis" (publishGrades, toast com Desfazer = unpublishGrades), "Importações feitas"
- * (getGradeImports, "Desfazer importação" quando canUndo) e "Importar notas", que troca o conteúdo da gaveta
+ * (getGradeImports, "Desfazer importação" quando canUndo) e "Importar notas", que troca o conteúdo do painel
  * pelos 4 passos (arquivo, colunas, prévia, aplicar; grade-import*.tsx e lib/grades-file.ts), com Voltar.
  * Nunca abre outro painel por cima. Dona: área Notas (docente).
  */
@@ -77,13 +80,13 @@ export type EventGradesDrawerProps = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Aviso de mudança para a tela Notas (GradesTeacher)                  */
+/* Aviso de mudança para a tela Notas (GradesTeacher) e o editor       */
 /* ------------------------------------------------------------------ */
 
 type GradesListener = (eventId: number) => void;
 const gradesListeners = new Set<GradesListener>();
 
-/** A tela Notas da docente escuta para atualizar a situação da avaliação que mudou na gaveta. */
+/** A tela Notas da docente (e o painel do evento) escuta para atualizar a situação da avaliação que mudou. */
 export function subscribeGradesChanged(listener: GradesListener) {
   gradesListeners.add(listener);
   return () => {
@@ -124,6 +127,20 @@ const importStatus: Record<GradeImport["status"], { label: string; pill: string 
   discarded: { label: "Descartada", pill: "st-ag" },
 };
 
+/** Ordem da lista de importações: as aplicadas primeiro (a mais recente em cima), depois rascunhos, desfeitas e descartadas. */
+const importOrder: Record<GradeImport["status"], number> = { applied: 0, draft: 1, undone: 2, discarded: 3 };
+
+function importWhen(item: GradeImport) {
+  return item.status === "applied" || item.status === "undone" ? (item.appliedAt ?? item.createdAt) : item.createdAt;
+}
+
+function sortImports(list: GradeImport[]) {
+  return [...list].sort(
+    (a, b) =>
+      importOrder[a.status] - importOrder[b.status] || new Date(importWhen(b)).getTime() - new Date(importWhen(a)).getTime()
+  );
+}
+
 /** Recalcula as contagens depois de lançar uma nota (a API conta só os alunos ativos). */
 function withRow(data: EventGrades, row: EventGradeRow): EventGrades {
   const students = data.students.map((item) => (item.studentId === row.studentId ? { ...item, ...row } : item));
@@ -149,8 +166,86 @@ function restoreInput(grade: EventGradeRow["grade"]): GradeInput | null {
   return grade.score === null ? null : { score: grade.score };
 }
 
+/**
+ * Os avisos (toasts) não cobrem o campo em foco. No celular eles ficam dentro do painel, logo acima do rodapé: o
+ * fim da lista ganha a altura deles (devolvida aqui, para um espaço no fim) e, quando o campo em foco fica embaixo
+ * deles, o corpo do painel rola até ele aparecer acima dos avisos. No computador eles ficam ao lado do painel.
+ */
+function useToastClearance(rootRef: RefObject<HTMLElement | null>) {
+  const [room, setRoom] = useState(0);
+  useEffect(() => {
+    const root = rootRef.current;
+    const body = root?.closest<HTMLElement>(".drawer-body") ?? null;
+    const stack = document.querySelector<HTMLElement>(".toast-stack");
+    if (!root || !body || !stack) {
+      return;
+    }
+    const frames = new Set<number>();
+    const timers = new Set<number>();
+    const later = (run: () => void) => {
+      const frame = window.requestAnimationFrame(() => {
+        frames.delete(frame);
+        run();
+      });
+      frames.add(frame);
+    };
+    // topo dos avisos que estão sobre o corpo do painel (null: nenhum)
+    const toastTop = () => {
+      if (stack.classList.contains("held")) {
+        return null;
+      }
+      const area = body.getBoundingClientRect();
+      const over = Array.from(stack.querySelectorAll<HTMLElement>(".toast"))
+        .map((toast) => toast.getBoundingClientRect())
+        .filter((box) => box.height > 0 && box.bottom > area.top && box.top < area.bottom && box.right > area.left && box.left < area.right);
+      return over.length ? Math.min(...over.map((box) => box.top)) : null;
+    };
+    const clearFocus = () => {
+      const top = toastTop();
+      const active = document.activeElement;
+      if (top === null || !(active instanceof HTMLElement) || !root.contains(active)) {
+        return;
+      }
+      const field = active.closest<HTMLElement>(".notas-docente-grade, .mini, .notas-docente-imp") ?? active;
+      const box = field.getBoundingClientRect();
+      const area = body.getBoundingClientRect();
+      // o aviso entra subindo 14 px: a folga cobre a animação
+      if (box.bottom > top - 12 && box.top < area.bottom) {
+        body.scrollBy({ top: box.bottom - top + 24 });
+      }
+    };
+    const measure = () => {
+      later(() => {
+        const top = toastTop();
+        const area = body.getBoundingClientRect();
+        setRoom(top === null ? 0 : Math.ceil(area.bottom - top) + 24);
+        // com o espaço no fim da lista, o campo em foco já tem para onde subir
+        later(clearFocus);
+      });
+      // de novo depois da animação de entrada do aviso
+      const timer = window.setTimeout(() => {
+        timers.delete(timer);
+        later(clearFocus);
+      }, 320);
+      timers.add(timer);
+    };
+    const watcher = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    watcher?.observe(stack);
+    const onFocus = () => later(clearFocus);
+    root.addEventListener("focusin", onFocus);
+    measure();
+    return () => {
+      watcher?.disconnect();
+      root.removeEventListener("focusin", onFocus);
+      frames.forEach((frame) => window.cancelAnimationFrame(frame));
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [rootRef]);
+  return room;
+}
+
 /* ------------------------------------------------------------------ */
-/* Gaveta                                                              */
+/* Gaveta sozinha e aba Notas do painel do evento                      */
 /* ------------------------------------------------------------------ */
 
 export function EventGradesDrawer(props: EventGradesDrawerProps) {
@@ -161,12 +256,124 @@ export function EventGradesDrawer(props: EventGradesDrawerProps) {
   return <GradesPanel key={props.eventId} {...props} eventId={props.eventId} />;
 }
 
-type View = "overview" | "students" | "import";
+function GradesPanel({ event, eventId, onChanged, onClose }: EventGradesDrawerProps & { eventId: number }) {
+  const panel = useGradesPanel({ event, eventId, onChanged, onClose });
+  // Voltar do navegador: volta uma parte da gaveta; no resumo, fecha
+  useBackLayer(true, () => {
+    if (panel.inSubView()) {
+      panel.back();
+    } else {
+      panel.requestClose();
+    }
+  });
+  return (
+    <Drawer
+      open
+      busy={panel.busy}
+      footer={<div className="notas-docente-foot">{panel.footer}</div>}
+      subtitle={panel.subtitle}
+      title={panel.drawerTitle}
+      onClose={panel.requestClose}
+    >
+      {panel.body}
+    </Drawer>
+  );
+}
+
+export type GradesPart = "overview" | "students" | "import";
+
+/** O que o painel do evento precisa saber da aba Notas (título, número da aba, pílula e ocupado). */
+export type GradesTabState = {
+  eventId: number;
+  view: GradesPart;
+  /** Notas lançadas (com nota, falta ou dispensa); null enquanto carrega. */
+  launched: number | null;
+  published: boolean;
+  /** Importação enviando, aplicando ou descartando: Esc e clique fora não fecham. */
+  busy: boolean;
+  /** Subtítulo do painel durante a importação ("Prova 2 de Matemática, TADS 5, nota de 0 a 10"). */
+  importSubtitle: string;
+};
+
+/** Ações da aba Notas para o painel do evento (X, Esc, Fechar e o Voltar do navegador). */
+export type GradesTabControl = {
+  /** Pede para sair: com arquivo da importação ainda não enviado, pergunta antes; ocupada, não sai. */
+  guardLeave: (then: () => void) => void;
+  /** A aba está numa parte de dentro (lista de alunos ou importação): o Voltar volta para o resumo. */
+  inSubView: () => boolean;
+  /** Volta uma parte (da lista ou da importação para o resumo), perguntando antes se precisar. */
+  back: () => void;
+};
+
+/**
+ * Aba Notas do painel "Editar evento" (amostra docente-notas-evento). O corpo fica no lugar e o rodapé vai para
+ * `footerSlot`, o rodapé do painel quando a aba está à vista. O painel recebe o título e o número da aba por
+ * `onState`, e o X, o Esc e o Voltar passam por `controlRef`. Fica montada enquanto o painel está aberto no
+ * evento (também na aba Dados), para trocar de aba sem perder a importação nem a lista.
+ */
+export function EventGradesTab({
+  active,
+  controlRef,
+  event,
+  eventId,
+  footerSlot,
+  onChanged,
+  onClose,
+  onState,
+}: {
+  active: boolean;
+  controlRef: { current: GradesTabControl | null };
+  event: AcademicEvent | null;
+  eventId: number;
+  footerSlot: HTMLElement | null;
+  onChanged: () => void;
+  onClose: () => void;
+  onState: (state: GradesTabState) => void;
+}) {
+  const panel = useGradesPanel({ event, eventId, onChanged, onClose });
+  const { back, busy, guardLeave, importSubtitle, inSubView, launched, published, view } = panel;
+
+  useLayoutEffect(() => {
+    const control: GradesTabControl = { guardLeave, inSubView, back };
+    controlRef.current = control;
+    return () => {
+      if (controlRef.current === control) {
+        controlRef.current = null;
+      }
+    };
+  });
+
+  useEffect(() => {
+    onState({ eventId, view, launched, published, busy, importSubtitle });
+  }, [busy, eventId, importSubtitle, launched, onState, published, view]);
+
+  return (
+    <>
+      {panel.body}
+      {active && footerSlot ? createPortal(panel.footer, footerSlot) : null}
+    </>
+  );
+}
+
 type FocusTarget = "students" | "import" | "publish" | null;
 
-function GradesPanel({ event, eventId, onChanged, onClose }: EventGradesDrawerProps & { eventId: number }) {
+/**
+ * Estado e conteúdo das notas de uma avaliação: o resumo, a lista de alunos e os passos da importação. Usado pela
+ * gaveta sozinha (GradesPanel) e pela aba Notas do painel do evento (EventGradesTab), que só mudam a moldura.
+ */
+function useGradesPanel({
+  event,
+  eventId,
+  onChanged,
+  onClose,
+}: {
+  event: AcademicEvent | null;
+  eventId: number;
+  onChanged: () => void;
+  onClose: () => void;
+}) {
   const { confirm, role, showError, toast, token, user } = useAppActions();
-  const [view, setView] = useState<View>("overview");
+  const [view, setView] = useState<GradesPart>("overview");
   const [data, setData] = useState<EventGrades | null>(null);
   const [imports, setImports] = useState<GradeImport[] | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
@@ -227,7 +434,7 @@ function GradesPanel({ event, eventId, onChanged, onClose }: EventGradesDrawerPr
     }
   }
 
-  /** Avisa a tela Notas e, quando muda o evento (publicação, pontuação), a página. */
+  /** Avisa a tela Notas (e o painel do evento) e, quando muda o evento (publicação, pontuação), a página. */
   function changed(reloadPage: boolean) {
     notifyGradesChanged(eventId);
     if (reloadPage) onChanged();
@@ -295,16 +502,19 @@ function GradesPanel({ event, eventId, onChanged, onClose }: EventGradesDrawerPr
     }
   }
 
-  /** Toast de nota apagada ou trocada, com Desfazer que devolve o valor de antes. */
+  /**
+   * Toast de nota apagada ou trocada, com Desfazer que devolve o valor de antes. Uma chave por avaliação: o aviso
+   * novo tira o anterior (nunca uma pilha de avisos sobre os campos), e o Desfazer vale para a última ação.
+   */
   function undoableToast(text: string, studentId: number, restore: GradeInput | null) {
     toast(text, {
-      key: `nota-${eventId}-${studentId}`,
+      key: `nota-${eventId}`,
       undo: restore
         ? async () => {
             try {
               await saveRow(studentId, restore);
             } catch (error) {
-              showError(error, `nota-${eventId}-${studentId}`);
+              showError(error, `nota-${eventId}`);
             }
           }
         : undefined,
@@ -366,13 +576,16 @@ function GradesPanel({ event, eventId, onChanged, onClose }: EventGradesDrawerPr
     }
   }
 
+  // a API não refaz uma importação desfeita: por isso a confirmação (e não um toast com Desfazer)
   function askUndoImport(item: GradeImport) {
     const total = item.totals.new + item.totals.changed + item.totals.newerInAgenda;
     confirm({
       title: "Desfazer esta importação?",
       message: `${
         total === 1 ? "A nota volta" : "As notas voltam"
-      } ao valor de antes da importação de ${formatShortDateTime(item.appliedAt ?? item.createdAt)}. Para trazer de volta, importe o arquivo de novo.`,
+      } ao valor de antes da importação de ${formatShortDateTime(item.appliedAt ?? item.createdAt)}. Não dá para voltar atrás: para trazer ${
+        total === 1 ? "esta nota" : "estas notas"
+      } de novo, importe o arquivo outra vez.`,
       confirmLabel: "Desfazer importação",
       cancelLabel: "Manter notas",
       action: () => undoImport(item.id),
@@ -443,41 +656,45 @@ function GradesPanel({ event, eventId, onChanged, onClose }: EventGradesDrawerPr
     });
   }
 
-  /** X, Esc e o Fechar: com arquivo lido e não enviado, pergunta antes. */
-  function requestClose() {
+  /** Antes de sair (X, Esc, Fechar): importação ocupada não sai; com arquivo lido e não enviado, pergunta. */
+  function guardLeave(then: () => void) {
     if (view === "import" && flow.busy) return;
     if (view === "import" && flow.hasUnsentFile) {
-      confirmLeaveImport(onClose);
+      confirmLeaveImport(then);
       return;
     }
-    onClose();
+    then();
   }
 
-  /** Voltar do navegador: volta uma parte da gaveta; no resumo, fecha. */
-  function requestBack() {
-    if (view === "overview") {
-      requestClose();
-      return;
-    }
+  function requestClose() {
+    guardLeave(onClose);
+  }
+
+  const inSubView = () => view !== "overview";
+
+  /** Voltar do navegador numa parte de dentro: volta para o resumo (perguntando antes, se precisar). */
+  function back() {
     if (view === "students") {
       goOverview("students");
       return;
     }
-    if (flow.busy) return;
+    if (view !== "import" || flow.busy) return;
     if (flow.hasUnsentFile) {
       confirmLeaveImport(() => goOverview("import"));
       return;
     }
     goOverview("import");
   }
-  useBackLayer(true, requestBack);
 
   /* --------------------------- desenho --------------------------- */
 
   const className = info?.academicClass?.name ?? event?.academicClass?.name ?? null;
   const subjectName = info?.subject?.name ?? event?.subject?.name ?? null;
   const startsAt = info?.startsAt ?? event?.startsAt ?? null;
-  const launched = data ? launchedCount(data.counts) : 0;
+  const eventStatus = info?.status ?? event?.status ?? null;
+  const launched = data ? launchedCount(data.counts) : null;
+  const max = info?.maxScoreText ? `nota de 0 a ${info.maxScoreText}` : "ainda sem pontuação";
+  const importSubtitle = [title, className, max].filter(Boolean).join(", ");
 
   let drawerTitle = isAssignment ? "Notas do trabalho" : "Notas da prova";
   let subtitle = (
@@ -485,9 +702,12 @@ function GradesPanel({ event, eventId, onChanged, onClose }: EventGradesDrawerPr
       <span className="w-full font-semibold text-ink-2">{title}</span>
       {startsAt ? <span>{formatShortDateTime(startsAt)}</span> : null}
       {className ? <span>{[className, subjectName].filter(Boolean).join(", ")}</span> : null}
+      {eventStatus && eventStatus !== "scheduled" ? (
+        <span className={cx("pill", statusMeta[eventStatus].pill)}>{statusMeta[eventStatus].label}</span>
+      ) : null}
       {published ? (
-        <span className="pill st-conc">Publicadas</span>
-      ) : data && launched ? (
+        <span className="pill st-conc">Notas publicadas</span>
+      ) : launched ? (
         <span className="pill st-alt">Notas ocultas</span>
       ) : null}
     </>
@@ -508,8 +728,7 @@ function GradesPanel({ event, eventId, onChanged, onClose }: EventGradesDrawerPr
   );
   if (view === "import") {
     drawerTitle = "Importar notas";
-    const max = info?.maxScoreText ? `nota de 0 a ${info.maxScoreText}` : "ainda sem pontuação";
-    subtitle = <span>{[title, className, max].filter(Boolean).join(", ")}</span>;
+    subtitle = <span>{importSubtitle}</span>;
     footer = <GradeImportFooter flow={flow} />;
   }
 
@@ -567,18 +786,21 @@ function GradesPanel({ event, eventId, onChanged, onClose }: EventGradesDrawerPr
     );
   }
 
-  return (
-    <Drawer
-      open
-      busy={flow.busy}
-      footer={footer}
-      subtitle={subtitle}
-      title={drawerTitle}
-      onClose={requestClose}
-    >
-      {body}
-    </Drawer>
-  );
+  return {
+    view,
+    busy: flow.busy,
+    launched,
+    published,
+    drawerTitle,
+    subtitle,
+    importSubtitle,
+    footer,
+    body,
+    guardLeave,
+    requestClose,
+    inSubView,
+    back,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -650,13 +872,18 @@ function Overview({
   userId: number;
 }) {
   const [allImports, setAllImports] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const toastRoom = useToastClearance(rootRef);
   const { counts, event: info, students } = data;
   const launched = launchedCount(counts);
   const published = Boolean(info.gradesPublishedAt);
   const noPoints = info.maxScore === null;
   const drafts = imports.filter((item) => item.status === "draft");
-  const shownImports = allImports ? imports : imports.slice(0, FIRST_IMPORTS);
-  const kind = isAssignment ? "este trabalho" : "esta prova";
+  // "Importações feitas" conta só as aplicadas; a aplicada mais recente fica em cima (é a que dá para desfazer)
+  const appliedTotal = imports.filter((item) => item.status === "applied").length;
+  const ordered = sortImports(imports);
+  const shownImports = allImports ? ordered : ordered.slice(0, FIRST_IMPORTS);
+  const kind = isAssignment ? "deste trabalho" : "desta prova";
 
   let callout;
   if (published) {
@@ -687,7 +914,7 @@ function Overview({
           <b>Nenhuma nota lançada ainda.</b>{" "}
           {drafts.length
             ? "Há um rascunho de importação esperando: continue a importação para conferir e aplicar."
-            : `Importe o arquivo com as notas de ${kind} ou lance à mão em Ver notas.`}
+            : `Importe o arquivo com as notas ${kind} ou lance à mão em Ver notas.`}
         </span>
       </p>
     );
@@ -704,7 +931,7 @@ function Overview({
   const left = students.filter((item) => item.enrollmentStatus !== "active").length;
 
   return (
-    <div className="grid gap-4">
+    <div ref={rootRef} className="grid gap-4">
       <h3 ref={headingRef} className="sr-only" tabIndex={-1}>
         Situação das notas
       </h3>
@@ -788,7 +1015,7 @@ function Overview({
       <section className="notas-docente-sec" aria-labelledby="notas-docente-importacoes">
         <div className="notas-docente-sec-h">
           <h3 className="notas-docente-h3" id="notas-docente-importacoes">
-            Importações feitas <span className="n">({imports.length})</span>
+            Importações feitas <span className="n">({appliedTotal})</span>
           </h3>
           {!archived ? (
             <button ref={importButtonRef} className={cx(secondaryButton, "btn-sm")} onClick={onImport} type="button">
@@ -833,6 +1060,7 @@ function Overview({
           </button>
         ) : null}
       </section>
+      {toastRoom ? <div aria-hidden style={{ height: toastRoom }} /> : null}
     </div>
   );
 }
@@ -957,10 +1185,13 @@ function StudentsView({
   onUndoable: (text: string, studentId: number, restore: GradeInput | null) => void;
 }) {
   const [filter, setFilter] = useState<StudentsFilter>("all");
-  // "Sem nota": a lista fica parada enquanto a docente lança (a linha não some ao salvar)
+  // "Sem nota": a lista fica parada enquanto a docente lança (a linha não some ao salvar); o número do filtro
+  // acompanha cada nota salva
   const [missingIds, setMissingIds] = useState<number[]>([]);
   const [announcement, setAnnouncement] = useState("");
   const inputs = useRef(new Map<number, HTMLInputElement>());
+  const rootRef = useRef<HTMLDivElement>(null);
+  const toastRoom = useToastClearance(rootRef);
   const { event: info, students } = data;
   const missingNow = students.filter((item) => item.enrollmentStatus === "active" && !item.grade);
   const visible = filter === "missing" ? students.filter((item) => missingIds.includes(item.studentId)) : students;
@@ -981,7 +1212,7 @@ function StudentsView({
   }
 
   return (
-    <div className="grid gap-4">
+    <div ref={rootRef} className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 ref={headingRef} className="notas-docente-h3 outline-none" tabIndex={-1}>
           Alunos <span className="n">({students.length})</span>
@@ -990,7 +1221,7 @@ function StudentsView({
           <SegmentedButton active={filter === "all"} label={`Todos (${students.length})`} onClick={() => setFilter("all")} />
           <SegmentedButton
             active={filter === "missing"}
-            label={`Sem nota (${filter === "missing" ? missingIds.length : missingNow.length})`}
+            label={`Sem nota (${missingNow.length})`}
             onClick={() => {
               setMissingIds(missingNow.map((item) => item.studentId));
               setFilter("missing");
@@ -1044,6 +1275,7 @@ function StudentsView({
           ))}
         </ul>
       )}
+      {toastRoom ? <div aria-hidden style={{ height: toastRoom }} /> : null}
     </div>
   );
 }
@@ -1226,7 +1458,12 @@ function GradeRowItem({
             placeholder={status !== "graded" ? gradeStatusLabels[status] : noPoints ? "sem valor" : ""}
             readOnly={locked}
             value={text}
-            onBlur={() => void commit()}
+            onBlur={() => {
+              // salva depois que o foco chegou ao próximo campo: com o Tab, a saída deste campo acontece antes, e
+              // o que muda na linha nesse meio tempo (giro, erro abaixo do campo) faria o painel puxar o foco
+              // para ele, em vez de deixar na Situação do mesmo aluno
+              window.setTimeout(() => void commit(), 0);
+            }}
             onChange={(changeEvent) => {
               editSeq.current += 1;
               setText(changeEvent.target.value);
@@ -1261,10 +1498,14 @@ function GradeRowItem({
             </span>
           ) : null}
         </span>
+        {/* enquanto a nota salva, a Situação continua no Tab (desativar tiraria o foco dela no meio do Tab):
+            a troca espera o salvar terminar (changeStatus) e o campo fica com aria-disabled */}
         <select
-          className="input notas-docente-status"
+          className="input notas-docente-status aria-disabled:cursor-wait"
+          aria-busy={saving || undefined}
+          aria-disabled={saving || undefined}
           aria-label={`Situação de ${name}`}
-          disabled={locked || saving}
+          disabled={locked}
           value={status}
           onChange={(changeEvent) => void changeStatus(changeEvent.target.value as GradeStatus)}
         >

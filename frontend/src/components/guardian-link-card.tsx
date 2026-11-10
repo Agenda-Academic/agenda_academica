@@ -16,7 +16,7 @@ import { relationshipOptions } from "@/lib/meta";
 import type { ClaimLinkResult, GuardianRelationship, LinkedStudent } from "@/lib/types";
 import { useAppActions } from "./app-actions";
 import { delay } from "./dashboard-bits";
-import { GuardianDataDialog } from "./guardian-data-dialog";
+import { GuardianDataDialog, GuardianDataView } from "./guardian-data-dialog";
 import { Field } from "./ui";
 
 /**
@@ -85,6 +85,9 @@ export function GuardianLinkCard({
   const rootRef = useRef<HTMLDivElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
   const relationshipRef = useRef<HTMLSelectElement>(null);
+  // "Quais dados o responsável vê": no painel, o Voltar devolve o foco a este link
+  const dataLinkRef = useRef<HTMLButtonElement>(null);
+  const focusDataLink = useRef(false);
   const titleId = useId();
   const helpId = useId();
   const stepsId = useId();
@@ -126,6 +129,19 @@ export function GuardianLinkCard({
       }
     };
   }, [isCard]);
+
+  // voltou do "Quais dados o responsável vê" no painel: o foco volta ao link que abriu
+  useEffect(() => {
+    if (!dataOpen && focusDataLink.current) {
+      focusDataLink.current = false;
+      dataLinkRef.current?.focus();
+    }
+  }, [dataOpen]);
+
+  function closeData() {
+    focusDataLink.current = true;
+    setDataOpen(false);
+  }
 
   // terminou a espera do 429: o botão volta e o aviso sai
   useEffect(() => {
@@ -276,7 +292,7 @@ export function GuardianLinkCard({
           {sending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Link2 className="h-4 w-4" aria-hidden />}
           {sending ? "Vinculando" : "Vincular"}
         </button>
-        <button className="link resp-link" onClick={() => setDataOpen(true)} type="button">
+        <button ref={dataLinkRef} className="link resp-link" onClick={() => setDataOpen(true)} type="button">
           <Info className="h-4 w-4" aria-hidden />
           Quais dados o responsável vê
         </button>
@@ -360,22 +376,31 @@ export function GuardianLinkCard({
     </aside>
   );
 
-  const dialog = <GuardianDataDialog open={dataOpen} onClose={() => setDataOpen(false)} />;
-
   if (!isCard) {
+    // no painel lateral, nunca diálogo sobre painel: o texto entra no lugar do formulário, com Voltar. O que foi
+    // digitado fica guardado (o estado é deste componente)
     return (
       <div ref={rootRef} className="resp-vinc is-panel">
-        <p className="text-sm leading-6 text-ink-3">
-          Com o código, a agenda do aluno também aparece no seu Painel. Você escolhe qual aluno ver no menu.
-        </p>
-        {form}
-        {status}
-        {pending}
-        {steps}
-        {dialog}
+        {dataOpen ? (
+          <GuardianDataView onBack={closeData} />
+        ) : (
+          <>
+            <p className="text-sm leading-6 text-ink-3">
+              Com o código, a agenda do aluno também aparece no seu Painel. Você escolhe qual aluno ver no menu.
+            </p>
+            {form}
+          </>
+        )}
+        {/* a região do status fica sempre montada, para o leitor de tela anunciar a frase da API */}
+        <div hidden={dataOpen}>{status}</div>
+        {dataOpen ? null : pending}
+        {dataOpen ? null : steps}
       </div>
     );
   }
+
+  // no Painel sem vínculo nada está aberto por baixo: aqui o texto abre no diálogo
+  const dialog = <GuardianDataDialog open={dataOpen} onClose={() => setDataOpen(false)} />;
 
   return (
     <section ref={rootRef} className="card resp-vinc rise" style={delay(order)} aria-labelledby={titleId}>

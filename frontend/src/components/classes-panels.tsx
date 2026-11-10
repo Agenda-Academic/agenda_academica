@@ -1,7 +1,7 @@
 "use client";
 
 import { Archive, ArchiveRestore, Check, CircleAlert, Info, Plus, Search, Trash2, UserMinus, UserPlus } from "lucide-react";
-import { useId, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import {
   addClassStudentsByEmail,
   addClassSubject,
@@ -19,7 +19,7 @@ import {
   updateSubject,
   updateTeachingAssignment,
 } from "@/lib/api";
-import { classLabel, cx, errorMessage, fieldErrors, normalizeText } from "@/lib/format";
+import { classLabel, cx, errorMessage, fieldErrors, isIntegratedCourse, normalizeText } from "@/lib/format";
 import { teachingRoleLabels } from "@/lib/meta";
 import type { AddStudentsResult, ClassDetail, ClassOffer, Subject, TeachingRole, UserSummary } from "@/lib/types";
 import { useAppActions } from "./app-actions";
@@ -27,13 +27,16 @@ import { PanelSubtitle, type PanelProps } from "./classes-class-panel";
 import {
   PanelFooter,
   SkeletonRows,
-  dependentsText,
+  findAdultStudents,
   initialsOf,
+  invalidLinesText,
   joinPt,
-  parseEmails,
+  minorWarning,
+  parseEmailLines,
   plural,
   useDebounced,
   useRemote,
+  type AdultInfo,
   type PanelApi,
   type SubjectDraft,
 } from "./classes-shared";
@@ -171,30 +174,44 @@ function SubjectFields({
   );
 }
 
+/**
+ * Erros do formulário da disciplina. A mensagem que veio da API (código repetido, com "Restaurar disciplina")
+ * fica parada até a pessoa mudar o valor do campo: sair do campo não a troca, e o botão abaixo dela não sai do
+ * lugar antes do clique. O erro de sair do campo entra depois que o foco já chegou ao próximo campo.
+ */
 function useSubjectForm(draft: SubjectDraft | null) {
   const [errors, setErrors] = useState<SubjectErrors>({});
   const [touched, setTouched] = useState<Partial<Record<keyof SubjectDraft, boolean>>>({});
+  const [fromApiFields, setFromApiFields] = useState<Array<keyof SubjectErrors>>([]);
   const [archivedId, setArchivedId] = useState<number | null>(null);
 
   return {
     errors,
     archivedId,
     blur(field: keyof SubjectDraft) {
-      if (draft && touched[field]) {
-        const found = validateSubject(draft);
-        setErrors((current) => ({ ...current, [field]: found[field] }));
+      if (!draft || !touched[field] || fromApiFields.includes(field)) {
+        return;
       }
+      const found = validateSubject(draft);
+      window.setTimeout(() => {
+        setErrors((current) => (current[field] === found[field] ? current : { ...current, [field]: found[field] }));
+      }, 0);
     },
     edited(previous: SubjectDraft, next: SubjectDraft) {
       const found = validateSubject(next);
       const marks = { ...touched };
       const cleared = { ...errors };
+      let apiKeys = fromApiFields;
       for (const key of Object.keys(next) as Array<keyof SubjectDraft>) {
-        if (next[key] !== previous[key]) {
-          marks[key] = true;
-          if (cleared[key] && !found[key]) {
-            delete cleared[key];
-          }
+        if (next[key] === previous[key]) {
+          continue;
+        }
+        marks[key] = true;
+        if (apiKeys.includes(key)) {
+          delete cleared[key];
+          apiKeys = apiKeys.filter((item) => item !== key);
+        } else if (cleared[key] && !found[key]) {
+          delete cleared[key];
         }
       }
       if (next.code !== previous.code) {
@@ -202,6 +219,7 @@ function useSubjectForm(draft: SubjectDraft | null) {
       }
       setTouched(marks);
       setErrors(cleared);
+      setFromApiFields(apiKeys);
     },
     check() {
       if (!draft) {
@@ -209,6 +227,7 @@ function useSubjectForm(draft: SubjectDraft | null) {
       }
       const found = validateSubject(draft);
       setErrors(found);
+      setFromApiFields([]);
       setArchivedId(null);
       return Object.keys(found).length === 0;
     },
@@ -216,11 +235,14 @@ function useSubjectForm(draft: SubjectDraft | null) {
       const duplicate = conflictOf(error, "ARCHIVED_DUPLICATE");
       if (duplicate) {
         setErrors({ code: duplicate.message });
+        setFromApiFields(["code"]);
         setArchivedId(duplicate.archivedId ?? null);
         return;
       }
       const byField = fieldErrors(error) as SubjectErrors;
-      setErrors(Object.keys(byField).length ? byField : { form: errorMessage(error) });
+      const next = Object.keys(byField).length ? byField : { form: errorMessage(error) };
+      setErrors(next);
+      setFromApiFields(Object.keys(next) as Array<keyof SubjectErrors>);
       setArchivedId(null);
     },
   };
@@ -470,16 +492,14 @@ export function SubjectPanel({ api, data, subtitle, view }: PanelProps<"subject"
         try {
           await deleteSubject(token, current.id);
           api.changed({ catalog: true });
-          api.close();
+          api.removed("subject");
           toast(`Disciplina ${current.name} excluída.`, { key: `disciplina-${current.id}` });
         } catch (error) {
           const blocked = conflictOf(error, "HAS_DEPENDENTS");
           if (blocked) {
-            const what = dependentsText(blocked.counts);
-            toast(
-              what ? `Não dá para excluir: a disciplina tem ${what}. Arquive a disciplina em vez de excluir.` : blocked.message,
-              { tone: "danger", key: `disciplina-${current.id}` }
-            );
+            // a frase da API já diz o que impede e o que fazer
+            toast(blocked.message, { tone: "danger", key: `disciplina-${current.id}` });
+            api.changed();
             return;
           }
           showError(error, `disciplina-${current.id}`);
@@ -574,7 +594,8 @@ export function SubjectPanel({ api, data, subtitle, view }: PanelProps<"subject"
         <span className="admin-foot-gap" />
         {dirty ? (
           <>
-            <button className={secondaryButton} onClick={() => api.close()} type="button">
+            {/* com rascunho, pergunta antes de descartar, como o X e o Esc */}
+            <button className={secondaryButton} onClick={() => api.cancel()} type="button">
               Cancelar
             </button>
             <button className={cx(primaryButton, busyLook)} aria-disabled={busy || undefined} form={formId} type="submit">
@@ -764,6 +785,11 @@ export function AddOfferPanel({ api, data, subtitle, view }: PanelProps<"addOffe
 /* Vincular docente (oferta da turma)                                  */
 /* ------------------------------------------------------------------ */
 
+/** O tipo do vínculo numa frase, sem marcar gênero: "como titular" ou "na substituição". */
+function roleInSentence(role: TeachingRole) {
+  return role === "substituto" ? "na substituição" : "como titular";
+}
+
 export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
   const { token, toast, showError } = useAppActions();
   const detail = useRemote(`admin:turma:${view.classId}`, () => getClass(token, view.classId));
@@ -822,7 +848,7 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
       try {
         const assignment = await assignTeacher(token, klass.id, current.subjectId, { teacherId: person.id, role });
         refresh();
-        toast(`${name} agora dá aula de ${where}, como ${teachingRoleLabels[role].toLowerCase()}.`, {
+        toast(`${name} agora dá aula de ${where}, ${roleInSentence(role)}.`, {
           key: `docente-${klass.id}-${current.subjectId}-${person.id}`,
           undo: async () => {
             try {
@@ -853,7 +879,7 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
       try {
         await updateTeachingAssignment(token, assignmentId, to);
         refresh();
-        toast(`${name} agora é ${teachingRoleLabels[to].toLowerCase()} em ${current.subject.name}.`, {
+        toast(`${name} agora está ${roleInSentence(to)} em ${current.subject.name}.`, {
           key: `vinculo-${assignmentId}`,
           undo: async () => {
             try {
@@ -1040,7 +1066,7 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
                   <button
                     className={cx(primaryButton, "btn-sm", busyLook)}
                     aria-disabled={busyAttr}
-                    aria-label={`Vincular ${person.fullName ?? person.email} como ${teachingRoleLabels[role].toLowerCase()}`}
+                    aria-label={`Vincular ${person.fullName ?? person.email} ${roleInSentence(role)}`}
                     onClick={() => link(person)}
                     type="button"
                   >
@@ -1107,51 +1133,114 @@ export function addStudentsSummary(result: AddStudentsResult) {
 }
 
 export function AddStudentsPanel({ api, subtitle, view }: PanelProps<"addStudents">) {
-  const { token, showError } = useAppActions();
+  const { token, showError, confirm } = useAppActions();
   const detail = useRemote(`admin:turma:${view.classId}`, () => getClass(token, view.classId));
   const formId = useId();
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
   const text = view.text ?? "";
-  const emails = parseEmails(text);
+  // cada linha é um item: "sem arroba" é uma linha inválida, e não dois e-mails
+  const parsed = parseEmailLines(text);
+  const emails = parsed.emails;
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AddStudentsResult | null>(null);
+  const [nowMinors, setNowMinors] = useState<string[]>([]);
+  const [checking, setChecking] = useState(false);
   const { working, run } = useWorking(api);
   const item = detail.data;
+  const integrated = isIntegratedCourse(item?.course);
+  const busy = working !== null || checking;
 
   function change(value: string) {
     setError(null);
     api.setView({ ...view, text: value, dirty: value.trim() !== "" });
   }
 
+  /** Erro abaixo do campo, sem apagar o que foi digitado; o foco volta para o campo. */
+  function fail(message: string) {
+    setError(message);
+    window.requestAnimationFrame(() => fieldRef.current?.focus());
+  }
+
+  async function send(list: string[], adults: AdultInfo[] | null) {
+    try {
+      const outcome = await addClassStudentsByEmail(token, view.classId, list);
+      setResult(outcome);
+      const rejected = new Set(outcome.rejected.map((entry) => entry.email.toLowerCase()));
+      setNowMinors(
+        outcome.added
+          ? (adults ?? []).filter((adult) => !adult.email || !rejected.has(adult.email.toLowerCase())).map((adult) => adult.name)
+          : []
+      );
+      // ficam no campo só os e-mails que a pessoa precisa corrigir
+      const invalid = outcome.rejected.filter((entry) => entry.reason === "invalid_email").map((entry) => entry.email);
+      api.setView({ ...view, text: invalid.join("\n"), dirty: invalid.length > 0 });
+      api.changed();
+    } catch (failure) {
+      const byField = fieldErrors(failure);
+      if (byField.emails) {
+        fail(byField.emails);
+        return;
+      }
+      showError(failure, `alunos-${view.classId}`);
+    }
+  }
+
   async function submit(event?: FormEvent) {
     event?.preventDefault();
+    if (busy) {
+      return;
+    }
+    const lines = invalidLinesText(parsed.invalid);
+    if (lines) {
+      fail(lines);
+      return;
+    }
     if (!emails.length) {
-      setError("Cole pelo menos um e-mail, um por linha.");
+      fail("Cole pelo menos um e-mail, um por linha.");
       return;
     }
     if (emails.length > MAX_EMAILS) {
-      setError(`Cole até ${MAX_EMAILS} e-mails por vez. Esta lista tem ${emails.length}: divida em duas partes.`);
+      fail(`Cole até ${MAX_EMAILS} e-mails por vez. Esta lista tem ${emails.length}: divida em duas partes.`);
       return;
     }
-    await run("add", async () => {
-      try {
-        const outcome = await addClassStudentsByEmail(token, view.classId, emails);
-        setResult(outcome);
-        // ficam no campo só os e-mails que a pessoa precisa corrigir
-        const invalid = outcome.rejected.filter((entry) => entry.reason === "invalid_email").map((entry) => entry.email);
-        api.setView({ ...view, text: invalid.join("\n"), dirty: invalid.length > 0 });
-        api.changed();
-      } catch (failure) {
-        const byField = fieldErrors(failure);
-        if (byField.emails) {
-          setError(byField.emails);
-          return;
-        }
-        showError(failure, `alunos-${view.classId}`);
-      }
+    if (!integrated || !item) {
+      await run("add", () => send(emails, null));
+      return;
+    }
+    // curso integrado: quem entra passa a contar como menor de idade. Antes de incluir, a tela confere quem já tem
+    // conta de aluno e hoje conta como adulto, e avisa
+    let adults: AdultInfo[] | null = null;
+    setChecking(true);
+    api.setBusy(true);
+    try {
+      adults = await findAdultStudents(token, emails);
+    } finally {
+      setChecking(false);
+      api.setBusy(false);
+    }
+    if (adults && !adults.length) {
+      await run("add", () => send(emails, adults));
+      return;
+    }
+    const checked = adults;
+    const warning = minorWarning(checked, item.name, "incluir");
+    confirm({
+      title: warning.title,
+      message: warning.message,
+      confirmLabel: "Incluir mesmo assim",
+      cancelLabel: "Revisar a lista",
+      tone: "primary",
+      action: () => run("add", () => send(emails, checked)),
     });
   }
 
   const good = result ? result.added + result.invited : 0;
+  const hint = [
+    emails.length ? plural(emails.length, "e-mail", "e-mails") : null,
+    parsed.invalid.length ? plural(parsed.invalid.length, "linha sem e-mail", "linhas sem e-mail") : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <>
@@ -1169,6 +1258,11 @@ export function AddStudentsPanel({ api, subtitle, view }: PanelProps<"addStudent
                 {result.invited ? (
                   <p className="mt-1">Quem foi convidado entra na turma assim que criar a conta com esse e-mail.</p>
                 ) : null}
+                {nowMinors.length ? (
+                  <p className="mt-1">
+                    {joinPt(nowMinors)} {nowMinors.length === 1 ? "passou" : "passaram"} a contar como menor de idade.
+                  </p>
+                ) : null}
                 {result.rejected.length ? (
                   <ul className="admin-rejected">
                     {result.rejected.map((entry) => (
@@ -1182,12 +1276,16 @@ export function AddStudentsPanel({ api, subtitle, view }: PanelProps<"addStudent
             </div>
           ) : null}
         </div>
-        <Field
-          label="E-mails dos alunos"
-          hint={emails.length ? plural(emails.length, "e-mail", "e-mails") : "um por linha"}
-          error={error ?? undefined}
-        >
+        {integrated && item ? (
+          <p className="callout amber mb-4">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            A {item.name} é do curso integrado: quem entra passa a contar como menor de idade. Antes de incluir, a tela
+            avisa quem hoje conta como adulto.
+          </p>
+        ) : null}
+        <Field label="E-mails dos alunos" hint={hint || "um por linha"} error={error ?? undefined}>
           <textarea
+            ref={fieldRef}
             className="input"
             autoComplete="off"
             data-panel-focus=""
@@ -1199,8 +1297,8 @@ export function AddStudentsPanel({ api, subtitle, view }: PanelProps<"addStudent
           />
         </Field>
         <p className="field-help">
-          Quem já tem conta de aluno entra na turma na hora. Quem ainda não tem recebe um convite e entra ao criar a conta.
-          E-mail repetido conta uma vez.
+          Um e-mail por linha. Quem já tem conta de aluno entra na turma na hora. Quem ainda não tem recebe um convite e
+          entra ao criar a conta. E-mail repetido conta uma vez.
         </p>
       </form>
       <PanelFooter api={api}>
@@ -1208,7 +1306,7 @@ export function AddStudentsPanel({ api, subtitle, view }: PanelProps<"addStudent
         <button className={secondaryButton} onClick={() => api.back()} type="button">
           Voltar para a turma
         </button>
-        <button className={cx(primaryButton, busyLook)} aria-disabled={working !== null || undefined} form={formId} type="submit">
+        <button className={cx(primaryButton, busyLook)} aria-disabled={busy || undefined} form={formId} type="submit">
           <UserPlus className="h-4 w-4" aria-hidden />
           Adicionar alunos
         </button>

@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, CircleAlert, Copy, Download, History, UserX, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { countText, cx } from "@/lib/format";
+import { countText, cx, parseScore } from "@/lib/format";
 import { gradeImportKindLabels, gradeStatusLabels } from "@/lib/meta";
 import type { GradeImport, GradeImportRow, GradeImportRowKind } from "@/lib/types";
 
@@ -109,27 +109,78 @@ function rowWho(row: GradeImportRow) {
   return row.student?.fullName || row.nameHint || row.identifier || (row.rowNumber ? `Linha ${row.rowNumber}` : "Linha sem dados");
 }
 
-function RejectedRow({ row }: { row: GradeImportRow }) {
+/** Como a importação acha o aluno: para "Linha sem e-mail" ou "Linha sem matrícula". */
+type IdentifierType = GradeImport["mapping"]["identifierType"];
+
+/**
+ * Título curto da linha que fica de fora, como na amostra: "joao.s@... não está na turma", "11,5 passa de 10".
+ * A frase longa da API continua no relatório das rejeitadas.
+ */
+function rejectedTitle(row: GradeImportRow, by: IdentifierType, maxScore: number | null, maxScoreText: string | null) {
+  const idName = by === "registration" ? "matrícula" : "e-mail";
+  const who = row.student?.fullName || row.nameHint || row.identifier || "O aluno";
+  const raw = (row.rawScore ?? "").trim();
+  if (row.kind === "no_match") {
+    if (!row.identifier) return `Linha sem ${idName}`;
+    return /mais de um/i.test(row.message ?? "")
+      ? `${row.identifier} serve para mais de um aluno`
+      : `${row.identifier} não está na turma`;
+  }
+  if (row.kind === "not_enrolled") {
+    return `${who} não está ativo na turma`;
+  }
+  if (row.kind === "duplicate") {
+    return `${who} aparece mais de uma vez`;
+  }
+  if (row.kind === "invalid") {
+    if (!row.identifier) return `Linha sem ${idName} do aluno`;
+    if (!raw) return "Nota em branco";
+    const value = parseScore(raw);
+    if (value !== null && Number.isNaN(value)) {
+      return /^-/.test(raw) ? `${raw} é negativa` : /^\d+[.,]\d{3,}$/.test(raw) ? `${raw} tem mais de duas casas` : `${raw} não é uma nota`;
+    }
+    if (value !== null && maxScore !== null && value > maxScore && maxScoreText) {
+      return `${raw} passa de ${maxScoreText}`;
+    }
+  }
+  return row.message ?? rowKindLabel(row);
+}
+
+function RejectedRow({
+  by,
+  maxScore,
+  maxScoreText,
+  row,
+}: {
+  by: IdentifierType;
+  maxScore: number | null;
+  maxScoreText: string | null;
+  row: GradeImportRow;
+}) {
   const Icon = rejectedIcons[row.kind] ?? CircleAlert;
-  const who = rowWho(row);
+  const title = rejectedTitle(row, by, maxScore, maxScoreText);
+  const who = row.student?.fullName || row.nameHint || null;
+  const raw = (row.rawScore ?? "").trim();
+  // a segunda linha completa o título: a linha do arquivo, quem é e a nota, sem repetir o que o título já diz
   const details = [
     row.rowNumber ? `linha ${row.rowNumber} do arquivo` : null,
-    row.identifier && row.identifier !== who ? row.identifier : null,
-    row.rawScore ? `nota ${row.rawScore}` : "sem nota",
+    who && !title.includes(who) ? who : null,
+    row.identifier && !title.includes(row.identifier) && row.identifier !== who ? row.identifier : null,
+    raw && !title.includes(raw) ? `nota ${raw}` : null,
   ]
     .filter(Boolean)
     .join(", ");
+  const tag = row.kind === "invalid" && !row.identifier ? "Sem identificação" : rowKindLabel(row);
   return (
     <li>
       <span className="notas-docente-r-ico">
         <Icon className="h-4 w-4" aria-hidden />
       </span>
       <div className="notas-docente-r-body">
-        <p className="notas-docente-r-t">{who}</p>
-        {row.message ? <p className="notas-docente-r-msg">{row.message}</p> : null}
+        <p className="notas-docente-r-t">{title}</p>
         <p className="notas-docente-r-s">
-          <span className="notas-docente-tag is-bad">{rowKindLabel(row)}</span>
-          <span>{details}</span>
+          <span className="notas-docente-tag is-bad">{tag}</span>
+          {details ? <span className="min-w-0 wrap-anywhere">{details}</span> : null}
         </p>
       </div>
     </li>
@@ -199,11 +250,16 @@ function PreviewSection({
 export function GradeImportPreview({
   draft,
   keepAgenda,
+  maxScore = null,
+  maxScoreText = null,
   onDownloadRejected,
   onKeepAgenda,
 }: {
   draft: GradeImport;
   keepAgenda: boolean;
+  /** Quanto vale a avaliação, em centésimos e em texto ("10"), para o título "11,5 passa de 10". */
+  maxScore?: number | null;
+  maxScoreText?: string | null;
   onDownloadRejected: () => void;
   onKeepAgenda: (keep: boolean) => void;
 }) {
@@ -281,7 +337,13 @@ export function GradeImportPreview({
           }
         >
           {rejected.map((row) => (
-            <RejectedRow key={row.id} row={row} />
+            <RejectedRow
+              key={row.id}
+              by={draft.mapping.identifierType}
+              maxScore={maxScore}
+              maxScoreText={maxScoreText}
+              row={row}
+            />
           ))}
         </PreviewSection>
       ) : null}

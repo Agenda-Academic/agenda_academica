@@ -348,7 +348,7 @@ export function StudentDashboard({
           <p className="kpi-hint">O aviso aparece aqui no sistema. O envio por e-mail é o próximo passo.</p>
         ) : null}
         <div className="card-foot">
-          <button className="link" onClick={onOpenReminders} type="button">
+          <button className="link min-h-6" onClick={onOpenReminders} type="button">
             {scheduled.length > 3 ? `Ver todos os lembretes (${scheduled.length})` : "Gerenciar lembretes"}
             <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
           </button>
@@ -413,7 +413,20 @@ export function StudentDashboard({
                 ))}
               </ul>
             </>
-          ) : null}
+          ) : (
+            // o /context do aluno não traz as disciplinas da turma: elas saem dos eventos. Sem nenhum, o
+            // vazio diz quando chegam e leva ao Cronograma (o card não fica com o vão até o rodapé)
+            <>
+              <hr className="divider mt-[18px] mb-4" />
+              <EmptyState
+                compact
+                icon={BookOpen}
+                text="Nenhuma disciplina com prova ou trabalho ainda"
+                hint={`As disciplinas da ${classes[0].name} aparecem aqui quando a docente marcar a primeira prova ou o primeiro trabalho.`}
+                action={{ label: "Ver cronograma", onClick: () => onOpenCalendar() }}
+              />
+            </>
+          )}
         </>
       ) : (
         <>
@@ -429,7 +442,11 @@ export function StudentDashboard({
                   <p className="aluno-class-name wrap-anywhere">{academicClass.name}</p>
                   {academicClass.course?.name ? <p className="aluno-class-course">{academicClass.course.name}</p> : null}
                   {classChips(academicClass)}
-                  {classSubjects.length ? <p className="aluno-class-subjects">{classSubjects.join(", ")}</p> : null}
+                  <p className="aluno-class-subjects">
+                    {classSubjects.length
+                      ? classSubjects.join(", ")
+                      : "As disciplinas aparecem aqui quando a docente marcar a primeira prova ou o primeiro trabalho."}
+                  </p>
                 </li>
               );
             })}

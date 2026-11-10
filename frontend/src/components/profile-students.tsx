@@ -1,12 +1,12 @@
 "use client";
 
 import { Info, Loader2, UserPlus } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { restoreGuardianLink, revokeGuardianLink } from "@/lib/api";
 import { classLabel, firstName, formatDateBR, linkSinceText, linkStatusText, relationshipText } from "@/lib/format";
 import type { LinkedStudent } from "@/lib/types";
 import { useAppActions } from "./app-actions";
-import { GuardianDataDialog } from "./guardian-data-dialog";
+import { GuardianDataView } from "./guardian-data-dialog";
 import { EmptyState } from "./ui";
 
 /**
@@ -14,7 +14,8 @@ import { EmptyState } from "./ui";
  * useAppActions().linkedStudents (ativos e pendentes) com parentesco, desde quando, turma e status, e "Deixar de
  * acompanhar" (no pedido pendente, "Cancelar pedido"): direto, com toast e Desfazer (DELETE /guardian-links/:id e,
  * no Desfazer, POST /guardian-links/:id/restore, que devolve o vínculo ao status de antes); depois, reload.
- * Sem props: o usuário e os vínculos vêm de useAppActions(). Dona: área Responsável.
+ * Sem props: o usuário e os vínculos vêm de useAppActions(). "Quais dados o responsável vê" troca o conteúdo da
+ * seção, com Voltar (o perfil já é um diálogo: nunca diálogo sobre diálogo). Dona: área Responsável.
  */
 export function ProfileStudents() {
   const { token, context, linkedStudents, toast, showError, reload, navigate } = useAppActions();
@@ -23,7 +24,22 @@ export function ProfileStudents() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [dataOpen, setDataOpen] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  // "Quais dados o responsável vê": o Voltar devolve o foco a este link
+  const dataLinkRef = useRef<HTMLButtonElement>(null);
+  const focusDataLink = useRef(false);
   const titleId = useId();
+
+  useEffect(() => {
+    if (!dataOpen && focusDataLink.current) {
+      focusDataLink.current = false;
+      dataLinkRef.current?.focus();
+    }
+  }, [dataOpen]);
+
+  function closeData() {
+    focusDataLink.current = true;
+    setDataOpen(false);
+  }
 
   const visible = linkedStudents.filter((item) => !hidden.includes(item.linkId));
 
@@ -76,86 +92,93 @@ export function ProfileStudents() {
         <h3 ref={headingRef} id={titleId} className="text-[17px] font-bold text-ink" tabIndex={-1}>
           Alunos que você acompanha
         </h3>
-        <button className="link resp-link" onClick={() => setDataOpen(true)} type="button">
-          <Info className="h-4 w-4" aria-hidden />
-          Quais dados o responsável vê
-        </button>
+        {dataOpen ? null : (
+          <button ref={dataLinkRef} className="link resp-link" onClick={() => setDataOpen(true)} type="button">
+            <Info className="h-4 w-4" aria-hidden />
+            Quais dados o responsável vê
+          </button>
+        )}
       </div>
 
-      {!context ? (
-        // o contexto ainda não chegou: esqueleto, nunca o "nenhum aluno"
-        <div className="grid gap-2" role="status">
-          <span className="sr-only">Carregando os alunos que você acompanha.</span>
-          {[0, 1].map((row) => (
-            <span key={row} className="resp-aluno" aria-hidden>
-              <span className="skel h-10 w-10 shrink-0 !rounded-xl" />
-              <span className="grid flex-1 gap-2">
-                <span className="skel h-3.5 w-2/3" />
-                <span className="skel h-3 w-1/2" />
-              </span>
-            </span>
-          ))}
-        </div>
-      ) : visible.length ? (
-        <ul className="grid gap-2">
-          {visible.map((item) => {
-            const pending = item.status === "pending";
-            const busy = busyId === item.linkId;
-            const fullName = item.fullName ?? "Aluno";
-            return (
-              <li key={item.linkId} className="resp-aluno">
-                <span className="avatar" aria-hidden>
-                  {item.initials}
-                </span>
-                <div className="resp-aluno-body">
-                  <p className="text-[15px] font-bold text-ink wrap-anywhere">{fullName}</p>
-                  <p className="text-sm text-muted">
-                    {pending
-                      ? `${relationshipText(item.relationship)}, pedido enviado em ${formatDateBR(item.since)}`
-                      : linkSinceText(item.relationship, item.since)}
-                  </p>
-                  {item.classes.length ? (
-                    <p className="text-sm text-muted">{item.classes.map((academicClass) => classLabel(academicClass)).join("; ")}</p>
-                  ) : null}
-                </div>
-                <div className="resp-aluno-acts">
-                  <span className={`pill ${pending ? "st-alt" : "st-conc"}`}>{linkStatusText(item.status)}</span>
-                  <button
-                    className="btn btn-s btn-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
-                    aria-busy={busy || undefined}
-                    aria-disabled={busyId !== null || undefined}
-                    aria-label={pending ? `Cancelar pedido para acompanhar ${fullName}` : `Deixar de acompanhar ${fullName}`}
-                    onClick={() => void stop(item)}
-                    type="button"
-                  >
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                    {pending ? "Cancelar pedido" : "Deixar de acompanhar"}
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+      {dataOpen ? (
+        // o perfil já é um diálogo: o texto entra no lugar da lista, com Voltar
+        <GuardianDataView level={4} onBack={closeData} />
       ) : (
-        <EmptyState
-          compact
-          icon={UserPlus}
-          text="Você ainda não acompanha nenhum aluno."
-          hint="Peça o código ao aluno, no perfil dele, ou à secretaria do campus, e digite no Painel."
-          action={{ label: "Ir para o Painel", onClick: () => navigate("dashboard") }}
-        />
+        <>
+          {!context ? (
+            // o contexto ainda não chegou: esqueleto, nunca o "nenhum aluno"
+            <div className="grid gap-2" role="status">
+              <span className="sr-only">Carregando os alunos que você acompanha.</span>
+              {[0, 1].map((row) => (
+                <span key={row} className="resp-aluno" aria-hidden>
+                  <span className="skel h-10 w-10 shrink-0 !rounded-xl" />
+                  <span className="grid flex-1 gap-2">
+                    <span className="skel h-3.5 w-2/3" />
+                    <span className="skel h-3 w-1/2" />
+                  </span>
+                </span>
+              ))}
+            </div>
+          ) : visible.length ? (
+            <ul className="grid gap-2">
+              {visible.map((item) => {
+                const pending = item.status === "pending";
+                const busy = busyId === item.linkId;
+                const fullName = item.fullName ?? "Aluno";
+                return (
+                  <li key={item.linkId} className="resp-aluno">
+                    <span className="avatar" aria-hidden>
+                      {item.initials}
+                    </span>
+                    <div className="resp-aluno-body">
+                      <p className="text-[15px] font-bold text-ink wrap-anywhere">{fullName}</p>
+                      <p className="text-sm text-muted">
+                        {pending
+                          ? `${relationshipText(item.relationship)}, pedido enviado em ${formatDateBR(item.since)}`
+                          : linkSinceText(item.relationship, item.since)}
+                      </p>
+                      {item.classes.length ? (
+                        <p className="text-sm text-muted">{item.classes.map((academicClass) => classLabel(academicClass)).join("; ")}</p>
+                      ) : null}
+                    </div>
+                    <div className="resp-aluno-acts">
+                      <span className={`pill ${pending ? "st-alt" : "st-conc"}`}>{linkStatusText(item.status)}</span>
+                      <button
+                        className="btn btn-s btn-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
+                        aria-busy={busy || undefined}
+                        aria-disabled={busyId !== null || undefined}
+                        aria-label={pending ? `Cancelar pedido para acompanhar ${fullName}` : `Deixar de acompanhar ${fullName}`}
+                        onClick={() => void stop(item)}
+                        type="button"
+                      >
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                        {pending ? "Cancelar pedido" : "Deixar de acompanhar"}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <EmptyState
+              compact
+              icon={UserPlus}
+              text="Você ainda não acompanha nenhum aluno."
+              hint="Peça o código ao aluno, no perfil dele, ou à secretaria do campus, e digite no Painel."
+              action={{ label: "Ir para o Painel", onClick: () => navigate("dashboard") }}
+            />
+          )}
+
+          {visible.length ? (
+            <p className="field-help !mt-0">
+              {visible.some((item) => item.status === "active")
+                ? "Para acompanhar outro aluno, use o código dele em Acompanhar outro aluno, no Painel."
+                : "Para acompanhar outro aluno, use o código dele no card Vincular aluno, no Painel."}{" "}
+              O aluno vê no perfil dele quem acompanha a agenda.
+            </p>
+          ) : null}
+        </>
       )}
-
-      {visible.length ? (
-        <p className="field-help !mt-0">
-          {visible.some((item) => item.status === "active")
-            ? "Para acompanhar outro aluno, use o código dele em Acompanhar outro aluno, no Painel."
-            : "Para acompanhar outro aluno, use o código dele no card Vincular aluno, no Painel."}{" "}
-          O aluno vê no perfil dele quem acompanha a agenda.
-        </p>
-      ) : null}
-
-      <GuardianDataDialog open={dataOpen} onClose={() => setDataOpen(false)} />
     </section>
   );
 }

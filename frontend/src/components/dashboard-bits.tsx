@@ -4,7 +4,9 @@ import {
   ArrowRight,
   BellRing,
   BookOpen,
+  CheckCheck,
   CheckCircle2,
+  ChevronUp,
   Clock,
   Loader2,
   MapPin,
@@ -1012,11 +1014,27 @@ function noticeWhen(value: string) {
   return formatShortDate(value);
 }
 
+/** Avisos mostrados antes do "Ver todos (N)". */
+const AVISOS_LIMIT = 3;
+
+/** Um item do card de avisos: lembrete cuja hora chegou ou aviso do sistema, com a hora em que chegou. */
+type AvisoItem =
+  | { type: "reminder"; key: string; at: number; aviso: Reminder }
+  | { type: "notice"; key: string; at: number; notice: AppNotification };
+
+/** Hora para ordenar (data inválida vai para o fim). */
+function arrivedAt(value: string) {
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 /**
  * Avisos: lembretes cuja hora chegou, com o evento ainda por vir, e os avisos do sistema ainda não lidos
  * (vínculo de responsável, pedido aprovado, nota publicada; GET /notifications, lidos do useAppActions). É o
- * mesmo bloco no Painel e em Lembretes. Ao dispensar (ou marcar como lido), o foco vai para o botão que fica no
- * lugar ou, sem mais avisos, para fallbackFocus (padrão: o título da tela).
+ * mesmo bloco no Painel e em Lembretes. Mostra os 3 mais recentes e "Ver todos (N)" (desenho 5.1: lista sem
+ * rolagem e sem empurrar o Painel), e "Marcar todos como lidos" com dois ou mais avisos do sistema. Ao dispensar
+ * (ou marcar como lido), o foco vai para o botão que fica no lugar ou, sem mais avisos, para fallbackFocus
+ * (padrão: o título da tela).
  *
  * O card some sem nenhum dos dois. Os painéis o mostram quando há lembrete avisando; com só avisos do
  * sistema, a página (app/page.tsx) mostra o card acima do painel, no mesmo lugar.
@@ -1025,17 +1043,21 @@ export function AvisosCard({
   avisos,
   events = [],
   fallbackFocus,
+  limit = AVISOS_LIMIT,
   note = true,
   order = 0,
   systemNotices = true,
   onDismiss,
   onOpen,
+  onReadAll,
 }: {
   avisos: Reminder[];
   /** Para achar o evento quando o lembrete chega sem ele. */
   events?: AcademicEvent[];
   /** Para onde vai o foco depois de dispensar o último aviso (o card some). */
   fallbackFocus?: () => HTMLElement | null;
+  /** Quantos mostrar antes do "Ver todos (N)" (padrão 3). */
+  limit?: number;
   /** Mostra a frase sobre onde o aviso aparece. */
   note?: boolean;
   order?: number;
@@ -1043,9 +1065,17 @@ export function AvisosCard({
   systemNotices?: boolean;
   onDismiss?: (reminderId: number) => void;
   onOpen: (eventId: number) => void;
+  /**
+   * "Marcar todos como lidos" (POST /notifications/read-all). Sem ele, usa o readAllNotices do useAppActions
+   * (a página já passa no contexto); o botão só aparece com algum dos dois e dois ou mais avisos do sistema.
+   */
+  onReadAll?: () => void | Promise<unknown>;
 }) {
   const titleId = useId();
+  const listId = useId();
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const dismissButtons = useRef(new Map<string, HTMLButtonElement>());
+  const [showAll, setShowAll] = useState(false);
   const actions = useOptionalAppActions();
   const notices: AppNotification[] = systemNotices && actions ? actions.notices : [];
   const total = avisos.length + notices.length;
@@ -1053,16 +1083,37 @@ export function AvisosCard({
     return null;
   }
 
+  // os mais recentes primeiro: o lembrete pela hora do aviso, o aviso do sistema pela hora em que chegou
+  const items: AvisoItem[] = [
+    ...avisos.map((aviso): AvisoItem => ({ type: "reminder", key: `r${aviso.id}`, at: arrivedAt(aviso.sendAt), aviso })),
+    ...notices.map((notice): AvisoItem => ({ type: "notice", key: `n${notice.id}`, at: arrivedAt(notice.createdAt), notice })),
+  ].sort((a, b) => b.at - a.at);
+  const max = Math.max(1, limit);
+  const more = items.length > max;
+  const shown = showAll ? items : items.slice(0, max);
+  const readAll = onReadAll ?? actions?.readAllNotices;
+  const canReadAll = Boolean(readAll) && notices.length > 1;
+
   // a ordem dos botões "Dispensar" e "Marcar como lido" na tela: o foco vai para o vizinho de quem saiu
-  const keys = [...avisos.map((aviso) => `r${aviso.id}`), ...notices.map((notice) => `n${notice.id}`)];
+  const keys = items.map((item) => item.key);
 
   function focusAfter(key: string) {
     const at = keys.indexOf(key);
     const rest = keys.filter((item) => item !== key);
     const nextKey = rest[Math.min(at, rest.length - 1)];
-    const next = nextKey !== undefined ? (dismissButtons.current.get(nextKey) ?? null) : null;
-    const target = next ?? fallbackFocus?.() ?? screenHeading();
-    target?.focus({ preventScroll: !next });
+    const fallback = () => fallbackFocus?.() ?? screenHeading();
+    const ready = nextKey !== undefined ? (dismissButtons.current.get(nextKey) ?? null) : null;
+    if (ready || nextKey === undefined) {
+      const target = ready ?? fallback();
+      target?.focus({ preventScroll: !ready });
+      return;
+    }
+    // o vizinho estava escondido pelo "Ver todos": ele entra na lista no próximo quadro
+    window.requestAnimationFrame(() => {
+      const next = dismissButtons.current.get(nextKey) ?? null;
+      const target = next ?? fallback();
+      target?.focus({ preventScroll: !next });
+    });
   }
 
   function dismiss(id: number) {
@@ -1076,6 +1127,19 @@ export function AvisosCard({
     focusAfter(`n${notice.id}`);
   }
 
+  function markAllRead() {
+    if (!readAll) {
+      return;
+    }
+    const count = notices.length;
+    void Promise.resolve(readAll());
+    // com lembretes ainda avisando, o card fica e o foco vai para o título dele; sem eles, o card some
+    const target = avisos.length ? titleRef.current : (fallbackFocus?.() ?? screenHeading());
+    target?.focus({ preventScroll: avisos.length > 0 });
+    setShowAll(false);
+    actions?.toast(`${count} avisos marcados como lidos.`, { key: "avisos-lidos" });
+  }
+
   function keepButton(key: string) {
     return (node: HTMLButtonElement | null) => {
       if (node) {
@@ -1086,86 +1150,113 @@ export function AvisosCard({
     };
   }
 
+  function renderReminder(aviso: Reminder) {
+    const event = aviso.academicEvent ?? events.find((item) => item.id === aviso.academicEventId);
+    const details = event ? [avisoWhen(event), event.location].filter(Boolean).join(", ") : null;
+    return (
+      <li key={`r${aviso.id}`} className="aviso">
+        {/* título e local vêm da pessoa: palavra ou link longo quebra em qualquer ponto */}
+        <p className="aviso-t wrap-anywhere">
+          {event?.title ?? "Evento da sua agenda"}
+          {details ? <span className="block text-sm font-normal text-muted">{details}</span> : null}
+        </p>
+        <div className="aviso-acts">
+          <button
+            className="btn btn-s btn-sm"
+            aria-label={event ? `Ver evento ${event.title}` : undefined}
+            data-opens-event={aviso.academicEventId}
+            onClick={() => onOpen(aviso.academicEventId)}
+            type="button"
+          >
+            Ver evento
+          </button>
+          {onDismiss ? (
+            <button
+              ref={keepButton(`r${aviso.id}`)}
+              className="btn btn-g btn-sm"
+              aria-label={`Dispensar o aviso de ${event?.title ?? "evento"}`}
+              onClick={() => dismiss(aviso.id)}
+              type="button"
+            >
+              Dispensar
+            </button>
+          ) : null}
+        </div>
+      </li>
+    );
+  }
+
+  function renderNotice(notice: AppNotification) {
+    return (
+      <li key={`n${notice.id}`} className="aviso">
+        <p className="aviso-t wrap-anywhere">
+          {notice.title}
+          {notice.body ? <span className="block text-sm font-normal text-muted">{notice.body}</span> : null}
+          <span className="block text-[13px] font-normal text-muted">{capitalize(noticeWhen(notice.createdAt))}</span>
+        </p>
+        <div className="aviso-acts">
+          {notice.link ? (
+            <button
+              className="btn btn-s btn-sm"
+              aria-label={`Abrir o aviso: ${notice.title}`}
+              onClick={() => actions?.openNotice(notice)}
+              type="button"
+            >
+              Abrir
+            </button>
+          ) : null}
+          <button
+            ref={keepButton(`n${notice.id}`)}
+            className="btn btn-g btn-sm"
+            aria-label={`Marcar como lido: ${notice.title}`}
+            onClick={() => markRead(notice)}
+            type="button"
+          >
+            Marcar como lido
+          </button>
+        </div>
+      </li>
+    );
+  }
+
   return (
-    <section className="card pad rise" style={delay(order)} aria-labelledby={titleId}>
+    <section className="card pad rise flex flex-col" style={delay(order)} aria-labelledby={titleId}>
       <div className="flex items-start gap-3.5">
         <span className="aviso-ico" aria-hidden>
           <BellRing className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <h2 className="h2" id={titleId}>
+          <h2 ref={titleRef} className="h2" id={titleId} tabIndex={-1}>
             Avisos ({total})
           </h2>
           {note ? <p className="sub">O aviso aparece aqui no sistema. O envio por e-mail é o próximo passo.</p> : null}
         </div>
       </div>
-      <ul className="avisos">
-        {avisos.map((aviso) => {
-          const event = aviso.academicEvent ?? events.find((item) => item.id === aviso.academicEventId);
-          const details = event ? [avisoWhen(event), event.location].filter(Boolean).join(", ") : null;
-          return (
-            <li key={`r${aviso.id}`} className="aviso">
-              {/* título e local vêm da pessoa: palavra ou link longo quebra em qualquer ponto */}
-              <p className="aviso-t wrap-anywhere">
-                {event?.title ?? "Evento da sua agenda"}
-                {details ? <span className="block text-sm font-normal text-muted">{details}</span> : null}
-              </p>
-              <div className="aviso-acts">
-                <button
-                  className="btn btn-s btn-sm"
-                  aria-label={event ? `Ver evento ${event.title}` : undefined}
-                  data-opens-event={aviso.academicEventId}
-                  onClick={() => onOpen(aviso.academicEventId)}
-                  type="button"
-                >
-                  Ver evento
-                </button>
-                {onDismiss ? (
-                  <button
-                    ref={keepButton(`r${aviso.id}`)}
-                    className="btn btn-g btn-sm"
-                    aria-label={`Dispensar o aviso de ${event?.title ?? "evento"}`}
-                    onClick={() => dismiss(aviso.id)}
-                    type="button"
-                  >
-                    Dispensar
-                  </button>
-                ) : null}
-              </div>
-            </li>
-          );
-        })}
-        {notices.map((notice) => (
-          <li key={`n${notice.id}`} className="aviso">
-            <p className="aviso-t wrap-anywhere">
-              {notice.title}
-              {notice.body ? <span className="block text-sm font-normal text-muted">{notice.body}</span> : null}
-              <span className="block text-[13px] font-normal text-muted">{capitalize(noticeWhen(notice.createdAt))}</span>
-            </p>
-            <div className="aviso-acts">
-              {notice.link ? (
-                <button
-                  className="btn btn-s btn-sm"
-                  aria-label={`Abrir o aviso: ${notice.title}`}
-                  onClick={() => actions?.openNotice(notice)}
-                  type="button"
-                >
-                  Abrir
-                </button>
-              ) : null}
-              <button
-                ref={keepButton(`n${notice.id}`)}
-                className="btn btn-g btn-sm"
-                aria-label={`Marcar como lido: ${notice.title}`}
-                onClick={() => markRead(notice)}
-                type="button"
-              >
-                Marcar como lido
-              </button>
-            </div>
-          </li>
-        ))}
+      <ul className="avisos" id={listId}>
+        {shown.map((item) => (item.type === "reminder" ? renderReminder(item.aviso) : renderNotice(item.notice)))}
       </ul>
+      {more || canReadAll ? (
+        <div className="card-foot">
+          {more ? (
+            <button
+              className="link min-h-6"
+              aria-controls={listId}
+              aria-expanded={showAll}
+              onClick={() => setShowAll((value) => !value)}
+              type="button"
+            >
+              {showAll ? "Mostrar menos" : showAllText("Ver todos", items.length)}
+              {showAll ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ArrowRight className="h-4 w-4" aria-hidden />}
+            </button>
+          ) : null}
+          {canReadAll ? (
+            <button className="btn btn-g btn-sm ml-auto" onClick={markAllRead} type="button">
+              <CheckCheck className="h-4 w-4" aria-hidden />
+              Marcar todos como lidos
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

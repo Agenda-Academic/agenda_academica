@@ -326,18 +326,33 @@ export function columnSamples(sheet: ParsedSheet, column: string, limit = 20) {
 
 const looksLikeScore = (value: string) => /^\d{1,3}([.,]\d+)?$/.test(value.replace(/\s+/g, ""));
 
-/** Palpite das colunas pelo nome do cabeçalho e pelo conteúdo (coluna com @ é e-mail; a última numérica é a nota). */
+/** A coluna existe no arquivo e tem valor em alguma linha (a matrícula do Modelo baixado pela docente vem vazia). */
+export function columnHasData(sheet: ParsedSheet, column: string | null | undefined) {
+  return Boolean(column) && sheet.headers.includes(column as string) && columnSamples(sheet, column as string, 1).length > 0;
+}
+
+/** A maior parte dos valores da coluna tem @ (coluna de e-mail). */
+function looksLikeEmails(sheet: ParsedSheet, column: string) {
+  const values = columnSamples(sheet, column);
+  return values.length > 0 && values.filter((value) => value.includes("@")).length >= values.length / 2;
+}
+
+/**
+ * Palpite das colunas pelo nome do cabeçalho e pelo conteúdo (coluna com @ é e-mail; a última numérica é a nota).
+ * Sem `preferredType`, o aluno é achado pela coluna que tem dados no arquivo (o e-mail primeiro).
+ */
 export function guessColumns(sheet: ParsedSheet, preferredType?: "email" | "registration"): ColumnChoice {
   const { headers } = sheet;
   let email = findHeader(headers, emailWords);
-  if (!email) {
-    email = headers.find((header) => {
-      const values = columnSamples(sheet, header);
-      return values.length > 0 && values.filter((value) => value.includes("@")).length >= values.length / 2;
-    }) ?? "";
+  if (!email || !columnHasData(sheet, email)) {
+    email = headers.find((header) => looksLikeEmails(sheet, header)) ?? email;
   }
   const registration = findHeader(headers, registrationWords, email ? [email] : []);
-  const identifierType = preferredType ?? (email ? "email" : registration ? "registration" : "email");
+  const emailFilled = columnHasData(sheet, email);
+  const registrationFilled = columnHasData(sheet, registration);
+  const identifierType =
+    preferredType ??
+    (emailFilled ? "email" : registrationFilled ? "registration" : email ? "email" : registration ? "registration" : "email");
   const identifierColumn = identifierType === "email" ? email || registration : registration || email;
   let scoreColumn = findHeader(headers, scoreWords, [identifierColumn]);
   if (!scoreColumn) {
@@ -353,17 +368,43 @@ export function guessColumns(sheet: ParsedSheet, preferredType?: "email" | "regi
   return { identifierType, identifierColumn, scoreColumn, nameColumn };
 }
 
-/** Ajusta um mapeamento salvo às colunas deste arquivo: o que não existe nele vira o palpite. */
+/**
+ * Ajusta um mapeamento salvo às colunas deste arquivo. O salvo nunca escolhe uma coluna que não existe ou que está
+ * vazia neste arquivo: no lugar dela vem a coluna com dados (a matrícula vazia do Modelo vira o e-mail).
+ */
 export function fitColumns(sheet: ParsedSheet, saved: GradeImportMapping | null): ColumnChoice {
-  const guess = guessColumns(sheet, saved?.identifierType);
-  if (!saved) return guess;
+  const auto = guessColumns(sheet);
+  if (!saved) return auto;
   const has = (column?: string | null) => Boolean(column) && sheet.headers.includes(column as string);
-  return {
-    identifierType: saved.identifierType,
-    identifierColumn: has(saved.identifierColumn) ? saved.identifierColumn : guess.identifierColumn,
-    scoreColumn: has(saved.scoreColumn) ? saved.scoreColumn : guess.scoreColumn,
-    nameColumn: has(saved.nameColumn) ? (saved.nameColumn as string) : guess.nameColumn,
-  };
+  const filled = (column?: string | null) => columnHasData(sheet, column);
+  // a coluna serve para o tipo: a do e-mail tem @; a da matrícula, não
+  const fitsType = (column: string, type: ColumnChoice["identifierType"]) =>
+    filled(column) && looksLikeEmails(sheet, column) === (type === "email");
+
+  let identifierType = saved.identifierType;
+  let identifierColumn = saved.identifierColumn;
+  if (!filled(identifierColumn)) {
+    const sameType = guessColumns(sheet, saved.identifierType).identifierColumn;
+    if (sameType && fitsType(sameType, saved.identifierType)) {
+      identifierColumn = sameType;
+    } else {
+      identifierType = auto.identifierType;
+      identifierColumn = auto.identifierColumn;
+    }
+  }
+
+  // a nota: a salva, se tem dados; senão a do palpite com dados; senão a salva que existe (vazia, o passo Colunas avisa)
+  const guessScore = guessColumns(sheet, identifierType).scoreColumn;
+  const scoreOptions = [saved.scoreColumn, guessScore, auto.scoreColumn].filter(
+    (column): column is string => Boolean(column) && column !== identifierColumn
+  );
+  const scoreColumn =
+    scoreOptions.find((column) => filled(column)) ?? scoreOptions.find((column) => has(column)) ?? "";
+
+  const nameColumn = [saved.nameColumn, auto.nameColumn].find(
+    (column): column is string => Boolean(column) && filled(column) && column !== identifierColumn && column !== scoreColumn
+  );
+  return { identifierType, identifierColumn, scoreColumn, nameColumn: nameColumn ?? "" };
 }
 
 /** O mapping que vai para a API. */
@@ -421,6 +462,11 @@ export function loadSavedMapping(source: GradeImportSource): GradeImportMapping 
     const raw = window.localStorage.getItem(mappingKey(source));
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<GradeImportMapping>;
+    // o Modelo da Agenda acha o aluno pelo e-mail (a matrícula não vem para a docente): um mapeamento antigo dele
+    // pela matrícula não vale mais, e a importação começa pelo palpite (a coluna do e-mail)
+    if (source === "modelo" && value.identifierType === "registration") {
+      return null;
+    }
     if (
       (value.identifierType === "email" || value.identifierType === "registration") &&
       typeof value.identifierColumn === "string" &&
@@ -516,12 +562,31 @@ export function fileSlug(value: string) {
   );
 }
 
-/** Colunas do Modelo da Agenda (a importação reconhece estes nomes sozinha). */
-export const TEMPLATE_HEADERS = ["e-mail", "matrícula", "nome", "nota"];
+type TemplateStudent = { email: string; registration?: string | null; fullName: string | null };
 
-/** Modelo da Agenda: e-mail, matrícula, nome e nota (vazia), um aluno por linha. */
-export function templateCsv(students: Array<{ email: string; registration?: string | null; fullName: string | null }>) {
-  return toCsv([TEMPLATE_HEADERS, ...students.map((student) => [student.email, student.registration ?? "", student.fullName ?? "", ""])]);
+/**
+ * Colunas do Modelo da Agenda (a importação reconhece estes nomes sozinha). O aluno é achado pelo e-mail da conta,
+ * que vem para todos; a matrícula entra só quando a lista traz alguma (a administração), porque a da docente vem
+ * sem ela e a coluna ficaria vazia.
+ */
+export function templateHeaders(students: TemplateStudent[]) {
+  return students.some((student) => student.registration)
+    ? ["e-mail", "matrícula", "nome", "nota"]
+    : ["e-mail", "nome", "nota"];
+}
+
+/** Modelo da Agenda: e-mail, nome e nota (vazia), um aluno por linha; com a matrícula quando a lista traz. */
+export function templateCsv(students: TemplateStudent[]) {
+  const headers = templateHeaders(students);
+  const withRegistration = headers.includes("matrícula");
+  return toCsv([
+    headers,
+    ...students.map((student) =>
+      withRegistration
+        ? [student.email, student.registration ?? "", student.fullName ?? "", ""]
+        : [student.email, student.fullName ?? "", ""]
+    ),
+  ]);
 }
 
 /** Relatório das linhas que ficaram de fora da importação, com o motivo de cada uma. */

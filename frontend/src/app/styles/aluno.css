@@ -154,8 +154,15 @@
   .input.aluno-code-input {
     max-width: none;
   }
-  .callout.aluno-pending {
+  /* o texto ocupa a largura toda ao lado da ampulheta (36 px + 12 px de vão) e a pílula desce para a
+     linha de baixo, alinhada ao texto */
+  .callout.aluno-pending:not(.compact) {
     flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: 8px;
+  }
+  .aluno-pending:not(.compact) .aluno-pending-tx {
+    flex: 1 1 calc(100% - 48px);
   }
   .aluno-pending .pill {
     margin-left: 48px;

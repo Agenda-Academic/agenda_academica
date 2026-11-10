@@ -22,6 +22,7 @@ import {
 import { createPortal } from "react-dom";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
+  ApiError,
   archiveClass,
   cancelClassInvite,
   addClassStudentsByEmail,
@@ -46,6 +47,7 @@ import {
   cx,
   errorMessage,
   fieldErrors,
+  firstName,
   formatOnDayAt,
   isIntegratedCourse,
   normalizeCode,
@@ -58,18 +60,20 @@ import {
   CopyButton,
   PanelFooter,
   SkeletonRows,
-  dependentsText,
   forgetRemote,
   initialsOf,
+  minorWarning,
   plural,
   readLastClass,
+  undoEnrollments,
   useRemote,
   writeLastClass,
   type ClassDraft,
+  type EnrollmentUndo,
   type PanelApi,
   type PanelView,
 } from "./classes-shared";
-import { ErrorState, Field, primaryButton, secondaryButton } from "./ui";
+import { EmptyState, ErrorState, Field, primaryButton, secondaryButton } from "./ui";
 
 /* ------------------------------------------------------------------ */
 /* Formulário da turma (criar e editar)                                */
@@ -80,6 +84,14 @@ type ClassErrors = Partial<Record<keyof ClassDraft | "form", string>>;
 const NEW_COURSE = "__novo";
 const STUDENT_LIMIT = 8;
 const INVITE_LIMIT = 3;
+
+/** Restaurar a turma (e o Desfazer do arquivar) deixa o código desligado, por regra da API. */
+const CODE_OFF_TEXT = "O código da turma ficou desligado. Gere um novo para voltar a aceitar pedidos.";
+
+/** A API respondeu 404: a turma não existe (ou saiu). */
+function isNotFound(error: unknown) {
+  return error instanceof ApiError && error.status === 404;
+}
 
 const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
 
@@ -546,40 +558,95 @@ function NewCourseFields({ onCancel, onCreated }: { onCancel: () => void; onCrea
   );
 }
 
-/** Rascunho, erros e validação ao sair do campo (só dos campos já mexidos). */
-function useClassForm(draft: ClassDraft | null, courses: Course[], extraCourse?: Course | null) {
+/** Erros que dependem do curso: somem quando o curso muda (o nome repetido era "em 2026/2" do curso de antes). */
+const COURSE_BOUND: Array<keyof ClassErrors> = ["courseId", "semester", "period", "form"];
+
+/**
+ * Rascunho, erros e validação ao sair do campo (só dos campos já mexidos).
+ *
+ * - A mensagem que veio da API (turma repetida, com "Restaurar turma") fica parada até a pessoa mudar o valor do
+ *   campo: sair do campo não a troca, e o botão abaixo dela não sai do lugar antes do clique.
+ * - O erro de sair do campo entra depois que o foco já chegou ao próximo campo: a mudança na tela não tira o foco
+ *   do lugar.
+ * - Trocar o curso limpa os erros que dependem dele e, se o período veio do curso anterior (a pessoa não o
+ *   editou), limpa o período: "5º período" não serve para turma de curso integrado, nem "3º ano" para as outras.
+ *   Na turma nova vale para qualquer troca de curso (`periodFollowsCourse`); na edição, só quando a modalidade muda.
+ */
+function useClassForm(
+  draft: ClassDraft | null,
+  courses: Course[],
+  extraCourse?: Course | null,
+  periodFollowsCourse = false
+) {
   const [errors, setErrors] = useState<ClassErrors>({});
   const [touched, setTouched] = useState<Partial<Record<keyof ClassDraft, boolean>>>({});
+  const [fromApiFields, setFromApiFields] = useState<Array<keyof ClassErrors>>([]);
+  const [periodEdited, setPeriodEdited] = useState(false);
   const [archivedId, setArchivedId] = useState<number | null>(null);
   const integrated = draft ? isIntegratedCourse(courseOf(courses, draft.courseId, extraCourse)) : false;
 
   function blur(field: keyof ClassDraft) {
-    if (!draft || !touched[field]) {
+    if (!draft || !touched[field] || fromApiFields.includes(field)) {
       return;
     }
     const found = validateClass(draft, integrated);
-    setErrors((current) => ({ ...current, [field]: found[field] }));
+    window.setTimeout(() => {
+      setErrors((current) => (current[field] === found[field] ? current : { ...current, [field]: found[field] }));
+    }, 0);
+  }
+
+  /** O rascunho que vale depois da troca de curso: sem o período que veio do curso de antes. */
+  function adjust(previous: ClassDraft, next: ClassDraft): ClassDraft {
+    if (next.courseId === previous.courseId || periodEdited || !next.period) {
+      return next;
+    }
+    const before = isIntegratedCourse(courseOf(courses, previous.courseId, extraCourse));
+    const after = isIntegratedCourse(courseOf(courses, next.courseId, extraCourse));
+    return periodFollowsCourse || before !== after ? { ...next, period: "" } : next;
   }
 
   /** A pessoa mexeu: o campo passa a ser conferido ao sair, e o erro dele some assim que fica certo. */
   function edited(previous: ClassDraft, next: ClassDraft) {
+    const courseChanged = next.courseId !== previous.courseId;
     const nextIntegrated = isIntegratedCourse(courseOf(courses, next.courseId, extraCourse));
     const found = validateClass(next, nextIntegrated);
     const marks = { ...touched };
     const cleared = { ...errors };
+    let apiKeys = fromApiFields;
+    if (courseChanged) {
+      for (const key of COURSE_BOUND) {
+        delete cleared[key];
+      }
+      if (apiKeys.includes("name")) {
+        delete cleared.name;
+      }
+      apiKeys = apiKeys.filter((key) => key !== "name" && !COURSE_BOUND.includes(key));
+    }
     for (const key of Object.keys(next) as Array<keyof ClassDraft>) {
-      if (next[key] !== previous[key]) {
+      if (next[key] === previous[key]) {
+        continue;
+      }
+      // o período limpo pela troca de curso não conta como mexido pela pessoa
+      const byPerson = !(key === "period" && courseChanged) && !(key === "semester" && courseChanged);
+      if (byPerson) {
         marks[key] = true;
-        if (cleared[key] && !found[key]) {
-          delete cleared[key];
-        }
+      }
+      if (key === "period" && !courseChanged) {
+        setPeriodEdited(true);
+      }
+      if (apiKeys.includes(key)) {
+        delete cleared[key];
+        apiKeys = apiKeys.filter((item) => item !== key);
+      } else if (cleared[key] && !found[key]) {
+        delete cleared[key];
       }
     }
-    if (next.name !== previous.name || next.courseId !== previous.courseId) {
+    if (next.name !== previous.name || courseChanged) {
       setArchivedId(null);
     }
     setTouched(marks);
     setErrors(cleared);
+    setFromApiFields(apiKeys);
   }
 
   function check(): boolean {
@@ -588,6 +655,7 @@ function useClassForm(draft: ClassDraft | null, courses: Course[], extraCourse?:
     }
     const found = validateClass(draft, integrated);
     setErrors(found);
+    setFromApiFields([]);
     setArchivedId(null);
     return Object.keys(found).length === 0;
   }
@@ -595,10 +663,11 @@ function useClassForm(draft: ClassDraft | null, courses: Course[], extraCourse?:
   function fromApi(error: unknown) {
     const result = apiClassErrors(error, integrated);
     setErrors(result.errors);
+    setFromApiFields(Object.keys(result.errors) as Array<keyof ClassErrors>);
     setArchivedId(result.archivedId);
   }
 
-  return { errors, archivedId, integrated, blur, edited, check, fromApi, setErrors };
+  return { errors, archivedId, integrated, blur, adjust, edited, check, fromApi, setErrors };
 }
 
 /** Leva o foco ao primeiro campo com erro (depois de salvar). */
@@ -640,10 +709,11 @@ export function NewClassPanel({ api, data, view }: PanelProps<"newClass">) {
     return merged;
   });
   const draft = view.draft ?? initial;
-  const form = useClassForm(draft, courses);
+  const form = useClassForm(draft, courses, null, true);
   const [working, setWorking] = useState(false);
 
-  function change(next: ClassDraft) {
+  function change(proposed: ClassDraft) {
+    const next = form.adjust(draft, proposed);
     form.edited(draft, next);
     api.setView({ ...view, draft: next, dirty: !sameDraft(next, initial) });
   }
@@ -688,7 +758,7 @@ export function NewClassPanel({ api, data, view }: PanelProps<"newClass">) {
     try {
       const restored = await restoreClass(token, id);
       api.changed({ catalog: true });
-      toast(`Turma ${restored.name} restaurada. O código da turma continua desligado.`, { key: `turma-${id}` });
+      toast(`Turma ${restored.name} restaurada. ${CODE_OFF_TEXT}`, { key: `turma-${id}` });
       api.replace({ kind: "class", classId: id });
     } catch (error) {
       handleRestoreError(error, id);
@@ -759,7 +829,8 @@ export function NewClassPanel({ api, data, view }: PanelProps<"newClass">) {
       </form>
       <PanelFooter api={api}>
         <span className="admin-foot-gap" />
-        <button className={secondaryButton} onClick={() => api.close()} type="button">
+        {/* com rascunho, pergunta antes de descartar, como o X e o Esc */}
+        <button className={secondaryButton} onClick={() => api.cancel()} type="button">
           Cancelar
         </button>
         <button className={cx(primaryButton, busyLook)} aria-disabled={working || undefined} form={formId} type="submit">
@@ -815,10 +886,11 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
     }
   }
 
-  function change(next: ClassDraft) {
+  function change(proposed: ClassDraft) {
     if (!draft || !original) {
       return;
     }
+    const next = form.adjust(draft, proposed);
     form.edited(draft, next);
     api.setView({ ...view, draft: next, dirty: !sameDraft(next, original) });
   }
@@ -855,11 +927,24 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
     });
   }
 
+  /** Liga o código de uma turma restaurada (o botão do aviso; o painel tem o mesmo em Código da turma). */
+  async function generateCodeFor(classId: number) {
+    try {
+      await createJoinCode(token, classId);
+      api.changed();
+      toast("Código da turma ligado. Mostre o código no painel da turma para passar aos alunos.", { key: `codigo-${classId}` });
+    } catch (error) {
+      showError(error, `codigo-${classId}`);
+    }
+  }
+
   async function restoreTo(classId: number) {
     try {
       const restored = await restoreClass(token, classId);
-      toast(`Turma ${restored.name} restaurada. O código da turma continua desligado; use Gerar novo para ligar.`, {
+      // o código fica desligado depois de restaurar (regra da API): o aviso diz e oferece gerar um novo
+      toast(`Turma ${restored.name} restaurada. ${CODE_OFF_TEXT}`, {
         key: `turma-${classId}`,
+        action: { label: "Gerar código", onClick: () => void generateCodeFor(classId) },
       });
       if (classId === id) {
         refreshAll(true);
@@ -909,7 +994,7 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
             future
               ? ` ${plural(future, "evento futuro continua visível", "eventos futuros continuam visíveis")}, sem lembretes.`
               : ""
-          }`,
+          }${item.joinCodeActive ? " O código da turma foi desligado, e o Desfazer não o liga de novo." : ""}`,
           { key: `turma-${id}`, undo: () => restoreTo(id) }
         );
       } catch (error) {
@@ -932,18 +1017,13 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
           await deleteClass(token, id);
           forgetRemote(`admin:turma:${id}`);
           api.changed({ catalog: true });
-          api.close();
+          api.removed("class");
           toast(`Turma ${item.name} excluída.`, { key: `turma-${id}` });
         } catch (error) {
           const blocked = conflictOf(error, "HAS_DEPENDENTS");
           if (blocked) {
-            const what = dependentsText(blocked.counts);
-            toast(
-              what
-                ? `Não dá para excluir: a turma tem ${what}. Arquive a turma em vez de excluir.`
-                : blocked.message,
-              { tone: "danger", key: `turma-${id}` }
-            );
+            // a frase da API já diz o que impede e o que fazer
+            toast(blocked.message, { tone: "danger", key: `turma-${id}` });
             refreshAll();
             return;
           }
@@ -954,9 +1034,22 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
   }
 
   if (!item || !draft) {
+    const missing = isNotFound(detail.error);
     return (
       <>
-        {detail.error ? (
+        {missing ? (
+          // ?tela=turmas&turma=999: a turma não existe (ou foi excluída). O endereço já perdeu o &turma=
+          <div className="admin-sec !pt-1">
+            <h3 className="sr-only" data-panel-start tabIndex={-1}>
+              Turma não encontrada
+            </h3>
+            <EmptyState
+              icon={Info}
+              text="Turma não encontrada"
+              hint="Ela pode ter sido excluída, ou o endereço está errado. Volte para a lista de turmas."
+            />
+          </div>
+        ) : detail.error ? (
           <ErrorState title="Não deu para abrir a turma" text={errorMessage(detail.error)} onRetry={() => void detail.reload()} />
         ) : (
           <div className="admin-sec !pt-1" aria-busy="true">
@@ -968,9 +1061,15 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
         )}
         <PanelFooter api={api}>
           <span className="admin-foot-gap" />
-          <button className={secondaryButton} onClick={() => api.back()} type="button">
-            {api.canGoBack ? "Voltar" : "Fechar"}
-          </button>
+          {missing ? (
+            <button className={primaryButton} onClick={() => api.close()} type="button">
+              Voltar para Turmas
+            </button>
+          ) : (
+            <button className={secondaryButton} onClick={() => api.back()} type="button">
+              {api.canGoBack ? "Voltar" : "Fechar"}
+            </button>
+          )}
         </PanelFooter>
       </>
     );
@@ -1055,6 +1154,7 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
         item={item}
         loadingError={students.error ?? invites.error}
         showAll={Boolean(view.showAll)}
+        showOthers={Boolean(view.showOthers)}
         students={students.data}
         onChanged={() => refreshAll()}
         onRetry={() => {
@@ -1062,6 +1162,7 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
           void invites.reload();
         }}
         onShowAll={(value) => api.setView({ ...view, showAll: value })}
+        onShowOthers={(value) => api.setView({ ...view, showOthers: value })}
         onShowCode={() => {
           setCodeShown(true);
           window.requestAnimationFrame(() => {
@@ -1081,7 +1182,10 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
         working={working}
         onRun={run}
         onShown={setCodeShown}
-        onUpdated={() => void detail.reload()}
+        onUpdated={() => {
+          void detail.reload();
+          api.changed();
+        }}
       />
 
       <PanelFooter api={api}>
@@ -1126,7 +1230,8 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
         {dirty ? (
           <>
             {!api.canGoBack ? (
-              <button className={secondaryButton} onClick={() => api.close()} type="button">
+              // com rascunho, pergunta antes de descartar, como o X e o Esc
+              <button className={secondaryButton} onClick={() => api.cancel()} type="button">
                 Cancelar
               </button>
             ) : null}
@@ -1277,10 +1382,12 @@ function StudentsSection({
   item,
   loadingError,
   showAll,
+  showOthers,
   students,
   onChanged,
   onRetry,
   onShowAll,
+  onShowOthers,
   onShowCode,
 }: {
   api: PanelApi;
@@ -1289,16 +1396,21 @@ function StudentsSection({
   item: ClassDetail;
   loadingError: unknown;
   showAll: boolean;
+  /** Mostra quem não está na turma (recusados, removidos e concluídos). */
+  showOthers: boolean;
   students: ClassStudent[] | null;
   onChanged: () => void;
   onRetry: () => void;
   onShowAll: (value: boolean) => void;
+  onShowOthers: (value: boolean) => void;
   onShowCode: () => void;
 }) {
-  const { token, toast, showError } = useAppActions();
+  const { token, toast, showError, confirm } = useAppActions();
   const headingId = useId();
   const [selected, setSelected] = useState<number[]>([]);
   const [working, setWorking] = useState<string | null>(null);
+  // curso integrado: quem fica ativo na turma passa a contar como menor de idade (regra da API)
+  const integrated = isIntegratedCourse(item.course);
 
   const list = students ?? [];
   const pending = list.filter((student) => student.status === "pending");
@@ -1310,7 +1422,10 @@ function StudentsSection({
   const shownActive = shown.filter((student) => student.status === "active");
   const inviteList = invites ?? [];
   const shownInvites = showAll ? inviteList : inviteList.slice(0, INVITE_LIMIT);
-  const hiddenCount = combined.length - shown.length + (showAll ? 0 : others.length) + (inviteList.length - shownInvites.length);
+  // "Ver todos (N)": N é o que a lista mostra aberta (pedidos, ativos e convites). Quem foi recusado, removido ou
+  // concluiu fica à parte, em "Ver quem não está na turma"
+  const listTotal = combined.length + inviteList.length;
+  const hiddenCount = listTotal - shown.length - shownInvites.length;
   const selectedPending = selected.filter((id) => pending.some((student) => student.enrollmentId === id));
   const allSelected = shownPending.length > 0 && shownPending.every((student) => selected.includes(student.enrollmentId));
 
@@ -1328,32 +1443,78 @@ function StudentsSection({
     }
   }
 
-  async function setStatus(student: ClassStudent, status: "active" | "inactive" | "pending") {
-    await updateEnrollment(token, student.enrollmentId, { status });
+  /**
+   * Desfazer de aprovar ou recusar: só volta o pedido que continua como a ação deixou (uma ação mais nova não é
+   * desfeita por um aviso antigo). Depois, a lista e o painel aberto recarregam.
+   */
+  async function undoDecision(changes: EnrollmentUndo[], label: string, key: string) {
+    try {
+      const result = await undoEnrollments(token, item.id, changes);
+      if (!result.undone) {
+        toast(`Nada para desfazer: ${label} mudou depois desta ação e ficou como está.`, { tone: "info", key });
+      } else if (result.skipped) {
+        toast(
+          `${plural(result.undone, "pedido voltou", "pedidos voltaram")} a pendente. ${plural(
+            result.skipped,
+            "matrícula mudou",
+            "matrículas mudaram"
+          )} depois e ficou como está.`,
+          { tone: "info", key }
+        );
+      }
+    } catch (error) {
+      showError(error, key);
+    } finally {
+      onChanged();
+    }
+  }
+
+  /** Antes de aprovar adulto na turma do curso integrado: ele passa a contar como menor de idade. */
+  function confirmMinor(adults: ClassStudent[], go: () => Promise<void>) {
+    if (!integrated || !adults.length) {
+      void go();
+      return;
+    }
+    const warning = minorWarning(
+      adults.map((student) => ({ name: student.fullName ?? student.email, links: null })),
+      item.name,
+      "aprovar"
+    );
+    confirm({
+      title: warning.title,
+      message: warning.message,
+      confirmLabel: "Aprovar mesmo assim",
+      cancelLabel: adults.length === 1 ? "Deixar o pedido pendente" : "Deixar os pedidos pendentes",
+      tone: "primary",
+      action: go,
+    });
   }
 
   function decide(student: ClassStudent, status: "active" | "inactive") {
     const name = student.fullName ?? student.email;
-    void run(`decide-${student.enrollmentId}`, async () => {
-      try {
-        await setStatus(student, status);
-        setSelected((current) => current.filter((id) => id !== student.enrollmentId));
-        onChanged();
-        toast(status === "active" ? `${name} entrou na ${item.name}.` : `Pedido de ${name} recusado.`, {
-          key: `matricula-${student.enrollmentId}`,
-          undo: async () => {
-            try {
-              await setStatus(student, "pending");
-              onChanged();
-            } catch (error) {
-              showError(error, `matricula-${student.enrollmentId}`);
+    const key = `matricula-${student.enrollmentId}`;
+    const becomesMinor = status === "active" && integrated && student.isMinor === false;
+    const go = () =>
+      run(`decide-${student.enrollmentId}`, async () => {
+        try {
+          await updateEnrollment(token, student.enrollmentId, { status });
+          setSelected((current) => current.filter((id) => id !== student.enrollmentId));
+          onChanged();
+          toast(
+            status === "active"
+              ? `${name} entrou na ${item.name}.${becomesMinor ? ` ${firstName(name)} passou a contar como menor de idade.` : ""}`
+              : `Pedido de ${name} recusado.`,
+            {
+              key,
+              undo: () =>
+                undoDecision([{ enrollmentId: student.enrollmentId, now: status, before: "pending" }], `o pedido de ${name}`, key),
             }
-          },
-        });
-      } catch (error) {
-        showError(error, `matricula-${student.enrollmentId}`);
-      }
-    });
+          );
+        } catch (error) {
+          showError(error, key);
+        }
+      });
+    confirmMinor(becomesMinor ? [student] : [], go);
   }
 
   function approveSelected() {
@@ -1361,34 +1522,36 @@ function StudentsSection({
     if (!ids.length) {
       return;
     }
-    void run("bulk", async () => {
-      try {
-        const result = await decideEnrollments(token, item.id, ids, "active");
-        const approved = ids.filter((id) => !result.skipped.includes(id));
-        setSelected([]);
-        onChanged();
-        toast(
-          `${plural(result.updated, "pedido aprovado", "pedidos aprovados")}${
-            result.skipped.length ? `; ${plural(result.skipped.length, "já tinha sido decidido", "já tinham sido decididos")}` : ""
-          }.`,
-          {
-            key: `turma-${item.id}-lote`,
-            undo: approved.length
-              ? async () => {
-                  try {
-                    await Promise.all(approved.map((id) => updateEnrollment(token, id, { status: "pending" })));
-                    onChanged();
-                  } catch (error) {
-                    showError(error, `turma-${item.id}-lote`);
-                  }
-                }
-              : undefined,
-          }
-        );
-      } catch (error) {
-        showError(error, `turma-${item.id}-lote`);
-      }
-    });
+    const key = `turma-${item.id}-lote`;
+    const adults = pending.filter((student) => ids.includes(student.enrollmentId) && student.isMinor === false);
+    const go = () =>
+      run("bulk", async () => {
+        try {
+          const result = await decideEnrollments(token, item.id, ids, "active");
+          const approved = ids.filter((id) => !result.skipped.includes(id));
+          setSelected([]);
+          onChanged();
+          toast(
+            `${plural(result.updated, "pedido aprovado", "pedidos aprovados")}${
+              result.skipped.length ? `; ${plural(result.skipped.length, "já tinha sido decidido", "já tinham sido decididos")}` : ""
+            }.${integrated && adults.length ? ` ${plural(adults.length, "aluno passou", "alunos passaram")} a contar como menor de idade.` : ""}`,
+            {
+              key,
+              undo: approved.length
+                ? () =>
+                    undoDecision(
+                      approved.map((id) => ({ enrollmentId: id, now: "active", before: "pending" })),
+                      approved.length === 1 ? "o pedido" : "os pedidos",
+                      key
+                    )
+                : undefined,
+            }
+          );
+        } catch (error) {
+          showError(error, key);
+        }
+      });
+    confirmMinor(integrated ? adults : [], go);
   }
 
   function cancelInvite(invite: ClassInvite) {
@@ -1401,9 +1564,10 @@ function StudentsSection({
           undo: async () => {
             try {
               await addClassStudentsByEmail(token, item.id, [invite.email]);
-              onChanged();
             } catch (error) {
               showError(error, `convite-${invite.id}`);
+            } finally {
+              onChanged();
             }
           },
         });
@@ -1452,36 +1616,38 @@ function StudentsSection({
         ) : (
           <SkeletonRows rows={3} label="Carregando os alunos" />
         )
-      ) : !list.length && !inviteList.length ? (
-        <div className="empty-inline compact">
-          <span className="empty-ico">
-            <Users className="h-5 w-5" aria-hidden />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-ink">Turma sem alunos</p>
-            <p className="mt-0.5 text-sm leading-5 text-muted">
-              {archived
-                ? "A turma arquivada não recebe alunos."
-                : "Cole a lista de e-mails da turma ou passe o código para os alunos pedirem para entrar."}
-            </p>
-            {!archived ? (
-              <div className="mt-2.5 flex flex-wrap gap-2">
-                <button
-                  className={cx(secondaryButton, "btn-sm")}
-                  onClick={() => api.push({ kind: "addStudents", classId: item.id }, "add-students")}
-                  type="button"
-                >
-                  Adicionar alunos
-                </button>
-                <button className={cx(secondaryButton, "btn-sm")} onClick={onShowCode} type="button">
-                  Mostrar código
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
       ) : (
         <>
+          {!combined.length && !inviteList.length ? (
+            <div className="empty-inline compact">
+              <span className="empty-ico">
+                <Users className="h-5 w-5" aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-ink">Turma sem alunos</p>
+                <p className="mt-0.5 text-sm leading-5 text-muted">
+                  {archived
+                    ? "A turma arquivada não recebe alunos."
+                    : "Cole a lista de e-mails da turma ou passe o código para os alunos pedirem para entrar."}
+                </p>
+                {!archived ? (
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    <button
+                      className={cx(secondaryButton, "btn-sm")}
+                      onClick={() => api.push({ kind: "addStudents", classId: item.id }, "add-students")}
+                      type="button"
+                    >
+                      Adicionar alunos
+                    </button>
+                    <button className={cx(secondaryButton, "btn-sm")} onClick={onShowCode} type="button">
+                      Mostrar código
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           {shownPending.length ? (
             <>
               <p className="admin-group">Pedidos de entrada ({pending.length})</p>
@@ -1518,18 +1684,21 @@ function StudentsSection({
                   return (
                     <div key={student.enrollmentId} className="admin-prow">
                       {!archived ? (
-                        <input
-                          aria-label={`Selecionar ${name}`}
-                          checked={selected.includes(student.enrollmentId)}
-                          type="checkbox"
-                          onChange={(event) =>
-                            setSelected((current) =>
-                              event.target.checked
-                                ? [...current, student.enrollmentId]
-                                : current.filter((id) => id !== student.enrollmentId)
-                            )
-                          }
-                        />
+                        // a caixa de 18 px ganha uma área de toque maior (o rótulo em volta dela)
+                        <label className="admin-ck-hit">
+                          <input
+                            aria-label={`Selecionar ${name}`}
+                            checked={selected.includes(student.enrollmentId)}
+                            type="checkbox"
+                            onChange={(event) =>
+                              setSelected((current) =>
+                                event.target.checked
+                                  ? [...current, student.enrollmentId]
+                                  : current.filter((id) => id !== student.enrollmentId)
+                              )
+                            }
+                          />
+                        </label>
                       ) : null}
                       <div className="admin-p-main">
                         <p className="admin-p-name">{name}</p>
@@ -1578,19 +1747,6 @@ function StudentsSection({
             </>
           ) : null}
 
-          {showAll && others.length ? (
-            <>
-              <p className="admin-group">Saíram ou concluíram ({others.length})</p>
-              <ul className="admin-people">
-                {others.map((student) => (
-                  <li key={student.enrollmentId}>
-                    <StudentRow api={api} classId={item.id} student={student} />
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-
           {shownInvites.length ? (
             <>
               <p className="admin-group">Convites pendentes ({inviteList.length})</p>
@@ -1622,12 +1778,39 @@ function StudentsSection({
             </>
           ) : null}
 
-          {hiddenCount > 0 || showAll ? (
+          {showOthers && others.length ? (
+            <>
+              <p className="admin-group">Fora da turma ({others.length})</p>
+              <ul className="admin-people">
+                {others.map((student) => (
+                  <li key={student.enrollmentId}>
+                    <StudentRow api={api} classId={item.id} student={student} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+
+          {hiddenCount > 0 || showAll || others.length ? (
             <div className="admin-list-foot">
-              <button className="link" aria-expanded={showAll} onClick={() => onShowAll(!showAll)} type="button">
-                {showAll ? "Mostrar menos" : `Ver todos (${list.length + inviteList.length})`}
-                <ArrowRight className={cx("h-[15px] w-[15px]", showAll && "-rotate-90")} aria-hidden />
-              </button>
+              {hiddenCount > 0 || showAll ? (
+                <button className="link" aria-expanded={showAll} onClick={() => onShowAll(!showAll)} type="button">
+                  {showAll ? "Mostrar menos" : `Ver todos (${listTotal})`}
+                  <ArrowRight className={cx("h-[15px] w-[15px]", showAll && "-rotate-90")} aria-hidden />
+                </button>
+              ) : (
+                <span />
+              )}
+              {others.length ? (
+                <button
+                  className="link admin-link-muted"
+                  aria-expanded={showOthers}
+                  onClick={() => onShowOthers(!showOthers)}
+                  type="button"
+                >
+                  {showOthers ? "Esconder quem não está na turma" : `Ver quem não está na turma (${others.length})`}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </>
@@ -1635,6 +1818,11 @@ function StudentsSection({
     </section>
   );
 }
+
+const enrollmentNote: Partial<Record<ClassStudent["status"], string>> = {
+  inactive: "fora da turma",
+  completed: "concluiu",
+};
 
 function StudentRow({ api, classId, student }: { api: PanelApi; classId: number; student: ClassStudent }) {
   const returnKey = `aluno-${student.userId}`;
@@ -1654,10 +1842,10 @@ function StudentRow({ api, classId, student }: { api: PanelApi; classId: number;
         <span className="admin-s-name">{student.fullName ?? student.email}</span>
         <span className="admin-s-mail">
           {student.email}
-          {student.status !== "active" ? `, ${student.status === "completed" ? "concluiu" : "inativo"}` : ""}
+          {enrollmentNote[student.status] ? `, ${enrollmentNote[student.status]}` : ""}
         </span>
       </span>
-      {student.isMinor ? <span className="pill st-ag">Menor</span> : null}
+      {student.isMinor ? <span className="pill st-ag">Menor de idade</span> : null}
       {student.registration ? <span className="admin-s-reg">{student.registration}</span> : null}
       <ChevronRight className="admin-go" aria-hidden />
     </button>
@@ -1687,26 +1875,44 @@ function CodeSection({
   onShown: (value: boolean) => void;
   onUpdated: () => void;
 }) {
-  const { token, toast, showError } = useAppActions();
+  const { token, toast, showError, confirm } = useAppActions();
   const on = item.joinCodeActive && !archived;
   const code = item.joinCodeFormatted ?? (item.joinCode ? normalizeCode(item.joinCode) : null);
   const busy = working !== null || undefined;
 
-  function generate() {
-    void onRun("code-new", async () => {
+  function generateNow(replacing: boolean) {
+    return onRun("code-new", async () => {
       try {
         await createJoinCode(token, item.id);
         onUpdated();
         onShown(true);
-        toast(on ? "Código novo gerado. O código antigo parou de valer." : "Código da turma ligado.", { key: `codigo-${item.id}` });
+        toast(replacing ? "Código novo gerado. O código antigo parou de valer." : "Código da turma ligado.", {
+          key: `codigo-${item.id}`,
+        });
       } catch (error) {
         showError(error, `codigo-${item.id}`);
       }
     });
   }
 
-  function disable() {
-    void onRun("code-off", async () => {
+  /** Com o código ligado, o novo tira o de agora de uso na hora: pergunta antes (o foco começa em manter). */
+  function generate() {
+    if (!on) {
+      void generateNow(false);
+      return;
+    }
+    confirm({
+      title: "Gerar um código novo?",
+      message: `O código de agora${shown && code ? ` (${code})` : ""} deixa de funcionar na hora. Quem ainda não pediu para entrar vai precisar do código novo.`,
+      confirmLabel: "Gerar código novo",
+      cancelLabel: "Manter o código de agora",
+      tone: "primary",
+      action: () => generateNow(true),
+    });
+  }
+
+  function disableNow() {
+    return onRun("code-off", async () => {
       try {
         await disableJoinCode(token, item.id);
         onUpdated();
@@ -1715,6 +1921,18 @@ function CodeSection({
       } catch (error) {
         showError(error, `codigo-${item.id}`);
       }
+    });
+  }
+
+  /** Desligar não tem volta (o código de agora não liga de novo): pergunta antes, com o foco em manter. */
+  function disable() {
+    confirm({
+      title: "Desligar o código da turma?",
+      message:
+        "O código de agora deixa de funcionar na hora, e ninguém pede para entrar com ele. Para aceitar pedidos de novo, gere um código novo: o de agora não volta.",
+      confirmLabel: "Desligar o código",
+      cancelLabel: "Manter o código ligado",
+      action: disableNow,
     });
   }
 
@@ -1749,7 +1967,9 @@ function CodeSection({
                   ? "Mostre só quando for passar para a turma."
                   : archived
                     ? "Restaure a turma para gerar um código novo."
-                    : "Gere um código para os alunos pedirem para entrar."}
+                    : item.joinCode
+                      ? CODE_OFF_TEXT
+                      : "Gere um código para os alunos pedirem para entrar."}
               </p>
             </>
           )}

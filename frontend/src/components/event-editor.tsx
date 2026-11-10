@@ -23,6 +23,7 @@ import {
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
@@ -48,6 +49,7 @@ import { adminOnlyCategories, allCategories, categoryMeta, gradableCategories, i
 import type { AcademicClass, AcademicContext, AcademicEvent, Category, Subject, UserRole } from "@/lib/types";
 import { useOptionalAppActions } from "./app-actions";
 import { StatusPill, eventLastDay, onDay, reactivatedStatus, type EventStatusChange } from "./event-bits";
+import { EventGradesTab, subscribeGradesChanged, type GradesTabControl, type GradesTabState } from "./event-grades-drawer";
 import { ConfirmDialog, Drawer, isOnTopLayer, type ConfirmState } from "./ui";
 
 /* ------------------------------------------------------------------ */
@@ -787,6 +789,15 @@ export function NoAssignmentsNotice({ heading: Heading = "h3" }: { heading?: "h2
 /* Painel lateral de edição                                            */
 /* ------------------------------------------------------------------ */
 
+/** Abas do painel de uma prova ou trabalho de turma: "Dados do evento" e "Notas" (amostra docente-notas-evento). */
+export type EditorTab = "details" | "grades";
+
+/**
+ * Voltar do navegador com o painel aberto: a aba Notas numa parte de dentro (lista de alunos ou importação) volta
+ * para o resumo dela em vez de fechar o painel. A página pergunta `pending()` e, se for, chama `go()`.
+ */
+export type EditorBack = { pending: () => boolean; go: () => void };
+
 export type EventEditorProps = {
   open: boolean;
   editingEvent: AcademicEvent | null;
@@ -802,6 +813,14 @@ export type EventEditorProps = {
   /** Resultado da mudança de situação feita pelo painel, com o Desfazer ao alcance do teclado. */
   statusNotice?: StatusNotice | null;
   dirty: boolean;
+  /**
+   * Aba aberta numa prova ou trabalho de turma (com `onTabChange`): "Notas" pela ação Notas da Gestão e da tela
+   * Notas, "Dados do evento" pelo Editar. Trocar de aba não fecha o painel nem perde o rascunho.
+   */
+  tab?: EditorTab;
+  onTabChange?: (tab: EditorTab) => void;
+  /** Preenchido pelo painel: o Voltar do navegador passa pela aba Notas antes de fechar (ver EditorBack). */
+  backRef?: { current: EditorBack | null };
   onSubmit: () => void;
   onClose: () => void;
   onDelete?: (event: AcademicEvent) => void;
@@ -863,6 +882,9 @@ export function EventEditor({
   statusBusy = false,
   statusNotice = null,
   dirty,
+  tab = "details",
+  onTabChange,
+  backRef,
   onSubmit,
   onClose,
   onDelete,
@@ -872,10 +894,35 @@ export function EventEditor({
   const footRef = useRef<HTMLDivElement>(null);
   const noticeRef = useRef<HTMLDivElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  // foco ao abrir: o Título na aba Dados; a própria aba Notas quando o painel abre nela (lido do DOM já montado)
+  const [entryRef] = useState(() => ({
+    get current(): HTMLElement | null {
+      return (
+        tabsRef.current?.querySelector<HTMLElement>('[role="tab"][data-tab="grades"][aria-selected="true"]') ??
+        titleRef.current
+      );
+    },
+  }));
   const formId = useId();
   const hintId = useId();
   const noticeId = useId();
+  const tabsId = useId();
   const isAdmin = role === "admin";
+  const actions = useOptionalAppActions();
+
+  // aba Notas: só ao editar uma prova ou um trabalho de turma, e só se a página cuida da aba (onTabChange)
+  const gradesTab = Boolean(open && editingEvent && onTabChange && isGradable(editingEvent) && (role === "teacher" || isAdmin));
+  const activeTab: EditorTab = gradesTab && tab === "grades" ? "grades" : "details";
+  const [gradesState, setGradesState] = useState<GradesTabState | null>(null);
+  // painel fechado: o que a aba Notas contou fica para trás (ao abrir de novo, ela carrega do zero)
+  if (!open && gradesState) {
+    setGradesState(null);
+  }
+  const gradesInfo = gradesTab && editingEvent && gradesState?.eventId === editingEvent.id ? gradesState : null;
+  const gradesControl = useRef<GradesTabControl | null>(null);
+  const [gradesFoot, setGradesFoot] = useState<HTMLDivElement | null>(null);
+  const importing = activeTab === "grades" && gradesInfo?.view === "import";
   const assignments = activeAssignments(context);
   // docente sem vínculo (em vigor, de turma e disciplina não arquivadas) não tem para quem publicar
   const blocked = !isAdmin && !editingEvent && context !== null && assignments.length === 0;
@@ -946,6 +993,34 @@ export function EventEditor({
       setGradeAttempt((value) => value + 1);
     }
   }
+  // a frase da API voltou num campo de turma, disciplina ou categoria (409 HAS_GRADES): as notas são buscadas de novo
+  const gradeServerKey = [serverErrors?.category, serverErrors?.subjectId, serverErrors?.academicClassId].join("|");
+  const [gradeServerSeen, setGradeServerSeen] = useState(gradeServerKey);
+  if (gradeServerSeen !== gradeServerKey) {
+    setGradeServerSeen(gradeServerKey);
+    if (gradeServerKey.replace(/\|/g, "")) {
+      setGradeAttempt((value) => value + 1);
+    }
+  }
+  // nota lançada, apagada ou importada na aba Notas: as regras da aba Dados (turma, categoria, pontuação) acompanham
+  const lockEventId = open && editingEvent && isGradable(editingEvent) ? editingEvent.id : null;
+  useEffect(() => {
+    if (lockEventId === null) {
+      return;
+    }
+    let timer = 0;
+    const unsubscribe = subscribeGradesChanged((changedId) => {
+      if (changedId !== lockEventId) {
+        return;
+      }
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setGradeAttempt((value) => value + 1), 500);
+    });
+    return () => {
+      unsubscribe();
+      window.clearTimeout(timer);
+    };
+  }, [lockEventId]);
   const gradeLock = useGradeLock(open, editingEvent, gradeAttempt);
   const gradeRules: GradeRules | null =
     gradeLock && editingEvent ? { ...gradeLock, original: eventToForm(editingEvent) } : null;
@@ -983,15 +1058,31 @@ export function EventEditor({
     });
   }, [sessionKey, statusFocus, statusSnapshot, canUndo]);
 
-  const title = editingEvent ? "Editar evento" : isAdmin ? "Novo evento oficial" : "Novo evento";
+  const title = importing
+    ? "Importar notas"
+    : editingEvent
+      ? "Editar evento"
+      : isAdmin
+        ? "Novo evento oficial"
+        : "Novo evento";
   const dirtyPill = changed ? <span className="pill st-alt">Alterações não salvas</span> : null;
+  // situação das notas da prova ou do trabalho, ao lado da situação do evento (amostra: "Concluído", "Notas ocultas")
+  const gradesPublished = gradesInfo ? gradesInfo.published : Boolean(editingEvent?.gradesPublishedAt);
+  const gradesPill = !gradesTab ? null : gradesPublished ? (
+    <span className="pill st-conc">Notas publicadas</span>
+  ) : gradesInfo?.launched ? (
+    <span className="pill st-alt">Notas ocultas</span>
+  ) : null;
   // min-w-0: no cabeçalho (uma linha flexível), o título comprido corta com reticência em vez de passar do X
-  const subtitle = editingEvent ? (
+  const subtitle = importing ? (
+    <span className="min-w-0 wrap-anywhere">{gradesInfo?.importSubtitle}</span>
+  ) : editingEvent ? (
     <span className="block min-w-0">
       <span className="block truncate font-semibold text-ink-2">{editingEvent.title}</span>
       <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
         <span>{eventWhenLabel(editingEvent.startsAt, editingEvent.endsAt)}</span>
         <StatusPill event={editingEvent} />
+        {gradesPill}
         {dirtyPill}
       </span>
     </span>
@@ -1192,38 +1283,166 @@ export function EventEditor({
     </div>
   );
 
+  /** X, Esc e Fechar: na aba Notas, a importação com arquivo ainda não enviado pergunta antes. */
+  function closePanel() {
+    const control = activeTab === "grades" ? gradesControl.current : null;
+    if (control) {
+      control.guardLeave(onClose);
+    } else {
+      onClose();
+    }
+  }
+
+  // Voltar do navegador: a aba Notas numa parte de dentro volta para o resumo dela antes de fechar o painel
+  useLayoutEffect(() => {
+    if (!backRef) {
+      return;
+    }
+    const handler: EditorBack = {
+      pending: () => activeTab === "grades" && Boolean(gradesControl.current?.inSubView()),
+      go: () => gradesControl.current?.back(),
+    };
+    backRef.current = handler;
+    return () => {
+      if (backRef.current === handler) {
+        backRef.current = null;
+      }
+    };
+  });
+
+  function chooseTab(next: EditorTab) {
+    if (next !== activeTab) {
+      onTabChange?.(next);
+      // a outra aba começa do alto (as duas dividem a rolagem do corpo do painel)
+      tabsRef.current?.closest(".drawer-body")?.scrollTo({ top: 0 });
+    }
+  }
+
+  // abas com setas, Home e End (o foco acompanha a aba escolhida)
+  function tabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const next: EditorTab | null =
+      event.key === "Home"
+        ? "details"
+        : event.key === "End"
+          ? "grades"
+          : event.key === "ArrowLeft" || event.key === "ArrowRight"
+            ? activeTab === "details"
+              ? "grades"
+              : "details"
+            : null;
+    if (!next) {
+      return;
+    }
+    event.preventDefault();
+    chooseTab(next);
+    tabsRef.current?.querySelector<HTMLElement>(`[data-tab="${next}"]`)?.focus();
+  }
+
+  const launched = gradesInfo?.launched ?? null;
+  // durante a importação o conteúdo troca pelos passos (com Voltar no rodapé) e as abas saem de cena
+  const tabBar =
+    gradesTab && !importing ? (
+      <div ref={tabsRef} className="seg notas-docente-tabs" role="tablist" aria-label="Partes do evento">
+        <button
+          id={`${tabsId}-dados`}
+          className={cx(activeTab === "details" && "on")}
+          data-tab="details"
+          role="tab"
+          aria-controls={`${tabsId}-dados-painel`}
+          aria-selected={activeTab === "details"}
+          tabIndex={activeTab === "details" ? 0 : -1}
+          onClick={() => chooseTab("details")}
+          onKeyDown={tabKeyDown}
+          type="button"
+        >
+          Dados do evento
+        </button>
+        <button
+          id={`${tabsId}-notas`}
+          className={cx(activeTab === "grades" && "on")}
+          data-tab="grades"
+          role="tab"
+          aria-controls={`${tabsId}-notas-painel`}
+          aria-label={launched === null ? "Notas" : `Notas, ${countText(launched, "nota lançada", "notas lançadas")}`}
+          aria-selected={activeTab === "grades"}
+          tabIndex={activeTab === "grades" ? 0 : -1}
+          onClick={() => chooseTab("grades")}
+          onKeyDown={tabKeyDown}
+          type="button"
+        >
+          Notas
+          {launched === null ? null : <span className="n">{launched}</span>}
+        </button>
+      </div>
+    ) : null;
+
+  // na aba Notas o rodapé é o dela (portal em EventGradesTab): "Fechar", o "Voltar" da lista ou os da importação
+  const panelFooter =
+    activeTab === "grades" ? <div ref={setGradesFoot} className="notas-docente-foot" /> : footer;
+
   return (
     <Drawer
       open={open}
       title={title}
       subtitle={subtitle}
-      onClose={onClose}
-      footer={footer}
-      initialFocusRef={titleRef}
-      busy={saving}
+      onClose={closePanel}
+      footer={panelFooter}
+      initialFocusRef={entryRef}
+      busy={saving || Boolean(gradesInfo?.busy)}
       labelClose="Fechar painel"
     >
       {blocked ? (
         <NoAssignmentsNotice />
       ) : (
-        <EditorForm
-          key={editingEvent?.id ?? "novo"}
-          formId={formId}
-          titleRef={titleRef}
-          form={form}
-          setForm={setForm}
-          serverErrors={serverErrors}
-          context={context}
-          role={role}
-          allEvents={allEvents}
-          editingEvent={editingEvent}
-          saving={saving}
-          locked={lockedSave}
-          audience={audience}
-          gradeRules={gradeRules}
-          phoneActions={eventActions}
-          onSubmit={onSubmit}
-        />
+        <>
+          {tabBar}
+          {/* a aba Dados fica montada (só escondida) na aba Notas: o rascunho e o que foi conferido continuam */}
+          <div
+            id={`${tabsId}-dados-painel`}
+            role={gradesTab ? "tabpanel" : undefined}
+            aria-labelledby={gradesTab ? `${tabsId}-dados` : undefined}
+            hidden={activeTab !== "details"}
+          >
+            <EditorForm
+              key={editingEvent?.id ?? "novo"}
+              formId={formId}
+              titleRef={titleRef}
+              form={form}
+              setForm={setForm}
+              serverErrors={serverErrors}
+              context={context}
+              role={role}
+              allEvents={allEvents}
+              editingEvent={editingEvent}
+              saving={saving}
+              locked={lockedSave}
+              audience={audience}
+              gradeRules={gradeRules}
+              phoneActions={eventActions}
+              onSubmit={onSubmit}
+            />
+          </div>
+          {gradesTab && editingEvent ? (
+            <div
+              id={`${tabsId}-notas-painel`}
+              role={importing ? undefined : "tabpanel"}
+              aria-labelledby={importing ? undefined : `${tabsId}-notas`}
+              hidden={activeTab !== "grades"}
+            >
+              <EventGradesTab
+                key={editingEvent.id}
+                active={activeTab === "grades"}
+                controlRef={gradesControl}
+                event={editingEvent}
+                eventId={editingEvent.id}
+                footerSlot={gradesFoot}
+                onChanged={() => void actions?.reload()}
+                onClose={onClose}
+                onState={setGradesState}
+              />
+            </div>
+          ) : null}
+        </>
       )}
     </Drawer>
   );
@@ -1313,14 +1532,16 @@ function EditorForm({
   // avaliação com nota: trocar a disciplina, a turma ou a categoria mostra o erro na hora (são escolhas, não digitação)
   const gradeIssues = gradeErrors(form, gradeRules, isAdmin);
   function errorFor(key: FieldKey) {
+    const server = serverErrors?.[key];
+    const serverNow = server && form[key] === serverForm[key] ? server : undefined;
     if ((key === "academicClassId" || key === "subjectId" || key === "category") && gradeIssues[key]) {
-      return gradeIssues[key];
+      // a frase da API (409 HAS_GRADES) vale no lugar da frase do painel enquanto o campo não muda
+      return serverNow ?? gradeIssues[key];
     }
     if ((submitted || touched[key]) && localErrors[key]) {
       return localErrors[key];
     }
-    const server = serverErrors?.[key];
-    return server && form[key] === serverForm[key] ? server : undefined;
+    return serverNow;
   }
 
   // abre com o foco no Título (o painel também pede; aqui é a reserva)

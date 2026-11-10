@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Download, FileSpreadsheet, FileUp, Loader2, Trash2 } from "lucide-react";
+import { Check, CircleAlert, Download, FileSpreadsheet, FileUp, Loader2, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode, type RefObject } from "react";
 import { ApiError, applyGradeImport, conflictOf, createGradeImport, deleteGradeImport } from "@/lib/api";
 import { cx, errorMessage, fieldErrors, formatShortDateTime, parseScore } from "@/lib/format";
@@ -8,6 +8,7 @@ import {
   GradesFileError,
   MAX_BODY_BYTES,
   buildImportRows,
+  columnHasData,
   columnSamples,
   downloadCsv,
   fileSlug,
@@ -20,6 +21,7 @@ import {
   rejectedCsv,
   saveMapping,
   templateCsv,
+  templateHeaders,
   toMapping,
   type ColumnChoice,
   type GradesFile,
@@ -117,6 +119,10 @@ export function useGradeImport({
   const counts = draft ? importKindCounts(draft) : null;
   const importCount = counts ? importableCount(counts, keepAgenda) : 0;
   const busy = sending || applying || discarding;
+  // alunos ativos do Modelo da Agenda e as colunas dele ("e-mail, nome e nota"; com a matrícula só se a lista traz)
+  const templateStudents = students.filter((student) => student.enrollmentStatus === "active");
+  const templateNames = templateHeaders(templateStudents);
+  const templateColumns = `${templateNames.slice(0, -1).join(", ")} e ${templateNames[templateNames.length - 1]}`;
 
   function reset(nextSource: GradeImportSource) {
     setSourceState(nextSource);
@@ -228,8 +234,12 @@ export function useGradeImport({
   async function sendPreview() {
     if (!file || !columns || !info) return;
     const errors: ColumnErrors = {};
+    const idText = columns.identifierType === "email" ? "o e-mail" : "a matrícula";
     if (!columns.identifierColumn) {
-      errors.identifierColumn = `Escolha a coluna com ${columns.identifierType === "email" ? "o e-mail" : "a matrícula"} do aluno.`;
+      errors.identifierColumn = `Escolha a coluna com ${idText} do aluno.`;
+    } else if (!columnHasData(file.sheet, columns.identifierColumn)) {
+      // coluna vazia: nenhuma linha acharia o aluno ("sem identificação" e "Importar 0 notas")
+      errors.identifierColumn = `A coluna ${columns.identifierColumn} está vazia neste arquivo. Escolha a coluna com ${idText} dos alunos.`;
     }
     if (!columns.scoreColumn) {
       errors.scoreColumn = "Escolha a coluna com a nota.";
@@ -368,7 +378,7 @@ export function useGradeImport({
 
   function downloadTemplate() {
     if (!info) return;
-    const active = students.filter((student) => student.enrollmentStatus === "active");
+    const active = templateStudents;
     const name = `modelo-notas-${fileSlug(info.title)}.csv`;
     downloadCsv(name, templateCsv(active));
     toast(
@@ -385,12 +395,21 @@ export function useGradeImport({
     downloadCsv(`rejeitadas-${fileSlug(info.title)}.csv`, rejectedCsv(rows, rowKindLabel));
   }
 
-  /** Botão principal do rodapé: Continuar, Ver prévia ou Importar N notas. */
+  /** Botão principal do rodapé: Continuar, Ver prévia, Importar N notas ou, sem nada para importar, Escolher outro arquivo. */
   function next() {
     if (busy || blocked) return;
     if (step === "file") goColumns();
     else if (step === "columns") void sendPreview();
+    else if (importCount === 0) chooseAnotherFile();
     else void apply();
+  }
+
+  /** Prévia sem nada para importar: volta ao passo Arquivo para trocar o arquivo (o rascunho sai ao mandar o novo). */
+  function chooseAnotherFile() {
+    if (busy) return;
+    goStep("file");
+    // no passo Arquivo, o foco já fica em "Trocar arquivo"
+    askFocus("file");
   }
 
   /** Voltar do rodapé: um passo para trás; no primeiro, sai da importação. */
@@ -427,6 +446,7 @@ export function useGradeImport({
     counts,
     importCount,
     busy,
+    templateColumns,
     /** Arquivo lido e ainda não enviado: fechar a gaveta pergunta antes. */
     hasUnsentFile: Boolean(file) && step !== "preview",
     focusAsk,
@@ -494,16 +514,17 @@ function FileCard({ action, flow }: { action?: ReactNode; flow: GradeImportFlow 
   } else {
     return null;
   }
+  // sem espaço ao lado (celular), o botão desce para a linha de baixo e o nome do arquivo fica com a largura toda
   return (
     <div className="notas-docente-file">
       <span className="mini-ico">
         <FileSpreadsheet className="h-[18px] w-[18px]" aria-hidden />
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="notas-docente-file-main">
         <p className="notas-docente-file-t">{file?.name ?? draft?.fileName}</p>
         <p className="notas-docente-file-s">{detail}</p>
       </div>
-      {action}
+      {action ? <div className="notas-docente-file-act">{action}</div> : null}
     </div>
   );
 }
@@ -580,7 +601,7 @@ function FileStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: Ref
             <span className="mini-ico">
               {reading ? <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden /> : <FileUp className="h-[18px] w-[18px]" aria-hidden />}
             </span>
-            <div className="min-w-0 flex-1">
+            <div className="notas-docente-file-main">
               <p className="text-sm font-semibold text-ink">{reading ? "Lendo o arquivo" : "Arraste o arquivo para cá ou use o botão Escolher arquivo CSV"}</p>
               <p className="mt-0.5 text-[13px] leading-5 text-muted" id={hintId}>
                 Só CSV por enquanto, separado por ponto e vírgula ou vírgula. Planilha do Excel: use Salvar como, CSV, antes.
@@ -638,7 +659,7 @@ function FileStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: Ref
         <div className="min-w-0 flex-1">
           <p className="mini-t">Modelo da Agenda</p>
           <p className="mini-s">
-            {`Com os alunos da turma nas colunas e-mail, matrícula, nome e nota${maxText ? ` (de 0 a ${maxText})` : ""}. Preencha a nota e importe.`}
+            {`Com os alunos da turma nas colunas ${flow.templateColumns}${maxText ? ` (de 0 a ${maxText})` : ""}. O aluno é achado pelo e-mail: preencha a nota e importe.`}
           </p>
         </div>
         <button className={cx(secondaryButton, "btn-sm shrink-0")} onClick={flow.downloadTemplate} type="button">
@@ -703,6 +724,16 @@ function ColumnsStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: 
   }
   const byEmail = columns.identifierType === "email";
   const sample = buildImportRows(file.sheet, columns).slice(0, 3);
+  // coluna escolhida vazia neste arquivo (a matrícula do Modelo, por exemplo): avisa e diz o próximo passo
+  const idEmpty = Boolean(columns.identifierColumn) && !columnHasData(file.sheet, columns.identifierColumn);
+  const otherType = byEmail ? "registration" : "email";
+  const otherColumn = idEmpty ? guessColumns(file.sheet, otherType).identifierColumn : "";
+  const otherWorks =
+    Boolean(otherColumn) &&
+    otherColumn !== columns.identifierColumn &&
+    otherColumn !== columns.scoreColumn &&
+    columnHasData(file.sheet, otherColumn);
+  const scoreEmpty = Boolean(columns.scoreColumn) && !columnHasData(file.sheet, columns.scoreColumn);
   return (
     <div className="grid gap-4">
       <FileCard flow={flow} />
@@ -743,6 +774,40 @@ function ColumnsStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: 
           onChange={(value) => flow.setColumns({ scoreColumn: value })}
         />
       </div>
+      <div role="status" className="grid gap-3 empty:hidden">
+        {idEmpty && !columnErrors.identifierColumn ? (
+          <div className="callout amber">
+            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <div className="grid min-w-0 gap-2">
+              <p className="wrap-anywhere">
+                <b>{`A coluna ${columns.identifierColumn} está vazia neste arquivo.`}</b>{" "}
+                {otherWorks
+                  ? `Nenhum aluno seria achado por ela. A coluna ${otherColumn} tem ${otherType === "email" ? "os e-mails" : "as matrículas"}: use ela.`
+                  : `Nenhum aluno seria achado por ela. Escolha a coluna com ${byEmail ? "o e-mail" : "a matrícula"} dos alunos.`}
+              </p>
+              {otherWorks ? (
+                <button
+                  className={cx(secondaryButton, "btn-sm justify-self-start")}
+                  onClick={() => flow.setColumns({ identifierType: otherType, identifierColumn: otherColumn })}
+                  type="button"
+                >
+                  {otherType === "email" ? "Achar o aluno pelo e-mail" : "Achar o aluno pela matrícula"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        {scoreEmpty && !columnErrors.scoreColumn ? (
+          <p className="callout amber">
+            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span className="min-w-0 wrap-anywhere">
+              <b>{`A coluna ${columns.scoreColumn} está vazia neste arquivo.`}</b> Nenhuma nota entraria. Preencha as notas no
+              arquivo e escolha ele de novo, ou escolha outra coluna da nota.
+            </span>
+          </p>
+        ) : null}
+      </div>
+
       <ColumnSelect
         allowEmpty="Sem coluna de nome"
         flow={flow}
@@ -813,6 +878,8 @@ function PreviewStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: 
         key={draft.id}
         draft={draft}
         keepAgenda={flow.keepAgenda}
+        maxScore={flow.info?.maxScore ?? null}
+        maxScoreText={flow.info?.maxScoreText ?? null}
         onDownloadRejected={flow.downloadRejected}
         onKeepAgenda={flow.setKeepAgenda}
       />
@@ -837,29 +904,49 @@ export function GradeImportBody({ flow, headingRef }: { flow: GradeImportFlow; h
   );
 }
 
+/** Por que a prévia não tem nada para importar (fica ao lado do botão "Escolher outro arquivo"). */
+function nothingToImportText(flow: GradeImportFlow) {
+  const counts = flow.counts;
+  if (!counts) return "Nada para importar. Escolha outro arquivo.";
+  const rejected = counts.no_match + counts.not_enrolled + counts.invalid + counts.duplicate;
+  if (counts.newer_in_agenda && flow.keepAgenda) {
+    return "Nada para importar: você manteve as notas da Agenda. Para trocar por estas, escolha Substituir pelas do arquivo.";
+  }
+  if (rejected && counts.same) return "Nada para importar: as linhas ficam de fora ou já estão na Agenda. Corrija o arquivo e escolha de novo.";
+  if (rejected) return "Nada para importar: todas as linhas ficam de fora. Corrija o arquivo e escolha de novo.";
+  if (counts.same) return "Nada para importar: as notas do arquivo já estão na Agenda.";
+  return "Nada para importar: o arquivo não tem linhas com dados. Escolha outro arquivo.";
+}
+
 /** Rodapé da gaveta durante a importação: dica, Voltar e o botão do passo. */
 export function GradeImportFooter({ flow }: { flow: GradeImportFlow }) {
   const { applying, busy, importCount, sending, step } = flow;
+  const hintId = useId();
+  // prévia sem nada para importar: o botão diz o que fazer, e a razão fica ao lado dele
+  const nothing = step === "preview" && Boolean(flow.draft) && importCount === 0;
   let label = "Continuar";
   let hint = "Só CSV por enquanto";
   if (step === "columns") {
     label = "Ver prévia";
     hint = "Nada muda até você confirmar na prévia";
+  } else if (nothing) {
+    label = "Escolher outro arquivo";
+    hint = nothingToImportText(flow);
   } else if (step === "preview") {
     label = importCount === 1 ? "Importar 1 nota" : `Importar ${importCount} notas`;
     hint = flow.draft && !flow.draft.canApply
       ? "Só quem criou o rascunho, com a disciplina em vigor, ou a administração aplica"
-      : importCount
-      ? flow.published
+      : flow.published
         ? "As notas já estão publicadas: aparecem na hora"
-        : "Ficam ocultas até você publicar"
-      : "Nada para importar: as linhas ficam de fora ou são iguais";
+        : "Ficam ocultas até você publicar";
   }
   const waiting = sending || applying;
-  const disabled = Boolean(flow.blocked) || (step === "preview" && (importCount === 0 || !flow.draft?.canApply));
+  const disabled = Boolean(flow.blocked) || (step === "preview" && !nothing && !flow.draft?.canApply);
   return (
     <>
-      <p className="mr-auto basis-full text-[13px] text-muted sm:basis-auto">{hint}</p>
+      <p className="mr-auto basis-full text-[13px] leading-5 text-muted sm:basis-auto sm:max-w-[16rem]" id={hintId}>
+        {hint}
+      </p>
       <button
         className={cx(secondaryButton, "aria-disabled:opacity-55")}
         aria-disabled={busy || undefined}
@@ -871,13 +958,20 @@ export function GradeImportFooter({ flow }: { flow: GradeImportFlow }) {
       <button
         className={cx(primaryButton, "aria-disabled:cursor-not-allowed aria-disabled:opacity-55")}
         aria-busy={waiting || undefined}
+        aria-describedby={hintId}
         aria-disabled={busy || disabled || undefined}
         onClick={() => {
           if (!disabled) flow.next();
         }}
         type="button"
       >
-        {waiting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : step === "preview" ? <Check className="h-4 w-4" aria-hidden /> : null}
+        {waiting ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        ) : nothing ? (
+          <FileUp className="h-4 w-4" aria-hidden />
+        ) : step === "preview" ? (
+          <Check className="h-4 w-4" aria-hidden />
+        ) : null}
         {label}
       </button>
     </>

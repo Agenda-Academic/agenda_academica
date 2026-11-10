@@ -55,7 +55,7 @@ function buildItems(classes: ClassSummary[], links: AdminGuardianLink[]): Pendin
       icon: UserPlus,
       title: `${link.fullName ?? link.email} quer acompanhar ${firstName(studentName)}`,
       detail: `${relationshipText(link.relationship)} de ${studentName}, pedido em ${formatDateBR(link.createdAt)}${
-        link.student?.isMinor ? ". Aluno menor: a secretaria aprova" : ""
+        link.student?.isMinor ? ". Menor de idade: a secretaria aprova" : ""
       }.`,
       classId: null,
       memberId: link.studentId,

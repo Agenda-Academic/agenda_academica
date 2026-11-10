@@ -24,6 +24,25 @@
   font-weight: 650;
   color: var(--muted);
 }
+/* celular: as duas abas lado a lado, cada uma com metade da largura; o "2 pedidos" desce para baixo do nome da
+   aba quando não cabe (o .seg do globals.css empilharia as abas, uma em cada linha) */
+@media (max-width: 479px) {
+  .seg.docente-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .seg.docente-tabs button {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    column-gap: 6px;
+    height: auto;
+    min-height: 44px;
+    padding: 6px 8px;
+    white-space: normal;
+    text-align: center;
+  }
+}
 /* pedidos de entrada esperando a docente: o mesmo âmbar das pendências da administração */
 .docente-tab-pend {
   display: inline-flex;
@@ -352,19 +371,31 @@ button.docente-turma-row:hover {
   color: var(--ink-2);
   cursor: pointer;
 }
+/* caixas de seleção com pelo menos 24 px, dentro de um rótulo (o nome do aluno ou "Selecionar os N"), que
+   também marca */
 .docente-panel input[type="checkbox"] {
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   margin: 0;
   accent-color: var(--brand);
   cursor: pointer;
 }
-@media (pointer: coarse) {
-  .docente-panel input[type="checkbox"] {
-    width: 22px;
-    height: 22px;
-  }
+.docente-p-pick {
+  display: flex;
+  flex: 1 1 180px;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  min-height: 24px;
+  cursor: pointer;
+}
+.docente-p-pick > .docente-p-main {
+  flex: 1 1 auto;
+}
+.docente-p-pick .docente-p-name,
+.docente-p-pick .docente-p-sub {
+  display: block;
 }
 /* sem espaço para nome e botões lado a lado (celular), os botões descem para a linha de baixo */
 .docente-prow {

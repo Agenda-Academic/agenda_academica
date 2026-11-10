@@ -1,12 +1,25 @@
 "use client";
 
-import { CalendarDays, ChevronDown, ChevronUp, ClipboardCheck, Eye, EyeOff, FileClock, Lock } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  ChevronUp,
+  ClipboardCheck,
+  Eye,
+  EyeOff,
+  FileClock,
+  Lock,
+  Search,
+  Users,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getEventGrades, getGradeImports } from "@/lib/api";
 import { cx, dateParts, errorMessage, formatShortDateTime, matchesSearch } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, UserRole } from "@/lib/types";
 import { useAppActions } from "./app-actions";
+import { activeAssignments } from "./event-editor";
 import { launchedCount, subscribeGradesChanged } from "./event-grades-drawer";
 import { EmptyState, SectionTitle, Segmented, SegmentedButton, secondaryButton } from "./ui";
 
@@ -31,6 +44,8 @@ export type GradesTeacherProps = {
   onOpenEvent: (eventId: number) => void;
   /** Quantas avaliações a busca do menu acha nesta tela (undefined sem busca). */
   onSearchCount?: (count: number | undefined) => void;
+  /** Apaga a busca do menu. */
+  onClearSearch?: () => void;
 };
 
 /** Situação das notas de uma avaliação (GET /events/:id/grades e as importações dela). */
@@ -87,6 +102,7 @@ export function GradesTeacher({
   events,
   focusEventId,
   onOpenEvent,
+  onClearSearch,
   onOpenGrades,
   onSearchCount,
   role,
@@ -110,13 +126,23 @@ export function GradesTeacher({
   }
 
   const mine = useMemo(() => events.filter((event) => inMyOffers(event, role, user.id, context)), [context, events, role, user.id]);
-  const found = useMemo(() => mine.filter((event) => matchesSearch(event, search)), [mine, search]);
+  const matched = useMemo(() => mine.filter((event) => matchesSearch(event, search)), [mine, search]);
+  // a avaliação pedida pelo endereço (?tela=notas&evento=) aparece mesmo que a busca do menu a esconda, destacada
+  // e com o aviso de que a busca esconde as outras
+  const forced = useMemo(
+    () =>
+      focusEventId !== null && !matched.some((event) => event.id === focusEventId)
+        ? (mine.find((event) => event.id === focusEventId) ?? null)
+        : null,
+    [focusEventId, matched, mine]
+  );
+  const found = useMemo(() => (forced ? [...matched, forced] : matched), [forced, matched]);
   const past = useMemo(() => found.filter((event) => new Date(event.startsAt).getTime() <= now).sort(byStartDesc), [found, now]);
   const upcoming = useMemo(() => found.filter((event) => new Date(event.startsAt).getTime() > now).sort(byStartAsc), [found, now]);
   const all = useMemo(() => [...found].sort(byStartDesc), [found]);
 
-  // a busca do menu conta as avaliações achadas aqui
-  const searchCount = search.trim() ? found.length : undefined;
+  // a busca do menu conta as avaliações achadas aqui (sem a pedida pelo endereço)
+  const searchCount = search.trim() ? matched.length : undefined;
   useEffect(() => {
     onSearchCount?.(searchCount);
   }, [onSearchCount, searchCount]);
@@ -198,6 +224,19 @@ export function GradesTeacher({
 
   const admin = role === "admin";
   const searching = search.trim().length > 0;
+  // docente sem vínculo em vigor (como a Gestão e o painel do evento contam): não tem para quem criar avaliação
+  const noClass = role === "teacher" && context !== null && activeAssignments(context).length === 0;
+
+  /** "Limpar busca": apaga a busca do menu e volta o foco para a avaliação. */
+  function clearMenuSearch() {
+    onClearSearch?.();
+    const eventId = focusEventId;
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>(`[data-grades-event="${eventId}"] [data-grades-open]`)
+        ?.focus({ preventScroll: true });
+    });
+  }
   const subtitle = mine.length
     ? `${past.length === 1 ? "1 já aconteceu" : `${past.length} já aconteceram`}, ${upcoming.length === 1 ? "1 próxima" : `${upcoming.length} próximas`}${
         searching ? `, com a busca "${search.trim()}"` : ""
@@ -209,6 +248,17 @@ export function GradesTeacher({
   let content;
   if (loading && !events.length) {
     content = <ListSkeleton />;
+  } else if (!mine.length && noClass) {
+    // docente sem turma: a Gestão também não deixa criar avaliação, então o próximo passo é pedir o vínculo
+    content = (
+      <div className="px-6 pb-6">
+        <EmptyState
+          icon={Users}
+          text="Você ainda não tem turmas vinculadas"
+          hint="Peça à administração o vínculo com uma turma e uma disciplina. Depois disso, as provas e os trabalhos que você criar aparecem aqui para lançar, importar e publicar as notas."
+        />
+      </div>
+    );
   } else if (!mine.length) {
     content = (
       <div className="px-6 pb-6">
@@ -249,6 +299,21 @@ export function GradesTeacher({
   } else {
     content = (
       <>
+        {forced ? (
+          <div className="notas-docente-busca" role="status">
+            <p className="callout blue">
+              <Search className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span className="min-w-0">
+                <b>A busca está escondendo outras avaliações.</b>{" "}
+                <span className="wrap-anywhere">{`"${forced.title}" aparece porque o link pediu por ela.`}</span>
+              </span>
+            </p>
+            <button className={cx(secondaryButton, "btn-sm")} onClick={clearMenuSearch} type="button">
+              <X className="h-4 w-4" aria-hidden />
+              Limpar busca
+            </button>
+          </div>
+        ) : null}
         <ul className="notas-docente-evs" aria-label={tab === "past" ? "Avaliações que já aconteceram" : tab === "next" ? "Próximas avaliações" : "Todas as avaliações"}>
           {shown.map((event) => (
             <EvaluationRow
@@ -475,7 +540,9 @@ function EvaluationRow({
         </button>
         <button
           className={cx(secondaryButton, "btn-sm")}
+          data-grades-open=""
           aria-label={`Notas de ${event.title}`}
+          aria-haspopup="dialog"
           onClick={() => onOpenGrades(event.id)}
           type="button"
         >

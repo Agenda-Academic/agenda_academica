@@ -1892,6 +1892,28 @@ export function ConfirmDialog({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const messageId = useId();
 
+  // Quem abriu a confirmação (o X do painel, o Cancelar, o campo em edição). Ao fechar, se o foco caiu no body
+  // ou no próprio painel de baixo, e não num item, ele volta para quem abriu (ex.: Esc no "Descartar as
+  // alterações?" aberto pelo X volta ao X). Roda antes de a caixa abrir, com o foco ainda em quem abriu.
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    const opener = active instanceof HTMLElement && active !== document.body ? active : null;
+    if (!opener) {
+      return;
+    }
+    return () => {
+      const fix = () => {
+        const now = document.activeElement;
+        const lost = !now || now === document.body || (now instanceof HTMLElement && now.matches(".drawer, .modal-box"));
+        if (lost && opener.isConnected && isOnTopLayer(opener)) {
+          opener.focus({ preventScroll: true });
+        }
+      };
+      window.requestAnimationFrame(fix);
+      window.setTimeout(fix, 250);
+    };
+  }, []);
+
   return (
     <Modal
       busy={busy}
