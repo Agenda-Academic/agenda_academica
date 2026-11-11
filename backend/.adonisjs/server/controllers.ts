@@ -13,6 +13,7 @@ export const controllers = {
   Classes: () => import('#controllers/classes_controller'),
   Courses: () => import('#controllers/courses_controller'),
   Dashboard: () => import('#controllers/dashboard_controller'),
+  GoogleAuth: () => import('#controllers/google_auth_controller'),
   GradeImports: () => import('#controllers/grade_imports_controller'),
   Grades: () => import('#controllers/grades_controller'),
   GuardianLinks: () => import('#controllers/guardian_links_controller'),

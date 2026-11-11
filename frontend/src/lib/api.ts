@@ -330,6 +330,20 @@ export async function signup(input: SignupInput) {
   return payload.data;
 }
 
+/** Endereço que leva ao Google: a API guarda o state e redireciona para a escolha da conta. */
+export function googleLoginUrl() {
+  return `${API_URL}/auth/google/redirect`;
+}
+
+/** Troca o código de uso único da volta do Google (?google=) pela sessão, igual ao login. */
+export async function exchangeGoogleCode(code: string) {
+  const payload = await apiFetch<ApiEnvelope<Session>>("/auth/google/exchange", undefined, {
+    method: "POST",
+    body: { code },
+  });
+  return payload.data;
+}
+
 export async function logout(token: string) {
   await apiFetch<{ message?: string }>("/account/logout", token, { method: "POST" });
 }

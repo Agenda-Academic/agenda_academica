@@ -64,6 +64,7 @@ import {
   createEvent,
   deleteEvent,
   deleteReminder,
+  exchangeGoogleCode,
   getCalendarImports,
   getContext,
   getEvents,
@@ -503,6 +504,35 @@ function adoptEntry(entry: HistoryEntry, rewrite: boolean) {
   if (rewrite) {
     window.history.replaceState({ ...window.history.state, agenda: entry }, "");
   }
+}
+
+/**
+ * Volta do Google: lê ?google= (código de uso único, trocado pela sessão) ou ?google_erro= (motivo) e tira os
+ * dois do endereço, sem mexer no resto. O Next fica sabendo do endereço novo como nas nossas mudanças.
+ */
+function takeGoogleReturn(): { code: string | null; error: string | null } {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("google");
+  const error = params.get("google_erro");
+  if (code === null && error === null) {
+    return { code: null, error: null };
+  }
+  params.delete("google");
+  params.delete("google_erro");
+  const rest = params.toString();
+  const url = `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`;
+  rememberRouterTree();
+  urlWrites += 1;
+  const before = historyState();
+  const data: RouterHistoryState = { ...before };
+  delete data.__NA;
+  delete data.__PRIVATE_NEXTJS_INTERNALS_TREE;
+  window.history.replaceState(data, "", url);
+  if (before?.__NA && !historyState()?.__NA) {
+    // sem o Next por perto: a parte dele volta como estava
+    window.history.replaceState(before, "", url);
+  }
+  return { code: code || null, error: code ? null : error || "falhou" };
 }
 
 /** Sem sessão: a entrada vira a tela de entrada ("/"), sem dono, e não serve de Voltar para quem entrar depois. */
@@ -1110,6 +1140,8 @@ export default function Home() {
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
   // e-mail de quem estava na sessão que venceu: a tela de entrada já vem com ele
   const [loginEmail, setLoginEmail] = useState<string | null>(null);
+  // volta do Google sem entrar (?google_erro= ou a troca do código falhou): o motivo vai para a tela de entrada
+  const [googleError, setGoogleError] = useState<string | null>(null);
 
   const [activeView, setActiveView] = useState<View>("dashboard");
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("list");
@@ -3269,6 +3301,7 @@ export default function Home() {
     setSession(next);
     setLoginNotice(null);
     setLoginEmail(null);
+    setGoogleError(null);
     writeStorage("session", EXPIRED_KEY, null);
     if (mode === "login") {
       // avisos da sessão anterior (ex.: "Você saiu da conta.") não seguem para a nova
@@ -3527,6 +3560,22 @@ export default function Home() {
   });
 
   const boot = useEffectEvent(async () => {
+    // volta do Google: o código vira a sessão (como no login) enquanto o carregamento normal fica na tela
+    const google = takeGoogleReturn();
+    if (google.code) {
+      try {
+        const next = await exchangeGoogleCode(google.code);
+        writeStorage("local", SESSION_KEY, next);
+        setBooting(false);
+        await startSession(next, "login");
+        return;
+      } catch {
+        setGoogleError("falhou");
+      }
+    } else if (google.error) {
+      setGoogleError(google.error);
+    }
+
     const stored = readSession();
     if (!stored) {
       writeStorage("local", SESSION_KEY, null);
@@ -3789,7 +3838,9 @@ export default function Home() {
   }
 
   if (!session || !user) {
-    return withToasts(<LoginScreen email={loginEmail} notice={loginNotice} onSession={handleSession} />);
+    return withToasts(
+      <LoginScreen email={loginEmail} googleError={googleError} notice={loginNotice} onSession={handleSession} />
+    );
   }
 
   // a contagem da busca do menu não depende de filtro escondido: fora do Cronograma vale para todas as categorias;

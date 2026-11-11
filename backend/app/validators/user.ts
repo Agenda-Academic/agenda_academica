@@ -36,6 +36,13 @@ export const loginValidator = vine.create({
   password: vine.string(),
 })
 
+/**
+ * Código de uso único da volta do Google (32 bytes em base64url), trocado pelo token de acesso.
+ */
+export const googleExchangeValidator = vine.create({
+  code: vine.string().trim().minLength(1).maxLength(128),
+})
+
 export const updateProfileValidator = vine.create({
   fullName: vine.string().nullable().optional(),
   defaultReminderMinutes: vine.number().min(15).max(10080).optional(),

@@ -30,3 +30,12 @@ services:
       # Endereço do front no Vercel; o "*" cobre o domínio final e as prévias
       - key: CORS_ORIGIN
         value: https://agenda-academica*.vercel.app
+      # Entrar com o Google: os valores vêm da credencial do Google Cloud e são preenchidos
+      # no painel do Render (Environment); nunca ficam no repositório
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Para onde a volta do Google leva a pessoa (o front no Vercel)
+      - key: FRONTEND_URL
+        value: https://agenda-academica-chi.vercel.app

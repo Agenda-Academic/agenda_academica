@@ -40,6 +40,11 @@ router
       .group(() => {
         router.post('signup', [controllers.NewAccount, 'store'])
         router.post('login', [controllers.AccessTokens, 'store'])
+
+        // Entrar com o Google: ida, volta e troca do código de uso único pelo token de acesso.
+        router.get('google/redirect', [controllers.GoogleAuth, 'redirect'])
+        router.get('google/callback', [controllers.GoogleAuth, 'callback'])
+        router.post('google/exchange', [controllers.GoogleAuth, 'exchange'])
       })
       .prefix('auth')
       .as('auth')

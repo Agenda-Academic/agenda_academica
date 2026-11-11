@@ -112,6 +112,27 @@ publicam sozinhos a cada push na `main`.
 
 Para entrar, use as [contas de demonstração](#contas-de-demonstração).
 
+### Entrar com o Google
+
+O botão **Entrar com o Google** entra na conta que já existe com o mesmo e-mail. Sem conta, ele cria uma só
+para e-mails do Google do IFMS: `@estudante.ifms.edu.br` vira aluno e `@ifms.edu.br` vira docente (o vínculo
+com as turmas continua com a administração).
+
+1. No [Google Cloud Console](https://console.cloud.google.com/apis/credentials), configure a **Tela de
+   permissão OAuth** (tipo Externo, escopos `openid`, `email` e `profile`) e crie uma credencial **ID do
+   cliente OAuth** do tipo **Aplicativo da Web**.
+2. Em **URIs de redirecionamento autorizados**, cadastre o endereço da API + `/api/v1/auth/google/callback`,
+   um para o Render e outro para o desenvolvimento:
+   - `https://<serviço-no-render>.onrender.com/api/v1/auth/google/callback`
+   - `http://localhost:3333/api/v1/auth/google/callback`
+3. No Render, em **Environment** do serviço `agenda-academica-api`, preencha `GOOGLE_CLIENT_ID` e
+   `GOOGLE_CLIENT_SECRET` com os valores da credencial. O `render.yaml` já cria as duas chaves vazias e
+   define `FRONTEND_URL` com o endereço do front no Vercel.
+4. Para testar localmente, ponha as mesmas três variáveis no `backend/.env` (ver `backend/.env.example`).
+
+O segredo fica só no Render e no `.env` local, que não vai para o Git. Sem as duas chaves, o botão avisa que o
+login com o Google ainda não está disponível.
+
 > No plano grátis do Render a API dorme depois de uns 15 minutos sem acesso e o primeiro acesso leva até um
 > minuto. O banco é SQLite e não fica salvo: toda vez que a API reinicia, ele volta com os dados de demonstração.
 

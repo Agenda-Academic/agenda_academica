@@ -18,12 +18,12 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
-import { ApiError, login, signup, wakeApi } from "@/lib/api";
+import { ApiError, googleLoginUrl, login, signup, wakeApi } from "@/lib/api";
 import { cx, errorMessage } from "@/lib/format";
 import { demoAccounts } from "@/lib/meta";
 import type { Session } from "@/lib/types";
 import { GuardianDataDialog } from "./guardian-data-dialog";
-import { Field, primaryButton } from "./ui";
+import { Field, primaryButton, secondaryButton } from "./ui";
 
 type Mode = "login" | "signup";
 type SignupRole = "student" | "teacher" | "guardian";
@@ -51,6 +51,48 @@ const takenByDatabase: Array<{ field: FieldName; column: RegExp; message: string
 ];
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// motivo da volta do Google (?google_erro=, ou "falhou" quando a troca do código não deu certo)
+const googleFailed = "Não foi possível entrar com o Google. Tente de novo.";
+const googleErrors: Record<string, string> = {
+  dominio: "Esse e-mail não é do IFMS. Entre com e-mail e senha ou crie sua conta.",
+  cancelado: "O login com o Google foi cancelado.",
+  nao_configurado: "O login com o Google ainda não está disponível.",
+  estado: googleFailed,
+  falhou: googleFailed,
+};
+
+/** Mensagem de um motivo de erro do Google; um motivo desconhecido vira a de "falhou". */
+function googleErrorMessage(reason: string | null | undefined) {
+  if (!reason) {
+    return null;
+  }
+  return Object.prototype.hasOwnProperty.call(googleErrors, reason) ? googleErrors[reason] : googleFailed;
+}
+
+/** O "G" colorido oficial do Google. */
+function GoogleMark() {
+  return (
+    <svg className="h-[18px] w-[18px] shrink-0" viewBox="0 0 48 48" aria-hidden focusable="false">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
+  );
+}
 
 function letters(value: string) {
   return (value.match(/\p{L}/gu) ?? []).length;
@@ -164,11 +206,14 @@ function FieldMessage({ id, children }: { id: string; children: ReactNode }) {
 
 export function LoginScreen({
   email,
+  googleError,
   notice,
   onSession,
 }: {
   /** E-mail de quem estava na sessão que venceu: o formulário (e o cartão da conta de teste) já vem com ele. */
   email?: string | null;
+  /** Motivo da volta do Google sem entrar (?google_erro=): a mensagem aparece abaixo do botão do Google. */
+  googleError?: string | null;
   /** Aviso no topo do formulário (ex.: sessão vencida). */
   notice?: string | null;
   onSession: (session: Session) => void;
@@ -199,9 +244,15 @@ export function LoginScreen({
   const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // a ida ao Google: o botão mostra que está carregando até a página do Google abrir
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleMessage, setGoogleMessage] = useState(() => googleErrorMessage(googleError));
+  const busy = loading || googleLoading;
 
   const baseId = useId();
   const errorId = (name: FieldName) => `${baseId}-${name}-erro`;
+  const googleErrorId = `${baseId}-google-erro`;
+  const googleHintId = `${baseId}-google-ajuda`;
   const titleRef = useRef<HTMLHeadingElement>(null);
   const fullNameRef = useRef<HTMLInputElement>(null);
   const registrationRef = useRef<HTMLInputElement>(null);
@@ -226,10 +277,31 @@ export function LoginScreen({
 
   // Se a resposta demorar, avisa que o servidor está voltando do repouso.
   useEffect(() => {
-    if (!loading) return;
+    if (!busy) return;
     const timer = window.setTimeout(() => setSlow(true), 4000);
     return () => window.clearTimeout(timer);
-  }, [loading]);
+  }, [busy]);
+
+  // Voltar do Google pelo botão do navegador traz a página da memória (bfcache): o botão deixa de carregar.
+  useEffect(() => {
+    const restore = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        setGoogleLoading(false);
+        setSlow(false);
+      }
+    };
+    window.addEventListener("pageshow", restore);
+    return () => window.removeEventListener("pageshow", restore);
+  }, []);
+
+  function startGoogle() {
+    if (busy) {
+      return;
+    }
+    setGoogleMessage(null);
+    setGoogleLoading(true);
+    window.location.assign(googleLoginUrl());
+  }
 
   function showErrors(next: FieldErrors) {
     setFieldErrors(next);
@@ -293,7 +365,7 @@ export function LoginScreen({
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (loading) {
+    if (busy) {
       return;
     }
     setError(null);
@@ -337,6 +409,7 @@ export function LoginScreen({
     setMode(next);
     setError(null);
     setFieldErrors({});
+    setGoogleMessage(null);
   }
 
   return (
@@ -592,7 +665,7 @@ export function LoginScreen({
 
             <button
               className={cx(primaryButton, "mt-5 h-11 w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-55")}
-              aria-disabled={loading || undefined}
+              aria-disabled={busy || undefined}
               type="submit"
             >
               {loading ? (
@@ -607,6 +680,41 @@ export function LoginScreen({
 
             {loading && slow ? (
               <p role="status" className="mt-3 text-center text-sm text-muted">
+                O servidor estava em repouso e está voltando. No primeiro acesso isso leva até um minuto.
+              </p>
+            ) : null}
+
+            <div className="mt-5 flex items-center gap-3 text-[13px] font-semibold text-muted">
+              <span className="h-px flex-1 bg-line" aria-hidden />
+              ou
+              <span className="h-px flex-1 bg-line" aria-hidden />
+            </div>
+
+            {/* padrão do botão do Google: fundo branco, borda cinza e o "G" colorido */}
+            <button
+              className={cx(
+                secondaryButton,
+                "mt-4 h-11 w-full gap-3 border-[#747775] aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
+              )}
+              aria-disabled={busy || undefined}
+              aria-describedby={googleMessage ? `${googleErrorId} ${googleHintId}` : googleHintId}
+              onClick={startGoogle}
+              type="button"
+            >
+              {googleLoading ? <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden /> : <GoogleMark />}
+              {googleLoading ? "Abrindo o Google" : "Entrar com o Google"}
+            </button>
+            {googleMessage ? (
+              <p role="alert" className="field-error pop" id={googleErrorId}>
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <span>{googleMessage}</span>
+              </p>
+            ) : null}
+            <p id={googleHintId} className="mt-2 text-center text-[13px] leading-5 text-muted">
+              Use seu e-mail @estudante.ifms.edu.br ou @ifms.edu.br.
+            </p>
+            {googleLoading && slow ? (
+              <p role="status" className="mt-2 text-center text-sm text-muted">
                 O servidor estava em repouso e está voltando. No primeiro acesso isso leva até um minuto.
               </p>
             ) : null}

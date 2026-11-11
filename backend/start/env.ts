@@ -24,4 +24,10 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   // Session
   SESSION_DRIVER: Env.schema.enum(['cookie', 'memory', 'database'] as const),
+
+  // Entrar com o Google (opcional: sem o client ID e o segredo, o botão avisa que não está disponível)
+  GOOGLE_CLIENT_ID: Env.schema.string.optional(),
+  GOOGLE_CLIENT_SECRET: Env.schema.secret.optional(),
+  // Endereço do front, para onde a volta do Google leva a pessoa (padrão: http://localhost:3000)
+  FRONTEND_URL: Env.schema.string.optional({ format: 'url', tld: false }),
 })
