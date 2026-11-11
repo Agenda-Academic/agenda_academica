@@ -81,7 +81,7 @@ async function expectStatus(request: any, status: number) {
 async function loginAs(client: any, email: string) {
   const response = await client.post(`${API}/auth/login`).json({ email, password: 'password123' })
   response.assertStatus(200)
-  return (response.body() as Envelope<{ token: string }>).data.token
+  return (response.body() as unknown as Envelope<{ token: string }>).data.token
 }
 
 function fieldOf(body: unknown) {
@@ -178,7 +178,7 @@ function importBody(eventId: number, rows: Row[], extra: Record<string, unknown>
 async function createImport(client: any, token: string, body: object, status = 201) {
   const response = await client.post(`${API}/grade-imports`).bearerToken(token).json(body)
   response.assertStatus(status)
-  return (response.body() as Envelope<ImportDetail>).data
+  return (response.body() as unknown as Envelope<ImportDetail>).data
 }
 
 async function scoreOf(eventId: number, studentId: number) {
@@ -259,7 +259,7 @@ test.group('Fase 3: notas', (group) => {
       .get(`${API}/students/${diogo.id}/grades`)
       .bearerToken(await loginAs(client, maria.email))
     mariaView.assertStatus(200)
-    assert.isTrue((mariaView.body() as Envelope<StudentReport>).data.shareGrades)
+    assert.isTrue((mariaView.body() as unknown as Envelope<StudentReport>).data.shareGrades)
     const mariaExam = evaluationsOf(mariaView.body()).find((item) => item.eventId === pastExam.id)
     assert.equal(mariaExam?.grade?.score, 750)
 
@@ -267,7 +267,7 @@ test.group('Fase 3: notas', (group) => {
     const event = await client
       .get(`${API}/events/${pastExam.id}`)
       .bearerToken(await loginAs(client, diogo.email))
-    const eventData = (event.body() as Envelope<Record<string, unknown>>).data
+    const eventData = (event.body() as unknown as Envelope<Record<string, unknown>>).data
     assert.isNotNull(eventData.gradesPublishedAt)
     assert.notProperty(eventData, 'gradesPublishedById')
   })
@@ -326,13 +326,13 @@ test.group('Fase 3: notas', (group) => {
       client.get(`${API}/grade-imports/${draft.id}`).bearerToken(token),
       200
     )
-    assert.lengthOf((shown.body() as Envelope<ImportDetail>).data.rows!, 7)
+    assert.lengthOf((shown.body() as unknown as Envelope<ImportDetail>).data.rows!, 7)
 
     const applied = await expectStatus(
       client.post(`${API}/grade-imports/${draft.id}/apply`).bearerToken(token).json({}),
       200
     )
-    const appliedBody = applied.body() as Envelope<
+    const appliedBody = applied.body() as unknown as Envelope<
       ImportDetail & { applied: { created: number; updated: number } }
     > & { message: string }
     assert.equal(appliedBody.data.status, 'applied')
@@ -371,7 +371,7 @@ test.group('Fase 3: notas', (group) => {
       client.get(`${API}/events/${mathExam.id}/grades`).bearerToken(token),
       200
     )
-    const listData = (list.body() as Envelope<EventGrades>).data
+    const listData = (list.body() as unknown as Envelope<EventGrades>).data
     assert.deepInclude(listData.counts, { students: 4, graded: 2, missing: 2 })
     assert.notInclude(
       listData.students.map((item) => item.enrollmentStatus),
@@ -381,13 +381,16 @@ test.group('Fase 3: notas', (group) => {
     const adminList = await client
       .get(`${API}/events/${mathExam.id}/grades`)
       .bearerToken(await loginAs(client, 'admin@agenda.test'))
-    assert.property((adminList.body() as Envelope<EventGrades>).data.students[0], 'registration')
+    assert.property(
+      (adminList.body() as unknown as Envelope<EventGrades>).data.students[0],
+      'registration'
+    )
 
     const published = await expectStatus(
       client.post(`${API}/events/${mathExam.id}/grades/publish`).bearerToken(token),
       200
     )
-    const publishedBody = published.body() as Envelope<{
+    const publishedBody = published.body() as unknown as Envelope<{
       notified: { students: number; guardians: number }
     }> & { message: string }
     assert.deepEqual(publishedBody.data.notified, { students: 2, guardians: 1 })
@@ -417,7 +420,9 @@ test.group('Fase 3: notas', (group) => {
       client.post(`${API}/events/${mathExam.id}/grades/publish`).bearerToken(token),
       200
     )
-    assert.isTrue((again.body() as Envelope<{ alreadyPublished: boolean }>).data.alreadyPublished)
+    assert.isTrue(
+      (again.body() as unknown as Envelope<{ alreadyPublished: boolean }>).data.alreadyPublished
+    )
     assert.lengthOf(
       await Notification.query().where('kind', 'grades_published').where('userId', diogo.id),
       1
@@ -429,7 +434,7 @@ test.group('Fase 3: notas', (group) => {
       200
     )
     assert.equal(
-      (unpublished.body() as Envelope<{ removedNotices: number }>).data.removedNotices,
+      (unpublished.body() as unknown as Envelope<{ removedNotices: number }>).data.removedNotices,
       3
     )
     const after = await client.get(`${API}/me/grades`).bearerToken(diogoToken)
@@ -508,7 +513,7 @@ test.group('Fase 3: notas', (group) => {
       client.delete(`${API}/grade-imports/${byRegistration.id}`).bearerToken(token),
       200
     )
-    const undoneBody = undone.body() as Envelope<
+    const undoneBody = undone.body() as unknown as Envelope<
       ImportDetail & { undone: { restored: number; removed: number } }
     >
     assert.equal(undoneBody.data.status, 'undone')
@@ -534,7 +539,10 @@ test.group('Fase 3: notas', (group) => {
       client.delete(`${API}/grade-imports/${byRegistration.id}`).bearerToken(token),
       200
     )
-    assert.equal((twice.body() as { message: string }).message, 'Esta importação já foi desfeita.')
+    assert.equal(
+      (twice.body() as unknown as { message: string }).message,
+      'Esta importação já foi desfeita.'
+    )
 
     // Nota editada depois da importação: 409 com a lista e nada é desfeito.
     const later = await createImport(
@@ -550,14 +558,14 @@ test.group('Fase 3: notas', (group) => {
     await expectStatus(putGrade(client, token, mathExam.id, diogo.id, { score: 650 }), 200)
 
     const list = await client.get(`${API}/grade-imports?eventId=${mathExam.id}`).bearerToken(token)
-    const laterItem = (list.body() as Envelope<ImportDetail[]>).data.find(
+    const laterItem = (list.body() as unknown as Envelope<ImportDetail[]>).data.find(
       (item) => item.id === later.id
     )!
     assert.isFalse(laterItem.canUndo)
 
     const blocked = await client.delete(`${API}/grade-imports/${later.id}`).bearerToken(token)
     blocked.assertStatus(409)
-    const blockedBody = blocked.body() as {
+    const blockedBody = blocked.body() as unknown as {
       code: string
       message: string
       grades: { studentId: number }[]
@@ -587,7 +595,7 @@ test.group('Fase 3: notas', (group) => {
       .bearerToken(token)
     clearedBlocked.assertStatus(409)
     assert.deepEqual(
-      (clearedBlocked.body() as { grades: { studentId: number }[] }).grades.map(
+      (clearedBlocked.body() as unknown as { grades: { studentId: number }[] }).grades.map(
         (item) => item.studentId
       ),
       [bia.id]
@@ -617,7 +625,8 @@ test.group('Fase 3: notas', (group) => {
       200
     )
     assert.equal(
-      (kept.body() as Envelope<{ applied: { keptAgenda: number } }>).data.applied.keptAgenda,
+      (kept.body() as unknown as Envelope<{ applied: { keptAgenda: number } }>).data.applied
+        .keptAgenda,
       1
     )
     assert.equal(await scoreOf(mathExam.id, diogo.id), 700)
@@ -731,7 +740,7 @@ test.group('Fase 3: notas', (group) => {
       client.get(`${API}/grade-imports/${draft.id}`).bearerToken(tokens.marina),
       200
     )
-    assert.isFalse((seen.body() as Envelope<ImportDetail>).data.canApply)
+    assert.isFalse((seen.body() as unknown as Envelope<ImportDetail>).data.canApply)
     await expectStatus(
       client.post(`${API}/grade-imports/${draft.id}/apply`).bearerToken(tokens.marina).json({}),
       403
@@ -809,7 +818,7 @@ test.group('Fase 3: notas', (group) => {
       200
     )
     const notShared = await view()
-    const notSharedData = (notShared.body() as Envelope<StudentReport>).data
+    const notSharedData = (notShared.body() as unknown as Envelope<StudentReport>).data
     assert.isFalse(notSharedData.shareGrades)
     assert.lengthOf(notSharedData.subjects, 0)
     assert.isNull(notSharedData.counts)
@@ -825,10 +834,13 @@ test.group('Fase 3: notas', (group) => {
       client.post(`${API}/events/${mathExam.id}/grades/publish`).bearerToken(maraisaToken),
       200
     )
-    assert.deepEqual((republished.body() as Envelope<{ notified: object }>).data.notified, {
-      students: 1,
-      guardians: 0,
-    })
+    assert.deepEqual(
+      (republished.body() as unknown as Envelope<{ notified: object }>).data.notified,
+      {
+        students: 1,
+        guardians: 0,
+      }
+    )
 
     // Sem vínculo ativo: 404, como se o aluno não existisse.
     await expectStatus(
@@ -872,10 +884,13 @@ test.group('Fase 3: notas', (group) => {
       client.post(`${API}/events/${logicExam.id}/grades/publish`).bearerToken(marinaToken),
       200
     )
-    assert.deepEqual((anaPublished.body() as Envelope<{ notified: object }>).data.notified, {
-      students: 1,
-      guardians: 1,
-    })
+    assert.deepEqual(
+      (anaPublished.body() as unknown as Envelope<{ notified: object }>).data.notified,
+      {
+        students: 1,
+        guardians: 1,
+      }
+    )
     const carlosView = await expectStatus(
       client.get(`${API}/students/${ana.id}/grades`).bearerToken(carlosToken),
       200
@@ -920,7 +935,7 @@ test.group('Fase 3: notas', (group) => {
       putGrade(client, token, mathExam.id, diogo.id, { status: 'absent' }),
       201
     )
-    const absentRow = (absent.body() as Envelope<StudentRow>).data
+    const absentRow = (absent.body() as unknown as Envelope<StudentRow>).data
     assert.equal(absentRow.grade?.status, 'absent')
     assert.isNull(absentRow.grade?.score)
 
@@ -928,13 +943,13 @@ test.group('Fase 3: notas', (group) => {
       putGrade(client, token, mathExam.id, diogo.id, { score: 1000 }),
       200
     )
-    assert.equal((graded.body() as Envelope<StudentRow>).data.grade?.scoreText, '10')
+    assert.equal((graded.body() as unknown as Envelope<StudentRow>).data.grade?.scoreText, '10')
 
     const cleared = await expectStatus(
       putGrade(client, token, mathExam.id, diogo.id, { score: null }),
       200
     )
-    assert.isNull((cleared.body() as Envelope<StudentRow>).data.grade)
+    assert.isNull((cleared.body() as unknown as Envelope<StudentRow>).data.grade)
     assert.isUndefined(await scoreOf(mathExam.id, diogo.id))
 
     // Aluna de outra turma: 404.
@@ -956,7 +971,7 @@ test.group('Fase 3: notas', (group) => {
     })
     const notGradable = await client.get(`${API}/events/${activity.id}/grades`).bearerToken(token)
     notGradable.assertStatus(409)
-    assert.equal((notGradable.body() as { code: string }).code, 'NOT_GRADABLE')
+    assert.equal((notGradable.body() as unknown as { code: string }).code, 'NOT_GRADABLE')
     await expectStatus(
       client
         .post(`${API}/grade-imports`)
@@ -976,7 +991,7 @@ test.group('Fase 3: notas', (group) => {
       }),
       201
     )
-    const surpriseId = (created.body() as Envelope<{ id: number }>).data.id
+    const surpriseId = (created.body() as unknown as Envelope<{ id: number }>).data.id
     const noPoints = await putGrade(client, token, surpriseId, diogo.id, { score: 500 })
     noPoints.assertStatus(422)
     assert.include(fieldOf(noPoints.body()), 'score')
@@ -1030,7 +1045,7 @@ test.group('Fase 3: notas', (group) => {
 
     const blocked = await client.delete(`${API}/events/${mathExam.id}`).bearerToken(token)
     blocked.assertStatus(409)
-    const body = blocked.body() as { code: string; counts: { grades: number } }
+    const body = blocked.body() as unknown as { code: string; counts: { grades: number } }
     assert.equal(body.code, 'HAS_DEPENDENTS')
     assert.equal(body.counts.grades, 1)
     assert.isNotNull(await AcademicEvent.find(mathExam.id))
@@ -1042,7 +1057,7 @@ test.group('Fase 3: notas', (group) => {
       .bearerToken(token)
       .json({ category: 'activity' })
     category.assertStatus(409)
-    assert.equal((category.body() as { code: string }).code, 'HAS_GRADES')
+    assert.equal((category.body() as unknown as { code: string }).code, 'HAS_GRADES')
     const lower = await client
       .put(`${API}/events/${mathExam.id}`)
       .bearerToken(token)
@@ -1081,7 +1096,7 @@ test.group('Fase 3: notas', (group) => {
       client.delete(`${API}/grade-imports/${draft.id}`).bearerToken(token),
       200
     )
-    assert.equal((discarded.body() as Envelope<ImportDetail>).data.status, 'discarded')
+    assert.equal((discarded.body() as unknown as Envelope<ImportDetail>).data.status, 'discarded')
     assert.lengthOf(await GradeImportRow.query().where('gradeImportId', draft.id), 0)
     assert.isUndefined(await scoreOf(mathExam.id, diogo.id))
     const late = await client
@@ -1089,7 +1104,7 @@ test.group('Fase 3: notas', (group) => {
       .bearerToken(token)
       .json({})
     late.assertStatus(409)
-    assert.equal((late.body() as { code: string }).code, 'NOT_DRAFT')
+    assert.equal((late.body() as unknown as { code: string }).code, 'NOT_DRAFT')
 
     await expectStatus(putGrade(client, token, mathExam.id, diogo.id, { score: 900 }), 201)
     await expectStatus(
@@ -1110,7 +1125,7 @@ test.group('Fase 3: notas', (group) => {
         .json(importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '1' }])),
     ]) {
       response.assertStatus(409)
-      assert.equal((response.body() as { code: string }).code, 'ARCHIVED')
+      assert.equal((response.body() as unknown as { code: string }).code, 'ARCHIVED')
     }
     await expectStatus(client.get(`${API}/events/${mathExam.id}/grades`).bearerToken(token), 200)
     // Despublicar só tira acesso: vale na turma arquivada.
@@ -1369,7 +1384,7 @@ test.group('Fase 3: notas', (group) => {
       }),
       201
     )
-    const ownExam = (created.body() as Envelope<{ id: number }>).data.id
+    const ownExam = (created.body() as unknown as Envelope<{ id: number }>).data.id
     await expectStatus(putGrade(client, marinaToken, ownExam, diogo.id, { score: 700 }), 201)
     const ownDraft = await createImport(
       client,
@@ -1409,7 +1424,7 @@ test.group('Fase 3: notas', (group) => {
       }),
       201
     )
-    const adminExam = (adminCreated.body() as Envelope<{ id: number }>).data.id
+    const adminExam = (adminCreated.body() as unknown as Envelope<{ id: number }>).data.id
     await expectStatus(putGrade(client, maraisaToken, adminExam, diogo.id, { score: 100 }), 403)
     await expectStatus(putGrade(client, marinaToken, adminExam, diogo.id, { score: 100 }), 403)
     await expectStatus(putGrade(client, adminToken, adminExam, diogo.id, { score: 900 }), 201)
@@ -1523,7 +1538,7 @@ test.group('Fase 3: notas', (group) => {
       client.get(`${API}/grade-imports/${draft.id}`).bearerToken(marinaToken),
       200
     )
-    assert.notProperty((seen.body() as Envelope<ImportDetail>).data, 'rows')
+    assert.notProperty((seen.body() as unknown as Envelope<ImportDetail>).data, 'rows')
     assert.notInclude(JSON.stringify(seen.body()), 'diogo@agenda.test')
 
     // Editar sem mudar turma nem disciplina não mexe no rascunho.
@@ -1586,7 +1601,7 @@ test.group('Fase 3: notas', (group) => {
       client.get(`${API}/grade-imports?eventId=${mathExam.id}`).bearerToken(token),
       200
     )
-    const items = (list.body() as Envelope<ImportDetail[]>).data
+    const items = (list.body() as unknown as Envelope<ImportDetail[]>).data
     const draftItem = items.find((item) => item.id === draft.id)!
     const appliedItem = items.find((item) => item.id === applied.id)!
     assert.isFalse(draftItem.canApply)
@@ -1597,7 +1612,7 @@ test.group('Fase 3: notas', (group) => {
       await client.delete(`${API}/grade-imports/${applied.id}`).bearerToken(token),
     ]) {
       response.assertStatus(409)
-      assert.equal((response.body() as { code: string }).code, 'ARCHIVED')
+      assert.equal((response.body() as unknown as { code: string }).code, 'ARCHIVED')
     }
     assert.equal(await scoreOf(mathExam.id, bia.id), 700)
     await expectStatus(client.delete(`${API}/grade-imports/${draft.id}`).bearerToken(token), 200)
@@ -1681,7 +1696,8 @@ test.group('Fase 3: notas', (group) => {
       200
     )
     assert.deepEqual(
-      (undone.body() as Envelope<{ undone: { restored: number; removed: number } }>).data.undone,
+      (undone.body() as unknown as Envelope<{ undone: { restored: number; removed: number } }>).data
+        .undone,
       { restored: 0, removed: 1 }
     )
     await expectStatus(putGrade(client, token, pastAssignment.id, diogo.id, { score: null }), 200)

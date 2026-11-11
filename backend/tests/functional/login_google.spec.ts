@@ -283,7 +283,7 @@ test.group('Entrar com o Google', (group) => {
 
     const exchange = await client.post(`${API}/auth/google/exchange`).json({ code })
     exchange.assertStatus(200)
-    assert.equal((exchange.body() as SessionBody).data.user.id, user.id)
+    assert.equal((exchange.body() as unknown as SessionBody).data.user.id, user.id)
   })
 
   test('@ifms.edu.br com hd do IFMS cria docente', async ({ client, assert }) => {
@@ -343,7 +343,7 @@ test.group('Entrar com o Google', (group) => {
 
     const exchange = await client.post(`${API}/auth/google/exchange`).json({ code })
     exchange.assertStatus(200)
-    const data = (exchange.body() as SessionBody).data
+    const data = (exchange.body() as unknown as SessionBody).data
     assert.equal(data.user.id, diogo.id)
     assert.equal(data.user.fullName, diogo.fullName)
     assert.equal(await countUsers(), before)
@@ -406,8 +406,8 @@ test.group('Entrar com o Google', (group) => {
       .json({ code: loginCodeFrom(assert, location) })
     exchange.assertStatus(200)
 
-    const byPassword = login.body() as SessionBody
-    const byGoogle = exchange.body() as SessionBody
+    const byPassword = login.body() as unknown as SessionBody
+    const byGoogle = exchange.body() as unknown as SessionBody
     assert.deepEqual(Object.keys(byGoogle).sort(), Object.keys(byPassword).sort())
     assert.deepEqual(Object.keys(byGoogle.data).sort(), Object.keys(byPassword.data).sort())
     assert.deepEqual(byGoogle.data.user, byPassword.data.user)
@@ -418,7 +418,10 @@ test.group('Entrar com o Google', (group) => {
     // o token do Google vale como o do login
     const profile = await client.get(`${API}/account/profile`).bearerToken(byGoogle.data.token)
     profile.assertStatus(200)
-    assert.equal((profile.body() as Envelope<{ email: string }>).data.email, 'diogo@agenda.test')
+    assert.equal(
+      (profile.body() as unknown as Envelope<{ email: string }>).data.email,
+      'diogo@agenda.test'
+    )
   })
 
   test('exchange com código repetido, vencido ou desconhecido responde 422', async ({
@@ -440,14 +443,14 @@ test.group('Entrar com o Google', (group) => {
     for (const attempt of [code, expired, 'codigo-que-nunca-existiu']) {
       const response = await client.post(`${API}/auth/google/exchange`).json({ code: attempt })
       response.assertStatus(422)
-      const body = response.body() as FieldErrors
+      const body = response.body() as unknown as FieldErrors
       assert.deepEqual(body.errors, [
         { field: 'code', rule: 'invalid', message: GOOGLE_CODE_INVALID },
       ])
     }
 
-    const missing = await client.post(`${API}/auth/google/exchange`).json({})
+    const missing = await client.post(`${API}/auth/google/exchange`).json({} as { code: string })
     missing.assertStatus(422)
-    assert.equal((missing.body() as FieldErrors).errors[0].field, 'code')
+    assert.equal((missing.body() as unknown as FieldErrors).errors[0].field, 'code')
   })
 })

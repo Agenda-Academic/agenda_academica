@@ -47,7 +47,7 @@ async function expectStatus(request: any, status: number) {
 async function loginAs(client: any, email: string) {
   const response = await client.post(`${API}/auth/login`).json({ email, password: 'password123' })
   response.assertStatus(200)
-  return (response.body() as Envelope<{ token: string }>).data.token
+  return (response.body() as unknown as Envelope<{ token: string }>).data.token
 }
 
 async function signup(client: any, email: string, role = 'guardian', fullName = 'Conta Nova') {
@@ -59,7 +59,9 @@ async function signup(client: any, email: string, role = 'guardian', fullName = 
     role,
   })
   response.assertStatus(200)
-  return (response.body() as Envelope<{ token: string; user: { id: number; role: string } }>).data
+  return (
+    response.body() as unknown as Envelope<{ token: string; user: { id: number; role: string } }>
+  ).data
 }
 
 function fieldOf(body: unknown) {
@@ -122,7 +124,7 @@ async function tadsExam(tads: AcademicClass) {
 async function newCode(client: any, token: string, status = 201) {
   const response = await client.post(`${API}/me/guardian-codes`).bearerToken(token)
   response.assertStatus(status)
-  return (response.body() as Envelope<CodeResponse>).data
+  return (response.body() as unknown as Envelope<CodeResponse>).data
 }
 
 async function claim(client: any, token: string, code: string, relationship = 'mae') {
@@ -346,7 +348,7 @@ test.group('Fase 2: responsável', (group) => {
     const mine = await client.get(`${API}/me/guardians`).bearerToken(diogoToken)
     mine.assertStatus(200)
     const listed = (
-      mine.body() as Envelope<{
+      mine.body() as unknown as Envelope<{
         isMinor: boolean
         guardians: { fullName: string; canRemove: boolean; canShareGrades: boolean }[]
         codes: Record<string, unknown>[]
@@ -373,7 +375,7 @@ test.group('Fase 2: responsável', (group) => {
     // Minúsculas e o hífen valem igual.
     const claimed = await claim(client, guardian.token, code.codeFormatted.toLowerCase(), 'pai')
     claimed.assertStatus(201)
-    const body = (claimed.body() as Envelope<ClaimResponse>).data
+    const body = (claimed.body() as unknown as Envelope<ClaimResponse>).data
     assert.equal(body.link.status, 'active')
     assert.equal(body.link.origin, 'student_code')
     assert.equal(body.link.relationship, 'pai')
@@ -410,7 +412,7 @@ test.group('Fase 2: responsável', (group) => {
     const other = await signup(client, 'outro.resp@agenda.test')
     const reused = await claim(client, other.token, code.code)
     reused.assertStatus(422)
-    assert.equal((reused.body() as { message: string }).message, INVALID_CODE)
+    assert.equal((reused.body() as unknown as { message: string }).message, INVALID_CODE)
 
     // Aluno e docente não usam código de responsável.
     const studentClaim = await claim(client, diogoToken, code.code)
@@ -437,7 +439,7 @@ test.group('Fase 2: responsável', (group) => {
     const guardian = await signup(client, 'mae.ana@agenda.test', 'guardian', 'Beatriz Ribeiro')
     const claimed = await claim(client, guardian.token, code.code)
     claimed.assertStatus(201)
-    const body = (claimed.body() as Envelope<ClaimResponse>).data
+    const body = (claimed.body() as unknown as Envelope<ClaimResponse>).data
     assert.equal(body.link.status, 'pending')
     assert.equal(body.message, 'Pedido enviado. A secretaria confirma e você recebe um aviso aqui.')
 
@@ -465,7 +467,7 @@ test.group('Fase 2: responsável', (group) => {
     const second = await newCode(client, anaToken)
     const again = await claim(client, guardian.token, second.code)
     again.assertStatus(200)
-    assert.isTrue((again.body() as Envelope<ClaimResponse>).data.alreadyLinked)
+    assert.isTrue((again.body() as unknown as Envelope<ClaimResponse>).data.alreadyLinked)
 
     const teacherApprove = await client
       .post(`${API}/guardian-links/${body.link.id}/approve`)
@@ -481,7 +483,7 @@ test.group('Fase 2: responsável', (group) => {
       .bearerToken(await loginAs(client, admin.email))
     pendingList.assertStatus(200)
     assert.include(
-      (pendingList.body() as Envelope<{ id: number }[]>).data.map((item) => item.id),
+      (pendingList.body() as unknown as Envelope<{ id: number }[]>).data.map((item) => item.id),
       body.link.id
     )
 
@@ -489,7 +491,7 @@ test.group('Fase 2: responsável', (group) => {
       .post(`${API}/guardian-links/${body.link.id}/approve`)
       .bearerToken(await loginAs(client, admin.email))
     approved.assertStatus(200)
-    assert.equal((approved.body() as Envelope<Summary>).data.status, 'active')
+    assert.equal((approved.body() as unknown as Envelope<Summary>).data.status, 'active')
     const link = await GuardianLink.findOrFail(body.link.id)
     assert.equal(link.approvedById, admin.id)
     assert.lengthOf(await notificationsOf(guardian.user.id, 'guardian_linked'), 1)
@@ -498,7 +500,7 @@ test.group('Fase 2: responsável', (group) => {
     const events = await client.get(`${API}/events?studentId=${ana.id}`).bearerToken(guardian.token)
     events.assertStatus(200)
     assert.include(
-      (events.body() as Envelope<EventItem[]>).data.map((event) => event.id),
+      (events.body() as unknown as Envelope<EventItem[]>).data.map((event) => event.id),
       exam.id
     )
     await expectStatus(client.get(`${API}/events/${exam.id}`).bearerToken(guardian.token), 200)
@@ -549,7 +551,7 @@ test.group('Fase 2: responsável', (group) => {
     const valid = await newCode(client, diogoToken)
     const blocked = await claim(client, guardian.token, valid.code)
     blocked.assertStatus(429)
-    assert.equal((blocked.body() as { code: string }).code, 'TOO_MANY_ATTEMPTS')
+    assert.equal((blocked.body() as unknown as { code: string }).code, 'TOO_MANY_ATTEMPTS')
     assert.isNull(await codeUsedAt(valid.id))
 
     // Vínculo bloqueado: nenhum código passa por cima, e a resposta é a mesma.
@@ -580,7 +582,7 @@ test.group('Fase 2: responsável', (group) => {
     const c3 = await newCode(client, diogoToken)
     const limit = await client.post(`${API}/me/guardian-codes`).bearerToken(diogoToken)
     limit.assertStatus(409)
-    assert.equal((limit.body() as { code: string }).code, 'CODE_LIMIT')
+    assert.equal((limit.body() as unknown as { code: string }).code, 'CODE_LIMIT')
 
     // Outro aluno não cancela o código do Diogo.
     const foreign = await client
@@ -604,14 +606,14 @@ test.group('Fase 2: responsável', (group) => {
       .delete(`${API}/me/guardian-codes/${c1.id}`)
       .bearerToken(diogoToken)
     usedCancel.assertStatus(409)
-    assert.equal((usedCancel.body() as { code: string }).code, 'CODE_USED')
+    assert.equal((usedCancel.body() as unknown as { code: string }).code, 'CODE_USED')
 
     // Código da secretaria gerado antes de chegar ao limite.
     const adminCode = await client
       .post(`${API}/students/${diogo.id}/guardian-codes`)
       .bearerToken(adminToken)
     adminCode.assertStatus(201)
-    const adminCodeValue = (adminCode.body() as Envelope<CodeResponse>).data.code
+    const adminCodeValue = (adminCode.body() as unknown as Envelope<CodeResponse>).data.code
 
     await expectStatus(claim(client, g3.token, c4.code), 201)
     // Maria, g1, g2 e g3: 4 vínculos.
@@ -619,7 +621,7 @@ test.group('Fase 2: responsável', (group) => {
 
     const overLimit = await claim(client, g4.token, adminCodeValue)
     overLimit.assertStatus(409)
-    assert.equal((overLimit.body() as { code: string }).code, 'LINK_LIMIT')
+    assert.equal((overLimit.body() as unknown as { code: string }).code, 'LINK_LIMIT')
     assert.isNull(
       await GuardianLink.query()
         .where('guardianId', g4.user.id)
@@ -629,14 +631,14 @@ test.group('Fase 2: responsável', (group) => {
 
     const noMoreCodes = await client.post(`${API}/me/guardian-codes`).bearerToken(diogoToken)
     noMoreCodes.assertStatus(409)
-    assert.equal((noMoreCodes.body() as { code: string }).code, 'LINK_LIMIT')
+    assert.equal((noMoreCodes.body() as unknown as { code: string }).code, 'LINK_LIMIT')
 
     const byEmail = await client
       .post(`${API}/students/${diogo.id}/guardians`)
       .bearerToken(adminToken)
       .json({ email: 'g4@agenda.test', relationship: 'outro' })
     byEmail.assertStatus(409)
-    assert.equal((byEmail.body() as { code: string }).code, 'LINK_LIMIT')
+    assert.equal((byEmail.body() as unknown as { code: string }).code, 'LINK_LIMIT')
   })
 
   test('responsável com dois alunos escolhe o studentId; sem vínculo ativo com o aluno, 404', async ({
@@ -653,8 +655,9 @@ test.group('Fase 2: responsável', (group) => {
       .bearerToken(adminToken)
       .json({ email: 'MARIA@agenda.test', relationship: 'responsavel_legal' })
     linked.assertStatus(201)
-    const linkData = (linked.body() as Envelope<{ status: string; origin: string; email: string }>)
-      .data
+    const linkData = (
+      linked.body() as unknown as Envelope<{ status: string; origin: string; email: string }>
+    ).data
     assert.equal(linkData.status, 'active')
     assert.equal(linkData.origin, 'admin')
     assert.equal(linkData.email, 'maria@agenda.test')
@@ -750,7 +753,8 @@ test.group('Fase 2: responsável', (group) => {
       .bearerToken(mariaToken)
       .json({ academicEventId: exam.id, offsetMinutes: 60 })
     created.assertStatus(201)
-    const reminderId = (created.body() as Envelope<{ id: number; userId: number }>).data.id
+    const reminderId = (created.body() as unknown as Envelope<{ id: number; userId: number }>).data
+      .id
     const reminder = await Reminder.findOrFail(reminderId)
     assert.equal(reminder.userId, maria.id)
 
@@ -759,12 +763,12 @@ test.group('Fase 2: responsável', (group) => {
       .get(`${API}/reminders`)
       .bearerToken(await loginAs(client, diogo.email))
     assert.notInclude(
-      (diogoReminders.body() as Envelope<{ id: number }[]>).data.map((item) => item.id),
+      (diogoReminders.body() as unknown as Envelope<{ id: number }[]>).data.map((item) => item.id),
       reminderId
     )
     const mariaReminders = async () => {
       const response = await client.get(`${API}/reminders`).bearerToken(mariaToken)
-      return (response.body() as Envelope<{ id: number }[]>).data.map((item) => item.id)
+      return (response.body() as unknown as Envelope<{ id: number }[]>).data.map((item) => item.id)
     }
     assert.include(await mariaReminders(), reminderId)
 
@@ -838,7 +842,7 @@ test.group('Fase 2: responsável', (group) => {
       .delete(`${API}/guardian-links/${mariaLink.id}`)
       .bearerToken(mariaToken)
     revoked.assertStatus(200)
-    const summary = (revoked.body() as Envelope<Summary>).data
+    const summary = (revoked.body() as unknown as Envelope<Summary>).data
     assert.equal(summary.status, 'revoked')
     assert.isNotNull(summary.undoUntil)
     await mariaLink.refresh()
@@ -864,7 +868,7 @@ test.group('Fase 2: responsável', (group) => {
       .post(`${API}/guardian-links/${mariaLink.id}/restore`)
       .bearerToken(mariaToken)
     restored.assertStatus(200)
-    assert.equal((restored.body() as Envelope<Summary>).data.status, 'active')
+    assert.equal((restored.body() as unknown as Envelope<Summary>).data.status, 'active')
     await mariaLink.refresh()
     assert.isNull(mariaLink.revokedAt)
     assert.include(
@@ -889,7 +893,7 @@ test.group('Fase 2: responsável', (group) => {
       .post(`${API}/guardian-links/${mariaLink.id}/restore`)
       .bearerToken(diogoToken)
     expired.assertStatus(409)
-    assert.equal((expired.body() as { code: string }).code, 'UNDO_EXPIRED')
+    assert.equal((expired.body() as unknown as { code: string }).code, 'UNDO_EXPIRED')
 
     // A administração desfaz o vínculo da aluna menor; os dois recebem aviso.
     const adminRevoke = await client
@@ -903,12 +907,12 @@ test.group('Fase 2: responsável', (group) => {
     const code = await newCode(client, anaToken)
     const guardian = await signup(client, 'tia.ana@agenda.test', 'guardian', 'Tia da Ana')
     const pendingClaim = await claim(client, guardian.token, code.code, 'outro')
-    const pending = (pendingClaim.body() as Envelope<ClaimResponse>).data
+    const pending = (pendingClaim.body() as unknown as Envelope<ClaimResponse>).data
     const minorOwn = await client
       .delete(`${API}/guardian-links/${pending.link.id}`)
       .bearerToken(anaToken)
     minorOwn.assertStatus(200)
-    assert.equal((minorOwn.body() as Envelope<Summary>).data.status, 'revoked')
+    assert.equal((minorOwn.body() as unknown as Envelope<Summary>).data.status, 'revoked')
     // Pedido pendente nunca deu acesso: o aviso fala do pedido encerrado.
     assert.include(
       await notificationTitles(ana.id, 'guardian_unlinked'),
@@ -924,7 +928,7 @@ test.group('Fase 2: responsável', (group) => {
       .post(`${API}/guardian-links/${pending.link.id}/restore`)
       .bearerToken(anaToken)
     back.assertStatus(200)
-    assert.equal((back.body() as Envelope<Summary>).data.status, 'pending')
+    assert.equal((back.body() as unknown as Envelope<Summary>).data.status, 'pending')
 
     const entries = await AuditLog.query()
       .where('entity', 'guardian_link')
@@ -942,7 +946,7 @@ test.group('Fase 2: responsável', (group) => {
       .bearerToken(diogoToken)
       .json({ shareGrades: false })
     off.assertStatus(200)
-    assert.isFalse((off.body() as Envelope<{ shareGrades: boolean }>).data.shareGrades)
+    assert.isFalse((off.body() as unknown as Envelope<{ shareGrades: boolean }>).data.shareGrades)
     await mariaLink.refresh()
     assert.isFalse(mariaLink.shareGrades)
     const audit = await AuditLog.query()
@@ -1006,7 +1010,7 @@ test.group('Fase 2: responsável', (group) => {
     const list = await client.get(`${API}/students/${diogo.id}/guardians`).bearerToken(adminToken)
     list.assertStatus(200)
     const listed = (
-      list.body() as Envelope<{
+      list.body() as unknown as Envelope<{
         student: { id: number; isMinor: boolean }
         guardians: { email: string; origin: string; status: string }[]
       }>
@@ -1040,14 +1044,14 @@ test.group('Fase 2: responsável', (group) => {
       .post(`${API}/students/${ana.id}/guardian-codes`)
       .bearerToken(adminToken)
     adminCode.assertStatus(201)
-    const codeData = (adminCode.body() as Envelope<CodeResponse>).data
+    const codeData = (adminCode.body() as unknown as Envelope<CodeResponse>).data
     assert.equal(codeData.kind, 'admin')
     const days = DateTime.fromISO(codeData.expiresAt).diffNow('days').days
     assert.isAbove(days, 29.9)
     const avo = await signup(client, 'avo.ana@agenda.test', 'guardian', 'Avó da Ana')
     const claimed = await claim(client, avo.token, codeData.code, 'outro')
     claimed.assertStatus(201)
-    const claimedLink = (claimed.body() as Envelope<ClaimResponse>).data.link
+    const claimedLink = (claimed.body() as unknown as Envelope<ClaimResponse>).data.link
     assert.equal(claimedLink.status, 'active')
     assert.equal(claimedLink.origin, 'admin_code')
 
@@ -1099,7 +1103,7 @@ test.group('Fase 2: responsável', (group) => {
       .post(`${API}/guardian-links/${carlosLink.id}/restore`)
       .bearerToken(adminToken)
     adminRestore.assertStatus(409)
-    assert.equal((adminRestore.body() as { code: string }).code, 'BLOCKED')
+    assert.equal((adminRestore.body() as unknown as { code: string }).code, 'BLOCKED')
     const carlosContext = await client.get(`${API}/context`).bearerToken(carlosToken)
     assert.lengthOf(
       (carlosContext.body() as unknown as Envelope<{ linkedStudents: unknown[] }>).data
@@ -1110,14 +1114,14 @@ test.group('Fase 2: responsável', (group) => {
       .get(`${API}/guardian-links?status=blocked`)
       .bearerToken(adminToken)
     assert.include(
-      (blockedList.body() as Envelope<{ id: number }[]>).data.map((item) => item.id),
+      (blockedList.body() as unknown as Envelope<{ id: number }[]>).data.map((item) => item.id),
       carlosLink.id
     )
     const notPending = await client
       .post(`${API}/guardian-links/${carlosLink.id}/approve`)
       .bearerToken(adminToken)
     notPending.assertStatus(409)
-    assert.equal((notPending.body() as { code: string }).code, 'NOT_PENDING')
+    assert.equal((notPending.body() as unknown as { code: string }).code, 'NOT_PENDING')
 
     // Marcar menor: só a administração, só em conta de aluno.
     await expectStatus(
@@ -1141,7 +1145,10 @@ test.group('Fase 2: responsável', (group) => {
       .bearerToken(adminToken)
       .json({ isMinor: false })
     adult.assertStatus(200)
-    assert.equal((adult.body() as Envelope<{ linksToReview: number }>).data.linksToReview, 1)
+    assert.equal(
+      (adult.body() as unknown as Envelope<{ linksToReview: number }>).data.linksToReview,
+      1
+    )
     const reviewLink = await GuardianLink.findOrFail(claimedLink.id)
     assert.isTrue(reviewLink.needsReview)
     assert.isFalse(reviewLink.shareGrades)
@@ -1157,7 +1164,7 @@ test.group('Fase 2: responsável', (group) => {
       .json({ confirm: true, shareGrades: true })
     confirmed.assertStatus(200)
     const confirmedData = (
-      confirmed.body() as Envelope<{ needsReview: boolean; shareGrades: boolean }>
+      confirmed.body() as unknown as Envelope<{ needsReview: boolean; shareGrades: boolean }>
     ).data
     assert.isFalse(confirmedData.needsReview)
     assert.isTrue(confirmedData.shareGrades)
@@ -1170,7 +1177,7 @@ test.group('Fase 2: responsável', (group) => {
     const list = await client.get(`${API}/notifications`).bearerToken(diogoToken)
     list.assertStatus(200)
     const data = (
-      list.body() as Envelope<{
+      list.body() as unknown as Envelope<{
         notifications: { id: number; kind: string; title: string; readAt: string | null }[]
         unreadCount: number
       }>
@@ -1188,24 +1195,24 @@ test.group('Fase 2: responsável', (group) => {
       .get(`${API}/notifications`)
       .bearerToken(await loginAs(client, maria.email))
     assert.notInclude(
-      (mariaList.body() as Envelope<{ notifications: { id: number }[] }>).data.notifications.map(
-        (item) => item.id
-      ),
+      (
+        mariaList.body() as unknown as Envelope<{ notifications: { id: number }[] }>
+      ).data.notifications.map((item) => item.id),
       first.id
     )
 
     const read = await client.post(`${API}/notifications/${first.id}/read`).bearerToken(diogoToken)
     read.assertStatus(200)
-    assert.isNotNull((read.body() as Envelope<{ readAt: string | null }>).data.readAt)
+    assert.isNotNull((read.body() as unknown as Envelope<{ readAt: string | null }>).data.readAt)
 
     await Notification.create({ userId: diogo.id, kind: 'guardian_unlinked', title: 'Outro aviso' })
     const readAll = await client.post(`${API}/notifications/read-all`).bearerToken(diogoToken)
     readAll.assertStatus(200)
-    assert.equal((readAll.body() as Envelope<{ updated: number }>).data.updated, 1)
+    assert.equal((readAll.body() as unknown as Envelope<{ updated: number }>).data.updated, 1)
 
     const unread = await client.get(`${API}/notifications?unread=1`).bearerToken(diogoToken)
     const unreadData = (
-      unread.body() as Envelope<{ notifications: unknown[]; unreadCount: number }>
+      unread.body() as unknown as Envelope<{ notifications: unknown[]; unreadCount: number }>
     ).data
     assert.lengthOf(unreadData.notifications, 0)
     assert.equal(unreadData.unreadCount, 0)
@@ -1372,17 +1379,17 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
     const own = await newCode(client, anaToken)
     const guardian = await signup(client, 'madrinha.ana@agenda.test', 'guardian', 'Madrinha')
     const first = await expectStatus(claim(client, guardian.token, own.code), 201)
-    const pending = (first.body() as Envelope<ClaimResponse>).data
+    const pending = (first.body() as unknown as Envelope<ClaimResponse>).data
     assert.equal(pending.link.status, 'pending')
 
     const adminCodeResponse = await expectStatus(
       client.post(`${API}/students/${ana.id}/guardian-codes`).bearerToken(adminToken),
       201
     )
-    const adminCode = (adminCodeResponse.body() as Envelope<CodeResponse>).data
+    const adminCode = (adminCodeResponse.body() as unknown as Envelope<CodeResponse>).data
     const upgraded = await claim(client, guardian.token, adminCode.code, 'outro')
     upgraded.assertStatus(201)
-    const body = (upgraded.body() as Envelope<ClaimResponse>).data
+    const body = (upgraded.body() as unknown as Envelope<ClaimResponse>).data
     assert.isFalse(body.alreadyLinked)
     assert.equal(body.link.id, pending.link.id)
     assert.equal(body.link.status, 'active')
@@ -1393,7 +1400,7 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
     // Já ativo: outro código da aluna não muda nada e não é gasto.
     const another = await newCode(client, anaToken)
     const again = await expectStatus(claim(client, guardian.token, another.code), 200)
-    assert.isTrue((again.body() as Envelope<ClaimResponse>).data.alreadyLinked)
+    assert.isTrue((again.body() as unknown as Envelope<ClaimResponse>).data.alreadyLinked)
     assert.isNull(await codeUsedAt(another.id))
   })
 
@@ -1416,7 +1423,7 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
       .bearerToken(adminToken)
       .json({ email: carlos.email, relationship: 'pai' })
     silent.assertStatus(409)
-    const conflictBody = silent.body() as { code: string; linkId: number }
+    const conflictBody = silent.body() as unknown as { code: string; linkId: number }
     assert.equal(conflictBody.code, 'BLOCKED')
     assert.equal(conflictBody.linkId, carlosLink.id)
     await carlosLink.refresh()
@@ -1455,15 +1462,16 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
         .post(`${API}/students/${studentId}/guardian-codes`)
         .bearerToken(adminToken)
       response.assertStatus(status)
-      return (response.body() as Envelope<CodeResponse>).data
+      return (response.body() as unknown as Envelope<CodeResponse>).data
     }
 
     // Aluna menor: o código da secretaria aparece na lista, mas sem cancelar.
     const forAna = await adminCodeFor(ana.id)
     const anaOwn = await newCode(client, anaToken)
     const mine = await client.get(`${API}/me/guardians`).bearerToken(anaToken)
-    const listed = (mine.body() as Envelope<{ codes: { id: number; canCancel: boolean }[] }>).data
-      .codes
+    const listed = (
+      mine.body() as unknown as Envelope<{ codes: { id: number; canCancel: boolean }[] }>
+    ).data.codes
     assert.isFalse(listed.find((item) => item.id === forAna.id)!.canCancel)
     assert.isTrue(listed.find((item) => item.id === anaOwn.id)!.canCancel)
     const minorCancel = await client
@@ -1494,7 +1502,7 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
       .post(`${API}/students/${diogo.id}/guardian-codes`)
       .bearerToken(adminToken)
     limited.assertStatus(409)
-    assert.equal((limited.body() as { code: string }).code, 'CODE_LIMIT')
+    assert.equal((limited.body() as unknown as { code: string }).code, 'CODE_LIMIT')
 
     for (const token of [await loginAs(client, maraisa.email), diogoToken]) {
       await expectStatus(
@@ -1520,7 +1528,7 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
       .delete(`${API}/students/${diogo.id}/guardian-codes/${own[1].id}`)
       .bearerToken(adminToken)
     used.assertStatus(409)
-    assert.equal((used.body() as { code: string }).code, 'CODE_USED')
+    assert.equal((used.body() as unknown as { code: string }).code, 'CODE_USED')
   })
 
   test('aluno que passa a ser menor: o vínculo do código dele sem aprovação volta a pendente', async ({
@@ -1536,7 +1544,7 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
       const code = await newCode(client, student.token)
       const guardian = await signup(client, guardianEmail, 'guardian', `Resp de ${name}`)
       const claimed = await expectStatus(claim(client, guardian.token, code.code, 'pai'), 201)
-      const link = (claimed.body() as Envelope<ClaimResponse>).data.link
+      const link = (claimed.body() as unknown as Envelope<ClaimResponse>).data.link
       return { student, guardian, link }
     }
 
@@ -1562,7 +1570,7 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
       .json({ isMinor: true })
     marked.assertStatus(200)
     const markedData = (
-      marked.body() as Envelope<{ linksToApprove: number; linksToReview: number }>
+      marked.body() as unknown as Envelope<{ linksToApprove: number; linksToReview: number }>
     ).data
     assert.equal(markedData.linksToApprove, 1)
     assert.equal(markedData.linksToReview, 0)
@@ -1636,7 +1644,7 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
       .post(`${API}/guardian-links/${rui.link.id}/restore`)
       .bearerToken(rui.student.token)
     back.assertStatus(200)
-    assert.equal((back.body() as Envelope<Summary>).data.status, 'pending')
+    assert.equal((back.body() as unknown as Envelope<Summary>).data.status, 'pending')
   })
 
   test('perfil do responsável não fica sem nome; o do aluno continua como antes', async ({

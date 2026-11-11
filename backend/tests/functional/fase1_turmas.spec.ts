@@ -34,7 +34,7 @@ async function expectStatus(request: any, status: number) {
 async function loginAs(client: any, email: string) {
   const response = await client.post(`${API}/auth/login`).json({ email, password: 'password123' })
   response.assertStatus(200)
-  return (response.body() as Envelope<{ token: string }>).data.token
+  return (response.body() as unknown as Envelope<{ token: string }>).data.token
 }
 
 async function signup(client: any, email: string, role = 'student') {
@@ -46,7 +46,7 @@ async function signup(client: any, email: string, role = 'student') {
     role,
   })
   response.assertStatus(200)
-  return (response.body() as Envelope<{ token: string; user: { id: number } }>).data
+  return (response.body() as unknown as Envelope<{ token: string; user: { id: number } }>).data
 }
 
 function fieldOf(body: unknown) {
@@ -111,7 +111,9 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(token)
       .json({ name: 'Licenciatura em Computação', code: 'lc-01', modality: 'superior' })
     created.assertStatus(201)
-    const course = (created.body() as Envelope<{ id: number; code: string; active: boolean }>).data
+    const course = (
+      created.body() as unknown as Envelope<{ id: number; code: string; active: boolean }>
+    ).data
     assert.equal(course.code, 'LC-01')
     assert.isTrue(course.active)
 
@@ -137,7 +139,9 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const archived = await client.post(`${API}/courses/${course.id}/archive`).bearerToken(token)
     archived.assertStatus(200)
-    assert.isNotNull((archived.body() as Envelope<{ archivedAt: string }>).data.archivedAt)
+    assert.isNotNull(
+      (archived.body() as unknown as Envelope<{ archivedAt: string }>).data.archivedAt
+    )
 
     const editArchived = await client
       .put(`${API}/courses/${course.id}`)
@@ -150,19 +154,21 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(token)
       .json({ name: 'Licenciatura de novo', code: 'LC-01' })
     sameCode.assertStatus(409)
-    assert.equal((sameCode.body() as { code: string }).code, 'ARCHIVED_DUPLICATE')
-    assert.equal((sameCode.body() as { archivedId: number }).archivedId, course.id)
+    assert.equal((sameCode.body() as unknown as { code: string }).code, 'ARCHIVED_DUPLICATE')
+    assert.equal((sameCode.body() as unknown as { archivedId: number }).archivedId, course.id)
 
     const list = await client.get(`${API}/courses`).bearerToken(token).qs({ archived: 1 })
     list.assertStatus(200)
     assert.include(
-      (list.body() as Envelope<{ id: number }[]>).data.map((item) => item.id),
+      (list.body() as unknown as Envelope<{ id: number }[]>).data.map((item) => item.id),
       course.id
     )
 
     const restored = await client.post(`${API}/courses/${course.id}/restore`).bearerToken(token)
     restored.assertStatus(200)
-    assert.isNull((restored.body() as Envelope<{ archivedAt: string | null }>).data.archivedAt)
+    assert.isNull(
+      (restored.body() as unknown as Envelope<{ archivedAt: string | null }>).data.archivedAt
+    )
 
     const removed = await client.delete(`${API}/courses/${course.id}`).bearerToken(token)
     removed.assertStatus(200)
@@ -188,11 +194,11 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const archive = await client.post(`${API}/courses/${tads.id}/archive`).bearerToken(token)
     archive.assertStatus(409)
-    assert.equal((archive.body() as { code: string }).code, 'HAS_DEPENDENTS')
+    assert.equal((archive.body() as unknown as { code: string }).code, 'HAS_DEPENDENTS')
 
     const remove = await client.delete(`${API}/courses/${tads.id}`).bearerToken(token)
     remove.assertStatus(409)
-    assert.equal((remove.body() as { code: string }).code, 'HAS_DEPENDENTS')
+    assert.equal((remove.body() as unknown as { code: string }).code, 'HAS_DEPENDENTS')
     assert.isNotNull(await Course.find(tads.id))
     assert.equal(await countOf(AcademicClass.query().where('courseId', tads.id)), classesBefore)
 
@@ -223,7 +229,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(await loginAs(client, 'admin@agenda.test'))
     admin.assertStatus(200)
     const adminClasses = (
-      admin.body() as Envelope<
+      admin.body() as unknown as Envelope<
         { id: number; counts: { activeStudents: number; subjectsWithoutTeacher: number } }[]
       >
     ).data
@@ -241,7 +247,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(await loginAs(client, 'maraisa@agenda.test'))
     maraisa.assertStatus(200)
     assert.deepEqual(
-      (maraisa.body() as Envelope<{ id: number }[]>).data.map((item) => item.id),
+      (maraisa.body() as unknown as Envelope<{ id: number }[]>).data.map((item) => item.id),
       [tads.id]
     )
 
@@ -261,7 +267,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     const own = await client.get(`${API}/classes/${tads.id}`).bearerToken(maraisaToken)
     own.assertStatus(200)
     const detail = (
-      own.body() as Envelope<{
+      own.body() as unknown as Envelope<{
         joinCode: string
         offers: { subject: { code: string }; withoutTeacher: boolean; teachers: object[] }[]
       }>
@@ -290,7 +296,8 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     const context = await client
       .get(`${API}/context`)
       .bearerToken(await loginAs(client, 'diogo@agenda.test'))
-    const catalog = (context.body() as Envelope<{ catalog: { classes: object[] } }>).data.catalog
+    const catalog = (context.body() as unknown as Envelope<{ catalog: { classes: object[] } }>).data
+      .catalog
     for (const item of catalog.classes) {
       assert.notProperty(item, 'joinCode')
       assert.notProperty(item, 'joinCodeActive')
@@ -311,7 +318,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const created = await client.post(`${API}/classes`).bearerToken(token).json(payload)
     created.assertStatus(201)
-    const id = (created.body() as Envelope<{ id: number }>).data.id
+    const id = (created.body() as unknown as Envelope<{ id: number }>).data.id
 
     const repeated = await client
       .post(`${API}/classes`)
@@ -366,7 +373,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const response = await client.delete(`${API}/classes/${tads.id}`).bearerToken(token)
     response.assertStatus(409)
-    const body = response.body() as {
+    const body = response.body() as unknown as {
       code: string
       counts: { enrollments: number; events: number; offers: number }
     }
@@ -401,7 +408,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       period: '1º período',
     })
     created.assertStatus(201)
-    const id = (created.body() as Envelope<{ id: number }>).data.id
+    const id = (created.body() as unknown as Envelope<{ id: number }>).data.id
 
     const removed = await client.delete(`${API}/classes/${id}`).bearerToken(token)
     removed.assertStatus(200)
@@ -432,7 +439,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     const archived = await client.post(`${API}/classes/${tads.id}/archive`).bearerToken(adminToken)
     archived.assertStatus(200)
     const body = (
-      archived.body() as Envelope<{
+      archived.body() as unknown as Envelope<{
         archivedAt: string
         joinCodeActive: boolean
         futureEvents: number
@@ -484,14 +491,14 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(student.token)
       .json({ code: 'TADS5K7Q' })
     join.assertStatus(422)
-    assert.equal((join.body() as { message: string }).message, INVALID_CODE)
+    assert.equal((join.body() as unknown as { message: string }).message, INVALID_CODE)
 
     // O aluno continua vendo os eventos da turma arquivada no histórico.
     const events = await client
       .get(`${API}/events`)
       .bearerToken(await loginAs(client, 'diogo@agenda.test'))
     assert.include(
-      (events.body() as Envelope<{ id: number }[]>).data.map((item) => item.id),
+      (events.body() as unknown as Envelope<{ id: number }[]>).data.map((item) => item.id),
       event.id
     )
 
@@ -520,13 +527,13 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       period: '5º período',
     })
     sameName.assertStatus(409)
-    assert.equal((sameName.body() as { code: string }).code, 'ARCHIVED_DUPLICATE')
-    assert.equal((sameName.body() as { archivedId: number }).archivedId, tads.id)
+    assert.equal((sameName.body() as unknown as { code: string }).code, 'ARCHIVED_DUPLICATE')
+    assert.equal((sameName.body() as unknown as { archivedId: number }).archivedId, tads.id)
 
     const restored = await client.post(`${API}/classes/${tads.id}/restore`).bearerToken(adminToken)
     restored.assertStatus(200)
     const restoredBody = (
-      restored.body() as Envelope<{ archivedAt: null; joinCodeActive: boolean }>
+      restored.body() as unknown as Envelope<{ archivedAt: null; joinCodeActive: boolean }>
     ).data
     assert.isNull(restoredBody.archivedAt)
     assert.isFalse(restoredBody.joinCodeActive)
@@ -547,7 +554,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const list = await client.get(`${API}/subjects`).bearerToken(token)
     list.assertStatus(200)
-    const mat = (list.body() as Envelope<{ id: number; usedIn: number }[]>).data.find(
+    const mat = (list.body() as unknown as Envelope<{ id: number; usedIn: number }[]>).data.find(
       (item) => item.id === math.id
     )!
     assert.equal(mat.usedIn, 1)
@@ -557,7 +564,9 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(token)
       .json({ code: 'MAT-402', name: 'matemática' })
     created.assertStatus(201)
-    const createdBody = created.body() as Envelope<{ id: number }> & { warnings: string[] }
+    const createdBody = created.body() as unknown as Envelope<{ id: number }> & {
+      warnings: string[]
+    }
     assert.lengthOf(createdBody.warnings, 1)
 
     const repeated = await client
@@ -576,11 +585,14 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(token)
       .json({ code: 'MAT-402', name: 'Matemática II' })
     again.assertStatus(409)
-    assert.equal((again.body() as { archivedId: number }).archivedId, createdBody.data.id)
+    assert.equal(
+      (again.body() as unknown as { archivedId: number }).archivedId,
+      createdBody.data.id
+    )
 
     const used = await client.delete(`${API}/subjects/${math.id}`).bearerToken(token)
     used.assertStatus(409)
-    assert.equal((used.body() as { code: string }).code, 'HAS_DEPENDENTS')
+    assert.equal((used.body() as unknown as { code: string }).code, 'HAS_DEPENDENTS')
     assert.isNotNull(await Subject.find(math.id))
 
     const removed = await client.delete(`${API}/subjects/${createdBody.data.id}`).bearerToken(token)
@@ -595,7 +607,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .get(`${API}/subjects`)
       .bearerToken(await loginAs(client, 'maraisa@agenda.test'))
     response.assertStatus(200)
-    const subjects = (response.body() as Envelope<{ code: string }[]>).data
+    const subjects = (response.body() as unknown as Envelope<{ code: string }[]>).data
     assert.sameMembers(
       subjects.map((item) => item.code),
       ['MAT-401', 'ES-401']
@@ -646,8 +658,9 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(token)
       .json({ teacherId: maraisa.id, role: 'substituto' })
     linked.assertStatus(201)
-    const assignment = (linked.body() as Envelope<{ id: number; role: string; teacher: object }>)
-      .data
+    const assignment = (
+      linked.body() as unknown as Envelope<{ id: number; role: string; teacher: object }>
+    ).data
     assert.equal(assignment.role, 'substituto')
     assert.sameMembers(Object.keys(assignment.teacher), ['id', 'fullName'])
 
@@ -667,7 +680,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .delete(`${API}/teaching-assignments/${assignment.id}`)
       .bearerToken(token)
     ended.assertStatus(200)
-    assert.isNotNull((ended.body() as Envelope<{ endedAt: string }>).data.endedAt)
+    assert.isNotNull((ended.body() as unknown as Envelope<{ endedAt: string }>).data.endedAt)
     assert.isNotNull(await TeachingAssignment.find(assignment.id))
 
     const changeEnded = await client
@@ -681,7 +694,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(token)
       .json({ teacherId: maraisa.id })
     relinked.assertStatus(200)
-    assert.equal((relinked.body() as Envelope<{ id: number }>).data.id, assignment.id)
+    assert.equal((relinked.body() as unknown as Envelope<{ id: number }>).data.id, assignment.id)
 
     const teachingAudit = await AuditLog.query()
       .where('entity', 'teaching_assignment')
@@ -727,7 +740,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(token)
     archived.assertStatus(200)
     assert.equal(
-      (archived.body() as Envelope<{ endedAssignments: number }>).data.endedAssignments,
+      (archived.body() as unknown as Envelope<{ endedAssignments: number }>).data.endedAssignments,
       1
     )
     const current = await TeachingAssignment.query()
@@ -765,7 +778,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(token)
       .qs({ role: 'teacher', q: 'mar' })
     response.assertStatus(200)
-    const users = (response.body() as Envelope<{ email: string }[]>).data
+    const users = (response.body() as unknown as Envelope<{ email: string }[]>).data
     assert.sameMembers(
       users.map((item) => item.email),
       ['maraisa@agenda.test', 'marina@agenda.test']
@@ -804,7 +817,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       })
     response.assertStatus(200)
     const result = (
-      response.body() as Envelope<{
+      response.body() as unknown as Envelope<{
         added: number
         invited: number
         rejected: { email: string; reason: string }[]
@@ -832,7 +845,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     const invites = await client.get(`${API}/classes/${tads.id}/invites`).bearerToken(token)
     invites.assertStatus(200)
     assert.deepEqual(
-      (invites.body() as Envelope<{ email: string }[]>).data.map((item) => item.email),
+      (invites.body() as unknown as Envelope<{ email: string }[]>).data.map((item) => item.email),
       ['novo.aluno@agenda.test']
     )
 
@@ -874,7 +887,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     const adminList = await client.get(`${API}/classes/${tads.id}/students`).bearerToken(adminToken)
     adminList.assertStatus(200)
     const row = (
-      adminList.body() as Envelope<{ userId: number; registration: string }[]>
+      adminList.body() as unknown as Envelope<{ userId: number; registration: string }[]>
     ).data.find((item) => item.userId === diogo.id)!
     assert.equal(row.registration, '2026001')
 
@@ -882,7 +895,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .get(`${API}/classes/${tads.id}/students`)
       .bearerToken(await loginAs(client, 'marina@agenda.test'))
     teacherList.assertStatus(200)
-    for (const item of (teacherList.body() as Envelope<object[]>).data) {
+    for (const item of (teacherList.body() as unknown as Envelope<object[]>).data) {
       assert.notProperty(item, 'registration')
     }
 
@@ -919,7 +932,10 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .json({ code: 'tads-5k7q' })
     join.assertStatus(201)
     const joined = (
-      join.body() as Envelope<{ enrollment: { id: number; status: string }; message: string }>
+      join.body() as unknown as Envelope<{
+        enrollment: { id: number; status: string }
+        message: string
+      }>
     ).data
     assert.equal(joined.enrollment.status, 'pending')
     assert.equal(joined.message, 'Pedido enviado para TADS 5. A docente ou a secretaria confirma.')
@@ -929,11 +945,13 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(student.token)
       .json({ code: 'TADS5K7Q' })
     repeat.assertStatus(200)
-    assert.isTrue((repeat.body() as Envelope<{ alreadyEnrolled: boolean }>).data.alreadyEnrolled)
+    assert.isTrue(
+      (repeat.body() as unknown as Envelope<{ alreadyEnrolled: boolean }>).data.alreadyEnrolled
+    )
 
     const context = await client.get(`${API}/context`).bearerToken(student.token)
     const contextData = (
-      context.body() as Envelope<{ enrollments: object[]; pendingEnrollments: object[] }>
+      context.body() as unknown as Envelope<{ enrollments: object[]; pendingEnrollments: object[] }>
     ).data
     assert.lengthOf(contextData.enrollments, 0)
     assert.lengthOf(contextData.pendingEnrollments, 1)
@@ -941,7 +959,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     // Pendente não vê os eventos da turma.
     const events = await client.get(`${API}/events`).bearerToken(student.token)
     const tadsEvents = (
-      events.body() as Envelope<{ academicClassId: number | null }[]>
+      events.body() as unknown as Envelope<{ academicClassId: number | null }[]>
     ).data.filter((event) => event.academicClassId === tads.id)
     assert.lengthOf(tadsEvents, 0)
 
@@ -1028,7 +1046,8 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
         status: 'active',
       })
     decided.assertStatus(200)
-    const result = (decided.body() as Envelope<{ updated: number; skipped: number[] }>).data
+    const result = (decided.body() as unknown as Envelope<{ updated: number; skipped: number[] }>)
+      .data
     assert.equal(result.updated, 2)
     assert.deepEqual(result.skipped, [diogoEnrollment.id])
     assert.equal(
@@ -1054,7 +1073,10 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .json({ code: 'TEC3AM2X' })
     join.assertStatus(201)
     const data = (
-      join.body() as Envelope<{ enrollment: { status: string; source: string }; message: string }>
+      join.body() as unknown as Envelope<{
+        enrollment: { status: string; source: string }
+        message: string
+      }>
     ).data
     assert.equal(data.enrollment.status, 'active')
     assert.equal(data.enrollment.source, 'invite')
@@ -1075,7 +1097,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
         .bearerToken(student.token)
         .json({ code })
       response.assertStatus(422)
-      assert.equal((response.body() as { message: string }).message, INVALID_CODE)
+      assert.equal((response.body() as unknown as { message: string }).message, INVALID_CODE)
     }
 
     const blocked = await client
@@ -1083,7 +1105,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(student.token)
       .json({ code: 'TADS5K7Q' })
     blocked.assertStatus(429)
-    assert.equal((blocked.body() as { code: string }).code, 'TOO_MANY_ATTEMPTS')
+    assert.equal((blocked.body() as unknown as { code: string }).code, 'TOO_MANY_ATTEMPTS')
 
     const teacher = await client
       .post(`${API}/enrollments/join`)
@@ -1103,7 +1125,9 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .post(`${API}/classes/${tads.id}/join-code`)
       .bearerToken(teacherToken)
     generated.assertStatus(200)
-    const code = (generated.body() as Envelope<{ joinCode: string; joinCodeActive: boolean }>).data
+    const code = (
+      generated.body() as unknown as Envelope<{ joinCode: string; joinCodeActive: boolean }>
+    ).data
     assert.match(code.joinCode, /^[0-9A-HJKMNP-TV-Z]{8}$/)
     assert.notEqual(code.joinCode, 'TADS5K7Q')
     assert.isTrue(code.joinCodeActive)
@@ -1124,7 +1148,9 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .delete(`${API}/classes/${tads.id}/join-code`)
       .bearerToken(teacherToken)
     disabled.assertStatus(200)
-    assert.isFalse((disabled.body() as Envelope<{ joinCodeActive: boolean }>).data.joinCodeActive)
+    assert.isFalse(
+      (disabled.body() as unknown as Envelope<{ joinCodeActive: boolean }>).data.joinCodeActive
+    )
 
     const other = await signup(client, 'codigo.desligado@agenda.test')
     const off = await client
@@ -1132,7 +1158,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(other.token)
       .json({ code: code.joinCode })
     off.assertStatus(422)
-    assert.equal((off.body() as { message: string }).message, INVALID_CODE)
+    assert.equal((off.body() as unknown as { message: string }).message, INVALID_CODE)
     await expectStatus(
       client.post(`${API}/classes/${inf.id}/join-code`).bearerToken(teacherToken),
       404
@@ -1394,7 +1420,7 @@ test.group('Fase 1: revisão (autorização por objeto, limite e exclusão)', (g
         const classes = await client.get(`${API}${path}`).bearerToken(token)
         classes.assertStatus(200)
         assert.notInclude(
-          (classes.body() as Envelope<{ id: number }[]>).data.map((item) => item.id),
+          (classes.body() as unknown as Envelope<{ id: number }[]>).data.map((item) => item.id),
           inf.id,
           `${who}: ${path}`
         )
@@ -1402,7 +1428,7 @@ test.group('Fase 1: revisão (autorização por objeto, limite e exclusão)', (g
       const subjects = await client.get(`${API}/subjects`).bearerToken(token)
       subjects.assertStatus(200)
       assert.notInclude(
-        (subjects.body() as Envelope<{ code: string }[]>).data.map((item) => item.code),
+        (subjects.body() as unknown as Envelope<{ code: string }[]>).data.map((item) => item.code),
         'LP-101',
         who
       )
@@ -1524,7 +1550,7 @@ test.group('Fase 1: revisão (autorização por objeto, limite e exclusão)', (g
     const late = await signup(client, 'atrasado@agenda.test')
     const blocked = await join(late.token, 'TADS5K7Q')
     blocked.assertStatus(429)
-    assert.equal((blocked.body() as { code: string }).code, 'TOO_MANY_ATTEMPTS')
+    assert.equal((blocked.body() as unknown as { code: string }).code, 'TOO_MANY_ATTEMPTS')
     // Um X-Forwarded-For inventado à esquerda não muda o IP lido.
     const spoofed = await join(late.token, 'TADS5K7Q', `203.0.113.99, ${sharedIp}`)
     spoofed.assertStatus(429)
@@ -1575,7 +1601,7 @@ test.group('Fase 1: revisão (autorização por objeto, limite e exclusão)', (g
       .bearerToken(token)
       .json({ teacherId: marina.id, role: 'substituto' })
     created.assertStatus(201)
-    const data = (created.body() as Envelope<Record<string, unknown>>).data
+    const data = (created.body() as unknown as Envelope<Record<string, unknown>>).data
     assert.property(data, 'endedAt')
     assert.isNull(data.endedAt)
     assert.equal(data.role, 'substituto')
@@ -1596,18 +1622,18 @@ test.group('Fase 1: revisão (autorização por objeto, limite e exclusão)', (g
       period: '1º período',
     })
     created.assertStatus(201)
-    const id = (created.body() as Envelope<{ id: number }>).data.id
+    const id = (created.body() as unknown as Envelope<{ id: number }>).data.id
 
     const listed = await client
       .post(`${API}/classes/${id}/students`)
       .bearerToken(token)
       .json({ emails: ['ainda.sem.conta@agenda.test'] })
     listed.assertStatus(200)
-    assert.equal((listed.body() as Envelope<{ invited: number }>).data.invited, 1)
+    assert.equal((listed.body() as unknown as Envelope<{ invited: number }>).data.invited, 1)
 
     const refused = await client.delete(`${API}/classes/${id}`).bearerToken(token)
     refused.assertStatus(409)
-    const body = refused.body() as { code: string; counts: Record<string, number> }
+    const body = refused.body() as unknown as { code: string; counts: Record<string, number> }
     assert.equal(body.code, 'HAS_DEPENDENTS')
     assert.equal(body.counts.invites, 1)
     assert.isNotNull(await AcademicClass.find(id))

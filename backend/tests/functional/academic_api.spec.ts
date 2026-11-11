@@ -17,7 +17,7 @@ async function loginAs(client: any, email: string) {
   })
 
   response.assertStatus(200)
-  return (response.body() as ApiEnvelope<{ token: string }>).data.token
+  return (response.body() as unknown as ApiEnvelope<{ token: string }>).data.token
 }
 
 test.group('Academic API', (group) => {
@@ -35,12 +35,12 @@ test.group('Academic API', (group) => {
       .qs({ category: 'exam,assignment' })
 
     events.assertStatus(200)
-    assert.isAtLeast((events.body() as ApiEnvelope<unknown[]>).data.length, 2)
+    assert.isAtLeast((events.body() as unknown as ApiEnvelope<unknown[]>).data.length, 2)
 
     const dashboard = await client.get('/api/v1/dashboard').bearerToken(token)
     dashboard.assertStatus(200)
     assert.isAtLeast(
-      (dashboard.body() as ApiEnvelope<{ upcoming: unknown[] }>).data.upcoming.length,
+      (dashboard.body() as unknown as ApiEnvelope<{ upcoming: unknown[] }>).data.upcoming.length,
       1
     )
   })
@@ -76,7 +76,7 @@ test.group('Academic API', (group) => {
     })
 
     created.assertStatus(201)
-    const createdBody = created.body() as ApiEnvelope<{ id: number; title: string }>
+    const createdBody = created.body() as unknown as ApiEnvelope<{ id: number; title: string }>
     assert.equal(createdBody.data.title, 'Seminario de requisitos')
 
     const studentToken = await loginAs(client, 'diogo@agenda.test')
@@ -88,7 +88,7 @@ test.group('Academic API', (group) => {
 
     reminder.assertStatus(201)
     assert.equal(
-      (reminder.body() as ApiEnvelope<{ academicEventId: number }>).data.academicEventId,
+      (reminder.body() as unknown as ApiEnvelope<{ academicEventId: number }>).data.academicEventId,
       createdBody.data.id
     )
   })
@@ -155,7 +155,8 @@ test.group('Academic API', (group) => {
       })
 
       response.assertStatus(422)
-      const errors = (response.body() as { errors?: { field: string; rule: string }[] }).errors
+      const errors = (response.body() as unknown as { errors?: { field: string; rule: string }[] })
+        .errors
       assert.isTrue(
         (errors ?? []).some(
           (error) => error.field === 'registration' && error.rule === 'database.unique'

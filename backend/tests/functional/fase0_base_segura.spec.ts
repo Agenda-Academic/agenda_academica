@@ -14,7 +14,7 @@ type Envelope<T> = { data: T }
 async function loginAs(client: any, email: string) {
   const response = await client.post('/api/v1/auth/login').json({ email, password: 'password123' })
   response.assertStatus(200)
-  return (response.body() as Envelope<{ token: string }>).data.token
+  return (response.body() as unknown as Envelope<{ token: string }>).data.token
 }
 
 async function createAccount(client: any, email: string, role: string) {
@@ -54,7 +54,7 @@ test.group('Fase 0: base segura', (group) => {
     const events = await client.get('/api/v1/events').bearerToken(token)
     events.assertStatus(200)
     const withTeacher = (
-      events.body() as Envelope<{ id: number; teacher: object | null }[]>
+      events.body() as unknown as Envelope<{ id: number; teacher: object | null }[]>
     ).data.filter((event) => event.teacher)
     assert.isAtLeast(withTeacher.length, 1)
     for (const event of withTeacher) {
@@ -63,10 +63,10 @@ test.group('Fase 0: base segura', (group) => {
 
     const show = await client.get(`/api/v1/events/${withTeacher[0].id}`).bearerToken(token)
     show.assertStatus(200)
-    assert.sameMembers(Object.keys((show.body() as Envelope<{ teacher: object }>).data.teacher), [
-      'id',
-      'fullName',
-    ])
+    assert.sameMembers(
+      Object.keys((show.body() as unknown as Envelope<{ teacher: object }>).data.teacher),
+      ['id', 'fullName']
+    )
 
     const dashboard = await client.get('/api/v1/dashboard').bearerToken(token)
     dashboard.assertStatus(200)
@@ -86,7 +86,7 @@ test.group('Fase 0: base segura', (group) => {
     const reminders = await client.get('/api/v1/reminders').bearerToken(token)
     reminders.assertStatus(200)
     const teacher = (
-      reminders.body() as Envelope<{ academicEvent: { teacher: object | null } }[]>
+      reminders.body() as unknown as Envelope<{ academicEvent: { teacher: object | null } }[]>
     ).data.find((reminder) => reminder.academicEvent.teacher)?.academicEvent.teacher
     assert.sameMembers(Object.keys(teacher!), ['id', 'fullName'])
   })

@@ -33,7 +33,7 @@ const TERM_ZERO = /\b\d{4}\/0\b/
 async function loginAs(client: any, email: string) {
   const response = await client.post(`${API}/auth/login`).json({ email, password: 'password123' })
   response.assertStatus(200)
-  return (response.body() as Envelope<{ token: string }>).data.token
+  return (response.body() as unknown as Envelope<{ token: string }>).data.token
 }
 
 async function signup(client: any, email: string) {
@@ -45,7 +45,7 @@ async function signup(client: any, email: string) {
     role: 'student',
   })
   response.assertStatus(200)
-  return (response.body() as Envelope<{ token: string; user: { id: number } }>).data
+  return (response.body() as unknown as Envelope<{ token: string; user: { id: number } }>).data
 }
 
 function errorsOf(body: unknown) {
@@ -137,7 +137,7 @@ test.group('Turma anual (curso integrado)', (group) => {
         .bearerToken(token)
         .json({ ...base, name, ...extra })
       created.assertStatus(201)
-      const data = (created.body() as Envelope<ClassBody>).data
+      const data = (created.body() as unknown as Envelope<ClassBody>).data
       assert.equal(data.semester, ANNUAL_SEMESTER)
       assert.equal(data.course.modality, 'integrado')
       assert.deepInclude(await storedClass(data.id), { semester: ANNUAL_SEMESTER })
@@ -217,7 +217,7 @@ test.group('Turma anual (curso integrado)', (group) => {
       .bearerToken(token)
       .json({ ...base, semester: 1 })
     created.assertStatus(201)
-    assert.equal((created.body() as Envelope<ClassBody>).data.semester, 1)
+    assert.equal((created.body() as unknown as Envelope<ClassBody>).data.semester, 1)
   })
 
   test('editar trocando o curso: indo para o integrado vira anual; saindo, exige 1 ou 2', async ({
@@ -236,14 +236,14 @@ test.group('Turma anual (curso integrado)', (group) => {
       period: '2º período',
     })
     created.assertStatus(201)
-    const id = (created.body() as Envelope<ClassBody>).data.id
+    const id = (created.body() as unknown as Envelope<ClassBody>).data.id
     const put = (body: Record<string, unknown>, classId = id) =>
       client.put(`${API}/classes/${classId}`).bearerToken(token).json(body)
 
     // Indo para o integrado: o semestre vira 0, sem precisar mandar.
     const toIntegrado = await put({ courseId: integradoCourseId })
     toIntegrado.assertStatus(200)
-    const annual = (toIntegrado.body() as Envelope<ClassBody>).data
+    const annual = (toIntegrado.body() as unknown as Envelope<ClassBody>).data
     assert.equal(annual.semester, ANNUAL_SEMESTER)
     assert.equal(annual.courseId, integradoCourseId)
     assert.equal(annual.course.modality, 'integrado')
@@ -273,7 +273,7 @@ test.group('Turma anual (curso integrado)', (group) => {
 
     const leaving = await put({ courseId: superiorCourseId, semester: 1 })
     leaving.assertStatus(200)
-    assert.equal((leaving.body() as Envelope<ClassBody>).data.semester, 1)
+    assert.equal((leaving.body() as unknown as Envelope<ClassBody>).data.semester, 1)
 
     // Voltar ao integrado mandando semestre: 422, e nada muda.
     const backWithSemester = await put({ courseId: integradoCourseId, semester: 2 })
@@ -286,7 +286,7 @@ test.group('Turma anual (curso integrado)', (group) => {
     // Turma de outro curso: editar sem semestre mantém o que ela tem; 0 dá 422.
     const periodOnly = await put({ period: '2º período, noturno' })
     periodOnly.assertStatus(200)
-    assert.equal((periodOnly.body() as Envelope<ClassBody>).data.semester, 1)
+    assert.equal((periodOnly.body() as unknown as Envelope<ClassBody>).data.semester, 1)
     const zero = await put({ semester: 0 })
     zero.assertStatus(422)
     assert.equal(semesterError(zero.body())?.message, SEMESTER_NOT_ANNUAL)
@@ -294,7 +294,10 @@ test.group('Turma anual (curso integrado)', (group) => {
     // Turma anual: continua anual ao editar; 0 explícito vale; 1 ou 2 dá 422.
     const infPeriod = await put({ period: '3º ano, integral' }, inf.id)
     infPeriod.assertStatus(200)
-    assert.equal((infPeriod.body() as Envelope<ClassBody>).data.semester, ANNUAL_SEMESTER)
+    assert.equal(
+      (infPeriod.body() as unknown as Envelope<ClassBody>).data.semester,
+      ANNUAL_SEMESTER
+    )
     await put({ semester: 0 }, inf.id).then((response: any) => response.assertStatus(200))
     const infSemester = await put({ semester: 2 }, inf.id)
     infSemester.assertStatus(422)
@@ -341,7 +344,7 @@ test.group('Turma anual (curso integrado)', (group) => {
       period: '3º período',
     })
     other.assertStatus(201)
-    const otherId = (other.body() as Envelope<ClassBody>).data.id
+    const otherId = (other.body() as unknown as Envelope<ClassBody>).data.id
     const moved = await client
       .put(`${API}/classes/${otherId}`)
       .bearerToken(token)
@@ -369,7 +372,7 @@ test.group('Turma anual (curso integrado)', (group) => {
       .bearerToken(token)
       .json({ courseId: integradoCourseId })
     movedToArchived.assertStatus(409)
-    assert.equal((movedToArchived.body() as { archivedId: number }).archivedId, inf.id)
+    assert.equal((movedToArchived.body() as unknown as { archivedId: number }).archivedId, inf.id)
   })
 
   test('GET /classes: o filtro de semestre traz também as turmas anuais do mesmo ano', async ({
@@ -391,12 +394,12 @@ test.group('Turma anual (curso integrado)', (group) => {
         period: '3º ano',
       })
     older.assertStatus(201)
-    const olderId = (older.body() as Envelope<ClassBody>).data.id
+    const olderId = (older.body() as unknown as Envelope<ClassBody>).data.id
 
     const idsOf = async (query: string, token = adminToken) => {
       const response = await client.get(`${API}/classes?${query}`).bearerToken(token)
       response.assertStatus(200)
-      return (response.body() as Envelope<ClassBody[]>).data.map((item) => item.id)
+      return (response.body() as unknown as Envelope<ClassBody[]>).data.map((item) => item.id)
     }
 
     let ids = await idsOf(`year=${year}&semester=2`)
@@ -441,7 +444,7 @@ test.group('Turma anual (curso integrado)', (group) => {
       const response = await client.get(`${API}${path}`).bearerToken(token)
       response.assertStatus(200)
       assert.notMatch(JSON.stringify(response.body()), TERM_ZERO, path)
-      return (response.body() as Envelope<any>).data
+      return (response.body() as unknown as Envelope<any>).data
     }
 
     // Aluna da turma anual: contexto e catálogo trazem semestre 0.
@@ -481,7 +484,7 @@ test.group('Turma anual (curso integrado)', (group) => {
       .bearerToken(newcomer.token)
       .json({ code: 'TEC3-AM2X' })
     join.assertStatus(201)
-    const joined = (join.body() as Envelope<any>).data
+    const joined = (join.body() as unknown as Envelope<any>).data
     assert.equal(joined.academicClass.semester, ANNUAL_SEMESTER)
     assert.equal(joined.message, 'Pedido enviado para INF 3A. A docente ou a secretaria confirma.')
     assert.notMatch(JSON.stringify(join.body()), TERM_ZERO)
