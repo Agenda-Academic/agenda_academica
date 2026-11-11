@@ -39,3 +39,9 @@ services:
       # Para onde a volta do Google leva a pessoa (o front no Vercel)
       - key: FRONTEND_URL
         value: https://agenda-academica-chi.vercel.app
+      # Lembretes por e-mail: chave de API do Brevo e o remetente verificado lá,
+      # preenchidos no painel do Render (Environment)
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false

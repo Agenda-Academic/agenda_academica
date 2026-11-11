@@ -700,7 +700,7 @@ export function EventDetailContent({
         )}
 
         <p className="field-help mt-3">
-          O aviso aparece aqui no sistema. O envio por <span className="whitespace-nowrap">e-mail</span> é o próximo passo.
+          O aviso aparece aqui no sistema e também chega no seu <span className="whitespace-nowrap">e-mail</span>.
         </p>
       </section>
     );

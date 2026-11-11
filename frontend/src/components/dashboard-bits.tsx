@@ -1232,7 +1232,7 @@ export function AvisosCard({
           <h2 ref={titleRef} className="h2" id={titleId} tabIndex={-1}>
             Avisos ({total})
           </h2>
-          {note ? <p className="sub">O aviso aparece aqui no sistema. O envio por e-mail é o próximo passo.</p> : null}
+          {note ? <p className="sub">O aviso aparece aqui e também chega no seu e-mail.</p> : null}
         </div>
       </div>
       <ul className="avisos" id={listId}>

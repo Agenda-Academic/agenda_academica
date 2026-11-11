@@ -1,0 +1,21 @@
+# O plano grátis do Render dorme depois de uns 15 minutos sem acesso, e ao acordar o banco
+# volta para os dados de demonstração. Acessar a API a cada 10 minutos mantém ela no ar, então
+# os lembretes por e-mail saem na hora e o que foi cadastrado não se perde.
+name: Manter a API acordada
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  acessar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Acessar a API
+        run: |
+          curl --silent --show-error --fail --max-time 90 --retry 2 --retry-delay 10 \
+            https://agenda-academica-api-ql31.onrender.com/ > /dev/null

@@ -20,7 +20,10 @@ export default class SendDueReminders extends BaseCommand {
     )
 
     for (const delivery of result.deliveries) {
-      this.logger.info(`${delivery.channel}: ${delivery.userEmail} -> ${delivery.eventTitle}`)
+      const outcome = delivery.outcome ? ` (${delivery.outcome})` : ''
+      this.logger.info(
+        `${delivery.channel}: ${delivery.userEmail} -> ${delivery.eventTitle}${outcome}`
+      )
     }
   }
 }

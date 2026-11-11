@@ -907,7 +907,7 @@ export function RemindersView({
                 <span>
                   Na hora marcada, o aviso aparece no Painel e aqui em Lembretes.
                   {/* a mesma frase já está no bloco de avisos quando há algum */}
-                  {shownAvisos.length ? null : " O envio por e-mail é o próximo passo."}
+                  {shownAvisos.length ? null : " Também chega no seu e-mail."}
                 </span>
               </li>
             </ol>

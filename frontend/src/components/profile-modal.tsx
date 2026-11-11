@@ -153,7 +153,7 @@ export function ProfileModal({
                   <span className="block text-muted">Na hora marcada, o aviso aparece no Painel e em Lembretes.</span>
                 </span>
               </div>
-              <p className="field-help !mt-1">O envio por e-mail é o próximo passo.</p>
+              <p className="field-help !mt-1">Também chega no e-mail da sua conta.</p>
             </div>
           </div>
         </form>

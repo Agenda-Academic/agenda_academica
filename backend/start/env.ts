@@ -30,4 +30,10 @@ export default await Env.create(new URL('../', import.meta.url), {
   GOOGLE_CLIENT_SECRET: Env.schema.secret.optional(),
   // Endereço do front, para onde a volta do Google leva a pessoa (padrão: http://localhost:3000)
   FRONTEND_URL: Env.schema.string.optional({ format: 'url', tld: false }),
+
+  // Lembretes por e-mail pelo Brevo (opcional: sem a chave, o lembrete só aparece no sistema)
+  BREVO_API_KEY: Env.schema.secret.optional(),
+  // Remetente verificado no Brevo
+  MAIL_FROM: Env.schema.string.optional({ format: 'email' }),
+  MAIL_FROM_NAME: Env.schema.string.optional(),
 })

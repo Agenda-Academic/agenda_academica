@@ -133,8 +133,25 @@ com as turmas continua com a administração).
 O segredo fica só no Render e no `.env` local, que não vai para o Git. Sem as duas chaves, o botão avisa que o
 login com o Google ainda não está disponível.
 
+### Lembretes por e-mail
+
+Na hora marcada, o lembrete aparece no sistema e também vai por e-mail. Com a API no ar, ela confere a cada
+minuto os lembretes vencidos e envia pela API HTTP do [Brevo](https://www.brevo.com) (plano gratuito, 300
+e-mails por dia). É HTTP e não SMTP porque o plano gratuito do Render bloqueia as portas de SMTP.
+
+1. Crie a conta gratuita no Brevo e, em **Remetentes, domínios e IPs dedicados**, adicione e confirme o e-mail
+   que vai aparecer como remetente.
+2. Em **SMTP e API > Chaves de API**, gere uma chave.
+3. No Render, em **Environment**, preencha `BREVO_API_KEY` com a chave e `MAIL_FROM` com o remetente
+   confirmado. Para testar localmente, ponha os dois no `backend/.env`.
+
+Sem as duas variáveis, o lembrete só aparece no sistema. As contas de demonstração (`@agenda.test`) nunca
+recebem e-mail, e um lembrete de evento que já começou não é enviado atrasado.
+
 > No plano grátis do Render a API dorme depois de uns 15 minutos sem acesso e o primeiro acesso leva até um
 > minuto. O banco é SQLite e não fica salvo: toda vez que a API reinicia, ele volta com os dados de demonstração.
+> Para a API não dormir (e os lembretes saírem na hora), o GitHub Actions acessa o endereço dela a cada 10
+> minutos (`.github/workflows/manter-api-acordada.yml`).
 
 ## Testes
 

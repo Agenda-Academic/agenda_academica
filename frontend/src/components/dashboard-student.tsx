@@ -345,7 +345,7 @@ export function StudentDashboard({
         </div>
         {/* a mesma frase já está no card de avisos quando há algum */}
         {!avisos?.length ? (
-          <p className="kpi-hint">O aviso aparece aqui no sistema. O envio por e-mail é o próximo passo.</p>
+          <p className="kpi-hint">O aviso aparece aqui e também chega no seu e-mail.</p>
         ) : null}
         <div className="card-foot">
           <button className="link min-h-6" onClick={onOpenReminders} type="button">
