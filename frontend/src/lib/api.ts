@@ -199,17 +199,20 @@ export async function apiFetch<T>(path: string, token?: string, options: Request
     signal?.addEventListener("abort", forwardAbort, { once: true });
   }
 
+  // arquivo (FormData): o navegador monta o Content-Type com o boundary do multipart
+  const isForm = typeof FormData !== "undefined" && body instanceof FormData;
+
   try {
     let response: Response;
     try {
       response = await fetch(`${API_URL}${path}`, {
         ...init,
         headers: {
-          "Content-Type": "application/json",
+          ...(isForm ? {} : { "Content-Type": "application/json" }),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...headers,
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
         signal: controller.signal,
       });
     } catch (error) {
@@ -500,6 +503,34 @@ export async function importCalendar(token: string, input: CalendarImportInput) 
   const payload = await apiFetch<ApiEnvelope<CalendarImportResult>>("/calendar-imports", token, {
     method: "POST",
     body: input,
+  });
+  return payload.data;
+}
+
+/** Data lida do PDF; `staff` é assunto só de servidores (PIT, RAD, diários), que a prévia deixa desmarcado. */
+export type CalendarPdfEvent = CalendarImportEventInput & {
+  startsAt: string;
+  endsAt: string | null;
+  audience: "all" | "staff";
+};
+
+export type CalendarPdfResult = {
+  sourceName: string;
+  checksum: string;
+  year: number | null;
+  campus: string | null;
+  events: CalendarPdfEvent[];
+};
+
+/** Lê o PDF do Calendário Acadêmico do IFMS. Não grava nada: devolve as datas para a prévia. */
+export async function readCalendarPdf(token: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const payload = await apiFetch<ApiEnvelope<CalendarPdfResult>>("/calendar-imports/pdf", token, {
+    method: "POST",
+    body: form,
+    // o Render gratuito pode estar acordando
+    timeoutMs: 90_000,
   });
   return payload.data;
 }

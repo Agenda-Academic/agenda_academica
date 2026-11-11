@@ -2428,6 +2428,71 @@ button:disabled {
     background: #ede9fe;
     color: #5b21b6;
   }
+  .imp-ico.pdf {
+    background: #fdecec;
+    color: #b42318;
+  }
+  /* área de soltar o PDF do calendário (mesmo desenho da área do CSV de notas) */
+  .imp-pdf-drop {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+    padding: 14px;
+    border-radius: 14px;
+    border: 1.5px dashed var(--line-strong);
+    background: var(--surface-2);
+    transition:
+      border-color 0.16s ease,
+      background-color 0.16s ease;
+  }
+  .imp-pdf-drop.is-over {
+    border-color: var(--brand);
+    background: var(--brand-50);
+  }
+  .imp-pdf-drop.is-bad {
+    border-color: #f3c6d0;
+    background: #fff8f9;
+  }
+  .imp-pdf-main {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+  /* PDF arrastado sobre o app (administração): aviso de onde ele vai */
+  .drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgb(15 23 42 / 0.45);
+    pointer-events: none;
+    animation: drop-overlay-in 0.14s ease-out;
+  }
+  .drop-overlay-box {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    max-width: 420px;
+    padding: 28px 32px;
+    border-radius: 20px;
+    border: 2px dashed var(--brand);
+    background: var(--surface);
+    text-align: center;
+    box-shadow: 0 18px 50px rgb(15 23 42 / 0.25);
+  }
+  @keyframes drop-overlay-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .drop-overlay {
+      animation: none;
+    }
+  }
   .imp-demo {
     display: flex;
     flex-wrap: wrap;

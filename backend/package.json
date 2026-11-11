@@ -67,7 +67,8 @@
     "@vinejs/vine": "^4.4.0",
     "better-sqlite3": "^12.10.0",
     "luxon": "^3.7.2",
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.2.2",
+    "unpdf": "^2.1.0"
   },
   "hotHook": {
     "boundaries": [

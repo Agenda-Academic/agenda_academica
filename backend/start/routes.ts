@@ -76,6 +76,7 @@ router
 
         router.get('calendar-imports', [CalendarImportsController, 'index'])
         router.post('calendar-imports', [CalendarImportsController, 'store'])
+        router.post('calendar-imports/pdf', [CalendarImportsController, 'readPdf'])
 
         // Fase 1: cursos, turmas, disciplinas, ofertas, docentes e alunos da turma.
         router.get('courses', [CoursesController, 'index'])

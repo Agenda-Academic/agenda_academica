@@ -247,6 +247,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/calendar_imports_controller').default['store']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
+  'calendar_imports.read_pdf': {
+    methods: ["POST"]
+    pattern: '/api/v1/calendar-imports/pdf'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/calendar_imports_controller').default['readPdf']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/calendar_imports_controller').default['readPdf']>>>
+    }
+  }
   'courses.index': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/courses'

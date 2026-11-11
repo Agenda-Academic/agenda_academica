@@ -10,6 +10,7 @@ import {
   Copy,
   File as FileIcon,
   FileJson,
+  FileText,
   FileUp,
   History,
   Loader2,
@@ -19,7 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import type { CalendarImportEventInput, CalendarImportInput } from "@/lib/api";
+import { ApiError, type CalendarImportEventInput, type CalendarImportInput, type CalendarPdfResult } from "@/lib/api";
 import { addDays, cx, errorMessage, formatOnDayAt, formatShortDate, formatShortDateTime, formatTime, startOfDay } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, CalendarImport, Category } from "@/lib/types";
@@ -642,11 +643,17 @@ export function SyncView({
   onImportJson,
   onOpenCalendar,
   onUndoImport,
+  onReadPdf,
+  incomingPdf,
 }: {
   events: AcademicEvent[];
   imports: CalendarImport[];
   isAdmin: boolean;
   saving: boolean;
+  /** Lê o PDF do Calendário Acadêmico na API e devolve as datas (sem gravar). */
+  onReadPdf?: (file: File) => Promise<CalendarPdfResult>;
+  /** PDF solto em qualquer lugar do app: a tela lê assim que recebe (o id muda a cada arquivo). */
+  incomingPdf?: { file: File; id: number } | null;
   /** Dados da "Importação de demonstração". Sem ele, a tela monta um exemplo próprio. */
   demoPayload?: CalendarImportInput;
   /** Importa e devolve o resultado; o texto colado só é limpo quando der certo. */
@@ -662,6 +669,8 @@ export function SyncView({
   const statusId = `${baseId}-status`;
   const formatId = `${baseId}-formato`;
   const demoTitleId = `${baseId}-demo`;
+  const pdfTitleId = `${baseId}-pdf`;
+  const pdfHintId = `${baseId}-pdf-dica`;
   const jsonTitleId = `${baseId}-json-titulo`;
   const resultTitleId = `${baseId}-resultado`;
   const accessId = `${baseId}-acesso`;
@@ -688,6 +697,12 @@ export function SyncView({
   const [template] = useState(buildTemplate);
   // "Ver todas (N)": a tabela mostra as últimas importações e abre o resto ali mesmo
   const [showAllImports, setShowAllImports] = useState(false);
+
+  const [pdfReading, setPdfReading] = useState(false);
+  const [pdfDragging, setPdfDragging] = useState(false);
+  const [pdfNote, setPdfNote] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  const pdfRef = useRef<HTMLInputElement>(null);
+  const handledPdf = useRef<number | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -760,6 +775,18 @@ export function SyncView({
     }
   }, [previewFocus]);
 
+  // PDF solto em outra tela: o app abre esta e entrega o arquivo; cada arquivo é lido uma vez
+  useEffect(() => {
+    if (!incomingPdf || handledPdf.current === incomingPdf.id) {
+      return;
+    }
+    handledPdf.current = incomingPdf.id;
+    const file = incomingPdf.file;
+    queueMicrotask(() => void readPdf(file));
+    // readPdf muda a cada render; o que importa é o arquivo novo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingPdf]);
+
   // depois que a confirmação fecha, o foco vai para um lugar que continua na tela
   useEffect(() => {
     if (!confirm && focusAfterConfirm.current) {
@@ -831,6 +858,7 @@ export function SyncView({
     changeText("");
     setPicked({});
     setFileNote(null);
+    setPdfNote(null);
     setPreviewOpen(false);
     textRef.current?.focus();
   }
@@ -851,6 +879,67 @@ export function SyncView({
       setFileNote({ tone: "ok", text: `Arquivo carregado: ${file.name}` });
     } catch {
       setFileNote({ tone: "err", text: "Não foi possível ler o arquivo. Tente de novo ou cole o texto." });
+    }
+  }
+
+  /**
+   * PDF do Calendário Acadêmico: a API lê as datas, elas entram no campo como JSON e a prévia abre para
+   * conferir. Assuntos só de servidores (PIT, RAD, diários) vêm desmarcados.
+   */
+  async function readPdf(file: File | undefined) {
+    if (!file || !onReadPdf || pdfReading) {
+      return;
+    }
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    if (!isPdf) {
+      setPdfNote({ tone: "err", text: "O arquivo precisa ser um PDF. Use o PDF do Calendário Acadêmico publicado pelo IFMS." });
+      return;
+    }
+    if (file.size > 10_000_000) {
+      setPdfNote({ tone: "err", text: "O PDF passa de 10 MB." });
+      return;
+    }
+    setPdfReading(true);
+    setPdfNote(null);
+    try {
+      const result = await onReadPdf(file);
+      const payload: CalendarImportInput = {
+        sourceName: result.sourceName,
+        checksum: result.checksum,
+        // "audience" é só da prévia; a importação recebe as datas como no JSON
+        events: result.events.map(({ title, description, category, startsAt, endsAt, sourceExternalId }) => ({
+          title,
+          description,
+          category,
+          startsAt,
+          endsAt,
+          sourceExternalId,
+        })),
+      };
+      const json = JSON.stringify(payload, null, 2);
+      const staff = new Set(result.events.flatMap((event, index) => (event.audience === "staff" ? [index] : [])));
+      const checked = validateImport(json, events, now);
+      const nextPicked: Record<string, boolean> = {};
+      if (checked.status === "ok") {
+        for (const row of checked.rows) {
+          if (staff.has(row.index)) nextPicked[row.key] = false;
+        }
+      }
+      changeText(json);
+      setPicked(nextPicked);
+      setFileNote({ tone: "ok", text: `Datas lidas do PDF ${file.name}.` });
+      const unchecked = staff.size
+        ? ` ${staff.size === 1 ? "1 assunto só de servidores ficou desmarcado" : `${staff.size} assuntos só de servidores ficaram desmarcados`} (PIT, RAD, diários).`
+        : "";
+      setPdfNote({ tone: "ok", text: `${datesLabel(result.events.length)} lidas de ${file.name}.${unchecked} Confira em Conferir datas.` });
+      setPreviewOpen(true);
+      setPreviewFocus((value) => value + 1);
+    } catch (err) {
+      // a API explica o que houve com o arquivo (422) em português; o resto usa a frase padrão
+      const message = err instanceof ApiError && err.status === 422 && err.message ? err.message : errorMessage(err);
+      setPdfNote({ tone: "err", text: message });
+    } finally {
+      setPdfReading(false);
     }
   }
 
@@ -898,6 +987,7 @@ export function SyncView({
         setPicked({});
         setPreviewOpen(false);
         setFileNote(null);
+        setPdfNote(null);
         setLastResult({
           importId: outcome.result?.import?.id ?? null,
           sourceName: check.sourceName,
@@ -1023,6 +1113,80 @@ export function SyncView({
       {/* o card do JSON e a coluna lateral terminam juntos: o mais baixo estica (o campo cresce, ou a sobra fica no pé de Campos aceitos) */}
       <div className={cx("tela-cols", stuck && "is-stuck")}>
         <div ref={mainColRef} className="tela-main">
+          {onReadPdf ? (
+            <section className="card pad rise imp-pdf-card min-w-0" style={delay(4)} aria-labelledby={pdfTitleId}>
+              <div className="flex min-w-0 items-start gap-[18px]">
+                <span className="imp-ico pdf" aria-hidden>
+                  <FileText className="h-6 w-6" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="h2" id={pdfTitleId}>
+                    Calendário acadêmico em PDF
+                  </h2>
+                  <p className="sub">Arraste o PDF publicado pelo IFMS. As datas aparecem para conferir antes de gravar.</p>
+                </div>
+              </div>
+              <div
+                className={cx("imp-pdf-drop mt-[18px]", pdfDragging && "is-over", pdfNote?.tone === "err" && "is-bad")}
+                onDragLeave={() => setPdfDragging(false)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setPdfDragging(true);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setPdfDragging(false);
+                  void readPdf(event.dataTransfer.files?.[0]);
+                }}
+              >
+                <span className="mini-ico">
+                  {pdfReading ? <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden /> : <FileUp className="h-[18px] w-[18px]" aria-hidden />}
+                </span>
+                <div className="imp-pdf-main">
+                  <p className="text-sm font-semibold text-ink">
+                    {pdfReading ? "Lendo o calendário" : "Arraste o PDF para cá ou use o botão Escolher PDF"}
+                  </p>
+                  <p className="mt-0.5 text-[13px] leading-5 text-muted" id={pdfHintId}>
+                    O PDF oficial, com os meses e as datas listadas, como o de 2027. Até 10 MB.
+                  </p>
+                </div>
+                <button
+                  className="btn btn-s btn-sm shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
+                  aria-busy={pdfReading || undefined}
+                  aria-disabled={pdfReading || undefined}
+                  aria-describedby={pdfHintId}
+                  onClick={() => {
+                    if (!pdfReading) pdfRef.current?.click();
+                  }}
+                  type="button"
+                >
+                  Escolher PDF
+                </button>
+                <input
+                  ref={pdfRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="hidden"
+                  tabIndex={-1}
+                  aria-hidden
+                  onChange={(event) => {
+                    const selected = event.target.files?.[0];
+                    event.target.value = "";
+                    void readPdf(selected);
+                  }}
+                />
+              </div>
+              {pdfNote ? (
+                <p
+                  role={pdfNote.tone === "err" ? "alert" : "status"}
+                  className={cx("mt-2 text-sm wrap-anywhere", pdfNote.tone === "err" ? "font-semibold text-[var(--danger)]" : "text-ink-3")}
+                >
+                  {pdfNote.text}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
           <section className="card pad rise imp-demo" style={delay(4)} aria-labelledby={demoTitleId}>
             <span className="imp-ico" aria-hidden>
               <CloudDownload className="h-6 w-6" />

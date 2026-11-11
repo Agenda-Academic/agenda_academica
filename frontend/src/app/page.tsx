@@ -1,6 +1,6 @@
 "use client";
 
-import { GraduationCap, WifiOff } from "lucide-react";
+import { FileText, GraduationCap, WifiOff } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -71,6 +71,7 @@ import {
   getNotifications,
   getReminders,
   importCalendar,
+  readCalendarPdf,
   isNetworkError,
   isTimeoutError,
   logout,
@@ -1185,6 +1186,9 @@ export default function Home() {
   const [savingReminder, setSavingReminder] = useState(false);
   const [statusBusy, setStatusBusy] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
+  // PDF do calendário solto em qualquer tela (administração): vai para Importar calendário
+  const [incomingPdf, setIncomingPdf] = useState<{ file: File; id: number } | null>(null);
+  const [pdfDragOver, setPdfDragOver] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [toasts, setToasts] = useState<PageToast[]>([]);
@@ -1305,6 +1309,57 @@ export default function Home() {
       },
     ]);
   }, []);
+
+  // o que fazer com o PDF solto (goTo e os avisos mudam a cada render)
+  const onPdfDropped = useEffectEvent((file: File) => {
+    if (!(file.type === "application/pdf" || /\.pdf$/i.test(file.name))) {
+      pushToast("info", "Solte o PDF do Calendário Acadêmico para importar as datas.");
+      return;
+    }
+    goTo("sync");
+    setIncomingPdf({ file, id: Date.now() });
+  });
+
+  // arrastar um arquivo sobre o app mostra para onde ele vai; soltar fora de uma área própria (o CSV de notas,
+  // a área do PDF na tela de importação) leva o PDF para Importar calendário em vez de o navegador abrir o arquivo
+  useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+    let depth = 0;
+    const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
+    const onEnter = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      depth += 1;
+      setPdfDragOver(true);
+    };
+    const onLeave = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setPdfDragOver(false);
+    };
+    const onOver = (event: DragEvent) => {
+      if (hasFiles(event)) event.preventDefault();
+    };
+    const onDrop = (event: DragEvent) => {
+      depth = 0;
+      setPdfDragOver(false);
+      if (event.defaultPrevented || !hasFiles(event)) return;
+      event.preventDefault();
+      const file = event.dataTransfer?.files?.[0];
+      if (file) onPdfDropped(file);
+    };
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, [isAdmin]);
 
   /** Tira da tela os avisos de um assunto (ex.: o Desfazer de uma situação que o painel já mostra). */
   const dropToasts = useCallback((key: string) => {
@@ -3221,6 +3276,15 @@ export default function Home() {
     }
   }
 
+  /** Lê o PDF do Calendário Acadêmico na API (não grava; a tela de importação mostra a prévia). */
+  async function readPdfCalendar(file: File) {
+    const active = sessionRef.current;
+    if (!active) {
+      throw new ApiError("Unauthorized access", 401);
+    }
+    return readCalendarPdf(active.token, file);
+  }
+
   /** Desfaz uma importação apagando os eventos que ela criou. */
   async function undoImport(ids: number[]) {
     const active = sessionRef.current;
@@ -4183,12 +4247,26 @@ export default function Home() {
                   onImport={runImport}
                   onOpenCalendar={openCalendar}
                   onUndoImport={undoImport}
+                  onReadPdf={readPdfCalendar}
+                  incomingPdf={incomingPdf}
                 />
               ) : null}
             </>
           )}
         </div>
       </AppShell>
+
+      {pdfDragOver ? (
+        <div className="drop-overlay" aria-hidden>
+          <div className="drop-overlay-box">
+            <span className="imp-ico pdf">
+              <FileText className="h-6 w-6" />
+            </span>
+            <p className="text-[16px] font-bold text-ink">Solte o PDF do calendário acadêmico</p>
+            <p className="text-sm leading-5 text-muted">As datas abrem em Importar calendário para você conferir antes de gravar.</p>
+          </div>
+        </div>
+      ) : null}
 
       <EventEditor
         allEvents={joinedEvents}

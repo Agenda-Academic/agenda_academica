@@ -45,6 +45,7 @@ export interface ApiDefinition {
   calendarImports: {
     index: typeof routes['calendar_imports.index']
     store: typeof routes['calendar_imports.store']
+    readPdf: typeof routes['calendar_imports.read_pdf']
   }
   courses: {
     index: typeof routes['courses.index']

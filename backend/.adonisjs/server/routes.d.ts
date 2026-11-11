@@ -24,6 +24,7 @@ export type ScannedRoutes = {
     'reminders.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'calendar_imports.index': { paramsTuple?: []; params?: {} }
     'calendar_imports.store': { paramsTuple?: []; params?: {} }
+    'calendar_imports.read_pdf': { paramsTuple?: []; params?: {} }
     'courses.index': { paramsTuple?: []; params?: {} }
     'courses.store': { paramsTuple?: []; params?: {} }
     'courses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -151,6 +152,7 @@ export type ScannedRoutes = {
     'academic_events.store': { paramsTuple?: []; params?: {} }
     'reminders.store': { paramsTuple?: []; params?: {} }
     'calendar_imports.store': { paramsTuple?: []; params?: {} }
+    'calendar_imports.read_pdf': { paramsTuple?: []; params?: {} }
     'courses.store': { paramsTuple?: []; params?: {} }
     'courses.archive': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'courses.restore': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

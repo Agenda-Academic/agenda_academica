@@ -133,6 +133,18 @@ com as turmas continua com a administração).
 O segredo fica só no Render e no `.env` local, que não vai para o Git. Sem as duas chaves, o botão avisa que o
 login com o Google ainda não está disponível.
 
+### Calendário acadêmico em PDF
+
+A administração arrasta o PDF do Calendário Acadêmico publicado pelo IFMS para qualquer tela do app (ou usa
+**Escolher PDF** em **Importar calendário**). A API lê o texto do PDF (`unpdf`), sem gravar nada, e a tela mostra
+as datas para conferir: feriados, recessos e datas institucionais, com os intervalos ("01 a 05", "31/05 a 05/06")
+e a virada do ano ("Janeiro/2028"). Assuntos só de servidores (PIT, RAD, diários, planejamento) vêm desmarcados.
+Só depois de conferir a administração importa.
+
+O leitor segue o modelo do IFMS: duas colunas por página, o mês como título e a data à esquerda do texto. A
+página da grade colorida é ignorada, porque repete as listas. PDF escaneado (imagem) não tem texto para ler.
+O teste usa o calendário de 2027 do Campus Três Lagoas (`backend/tests/fixtures`).
+
 ### Lembretes por e-mail
 
 Na hora marcada, o lembrete aparece no sistema e também vai por e-mail. Com a API no ar, ela confere a cada
