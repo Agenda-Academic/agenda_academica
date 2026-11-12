@@ -20,12 +20,19 @@ Professora: Profa. Maraísa.
 
 - O aluno vê no painel o próximo compromisso e os prazos das próximas semanas.
 - O cronograma mostra os eventos em lista ou em calendário mensal, com filtro por categoria e por período.
-- O aluno cria um lembrete pessoal para qualquer evento, de 15 minutos a 7 dias antes. O aviso é por e-mail: hoje o
-  lembrete fica registrado no horário certo e o envio do e-mail ainda está previsto.
+- O aluno cria um lembrete pessoal para qualquer evento, de 15 minutos a 7 dias antes. Na hora marcada, o aviso
+  aparece no sistema e chega por e-mail.
 - O professor cadastra, edita, conclui, cancela e exclui eventos das turmas em que dá aula.
-- A administração importa o calendário oficial da reitoria, que tem prioridade sobre os eventos das turmas.
+- O professor importa as notas de uma prova ou trabalho (CSV do SUAP, do Moodle, do Google Classroom ou do modelo da
+  Agenda), confere a prévia e publica para alunos e responsáveis.
+- A administração cria as turmas e as disciplinas e liga os professores a elas. O aluno entra na turma pelo código da
+  turma.
+- O responsável (pai, mãe) acompanha a agenda e as notas do aluno vinculado, pelo código que o aluno gera no perfil.
+- A administração importa o calendário oficial arrastando o PDF do Calendário Acadêmico do IFMS (ou por JSON). As
+  datas oficiais têm prioridade sobre os eventos das turmas.
+- Dá para entrar com e-mail e senha ou com a conta Google do IFMS, e pedir uma senha nova por e-mail.
 - Cada perfil vê só o menu e as ações que lhe cabem, e a API confere a permissão antes de salvar.
-- O sistema não calcula notas, médias nem frequência. A pontuação das atividades é só informativa.
+- O sistema guarda as notas, mas não calcula médias nem frequência.
 
 As telas foram desenhadas antes no Figma (protótipo clicável) e o front segue o mesmo visual.
 
@@ -36,11 +43,19 @@ As telas foram desenhadas antes no Figma (protótipo clicável) e o front segue 
 
 ## Contas de demonstração
 
-| Perfil    | E-mail                | Senha         |
-| --------- | --------------------- | ------------- |
-| Aluno     | `diogo@agenda.test`   | `password123` |
-| Professor | `maraisa@agenda.test` | `password123` |
-| Admin     | `admin@agenda.test`   | `password123` |
+Todas usam a senha `password123`. A tela de login tem atalhos para as quatro primeiras.
+
+| Perfil                                 | Nome                   | E-mail                |
+| -------------------------------------- | ---------------------- | --------------------- |
+| Aluno                                  | Diogo Queiroz da Silva | `diogo@agenda.test`   |
+| Professora                             | Profa. Maraísa         | `maraisa@agenda.test` |
+| Admin                                  | Coordenação Acadêmica  | `admin@agenda.test`   |
+| Responsável (mãe do Diogo)             | Maria Queiroz          | `maria@agenda.test`   |
+| Aluna menor de idade (curso integrado) | Ana Clara Ribeiro      | `ana@agenda.test`     |
+| Responsável (pai da Ana)               | Carlos Ribeiro         | `carlos@agenda.test`  |
+| Professora (curso integrado)           | Profa. Marina Souza    | `marina@agenda.test`  |
+
+Essas contas nunca recebem e-mail (o domínio `.test` é reservado).
 
 ## Requisitos funcionais
 
@@ -61,12 +76,31 @@ Mesma numeração do documento das telas (`docs/telas`).
 | `RF11` | Controle de acesso por perfil | Gestão, menu por perfil            |
 | `RF12` | Processamento de lembretes    | Lembretes                          |
 
+Depois do documento das telas, a segunda fase pedida pela professora trouxe: cadastro de turmas e disciplinas,
+perfil de responsável, importação e publicação de notas, leitura do PDF do Calendário Acadêmico, entrada com o Google
+e "Esqueci minha senha".
+
 ## Regras principais
 
 - Datas oficiais prevalecem sobre eventos locais quando houver conflito.
 - Alunos não alteram eventos oficiais nem eventos de professor.
-- Professores só gerenciam eventos vinculados às suas disciplinas/turmas.
-- Pontuação de atividade é apenas informativa; o sistema não faz gestão de desempenho.
+- Professores só gerenciam eventos e notas das turmas e disciplinas em que dão aula.
+- Só a administração cria, edita e arquiva turmas e disciplinas e liga professores a elas.
+- Cada aluno vê só as próprias notas, e só depois que o professor publica.
+- O responsável vê só o aluno vinculado. As notas de aluno maior de idade aparecem só se ele compartilhar; as de aluno
+  menor aparecem sempre. O vínculo com aluno menor feito pelo código do aluno espera a confirmação da secretaria.
+- O sistema guarda as notas, mas não calcula médias nem frequência.
+
+## Notas
+
+1. Numa prova ou trabalho de uma turma, o professor abre **Notas** e escolhe **Importar notas** (ou digita nota por
+   nota).
+2. Escolhe de onde vem o arquivo (Modelo da Agenda, SUAP, Moodle ou Google Classroom) e envia o CSV. O Modelo da
+   Agenda já vem com os alunos da turma, só falta preencher a nota. Planilha do Excel precisa ser salva como CSV.
+3. Indica a coluna do aluno (e-mail ou matrícula) e a coluna da nota. A escolha fica salva para a próxima vez.
+4. Confere a prévia antes de gravar: nota nova, alterada ou igual, aluno não encontrado, fora da turma, nota inválida,
+   linha repetida ou nota mudada na Agenda depois da última importação.
+5. Aplica e, quando quiser, publica para alunos e responsáveis. A publicação pode ser desfeita.
 
 ## Desenvolvimento
 
