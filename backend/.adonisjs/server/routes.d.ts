@@ -6,6 +6,8 @@ export type ScannedRoutes = {
   ALL: {
     'auth.new_account.store': { paramsTuple?: []; params?: {} }
     'auth.access_tokens.store': { paramsTuple?: []; params?: {} }
+    'auth.password_resets.request': { paramsTuple?: []; params?: {} }
+    'auth.password_resets.reset': { paramsTuple?: []; params?: {} }
     'auth.google_auth.redirect': { paramsTuple?: []; params?: {} }
     'auth.google_auth.callback': { paramsTuple?: []; params?: {} }
     'auth.google_auth.exchange': { paramsTuple?: []; params?: {} }
@@ -147,6 +149,8 @@ export type ScannedRoutes = {
   POST: {
     'auth.new_account.store': { paramsTuple?: []; params?: {} }
     'auth.access_tokens.store': { paramsTuple?: []; params?: {} }
+    'auth.password_resets.request': { paramsTuple?: []; params?: {} }
+    'auth.password_resets.reset': { paramsTuple?: []; params?: {} }
     'auth.google_auth.exchange': { paramsTuple?: []; params?: {} }
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
     'academic_events.store': { paramsTuple?: []; params?: {} }

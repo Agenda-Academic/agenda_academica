@@ -1,5 +1,6 @@
 import type AcademicEvent from '#models/academic_event'
 import type User from '#models/user'
+import { BRAND, escapeHtml } from '#services/mail_layout'
 import type { MailMessage } from '#services/mail_service'
 import env from '#start/env'
 import { DateTime } from 'luxon'
@@ -7,16 +8,6 @@ import { DateTime } from 'luxon'
 /** Mesma zona em que o horário do evento é digitado (ver date_time_service). */
 const EVENT_ZONE = 'America/Sao_Paulo'
 const DEFAULT_FRONTEND_URL = 'http://localhost:3000'
-const BRAND = '#17803f'
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
 
 function plural(count: number, singular: string, pluralForm: string) {
   return `${count} ${count === 1 ? singular : pluralForm}`

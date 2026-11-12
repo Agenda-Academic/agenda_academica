@@ -447,6 +447,23 @@ export class NotificationSchema extends BaseModel {
   declare userId: number
 }
 
+export class PasswordResetTokenSchema extends BaseModel {
+  static $columns = ['createdAt', 'expiresAt', 'id', 'tokenHash', 'usedAt', 'userId'] as const
+  $columns = PasswordResetTokenSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column.dateTime()
+  declare expiresAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare tokenHash: string
+  @column.dateTime()
+  declare usedAt: DateTime | null
+  @column()
+  declare userId: number
+}
+
 export class ReminderSchema extends BaseModel {
   static $columns = ['academicEventId', 'channel', 'createdAt', 'enabled', 'id', 'offsetMinutes', 'sendAt', 'sentAt', 'updatedAt', 'userId'] as const
   $columns = ReminderSchema.$columns

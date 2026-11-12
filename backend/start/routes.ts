@@ -23,6 +23,7 @@ const GradeImportsController = () => import('#controllers/grade_imports_controll
 const GradesController = () => import('#controllers/grades_controller')
 const GuardianLinksController = () => import('#controllers/guardian_links_controller')
 const NotificationsController = () => import('#controllers/notifications_controller')
+const PasswordResetsController = () => import('#controllers/password_resets_controller')
 const RemindersController = () => import('#controllers/reminders_controller')
 const SubjectsController = () => import('#controllers/subjects_controller')
 const UsersController = () => import('#controllers/users_controller')
@@ -40,6 +41,10 @@ router
       .group(() => {
         router.post('signup', [controllers.NewAccount, 'store'])
         router.post('login', [controllers.AccessTokens, 'store'])
+
+        // Esqueci minha senha: pedir o link por e-mail e criar a senha nova pelo link.
+        router.post('forgot-password', [PasswordResetsController, 'request'])
+        router.post('reset-password', [PasswordResetsController, 'reset'])
 
         // Entrar com o Google: ida, volta e troca do código de uso único pelo token de acesso.
         router.get('google/redirect', [controllers.GoogleAuth, 'redirect'])

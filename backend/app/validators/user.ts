@@ -43,6 +43,18 @@ export const googleExchangeValidator = vine.create({
   code: vine.string().trim().minLength(1).maxLength(128),
 })
 
+/** "Esqueci minha senha": o e-mail da conta. */
+export const forgotPasswordValidator = vine.create({
+  email: email(),
+})
+
+/** Senha nova pelo link do e-mail (token de 32 bytes em base64url). */
+export const resetPasswordValidator = vine.create({
+  token: vine.string().trim().minLength(20).maxLength(128),
+  password: password(),
+  passwordConfirmation: password().sameAs('password'),
+})
+
 export const updateProfileValidator = vine.create({
   fullName: vine.string().nullable().optional(),
   defaultReminderMinutes: vine.number().min(15).max(10080).optional(),

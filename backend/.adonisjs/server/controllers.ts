@@ -19,6 +19,7 @@ export const controllers = {
   GuardianLinks: () => import('#controllers/guardian_links_controller'),
   NewAccount: () => import('#controllers/new_account_controller'),
   Notifications: () => import('#controllers/notifications_controller'),
+  PasswordResets: () => import('#controllers/password_resets_controller'),
   Profile: () => import('#controllers/profile_controller'),
   Reminders: () => import('#controllers/reminders_controller'),
   Subjects: () => import('#controllers/subjects_controller'),

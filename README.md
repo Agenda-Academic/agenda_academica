@@ -160,6 +160,13 @@ e-mails por dia). É HTTP e não SMTP porque o plano gratuito do Render bloqueia
 Sem as duas variáveis, o lembrete só aparece no sistema. As contas de demonstração (`@agenda.test`) nunca
 recebem e-mail, e um lembrete de evento que já começou não é enviado atrasado.
 
+### Esqueci minha senha
+
+Na tela de entrar, **Esqueci minha senha** manda por e-mail (pelo mesmo Brevo) um link de uso único que vale por
+1 hora. O link abre **Criar senha nova**. Depois de salvar, a pessoa já entra, e as outras sessões da conta
+acabam. A resposta do pedido é a mesma com ou sem conta, e o mesmo e-mail pode pedir até 3 links a cada 15 minutos.
+Em desenvolvimento, sem e-mail configurado ou com conta `@agenda.test`, o link aparece no log da API.
+
 > No plano grátis do Render a API dorme depois de uns 15 minutos sem acesso e o primeiro acesso leva até um
 > minuto. O banco é SQLite e não fica salvo: toda vez que a API reinicia, ele volta com os dados de demonstração.
 > Para a API não dormir (e os lembretes saírem na hora), o GitHub Actions acessa o endereço dela a cada 10

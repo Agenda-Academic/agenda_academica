@@ -31,6 +31,30 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/access_tokens_controller').default['store']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
+  'auth.password_resets.request': {
+    methods: ["POST"]
+    pattern: '/api/v1/auth/forgot-password'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').forgotPasswordValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').forgotPasswordValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/password_resets_controller').default['request']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/password_resets_controller').default['request']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'auth.password_resets.reset': {
+    methods: ["POST"]
+    pattern: '/api/v1/auth/reset-password'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').resetPasswordValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').resetPasswordValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/password_resets_controller').default['reset']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/password_resets_controller').default['reset']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
   'auth.google_auth.redirect': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/auth/google/redirect'

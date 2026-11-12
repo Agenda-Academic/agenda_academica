@@ -333,6 +333,23 @@ export async function signup(input: SignupInput) {
   return payload.data;
 }
 
+/** "Esqueci minha senha": a API manda o link por e-mail (a resposta é a mesma com ou sem conta). */
+export async function requestPasswordReset(email: string) {
+  return apiFetch<{ message: string }>("/auth/forgot-password", undefined, {
+    method: "POST",
+    body: { email },
+  });
+}
+
+/** Senha nova pelo link do e-mail; a API já devolve a sessão, como no login. */
+export async function resetPassword(token: string, password: string, passwordConfirmation: string) {
+  const payload = await apiFetch<ApiEnvelope<Session>>("/auth/reset-password", undefined, {
+    method: "POST",
+    body: { token, password, passwordConfirmation },
+  });
+  return payload.data;
+}
+
 /** Endereço que leva ao Google: a API guarda o state e redireciona para a escolha da conta. */
 export function googleLoginUrl() {
   return `${API_URL}/auth/google/redirect`;

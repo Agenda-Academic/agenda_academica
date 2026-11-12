@@ -9,6 +9,10 @@ export interface ApiDefinition {
     accessTokens: {
       store: typeof routes['auth.access_tokens.store']
     }
+    passwordResets: {
+      request: typeof routes['auth.password_resets.request']
+      reset: typeof routes['auth.password_resets.reset']
+    }
     googleAuth: {
       redirect: typeof routes['auth.google_auth.redirect']
       callback: typeof routes['auth.google_auth.callback']
