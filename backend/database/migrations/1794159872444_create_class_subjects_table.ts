@@ -41,12 +41,12 @@ export default class extends BaseSchema {
 
     this.schema.raw(`
       INSERT INTO class_subjects (academic_class_id, subject_id, created_at, updated_at)
-      SELECT academic_class_id, subject_id, datetime('now'), datetime('now') FROM (
+      SELECT academic_class_id, subject_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM (
         SELECT academic_class_id, subject_id FROM teaching_assignments
         UNION
         SELECT academic_class_id, subject_id FROM academic_events
         WHERE academic_class_id IS NOT NULL AND subject_id IS NOT NULL
-      )
+      ) AS pairs
     `)
   }
 

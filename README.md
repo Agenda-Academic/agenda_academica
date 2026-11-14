@@ -39,7 +39,8 @@ As telas foram desenhadas antes no Figma (protótipo clicável) e o front segue 
 ## Tecnologias
 
 - `frontend`: Next.js e React, publicado no Vercel.
-- `backend`: API REST em AdonisJS com banco SQLite, publicada no Render em Docker.
+- `backend`: API REST em AdonisJS, publicada no Render em Docker. O banco é Postgres (Supabase) em produção e
+  SQLite no computador e nos testes.
 
 ## Contas de demonstração
 
@@ -146,6 +147,20 @@ publicam sozinhos a cada push na `main`.
 
 Para entrar, use as [contas de demonstração](#contas-de-demonstração).
 
+### Banco Postgres (Supabase)
+
+Em produção a API grava num Postgres do [Supabase](https://supabase.com) (plano grátis, 500 MB), e os dados
+ficam salvos entre os reinícios. No computador e nos testes o banco continua SQLite, sem nada para instalar.
+
+1. No Supabase, crie um projeto na região **East US (North Virginia)**, a mesma do Render, e guarde a senha
+   do banco.
+2. Em **Connect**, copie o endereço do **Session pooler** (o direto só funciona com IPv6, e o Render usa IPv4).
+3. No Render, em **Environment**, cole o endereço em `DATABASE_URL`, trocando `[YOUR-PASSWORD]` pela senha.
+   O `render.yaml` já define `DB_CONNECTION=pg`.
+
+A cada início a API aplica as migrations e, só se o banco não tiver nenhum usuário, cria as
+[contas de demonstração](#contas-de-demonstração) (`node ace db:seed-if-empty`). A conexão usa TLS.
+
 ### Entrar com o Google
 
 O botão **Entrar com o Google** entra na conta que já existe com o mesmo e-mail. Sem conta, ele cria uma só
@@ -202,7 +217,7 @@ acabam. A resposta do pedido é a mesma com ou sem conta, e o mesmo e-mail pode 
 Em desenvolvimento, sem e-mail configurado ou com conta `@agenda.test`, o link aparece no log da API.
 
 > No plano grátis do Render a API dorme depois de uns 15 minutos sem acesso e o primeiro acesso leva até um
-> minuto. O banco é SQLite e não fica salvo: toda vez que a API reinicia, ele volta com os dados de demonstração.
+> minuto.
 > Para a API não dormir (e os lembretes saírem na hora), o GitHub Actions acessa o endereço dela a cada 10
 > minutos (`.github/workflows/manter-api-acordada.yml`).
 
@@ -214,6 +229,15 @@ npm test
 
 A suíte do backend usa um banco SQLite separado (`backend/tmp/test.sqlite3`),
 então rodar os testes não apaga os dados de desenvolvimento.
+
+Para rodar a mesma suíte num Postgres (como o de produção), suba um Postgres local e aponte para ele. A suíte
+apaga as tabelas, então nunca use o endereço do Supabase:
+
+```bash
+docker run -d --rm --name agenda-pg-test -e POSTGRES_PASSWORD=agenda_test -e POSTGRES_DB=agenda_tests -p 55432:5432 postgres:17-alpine
+cd backend
+DB_CONNECTION=pg DB_SSL=false DATABASE_URL=postgres://postgres:agenda_test@127.0.0.1:55432/agenda_tests node ace test
+```
 
 ## Rotinas do servidor
 

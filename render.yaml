@@ -45,3 +45,9 @@ services:
         sync: false
       - key: MAIL_FROM
         sync: false
+      # Banco Postgres do Supabase: os dados ficam salvos entre os reinícios da API.
+      # O endereço (com usuário e senha) é colado no painel do Render (Environment), nunca aqui.
+      - key: DB_CONNECTION
+        value: pg
+      - key: DATABASE_URL
+        sync: false

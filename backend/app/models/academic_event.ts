@@ -13,6 +13,10 @@ export default class AcademicEvent extends AcademicEventSchema {
   @column({ serializeAs: null })
   declare gradesPublishedById: number | null
 
+  // A coluna é decimal: o Postgres devolve texto ("10.00"), e a API e o front esperam número
+  @column({ consume: (value) => (value === null || value === undefined ? null : Number(value)) })
+  declare points: number | null
+
   @belongsTo(() => AcademicClass)
   declare academicClass: BelongsTo<typeof AcademicClass>
 

@@ -103,7 +103,7 @@ export default class UsersController {
         return fieldError(response, 'q', 'A busca pode ter no máximo 100 caracteres.', 'maxLength')
       }
       query.where((scope) => {
-        scope.where('fullName', 'like', `%${term}%`).orWhere('email', 'like', `%${term}%`)
+        scope.whereILike('fullName', `%${term}%`).orWhereILike('email', `%${term}%`)
       })
     }
 

@@ -67,7 +67,7 @@ export default class AcademicEventsController {
 
     if (q) {
       query.where((scope) => {
-        scope.where('title', 'like', `%${q}%`).orWhere('description', 'like', `%${q}%`)
+        scope.whereILike('title', `%${q}%`).orWhereILike('description', `%${q}%`)
       })
     }
 

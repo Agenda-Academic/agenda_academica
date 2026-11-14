@@ -1,4 +1,3 @@
-import CalendarSyncService from '#services/calendar_sync_service'
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import { readFile } from 'node:fs/promises'
@@ -18,6 +17,8 @@ export default class SyncInstitutionalCalendar extends BaseCommand {
   declare sourceName?: string
 
   async run() {
+    // Serviço carregado aqui, pelo mesmo motivo do reminders:send-due
+    const { default: CalendarSyncService } = await import('#services/calendar_sync_service')
     const payload = this.source
       ? await this.readPayload(this.source)
       : CalendarSyncService.demoPayload()

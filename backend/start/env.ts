@@ -22,6 +22,13 @@ export default await Env.create(new URL('../', import.meta.url), {
   APP_KEY: Env.schema.secret(),
   APP_URL: Env.schema.string({ format: 'url', tld: false }),
 
+  // Banco: SQLite por padrão; "pg" usa o Postgres do DATABASE_URL (o Supabase, em produção)
+  DB_CONNECTION: Env.schema.enum.optional(['sqlite', 'pg'] as const),
+  // Tem usuário e senha: fica como segredo (não aparece em log)
+  DATABASE_URL: Env.schema.secret.optional(),
+  // TLS na conexão com o Postgres (padrão: ligado; false só para o Postgres local)
+  DB_SSL: Env.schema.boolean.optional(),
+
   // Session
   SESSION_DRIVER: Env.schema.enum(['cookie', 'memory', 'database'] as const),
 

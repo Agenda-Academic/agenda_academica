@@ -37,7 +37,7 @@ export default class SubjectsController {
     if (q && String(q).trim()) {
       const term = `%${String(q).trim()}%`
       query.where((scope) => {
-        scope.where('name', 'like', term).orWhere('code', 'like', term)
+        scope.whereILike('name', term).orWhereILike('code', term)
       })
     }
 

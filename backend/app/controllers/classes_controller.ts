@@ -83,7 +83,7 @@ export default class ClassesController {
       })
     }
     if (q && String(q).trim()) {
-      query.where('name', 'like', `%${String(q).trim()}%`)
+      query.whereILike('name', `%${String(q).trim()}%`)
     }
 
     const classes = await query

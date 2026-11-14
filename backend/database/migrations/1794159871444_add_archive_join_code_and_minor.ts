@@ -67,7 +67,10 @@ export default class extends BaseSchema {
 
     this.schema.raw('ALTER TABLE subjects DROP COLUMN archived_at')
 
-    this.schema.raw('DROP INDEX IF EXISTS academic_classes_join_code_unique')
+    // No SQLite o unique virou índice; no Postgres é uma restrição, que sai junto com a coluna
+    if (this.db.dialect.name !== 'postgres') {
+      this.schema.raw('DROP INDEX IF EXISTS academic_classes_join_code_unique')
+    }
     this.schema.raw('ALTER TABLE academic_classes DROP COLUMN join_code_active')
     this.schema.raw('ALTER TABLE academic_classes DROP COLUMN join_code')
     this.schema.raw('ALTER TABLE academic_classes DROP COLUMN archived_at')
