@@ -852,7 +852,7 @@ export function LoginScreen({
               </h1>
               <p className="mt-2 text-[14.5px] leading-6 text-muted">
                 {mode === "signup"
-                  ? "Para pais e responsáveis acompanharem a agenda e as notas do aluno."
+                  ? "Para pais e responsáveis acompanharem a agenda e as notas do aluno. Tenha em mãos o código do aluno: ele gera no perfil, ou a secretaria passa."
                   : demoOn
                     ? "Use seu e-mail ou escolha uma conta de demonstração."
                     : "Use seu e-mail e senha, ou a conta Google do IFMS."}
