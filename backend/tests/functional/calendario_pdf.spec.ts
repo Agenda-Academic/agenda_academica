@@ -49,7 +49,7 @@ test.group('Calendário em PDF', (group) => {
 
     response.assertStatus(200)
     const body = (response.body() as unknown as PdfBody).data
-    assert.equal(body.sourceName, 'Calendário Acadêmico IFMS 2027, Campus Três Lagoas')
+    assert.equal(body.sourceName, 'Calendário Acadêmico 2027, Campus Três Lagoas')
     assert.equal(body.year, 2027)
     assert.equal(body.campus, 'Três Lagoas')
     // o código vem do arquivo inteiro (o de um arquivo vazio seria pdf-e3b0c44298fc...)
@@ -260,7 +260,7 @@ test.group('Calendário em PDF', (group) => {
     ]
 
     const calendar = parseCalendarItems(items)
-    assert.equal(calendar.sourceName, 'Calendário Acadêmico IFMS 2029, Campus Ponta Porã')
+    assert.equal(calendar.sourceName, 'Calendário Acadêmico 2029, Campus Ponta Porã')
     assert.deepEqual(
       calendar.events.map((event) => [event.startsAt, event.endsAt, event.title, event.category]),
       [

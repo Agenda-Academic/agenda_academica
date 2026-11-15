@@ -330,7 +330,7 @@ export function parseCalendarItems(items: PdfTextItem[], fallbackYear?: number):
   events.sort((a, b) => a.startsAt.localeCompare(b.startsAt))
   const campusLabel = header.campus ? `, Campus ${header.campus}` : ''
   return {
-    sourceName: `Calendário Acadêmico IFMS ${baseYear}${campusLabel}`.slice(0, 120),
+    sourceName: `Calendário Acadêmico ${baseYear}${campusLabel}`.slice(0, 120),
     year: header.year,
     campus: header.campus,
     events,
@@ -392,7 +392,7 @@ export default class CalendarPdfService {
     const calendar = parseCalendarItems(items)
     if (!calendar.events.length) {
       throw new CalendarPdfError(
-        'Não encontrei datas neste PDF. Use o PDF do Calendário Acadêmico do IFMS, com os meses e as datas listadas.'
+        'Não encontrei datas neste PDF. Use o PDF do Calendário Acadêmico, com os meses e as datas listadas.'
       )
     }
     return { ...calendar, checksum }

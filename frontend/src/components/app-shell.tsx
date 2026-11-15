@@ -210,7 +210,7 @@ function Brand({
   action,
   inDrawer,
   onDark,
-  subtitle = "IFMS, Campus Três Lagoas",
+  subtitle = "Prazos, notas e lembretes",
 }: {
   /** Botão no fim da faixa da marca (o X da gaveta), dentro da linha de baixo dela. */
   action?: ReactNode;

@@ -892,7 +892,7 @@ export function SyncView({
     }
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
     if (!isPdf) {
-      setPdfNote({ tone: "err", text: "O arquivo precisa ser um PDF. Use o PDF do Calendário Acadêmico publicado pelo IFMS." });
+      setPdfNote({ tone: "err", text: "O arquivo precisa ser um PDF. Use o PDF do Calendário Acadêmico publicado pela instituição." });
       return;
     }
     if (file.size > 10_000_000) {
@@ -1087,7 +1087,7 @@ export function SyncView({
   return (
     <div className="grid gap-5">
       <div className="kpis">
-        <ImportTile label="Fonte" value="IFMS, Reitoria" hint="calendário letivo oficial" order={0} />
+        <ImportTile label="Fonte" value="Reitoria" hint="calendário letivo oficial" order={0} />
         <ImportTile
           label="Última importação"
           value={lastImport ? dayLabel(lastImport.importedAt, now) : "Nunca"}
@@ -1123,7 +1123,7 @@ export function SyncView({
                   <h2 className="h2" id={pdfTitleId}>
                     Calendário acadêmico em PDF
                   </h2>
-                  <p className="sub">Arraste o PDF publicado pelo IFMS. As datas aparecem para conferir antes de gravar.</p>
+                  <p className="sub">Arraste o PDF do calendário publicado pela instituição. As datas aparecem para conferir antes de gravar.</p>
                 </div>
               </div>
               <div

@@ -539,7 +539,7 @@ export function GuardianDashboard({
           </div>
 
           <section className="card pad rise duo-fill" style={delay(4)} aria-labelledby={datesTitleId}>
-            <SectionTitle id={datesTitleId} title="Datas do campus" subtitle="Calendário oficial do IFMS Três Lagoas" />
+            <SectionTitle id={datesTitleId} title="Datas do campus" subtitle="Calendário oficial da instituição" />
             {officialDates.length ? (
               <>
                 <ul className="mt-3.5 flex flex-col gap-2">

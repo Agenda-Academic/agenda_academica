@@ -17,7 +17,7 @@ export default function NotFound() {
           </span>
           <div className="min-w-0 text-left">
             <p className="brand-name">Agenda Acadêmica</p>
-            <p className="brand-sub text-muted">IFMS, Campus Três Lagoas</p>
+            <p className="brand-sub text-muted">Prazos, notas e lembretes</p>
           </div>
         </div>
         <span className="empty-ico mx-auto mt-8">

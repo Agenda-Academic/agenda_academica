@@ -4,10 +4,10 @@ import env from '#start/env'
 export const DEMO_EMAIL_DOMAIN = '@agenda.test'
 
 export const DEMO_ACCOUNTS_OFF =
-  'As contas de demonstração estão desligadas. Entre com a sua conta ou com o Google do IFMS.'
+  'As contas de demonstração estão desligadas. Entre com a sua conta ou com o Google da instituição.'
 
 export const STAFF_SIGNUP_GOOGLE_ONLY =
-  'Aluno e docente do IFMS não criam conta aqui: entre com o Google, usando o e-mail do instituto.'
+  'Aluno e docente não criam conta aqui: entre com o Google, usando o e-mail da instituição.'
 
 /**
  * Quem pode entrar e como, conforme o Environment do servidor. As variáveis são lidas a cada uso,

@@ -56,7 +56,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // motivo da volta do Google (?google_erro=, ou "falhou" quando a troca do código não deu certo)
 const googleFailed = "Não foi possível entrar com o Google. Tente de novo.";
 const googleErrors: Record<string, string> = {
-  dominio: "Esse e-mail não é do IFMS. Entre com e-mail e senha ou crie sua conta.",
+  dominio: "Esse e-mail não é da instituição. Use o e-mail institucional, ou entre com e-mail e senha.",
   cancelado: "O login com o Google foi cancelado.",
   nao_configurado: "O login com o Google ainda não está disponível.",
   estado: googleFailed,
@@ -747,7 +747,7 @@ export function LoginScreen({
               </span>
               <div>
                 <p className="brand-name">Agenda Acadêmica</p>
-                <p className="brand-sub">IFMS, Campus Três Lagoas</p>
+                <p className="brand-sub">Prazos, notas e lembretes</p>
               </div>
             </div>
 
@@ -784,7 +784,7 @@ export function LoginScreen({
             <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
             {demoOn
               ? "Ambiente de demonstração: entre pelos atalhos para conhecer cada perfil."
-              : "Aluno e docente do IFMS entram com a conta Google do instituto."}
+              : "Aluno e docente entram com a conta Google da instituição."}
           </p>
         </div>
 
@@ -855,14 +855,14 @@ export function LoginScreen({
                   ? "Para pais e responsáveis acompanharem a agenda e as notas do aluno. Tenha em mãos o código do aluno: ele gera no perfil, ou a secretaria passa."
                   : demoOn
                     ? "Use seu e-mail ou escolha uma conta de demonstração."
-                    : "Use seu e-mail e senha, ou a conta Google do IFMS."}
+                    : "Use seu e-mail e senha, ou a conta Google da instituição."}
               </p>
               {mode === "signup" ? (
                 <p className="callout blue mt-4">
                   <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                   <span className="min-w-0">
-                    Aluno ou docente do IFMS não precisa criar conta: use <strong>Entrar com o Google</strong>, logo
-                    abaixo, com o e-mail do instituto.
+                    Aluno ou docente não precisa criar conta: use <strong>Entrar com o Google</strong>, logo abaixo,
+                    com o e-mail da instituição.
                   </span>
                 </p>
               ) : null}
@@ -1043,7 +1043,7 @@ export function LoginScreen({
                 </p>
               ) : null}
               <p id={googleHintId} className="mt-2 text-center text-[13px] leading-5 text-muted">
-                Use seu e-mail @estudante.ifms.edu.br ou @ifms.edu.br.
+                Use o e-mail da sua instituição.
               </p>
               {googleLoading && slow ? (
                 <p role="status" className="mt-2 text-center text-sm text-muted">
