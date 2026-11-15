@@ -6,6 +6,7 @@ export type ScannedRoutes = {
   ALL: {
     'auth.new_account.store': { paramsTuple?: []; params?: {} }
     'auth.access_tokens.store': { paramsTuple?: []; params?: {} }
+    'auth.access_tokens.options': { paramsTuple?: []; params?: {} }
     'auth.password_resets.request': { paramsTuple?: []; params?: {} }
     'auth.password_resets.reset': { paramsTuple?: []; params?: {} }
     'auth.google_auth.redirect': { paramsTuple?: []; params?: {} }
@@ -93,6 +94,7 @@ export type ScannedRoutes = {
     'grades.student': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   GET: {
+    'auth.access_tokens.options': { paramsTuple?: []; params?: {} }
     'auth.google_auth.redirect': { paramsTuple?: []; params?: {} }
     'auth.google_auth.callback': { paramsTuple?: []; params?: {} }
     'profile.profile.show': { paramsTuple?: []; params?: {} }
@@ -120,6 +122,7 @@ export type ScannedRoutes = {
     'grades.student': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   HEAD: {
+    'auth.access_tokens.options': { paramsTuple?: []; params?: {} }
     'auth.google_auth.redirect': { paramsTuple?: []; params?: {} }
     'auth.google_auth.callback': { paramsTuple?: []; params?: {} }
     'profile.profile.show': { paramsTuple?: []; params?: {} }

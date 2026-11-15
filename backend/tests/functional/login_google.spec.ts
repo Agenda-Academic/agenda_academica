@@ -349,6 +349,57 @@ test.group('Entrar com o Google', (group) => {
     assert.equal(await countUsers(), before)
   })
 
+  test('e-mail de ADMIN_EMAILS entra como administração, e a conta que já existe é promovida', async ({
+    client,
+    assert,
+  }) => {
+    env.set('ADMIN_EMAILS', ' coordenacao.agenda@gmail.com , diogo@agenda.test')
+    try {
+      // fora do IFMS e sem conta: só entra porque está na lista, e já como administração
+      const outside = await backFromGoogle(
+        client,
+        googleClaims({ email: 'Coordenacao.Agenda@gmail.com', name: 'Coordenação' })
+      )
+      const code = loginCodeFrom(assert, outside.location)
+      const exchange = await client.post(`${API}/auth/google/exchange`).json({ code })
+      exchange.assertStatus(200)
+      const created = await User.findByOrFail('email', 'coordenacao.agenda@gmail.com')
+      assert.equal(created.role, 'admin')
+
+      // aluno que já existe: vira administração ao entrar pelo Google, e o registro fica
+      const diogo = await User.findByOrFail('email', 'diogo@agenda.test')
+      assert.equal(diogo.role, 'student')
+      const again = await backFromGoogle(client, googleClaims({ email: 'diogo@agenda.test' }))
+      loginCodeFrom(assert, again.location)
+      await diogo.refresh()
+      assert.equal(diogo.role, 'admin')
+      const log = await AuditLog.query()
+        .where('action', 'auth.google_admin')
+        .where('subjectUserId', diogo.id)
+        .firstOrFail()
+      assert.include(log.meta ?? '', 'student')
+    } finally {
+      env.set('ADMIN_EMAILS', '')
+    }
+  })
+
+  test('login com e-mail e senha não promove ninguém, mesmo na lista ADMIN_EMAILS', async ({
+    client,
+    assert,
+  }) => {
+    env.set('ADMIN_EMAILS', 'diogo@agenda.test')
+    try {
+      const response = await client
+        .post(`${API}/auth/login`)
+        .json({ email: 'diogo@agenda.test', password: 'password123' })
+      response.assertStatus(200)
+      const diogo = await User.findByOrFail('email', 'diogo@agenda.test')
+      assert.equal(diogo.role, 'student')
+    } finally {
+      env.set('ADMIN_EMAILS', '')
+    }
+  })
+
   test('email_verified false falha', async ({ client, assert }) => {
     const before = await countUsers()
 

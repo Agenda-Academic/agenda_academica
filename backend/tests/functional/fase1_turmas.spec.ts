@@ -14,8 +14,10 @@ import AttemptLimiterService, {
   MAX_FAILED_ATTEMPTS,
   MAX_FAILED_ATTEMPTS_PER_IP,
 } from '#services/attempt_limiter_service'
+import ClassMembershipService from '#services/class_membership_service'
 import ReminderDeliveryService from '#services/reminder_delivery_service'
 import testUtils from '@adonisjs/core/services/test_utils'
+import db from '@adonisjs/lucid/services/db'
 import { test } from '@japa/runner'
 import { DateTime } from 'luxon'
 
@@ -37,16 +39,23 @@ async function loginAs(client: any, email: string) {
   return (response.body() as unknown as Envelope<{ token: string }>).data.token
 }
 
-async function signup(client: any, email: string, role = 'student') {
-  const response = await client.post(`${API}/auth/signup`).json({
-    fullName: 'Conta Nova',
-    email,
-    password: 'password123',
-    passwordConfirmation: 'password123',
-    role,
+/**
+ * Conta nova de aluno ou docente. Eles não se cadastram mais com e-mail e senha (entram com o Google
+ * do IFMS), então a conta nasce como no primeiro acesso pelo Google: aluno já com os convites da
+ * turma aceitos. A senha só existe para o teste entrar e pegar o token.
+ */
+async function signup(client: any, email: string, role: 'student' | 'teacher' = 'student') {
+  const user = await db.transaction(async (trx) => {
+    const created = await User.create(
+      { fullName: 'Conta Nova', email, password: 'password123', role, registration: null },
+      { client: trx }
+    )
+    if (created.role === 'student') {
+      await ClassMembershipService.acceptInvites(created, trx)
+    }
+    return created
   })
-  response.assertStatus(200)
-  return (response.body() as unknown as Envelope<{ token: string; user: { id: number } }>).data
+  return { token: await loginAs(client, email), user: { id: user.id } }
 }
 
 function fieldOf(body: unknown) {

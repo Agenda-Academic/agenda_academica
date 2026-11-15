@@ -20,6 +20,12 @@ export default class SeedIfEmpty extends BaseCommand {
     // de usuário precisa do serviço de hash já pronto
     const { default: db } = await import('@adonisjs/lucid/services/db')
     const { default: User } = await import('#models/user')
+    const { default: AccountPolicyService } = await import('#services/account_policy_service')
+
+    if (!AccountPolicyService.demoAccountsEnabled()) {
+      this.logger.info('contas de demonstração desligadas (DEMO_ACCOUNTS=false): seed pulado')
+      return
+    }
 
     if (await User.query().first()) {
       this.logger.info('o banco já tem usuários: seed pulado')

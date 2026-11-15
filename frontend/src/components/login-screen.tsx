@@ -22,7 +22,7 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
-import { ApiError, googleLoginUrl, login, requestPasswordReset, resetPassword, signup, wakeApi } from "@/lib/api";
+import { ApiError, authOptions, googleLoginUrl, login, requestPasswordReset, resetPassword, signup, wakeApi } from "@/lib/api";
 import { cx, errorMessage } from "@/lib/format";
 import { demoAccounts } from "@/lib/meta";
 import type { Session } from "@/lib/types";
@@ -30,27 +30,24 @@ import { GuardianDataDialog } from "./guardian-data-dialog";
 import { Field, primaryButton, secondaryButton } from "./ui";
 
 type Mode = "login" | "signup";
-type SignupRole = "student" | "teacher" | "guardian";
-type FieldName = "fullName" | "registration" | "email" | "password" | "passwordConfirmation" | "consent";
+type FieldName = "fullName" | "email" | "password" | "passwordConfirmation" | "consent";
 type FieldErrors = Partial<Record<FieldName, string>>;
 
 // ordem dos campos na tela: o foco vai para o primeiro com erro
-const fieldOrder: FieldName[] = ["fullName", "registration", "email", "password", "passwordConfirmation", "consent"];
+const fieldOrder: FieldName[] = ["fullName", "email", "password", "passwordConfirmation", "consent"];
 
 // o "Li e concordo" do responsável (LGPD, desenho 6.1) é só da tela: a API não guarda o aceite
 const consentMissing = "Marque Li e concordo para criar a conta de responsável.";
 
 const emailTaken = "Este e-mail já tem conta. Entre ou use outro e-mail.";
-const registrationTaken = "Esta matrícula já tem conta. Entre ou confira o número.";
 
 /**
- * Matrícula (ou e-mail) que já tem conta e que só o banco recusa (API sem a regra de único): a API
- * responde 500 com o erro do banco, que cita a coluna ("UNIQUE constraint failed: users.registration"
- * no SQLite e "users_registration_unique" no Postgres e no MySQL). Essa mensagem traz o comando
- * inteiro, com dados da conta, e nunca aparece na tela: vira o erro do campo.
+ * E-mail que já tem conta e que só o banco recusa (API sem a regra de único): a API responde 500 com o
+ * erro do banco, que cita a coluna ("UNIQUE constraint failed: users.email" no SQLite e
+ * "users_email_unique" no Postgres). Essa mensagem traz o comando inteiro, com dados da conta, e nunca
+ * aparece na tela: vira o erro do campo.
  */
 const takenByDatabase: Array<{ field: FieldName; column: RegExp; message: string }> = [
-  { field: "registration", column: /users\.registration\b|users_registration_unique/i, message: registrationTaken },
   { field: "email", column: /users\.email\b|users_email_unique/i, message: emailTaken },
 ];
 
@@ -129,8 +126,6 @@ function serverErrors(err: unknown, mode: Mode): FieldErrors | null {
       result.passwordConfirmation ??= "As senhas não são iguais.";
     } else if (item.field === "fullName") {
       result.fullName ??= item.message && /[áéíóúãõç]/i.test(item.message) ? item.message : "Digite seu nome completo.";
-    } else if (item.field === "registration") {
-      result.registration ??= item.rule === "database.unique" ? registrationTaken : "Confira a matrícula.";
     }
   }
   return Object.keys(result).length ? result : null;
@@ -537,20 +532,21 @@ export function LoginScreen({
       const known = demoAccounts.find((account) => account.email === email);
       return { email, password: known?.password ?? "" };
     }
-    return { email: demoAccounts[0].email, password: demoAccounts[0].password };
+    return { email: "", password: "" };
   });
+  // Contas de demonstração ligadas na API (DEMO_ACCOUNTS)? Até a resposta chegar, os atalhos não aparecem.
+  const [demoOn, setDemoOn] = useState<boolean | null>(null);
+  // Cadastro com e-mail e senha: só de responsável (aluno e docente entram com o Google do IFMS)
   const [signupForm, setSignupForm] = useState({
     fullName: "",
     email: "",
-    registration: "",
-    role: "student" as SignupRole,
     password: "",
     passwordConfirmation: "",
     consent: false,
   });
   // "Quais dados o responsável vê", aberto pelo aviso do cadastro do responsável
   const [dataOpen, setDataOpen] = useState(false);
-  const guardian = mode === "signup" && signupForm.role === "guardian";
+  const guardian = mode === "signup";
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [slow, setSlow] = useState(false);
@@ -567,15 +563,32 @@ export function LoginScreen({
   const googleHintId = `${baseId}-google-ajuda`;
   const titleRef = useRef<HTMLHeadingElement>(null);
   const fullNameRef = useRef<HTMLInputElement>(null);
-  const registrationRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
   const consentRef = useRef<HTMLInputElement>(null);
 
-  // Acorda a API enquanto a pessoa ainda está lendo a tela de login.
+  // Acorda a API enquanto a pessoa ainda está lendo a tela de login e pergunta se os atalhos de
+  // demonstração aparecem. Ligados e com o formulário ainda vazio, a primeira conta já vem preenchida.
   useEffect(() => {
     wakeApi();
+    let active = true;
+    authOptions()
+      .then((options) => {
+        if (!active) return;
+        setDemoOn(options.demoAccounts);
+        if (options.demoAccounts) {
+          setLoginForm((current) =>
+            current.email || current.password ? current : { email: demoAccounts[0].email, password: demoAccounts[0].password }
+          );
+        }
+      })
+      .catch(() => {
+        if (active) setDemoOn(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Depois de sair (ou de a sessão vencer) o foco cairia no body: vai para o título da tela,
@@ -622,7 +635,6 @@ export function LoginScreen({
       // espera o campo ganhar aria-invalid antes de focar
       const target = {
         fullName: fullNameRef,
-        registration: registrationRef,
         email: emailRef,
         password: passwordRef,
         passwordConfirmation: confirmRef,
@@ -698,9 +710,7 @@ export function LoginScreen({
             email: signupForm.email.trim(),
             password: signupForm.password,
             passwordConfirmation: signupForm.passwordConfirmation,
-            role: signupForm.role,
-            // o responsável não tem matrícula (mandar uma dá 422)
-            registration: guardian ? null : signupForm.registration.trim() || null,
+            role: "guardian",
           })
         );
       }
@@ -765,14 +775,16 @@ export function LoginScreen({
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
                   <Users className="h-4 w-4 text-accent" aria-hidden />
                 </span>
-                Visão por perfil para aluno, docente e administração
+                Visão por perfil para aluno, responsável, docente e administração
               </li>
             </ul>
           </div>
 
           <p className="flex items-center gap-2 border-t border-white/10 pt-5 text-[13px] text-on-night-2">
             <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
-            Ambiente de demonstração: os dados voltam ao padrão sempre que o servidor reinicia.
+            {demoOn
+              ? "Ambiente de demonstração: entre pelos atalhos para conhecer cada perfil."
+              : "Aluno e docente do IFMS entram com a conta Google do instituto."}
           </p>
         </div>
 
@@ -836,13 +848,24 @@ export function LoginScreen({
               </div>
 
               <h1 ref={titleRef} className="disp text-[30px] font-bold leading-tight" tabIndex={-1}>
-                {mode === "login" ? "Entrar" : "Criar minha conta"}
+                {mode === "login" ? "Entrar" : "Criar conta de responsável"}
               </h1>
               <p className="mt-2 text-[14.5px] leading-6 text-muted">
-                {mode === "login"
-                  ? "Use seu e-mail ou escolha uma conta de demonstração."
-                  : "Crie uma conta para acompanhar prazos e configurar lembretes."}
+                {mode === "signup"
+                  ? "Para pais e responsáveis acompanharem a agenda e as notas do aluno."
+                  : demoOn
+                    ? "Use seu e-mail ou escolha uma conta de demonstração."
+                    : "Use seu e-mail e senha, ou a conta Google do IFMS."}
               </p>
+              {mode === "signup" ? (
+                <p className="callout blue mt-4">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  <span className="min-w-0">
+                    Aluno ou docente do IFMS não precisa criar conta: use <strong>Entrar com o Google</strong>, logo
+                    abaixo, com o e-mail do instituto.
+                  </span>
+                </p>
+              ) : null}
 
               <div className="mt-5 grid gap-3">
                 {mode === "signup" ? (
@@ -860,45 +883,6 @@ export function LoginScreen({
                         maxLength={120}
                       />
                     </Field>
-                    <div className={cx("grid gap-3", !guardian && "sm:grid-cols-2")}>
-                      {/* o responsável não tem matrícula: o campo some (o que foi digitado fica guardado) */}
-                      {guardian ? null : (
-                        <Field
-                          label="Matrícula"
-                          hint="opcional"
-                          error={fieldErrors.registration}
-                          errorId={errorId("registration")}
-                        >
-                          <input
-                            ref={registrationRef}
-                            className="input"
-                            value={signupForm.registration}
-                            onChange={(event) => {
-                              setSignupForm({ ...signupForm, registration: event.target.value });
-                              touched("registration");
-                            }}
-                            placeholder="ALU-000"
-                          />
-                        </Field>
-                      )}
-                      <Field label="Perfil">
-                        <select
-                          className="input"
-                          value={signupForm.role}
-                          onChange={(event) => {
-                            setSignupForm({
-                              ...signupForm,
-                              role: event.target.value as SignupRole,
-                            });
-                            touched("registration");
-                          }}
-                        >
-                          <option value="student">Aluno</option>
-                          <option value="teacher">Docente</option>
-                          <option value="guardian">Responsável</option>
-                        </select>
-                      </Field>
-                    </div>
                     {guardian ? (
                       <p className="callout blue">
                         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -1067,7 +1051,7 @@ export function LoginScreen({
                 </p>
               ) : null}
 
-              {mode === "login" ? (
+              {mode === "login" && demoOn ? (
                 <div className="mt-7">
                   <p className="flex items-center gap-2 text-sm font-bold text-ink-2">
                     <ShieldCheck className="h-4 w-4 text-muted" aria-hidden />

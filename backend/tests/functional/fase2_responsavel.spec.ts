@@ -51,6 +51,11 @@ async function loginAs(client: any, email: string) {
 }
 
 async function signup(client: any, email: string, role = 'guardian', fullName = 'Conta Nova') {
+  if (role !== 'guardian') {
+    // docente não se cadastra com e-mail e senha (entra com o Google do IFMS): a conta nasce direto
+    const user = await User.create({ fullName, email, password: 'password123', role })
+    return { token: await loginAs(client, email), user: { id: user.id, role: user.role } }
+  }
   const response = await client.post(`${API}/auth/signup`).json({
     fullName,
     email,

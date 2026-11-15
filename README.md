@@ -30,7 +30,8 @@ Professora: Profa. Maraísa.
 - O responsável (pai, mãe) acompanha a agenda e as notas do aluno vinculado, pelo código que o aluno gera no perfil.
 - A administração importa o calendário oficial arrastando o PDF do Calendário Acadêmico do IFMS (ou por JSON). As
   datas oficiais têm prioridade sobre os eventos das turmas.
-- Dá para entrar com e-mail e senha ou com a conta Google do IFMS, e pedir uma senha nova por e-mail.
+- Aluno e docente entram com a conta Google do IFMS, e a conta é criada no primeiro acesso. O cadastro com e-mail e
+  senha é só do responsável, que também pode pedir uma senha nova por e-mail.
 - Cada perfil vê só o menu e as ações que lhe cabem, e a API confere a permissão antes de salvar.
 - O sistema guarda as notas, mas não calcula médias nem frequência.
 
@@ -57,6 +58,14 @@ Todas usam a senha `password123`. A tela de login tem atalhos para as quatro pri
 | Professora (curso integrado)           | Profa. Marina Souza    | `marina@agenda.test`  |
 
 Essas contas nunca recebem e-mail (o domínio `.test` é reservado).
+
+Como o banco de produção guarda os dados, essas contas (com a senha pública) dariam acesso a dados reais. Antes de
+alunos e responsáveis de verdade usarem o sistema, desligue-as no Render, em **Environment**:
+
+- `DEMO_ACCOUNTS=false`: as contas `@agenda.test` deixam de entrar, as sessões abertas delas caem e os atalhos somem
+  da tela de login. Sem a variável, elas ficam ligadas.
+- `ADMIN_EMAILS=seu.email@exemplo.com`: quem entra com o Google usando um desses e-mails (separados por vírgula)
+  vira administração, mesmo fora do IFMS. Vale só pelo Google, que confirma que o e-mail é da pessoa.
 
 ## Requisitos funcionais
 
@@ -165,7 +174,8 @@ A cada início a API aplica as migrations e, só se o banco não tiver nenhum us
 
 O botão **Entrar com o Google** entra na conta que já existe com o mesmo e-mail. Sem conta, ele cria uma só
 para e-mails do Google do IFMS: `@estudante.ifms.edu.br` vira aluno e `@ifms.edu.br` vira docente (o vínculo
-com as turmas continua com a administração).
+com as turmas continua com a administração). Aluno e docente só criam conta por aqui; o cadastro com e-mail e
+senha é do responsável. E-mails da lista `ADMIN_EMAILS` entram como administração.
 
 1. No [Google Cloud Console](https://console.cloud.google.com/apis/credentials), configure a **Tela de
    permissão OAuth** (tipo Externo, escopos `openid`, `email` e `profile`) e crie uma credencial **ID do

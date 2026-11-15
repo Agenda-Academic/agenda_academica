@@ -29,6 +29,11 @@ export default await Env.create(new URL('../', import.meta.url), {
   // TLS na conexão com o Postgres (padrão: ligado; false só para o Postgres local)
   DB_SSL: Env.schema.boolean.optional(),
 
+  // Contas de demonstração do seed (@agenda.test): false desliga o login delas e os atalhos da tela
+  DEMO_ACCOUNTS: Env.schema.boolean.optional(),
+  // E-mails que viram administração ao entrar com o Google, separados por vírgula
+  ADMIN_EMAILS: Env.schema.string.optional(),
+
   // Session
   SESSION_DRIVER: Env.schema.enum(['cookie', 'memory', 'database'] as const),
 

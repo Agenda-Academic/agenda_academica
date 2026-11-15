@@ -1,4 +1,5 @@
 import User from '#models/user'
+import AccountPolicyService from '#services/account_policy_service'
 import AuditLogService from '#services/audit_log_service'
 import ClassMembershipService from '#services/class_membership_service'
 import env from '#start/env'
@@ -241,14 +242,29 @@ export default class GoogleOAuthService {
   /**
    * Entra na conta do e-mail (de qualquer domínio) ou cria a conta do IFMS. Sem conta e sem o
    * `hd` do IFMS (conta gerenciada pelo Google do instituto), não cria nada: devolve null.
+   * E-mail da lista ADMIN_EMAILS entra como administração (a conta que já existe é promovida).
    */
   static async findOrCreateUser(identity: GoogleIdentity): Promise<User | null> {
+    const admin = AccountPolicyService.isAdminEmail(identity.email)
     const existing = await User.query().whereRaw('lower(email) = ?', [identity.email]).first()
     if (existing) {
+      if (admin && existing.role !== 'admin') {
+        const before = existing.role
+        existing.role = 'admin'
+        await existing.save()
+        await AuditLogService.record({
+          actorId: existing.id,
+          action: 'auth.google_admin',
+          entity: 'user',
+          entityId: existing.id,
+          subjectUserId: existing.id,
+          meta: { from: before },
+        })
+      }
       return existing
     }
 
-    const role = isIfmsDomain(identity.hd) ? roleForEmail(identity.email) : null
+    const role = admin ? 'admin' : isIfmsDomain(identity.hd) ? roleForEmail(identity.email) : null
     if (!role) {
       return null
     }

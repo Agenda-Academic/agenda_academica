@@ -315,14 +315,13 @@ export async function login(email: string, password: string) {
   return payload.data;
 }
 
+/** Cadastro com e-mail e senha: só de responsável (aluno e docente entram com o Google do IFMS). */
 export type SignupInput = {
   fullName: string;
   email: string;
   password: string;
   passwordConfirmation: string;
-  /** O responsável ("guardian") não manda matrícula (registration preenchida dá 422). */
-  role?: Exclude<UserRole, "admin">;
-  registration?: string | null;
+  role: "guardian";
 };
 
 export async function signup(input: SignupInput) {
@@ -330,6 +329,12 @@ export async function signup(input: SignupInput) {
     method: "POST",
     body: input,
   });
+  return payload.data;
+}
+
+/** O que a tela de entrar mostra: os atalhos só aparecem com as contas de demonstração ligadas. */
+export async function authOptions() {
+  const payload = await apiFetch<ApiEnvelope<{ demoAccounts: boolean }>>("/auth/options");
   return payload.data;
 }
 

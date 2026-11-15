@@ -41,6 +41,8 @@ router
       .group(() => {
         router.post('signup', [controllers.NewAccount, 'store'])
         router.post('login', [controllers.AccessTokens, 'store'])
+        // O que a tela de entrar mostra (os atalhos das contas de demonstração)
+        router.get('options', [controllers.AccessTokens, 'options'])
 
         // Esqueci minha senha: pedir o link por e-mail e criar a senha nova pelo link.
         router.post('forgot-password', [PasswordResetsController, 'request'])

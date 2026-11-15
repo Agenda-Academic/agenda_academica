@@ -143,25 +143,34 @@ test.group('Academic API', (group) => {
     )
   })
 
-  test('signup rejects a registration that already has an account', async ({ client, assert }) => {
-    // com espaços em volta também, porque a matrícula é gravada sem eles
-    for (const registration of ['ALU-001', ' ALU-001 ']) {
-      const response = await client.post('/api/v1/auth/signup').json({
-        fullName: 'Pessoa Repetida',
-        email: 'repetida@agenda.test',
-        password: 'password123',
-        passwordConfirmation: 'password123',
-        registration,
-      })
+  test('signup with e-mail and password is only for guardians', async ({ client, assert }) => {
+    const base = {
+      fullName: 'Pessoa Nova',
+      password: 'password123',
+      passwordConfirmation: 'password123',
+    }
 
+    // aluno e docente entram com o Google do IFMS: o cadastro aberto não cria essas contas
+    for (const role of ['student', 'teacher'] as const) {
+      const response = await client
+        .post('/api/v1/auth/signup')
+        .json({ ...base, email: `${role}.novo@agenda.test`, role })
       response.assertStatus(422)
       const errors = (response.body() as unknown as { errors?: { field: string; rule: string }[] })
         .errors
-      assert.isTrue(
-        (errors ?? []).some(
-          (error) => error.field === 'registration' && error.rule === 'database.unique'
-        )
+      assert.deepEqual(
+        (errors ?? []).map((error) => [error.field, error.rule]),
+        [['role', 'google_only']]
       )
+      assert.isNull(await User.findBy('email', `${role}.novo@agenda.test`))
     }
+
+    // sem perfil, a conta é de responsável
+    const guardian = await client
+      .post('/api/v1/auth/signup')
+      .json({ ...base, email: 'responsavel.novo@agenda.test' })
+    guardian.assertStatus(200)
+    const created = await User.findByOrFail('email', 'responsavel.novo@agenda.test')
+    assert.equal(created.role, 'guardian')
   })
 })

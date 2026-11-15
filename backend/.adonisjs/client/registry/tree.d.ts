@@ -8,6 +8,7 @@ export interface ApiDefinition {
     }
     accessTokens: {
       store: typeof routes['auth.access_tokens.store']
+      options: typeof routes['auth.access_tokens.options']
     }
     passwordResets: {
       request: typeof routes['auth.password_resets.request']

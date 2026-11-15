@@ -1,11 +1,17 @@
 import User from '#models/user'
+import AccountPolicyService, { DEMO_ACCOUNTS_OFF } from '#services/account_policy_service'
+import { forbidden } from '#services/api_errors'
 import { loginValidator } from '#validators/user'
 import type { HttpContext } from '@adonisjs/core/http'
 import UserTransformer from '#transformers/user_transformer'
 
 export default class AccessTokensController {
-  async store({ request, serialize }: HttpContext) {
+  async store({ request, response, serialize }: HttpContext) {
     const { email, password } = await request.validateUsing(loginValidator)
+
+    if (AccountPolicyService.isBlocked(email)) {
+      return forbidden(response, DEMO_ACCOUNTS_OFF)
+    }
 
     const user = await User.verifyCredentials(email, password)
     const token = await User.accessTokens.create(user)
@@ -14,6 +20,11 @@ export default class AccessTokensController {
       user: UserTransformer.transform(user),
       token: token.value!.release(),
     })
+  }
+
+  /** Público: o que a tela de entrar mostra (os atalhos das contas de demonstração). */
+  async options() {
+    return { data: { demoAccounts: AccountPolicyService.demoAccountsEnabled() } }
   }
 
   async destroy({ auth }: HttpContext) {

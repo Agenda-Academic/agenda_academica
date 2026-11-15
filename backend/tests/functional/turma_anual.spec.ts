@@ -6,6 +6,7 @@ import Course from '#models/course'
 import Enrollment from '#models/enrollment'
 import User from '#models/user'
 import AttemptLimiterService from '#services/attempt_limiter_service'
+import ClassMembershipService from '#services/class_membership_service'
 import testUtils from '@adonisjs/core/services/test_utils'
 import db from '@adonisjs/lucid/services/db'
 import { test } from '@japa/runner'
@@ -36,16 +37,23 @@ async function loginAs(client: any, email: string) {
   return (response.body() as unknown as Envelope<{ token: string }>).data.token
 }
 
+/** Aluno novo, como no primeiro acesso pelo Google do IFMS (o cadastro aberto é só de responsável). */
 async function signup(client: any, email: string) {
-  const response = await client.post(`${API}/auth/signup`).json({
-    fullName: 'Conta Nova',
-    email,
-    password: 'password123',
-    passwordConfirmation: 'password123',
-    role: 'student',
+  const user = await db.transaction(async (trx) => {
+    const created = await User.create(
+      {
+        fullName: 'Conta Nova',
+        email,
+        password: 'password123',
+        role: 'student',
+        registration: null,
+      },
+      { client: trx }
+    )
+    await ClassMembershipService.acceptInvites(created, trx)
+    return created
   })
-  response.assertStatus(200)
-  return (response.body() as unknown as Envelope<{ token: string; user: { id: number } }>).data
+  return { token: await loginAs(client, email), user: { id: user.id } }
 }
 
 function errorsOf(body: unknown) {
