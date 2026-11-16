@@ -7,9 +7,6 @@ import {
   CircleCheckBig,
   Clock,
   CloudDownload,
-  Copy,
-  File as FileIcon,
-  FileJson,
   FileText,
   FileUp,
   History,
@@ -19,9 +16,9 @@ import {
   Undo2,
   type LucideIcon,
 } from "lucide-react";
-import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ApiError, type CalendarImportEventInput, type CalendarImportInput, type CalendarPdfResult } from "@/lib/api";
-import { addDays, cx, errorMessage, formatOnDayAt, formatShortDate, formatShortDateTime, formatTime, startOfDay } from "@/lib/format";
+import { cx, errorMessage, formatOnDayAt, formatShortDate, formatShortDateTime, formatTime, startOfDay } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, CalendarImport, Category } from "@/lib/types";
 import { delay, isOfficialDate, officialCategories } from "./dashboard-bits";
@@ -492,76 +489,8 @@ function describeImportError(error: unknown, rows: PreviewRow[]) {
   return looksEnglish(text) ? "Não foi possível importar agora. Tente de novo em instantes." : text;
 }
 
-/** Exemplo usado quando a página não manda o seu (mesmo formato do calendário de demonstração). */
-function buildDemoPayload(): CalendarImportInput {
-  const today = startOfDay(new Date());
-  const day = (offset: number, time: string) => {
-    const date = addDays(today, offset);
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${time}`;
-  };
-  return {
-    sourceName: "Calendário de demonstração",
-    sourceUrl: "https://www.ifms.edu.br/",
-    checksum: `demo-${day(0, "00:00").slice(0, 10)}`,
-    events: [
-      {
-        title: "Semana acadêmica",
-        description: "Evento institucional integrado ao calendário.",
-        category: "institutional",
-        startsAt: day(14, "00:00"),
-        endsAt: day(16, "23:59"),
-        color: "#2563eb",
-      },
-      {
-        title: "Prazo final de ajuste de matrícula",
-        description: "Data oficial da secretaria acadêmica.",
-        category: "institutional",
-        startsAt: day(18, "00:00"),
-        color: "#0f766e",
-      },
-    ],
-  };
-}
 
-/** Modelo para copiar, sempre com datas futuras. */
-function buildTemplate() {
-  const today = startOfDay(new Date());
-  const iso = (offset: number) => {
-    const date = addDays(today, offset);
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  };
-  const br = (offset: number) => {
-    const date = addDays(today, offset);
-    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
-  };
-  return JSON.stringify(
-    {
-      sourceName: "Calendário oficial do campus",
-      events: [
-        { title: "Início do semestre letivo", category: "institucional", startsAt: `${iso(30)}T07:00` },
-        { title: "Feriado municipal", category: "feriado", startsAt: iso(45) },
-        { title: "Recesso escolar", category: "recesso", startsAt: br(60), endsAt: br(64) },
-      ],
-    },
-    null,
-    2
-  );
-}
-
-/** "1 institucional, 1 feriado e 1 recesso": as categorias do arquivo, na ordem em que aparecem. */
-function categoryBreakdown(rows: PreviewRow[]) {
-  const counts = new Map<Category, number>();
-  for (const row of rows) {
-    counts.set(row.category, (counts.get(row.category) ?? 0) + 1);
-  }
-  const parts = [...counts].map(([category, count]) => {
-    const meta = categoryMeta[category];
-    return `${count} ${(count === 1 ? meta.short : meta.label).toLowerCase()}`;
-  });
-  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}` : (parts[0] ?? "");
-}
-
-/** Coluna Origem: o calendário de demonstração, o endereço da fonte ou o JSON. */
+/** Coluna Origem: o calendário de demonstração, o endereço da fonte ou o PDF. */
 function originOf(item: CalendarImport) {
   if (item.checksum?.startsWith("demo-")) {
     return { text: "Demonstração", mono: false };
@@ -569,7 +498,7 @@ function originOf(item: CalendarImport) {
   if (item.sourceUrl) {
     return { text: item.sourceUrl, mono: true };
   }
-  return { text: "JSON", mono: false };
+  return { text: "PDF", mono: false };
 }
 
 /** Situação da importação: desfeita quando trouxe datas e nenhuma está mais no calendário. */
@@ -633,12 +562,14 @@ const byStart = (a: AcademicEvent, b: AcademicEvent) => new Date(a.startsAt).get
 /** Quantas importações a tabela mostra antes do "Ver todas (N)". */
 const IMPORTS_PREVIEW = 5;
 
+/** PDF de exemplo (Calendário Acadêmico 2027, Campus Três Lagoas), para ver a importação na demonstração. */
+const SAMPLE_PDF_URL = "/exemplos/calendario-academico-2027.pdf";
+
 export function SyncView({
   events,
   imports,
   isAdmin,
   saving,
-  demoPayload,
   onImport,
   onImportJson,
   onOpenCalendar,
@@ -654,7 +585,7 @@ export function SyncView({
   onReadPdf?: (file: File) => Promise<CalendarPdfResult>;
   /** PDF solto em qualquer lugar do app: a tela lê assim que recebe (o id muda a cada arquivo). */
   incomingPdf?: { file: File; id: number } | null;
-  /** Dados da "Importação de demonstração". Sem ele, a tela monta um exemplo próprio. */
+  /** Não é mais usado: a demonstração agora lê o PDF de exemplo. Fica para a página não precisar mudar. */
   demoPayload?: CalendarImportInput;
   /** Importa e devolve o resultado; o texto colado só é limpo quando der certo. */
   onImport?: (payload: CalendarImportInput) => Promise<ImportOutcome>;
@@ -665,13 +596,9 @@ export function SyncView({
   onImportJson?: (payload: CalendarImportInput) => void;
 }) {
   const baseId = useId();
-  const textId = `${baseId}-json`;
-  const statusId = `${baseId}-status`;
-  const formatId = `${baseId}-formato`;
   const demoTitleId = `${baseId}-demo`;
   const pdfTitleId = `${baseId}-pdf`;
   const pdfHintId = `${baseId}-pdf-dica`;
-  const jsonTitleId = `${baseId}-json-titulo`;
   const resultTitleId = `${baseId}-resultado`;
   const accessId = `${baseId}-acesso`;
   const prioId = `${baseId}-prioridade`;
@@ -684,8 +611,6 @@ export function SyncView({
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [importing, setImporting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [fileNote, setFileNote] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
-  const [copyNote, setCopyNote] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<LastResult | null>(null);
   const [openImportId, setOpenImportId] = useState<number | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
@@ -694,18 +619,17 @@ export function SyncView({
   const [previewFocus, setPreviewFocus] = useState(0);
   // horário de referência fixado na montagem (render precisa ser puro)
   const [now] = useState(() => Date.now());
-  const [template] = useState(buildTemplate);
   // "Ver todas (N)": a tabela mostra as últimas importações e abre o resto ali mesmo
   const [showAllImports, setShowAllImports] = useState(false);
 
   const [pdfReading, setPdfReading] = useState(false);
+  // baixando o PDF de exemplo (depois a leitura segue como a de qualquer PDF)
+  const [sampleLoading, setSampleLoading] = useState(false);
   const [pdfDragging, setPdfDragging] = useState(false);
   const [pdfNote, setPdfNote] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
   const handledPdf = useRef<number | null>(null);
 
-  const fileRef = useRef<HTMLInputElement>(null);
-  const textRef = useRef<HTMLTextAreaElement>(null);
   const resultRef = useRef<HTMLElement>(null);
   const previewRef = useRef<HTMLHeadingElement>(null);
   const rowButtons = useRef(new Map<number, HTMLButtonElement>());
@@ -713,7 +637,7 @@ export function SyncView({
   const moreImportsRef = useRef<HTMLButtonElement>(null);
   // tabela que acabou de abrir (com a primeira importação que apareceu) ou de fechar
   const importsToggled = useRef<{ firstNew: number | null } | null>(null);
-  // a coluna lateral termina junto do card do JSON (ou fica parada no alto, se ele for bem mais alto)
+  // a coluna lateral termina junto da principal (ou fica parada no alto, se ela for bem mais alta)
   const mainColRef = useRef<HTMLDivElement>(null);
   const { sideRef, gapRef, stuck } = useSideFit(mainColRef, isAdmin);
 
@@ -810,25 +734,6 @@ export function SyncView({
     }
   }, [showAllImports]);
 
-  // o campo cresce com o texto, e quem rola é a página. Sem field-sizing no navegador, a altura vem do
-  // texto por aqui (sem o crescimento que o card esticado dá, para medir só o texto)
-  useLayoutEffect(() => {
-    const field = textRef.current;
-    if (!field || typeof CSS === "undefined" || CSS.supports("field-sizing", "content")) {
-      return;
-    }
-    const fit = () => {
-      field.style.flexGrow = "0";
-      field.style.height = "auto";
-      const borders = field.offsetHeight - field.clientHeight;
-      field.style.height = `${field.scrollHeight + borders}px`;
-      field.style.flexGrow = "";
-    };
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  }, [text, isAdmin]);
-
   function toggleImports() {
     const open = !showAllImports;
     importsToggled.current = { firstNew: open ? (imports[IMPORTS_PREVIEW]?.id ?? null) : null };
@@ -842,49 +747,9 @@ export function SyncView({
     setLastResult(null);
   }
 
-  /** "Importar calendário de demonstração": os dados de exemplo entram no campo e a prévia abre para conferir. */
-  function loadDemo() {
-    if (busy) {
-      return;
-    }
-    changeText(JSON.stringify(demoPayload ?? buildDemoPayload(), null, 2));
-    setPicked({});
-    setFileNote(null);
-    setPreviewOpen(true);
-    setPreviewFocus((value) => value + 1);
-  }
-
-  function clearText() {
-    changeText("");
-    setPicked({});
-    setFileNote(null);
-    setPdfNote(null);
-    setPreviewOpen(false);
-    textRef.current?.focus();
-  }
-
-  async function readFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) {
-      return;
-    }
-    if (file.size > 1_000_000) {
-      setFileNote({ tone: "err", text: "O arquivo passa de 1 MB. Divida as datas em arquivos menores." });
-      return;
-    }
-    try {
-      changeText(await file.text());
-      setPicked({});
-      setFileNote({ tone: "ok", text: `Arquivo carregado: ${file.name}` });
-    } catch {
-      setFileNote({ tone: "err", text: "Não foi possível ler o arquivo. Tente de novo ou cole o texto." });
-    }
-  }
-
   /**
-   * PDF do Calendário Acadêmico: a API lê as datas, elas entram no campo como JSON e a prévia abre para
-   * conferir. Assuntos só de servidores (PIT, RAD, diários) vêm desmarcados.
+   * PDF do Calendário Acadêmico: a API lê as datas e a prévia abre para conferir (por dentro, as datas seguem a
+   * mesma validação de sempre). Assuntos só de servidores (PIT, RAD, diários) vêm desmarcados.
    */
   async function readPdf(file: File | undefined) {
     if (!file || !onReadPdf || pdfReading) {
@@ -927,7 +792,6 @@ export function SyncView({
       }
       changeText(json);
       setPicked(nextPicked);
-      setFileNote({ tone: "ok", text: `Datas lidas do PDF ${file.name}.` });
       const unchecked = staff.size
         ? ` ${staff.size === 1 ? "1 assunto só de servidores ficou desmarcado" : `${staff.size} assuntos só de servidores ficaram desmarcados`} (PIT, RAD, diários).`
         : "";
@@ -943,22 +807,27 @@ export function SyncView({
     }
   }
 
-  async function copyTemplate() {
-    try {
-      await navigator.clipboard.writeText(template);
-      setCopyNote("Modelo copiado. Cole em Conteúdo JSON e troque pelos dados do calendário.");
-    } catch {
-      setCopyNote("Não foi possível copiar. Selecione o modelo acima e copie.");
-    }
-  }
-
-  function openPreview() {
-    if (check.status !== "ok") {
+  /** "Ler o PDF de exemplo": baixa o PDF que vem com o sistema e lê como se ele tivesse sido arrastado. */
+  async function readSamplePdf() {
+    if (busy || pdfReading || sampleLoading) {
       return;
     }
-    setLastResult(null);
-    setPreviewOpen(true);
-    setPreviewFocus((value) => value + 1);
+    setSampleLoading(true);
+    setPdfNote(null);
+    let file: File;
+    try {
+      const response = await fetch(SAMPLE_PDF_URL);
+      if (!response.ok) {
+        throw new Error(String(response.status));
+      }
+      file = new File([await response.blob()], "calendario-academico-2027.pdf", { type: "application/pdf" });
+    } catch {
+      setPdfNote({ tone: "err", text: "Não deu para abrir o PDF de exemplo. Tente de novo." });
+      return;
+    } finally {
+      setSampleLoading(false);
+    }
+    await readPdf(file);
   }
 
   async function runImport() {
@@ -986,7 +855,6 @@ export function SyncView({
         setText("");
         setPicked({});
         setPreviewOpen(false);
-        setFileNote(null);
         setPdfNote(null);
         setLastResult({
           importId: outcome.result?.import?.id ?? null,
@@ -1062,28 +930,6 @@ export function SyncView({
     );
   }
 
-  const statusBlock =
-    check.status === "empty" ? (
-      <p className="field-help">Cole o conteúdo do arquivo ou escolha um arquivo .json.</p>
-    ) : check.status === "error" ? (
-      <p className="callout rose mt-3">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-        <span className="min-w-0 wrap-anywhere">{check.message}</span>
-      </p>
-    ) : (
-      <p className="callout green mt-3">
-        <CircleCheckBig className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-        <span>
-          <b>JSON válido.</b>{" "}
-          {duplicates
-            ? `${datesLabel(rows.length)} no arquivo: ${categoryBreakdown(rows)}. ${
-                duplicates === 1 ? "1 já existe" : `${duplicates} já existem`
-              } no calendário.`
-            : `${datesLabel(rows.length)} ${rows.length === 1 ? "pronta" : "prontas"} para importar: ${categoryBreakdown(rows)}.`}
-        </span>
-      </p>
-    );
-
   return (
     <div className="grid gap-5">
       <div className="kpis">
@@ -1110,7 +956,7 @@ export function SyncView({
         />
       </div>
 
-      {/* o card do JSON e a coluna lateral terminam juntos: o mais baixo estica (o campo cresce, ou a sobra fica no pé de Campos aceitos) */}
+      {/* a coluna principal e a lateral terminam juntas: a sobra fica no pé de Como funciona */}
       <div className={cx("tela-cols", stuck && "is-stuck")}>
         <div ref={mainColRef} className="tela-main">
           {onReadPdf ? (
@@ -1187,284 +1033,221 @@ export function SyncView({
             </section>
           ) : null}
 
-          <section className="card pad rise imp-demo" style={delay(4)} aria-labelledby={demoTitleId}>
-            <span className="imp-ico" aria-hidden>
-              <CloudDownload className="h-6 w-6" />
-            </span>
-            <div className="imp-demo-text">
-              <h2 className="h2" id={demoTitleId}>
-                Importação de demonstração
-              </h2>
-              <p className="sub">Carrega um conjunto de datas institucionais de exemplo para testes e apresentações.</p>
-            </div>
-            <button
-              className="btn btn-p aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
-              aria-disabled={busy || undefined}
-              onClick={loadDemo}
-              type="button"
-            >
-              <CloudDownload className="h-4 w-4" aria-hidden />
-              Importar calendário de demonstração
-            </button>
-          </section>
-
-          <section className="card pad rise imp-json-card min-w-0" style={delay(5)} aria-labelledby={jsonTitleId}>
-            <div className="flex min-w-0 items-start gap-[18px]">
-              <span className="imp-ico json" aria-hidden>
-                <FileJson className="h-6 w-6" />
+          {onReadPdf ? (
+            <section className="card pad rise imp-demo" style={delay(4)} aria-labelledby={demoTitleId}>
+              <span className="imp-ico" aria-hidden>
+                <FileText className="h-6 w-6" />
               </span>
-              <div className="min-w-0">
-                <h2 className="h2" id={jsonTitleId}>
-                  Importar JSON personalizado
+              <div className="imp-demo-text">
+                <h2 className="h2" id={demoTitleId}>
+                  Calendário de exemplo
                 </h2>
-                <p className="sub">Cole o calendário exportado pela reitoria ou escolha o arquivo. Os dados são validados antes de gravar.</p>
+                <p className="sub">
+                  Lê o Calendário Acadêmico 2027 do Campus Três Lagoas, para ver como a importação funciona. Nada é gravado antes
+                  de você conferir.
+                </p>
               </div>
-            </div>
-
-            {/* rótulo e formato à esquerda; o arquivo .json, à direita, logo acima do campo */}
-            <div className="mt-[18px] flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-              <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-                <label htmlFor={textId} className="lbl">
-                  Conteúdo JSON
-                </label>
-                <span className="font-mono text-[13px] text-muted" aria-hidden>
-                  {'{ "sourceName", "events": [...] }'}
-                </span>
-              </span>
-              <button className="btn btn-s btn-sm" onClick={() => fileRef.current?.click()} type="button">
-                <FileUp className="h-4 w-4" aria-hidden />
-                Escolher arquivo .json
+              <button
+                className="btn btn-p aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
+                aria-busy={sampleLoading || undefined}
+                aria-disabled={busy || pdfReading || sampleLoading || undefined}
+                onClick={() => void readSamplePdf()}
+                type="button"
+              >
+                {sampleLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <FileUp className="h-4 w-4" aria-hidden />}
+                Ler o PDF de exemplo
               </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".json,application/json"
-                className="hidden"
-                tabIndex={-1}
-                aria-hidden
-                onChange={(event) => void readFile(event)}
-              />
-            </div>
-            {fileNote ? (
-              <p
-                role={fileNote.tone === "err" ? "alert" : "status"}
-                className={cx("mt-2 text-sm wrap-anywhere", fileNote.tone === "err" ? "font-semibold text-[var(--danger)]" : "text-ink-3")}
-              >
-                {fileNote.text}
-              </p>
-            ) : null}
-            <textarea
-              ref={textRef}
-              id={textId}
-              className="input imp-json mt-2"
-              value={text}
-              onChange={(event) => changeText(event.target.value)}
-              placeholder="Cole aqui o conteúdo do arquivo do calendário."
-              aria-describedby={`${statusId} ${formatId}`}
-              aria-invalid={check.status === "error" ? true : undefined}
-              spellCheck={false}
-            />
-            <div id={statusId} aria-live="polite">
-              {statusBlock}
-            </div>
-            <p id={formatId} className="sr-only">
-              Cada data precisa de title, category e startsAt. Os campos estão em Campos aceitos.
-            </p>
+              <a className="btn btn-s" href={SAMPLE_PDF_URL} target="_blank" rel="noopener">
+                <FileText className="h-4 w-4" aria-hidden />
+                Abrir o PDF
+              </a>
+            </section>
+          ) : null}
 
-            {!previewOpen ? (
-              <div className="mt-3.5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
-                <button className="btn btn-p w-full sm:w-auto" disabled={check.status !== "ok" || busy} onClick={openPreview} type="button">
-                  <FileIcon className="h-4 w-4" aria-hidden />
-                  Validar e importar JSON
-                </button>
-                {text ? (
-                  <button className="btn btn-s w-full sm:w-auto" onClick={clearText} type="button">
-                    Limpar
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              <div className="mt-4 grid grid-cols-1 gap-3 rounded-2xl border border-line-2 bg-surface-2 p-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <h3 ref={previewRef} tabIndex={-1} className="text-[16px] font-bold outline-none">
-                    Conferir datas
-                  </h3>
-                  {check.status === "ok" ? <p className="min-w-0 text-sm text-ink-3 wrap-anywhere">Fonte: {check.sourceName}</p> : null}
-                </div>
-
-                {check.status === "ok" ? (
-                  <>
-                    {previous ? (
-                      <p className="callout amber">
-                        <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                        <span>
-                          Esse calendário já foi importado {formatOnDayAt(previous.importedAt)}.
-                          {duplicates ? " As datas que já existem ficaram desmarcadas." : ""}
-                        </span>
-                      </p>
-                    ) : undonePrevious ? (
-                      // as datas daquela importação saíram do calendário: não há repetida a evitar
-                      <p className="callout blue">
-                        <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                        <span>Esse calendário foi importado {formatOnDayAt(undonePrevious.importedAt)} e depois desfeito.</span>
-                      </p>
-                    ) : null}
-                    <ul className="grid grid-cols-1 gap-2">
-                      {rows.map((row) => {
-                        const meta = categoryMeta[row.category];
-                        const inputId = `${baseId}-linha-${row.index}`;
-                        return (
-                          <li
-                            key={row.key}
-                            className={cx("flex items-start gap-3 rounded-xl border bg-white p-3", isPicked(row) ? "border-line" : "border-line-2")}
-                          >
-                            <input
-                              id={inputId}
-                              type="checkbox"
-                              className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
-                              checked={isPicked(row)}
-                              disabled={busy}
-                              onChange={(event) => setPicked((current) => ({ ...current, [row.key]: event.target.checked }))}
-                            />
-                            <label htmlFor={inputId} className="min-w-0 flex-1 cursor-pointer">
-                              <span className={cx("block text-[15px] font-bold leading-snug wrap-anywhere", !isPicked(row) && "text-ink-3")}>{row.title}</span>
-                              <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-ink-3">
-                                <span className={cx("pill", meta.tint)}>{meta.short}</span>
-                                <span>{rangeLabel(row.start, row.end)}</span>
-                                {row.duplicate === "existing" ? <span className="pill stat">Já existe</span> : null}
-                                {row.duplicate === "file" ? <span className="pill stat">Repetida no arquivo</span> : null}
-                                {row.past ? (
-                                  <span className="inline-flex items-center gap-1">
-                                    <Clock className="h-3.5 w-3.5" aria-hidden />
-                                    Já passou
-                                  </span>
-                                ) : null}
-                              </span>
-                            </label>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    <p className="text-sm text-ink-3">
-                      {chosen.length === rows.length
-                        ? `${datesLabel(rows.length)} para importar.`
-                        : `${chosen.length} de ${datesLabel(rows.length)} marcadas para importar.`}
-                      {duplicates && !chosen.length ? " Todas já existem. Marque alguma se quiser importar mesmo assim." : ""}
-                      {pastChosen
-                        ? ` ${pastChosen === 1 ? "1 data já passou e aparece" : `${pastChosen} datas já passaram e aparecem`} só em Passados.`
-                        : ""}
-                    </p>
-                  </>
-                ) : (
-                  <p className="callout rose">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                    {check.status === "error"
-                      ? "Os dados têm um problema. Corrija o que aparece embaixo do campo para conferir as datas."
-                      : "Cole os dados do calendário para conferir."}
-                  </p>
-                )}
-
-                {submitError ? (
-                  <div role="alert" className="callout rose">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                    <span className="min-w-0 wrap-anywhere">
-                      <b className="block">A importação não foi feita. O texto continua no campo.</b>
-                      {submitError}
-                    </span>
-                  </div>
-                ) : null}
-
-                <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
-                  <button
-                    className="btn btn-p w-full sm:w-auto"
-                    disabled={!canImport}
-                    aria-disabled={busy || undefined}
-                    onClick={() => void runImport()}
-                    type="button"
-                  >
-                    {importing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" aria-hidden />}
-                    {importing
-                      ? "Importando"
-                      : check.status !== "ok"
-                        ? "Importar datas"
-                        : chosen.length
-                          ? `Importar ${datesLabel(chosen.length)}`
-                          : "Nenhuma data marcada"}
-                  </button>
-                  <button className="btn btn-s w-full sm:w-auto" disabled={importing} onClick={() => setPreviewOpen(false)} type="button">
-                    Fechar prévia
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {lastResult ? (
-              <section
-                ref={resultRef}
-                tabIndex={-1}
-                className={cx(
-                  "mt-4 rounded-2xl border p-4 outline-none",
-                  resultUndone ? "border-line-2 bg-surface-2" : "border-brand-200 bg-brand-50"
-                )}
-                aria-labelledby={resultTitleId}
-              >
-                <div className="flex items-start gap-3">
-                  <span className={cx("kpi-ico shrink-0", resultUndone ? "c-ativ" : "bg-white")}>
-                    {resultUndone ? <Undo2 className="h-[18px] w-[18px]" aria-hidden /> : <CheckCircle2 className="h-[18px] w-[18px]" aria-hidden />}
-                  </span>
-                  <div className="min-w-0">
-                    <h3 id={resultTitleId} className="text-[16px] font-bold">
-                      {resultUndone ? "Importação desfeita" : `${datesLabel(resultCount)} ${resultCount === 1 ? "importada" : "importadas"}`}
+          {previewOpen || lastResult ? (
+            <section className="card pad rise min-w-0" style={delay(5)} aria-label="Conferir e importar datas">
+              {previewOpen ? (
+                <div className="grid grid-cols-1 gap-3 rounded-2xl border border-line-2 bg-surface-2 p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <h3 ref={previewRef} tabIndex={-1} className="text-[16px] font-bold outline-none">
+                      Conferir datas
                     </h3>
-                    <p className="sub !mt-0.5 wrap-anywhere">
-                      {resultUndone
-                        ? `As datas de "${lastResult.sourceName}" saíram do calendário.`
-                        : `De "${lastResult.sourceName}", ${formatOnDayAt(lastResult.importedAt)}.`}
+                    {check.status === "ok" ? <p className="min-w-0 text-sm text-ink-3 wrap-anywhere">Fonte: {check.sourceName}</p> : null}
+                  </div>
+
+                  {check.status === "ok" ? (
+                    <>
+                      {previous ? (
+                        <p className="callout amber">
+                          <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                          <span>
+                            Esse calendário já foi importado {formatOnDayAt(previous.importedAt)}.
+                            {duplicates ? " As datas que já existem ficaram desmarcadas." : ""}
+                          </span>
+                        </p>
+                      ) : undonePrevious ? (
+                        // as datas daquela importação saíram do calendário: não há repetida a evitar
+                        <p className="callout blue">
+                          <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                          <span>Esse calendário foi importado {formatOnDayAt(undonePrevious.importedAt)} e depois desfeito.</span>
+                        </p>
+                      ) : null}
+                      <ul className="grid grid-cols-1 gap-2">
+                        {rows.map((row) => {
+                          const meta = categoryMeta[row.category];
+                          const inputId = `${baseId}-linha-${row.index}`;
+                          return (
+                            <li
+                              key={row.key}
+                              className={cx("flex items-start gap-3 rounded-xl border bg-white p-3", isPicked(row) ? "border-line" : "border-line-2")}
+                            >
+                              <input
+                                id={inputId}
+                                type="checkbox"
+                                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+                                checked={isPicked(row)}
+                                disabled={busy}
+                                onChange={(event) => setPicked((current) => ({ ...current, [row.key]: event.target.checked }))}
+                              />
+                              <label htmlFor={inputId} className="min-w-0 flex-1 cursor-pointer">
+                                <span className={cx("block text-[15px] font-bold leading-snug wrap-anywhere", !isPicked(row) && "text-ink-3")}>{row.title}</span>
+                                <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-ink-3">
+                                  <span className={cx("pill", meta.tint)}>{meta.short}</span>
+                                  <span>{rangeLabel(row.start, row.end)}</span>
+                                  {row.duplicate === "existing" ? <span className="pill stat">Já existe</span> : null}
+                                  {row.duplicate === "file" ? <span className="pill stat">Repetida no arquivo</span> : null}
+                                  {row.past ? (
+                                    <span className="inline-flex items-center gap-1">
+                                      <Clock className="h-3.5 w-3.5" aria-hidden />
+                                      Já passou
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <p className="text-sm text-ink-3">
+                        {chosen.length === rows.length
+                          ? `${datesLabel(rows.length)} para importar.`
+                          : `${chosen.length} de ${datesLabel(rows.length)} marcadas para importar.`}
+                        {duplicates && !chosen.length ? " Todas já existem. Marque alguma se quiser importar mesmo assim." : ""}
+                        {pastChosen
+                          ? ` ${pastChosen === 1 ? "1 data já passou e aparece" : `${pastChosen} datas já passaram e aparecem`} só em Passados.`
+                          : ""}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="callout rose">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                      Não deu para conferir as datas deste PDF. Escolha o arquivo de novo.
                     </p>
+                  )}
+
+                  {submitError ? (
+                    <div role="alert" className="callout rose">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                      <span className="min-w-0 wrap-anywhere">
+                        <b className="block">A importação não foi feita. As datas continuam aqui para tentar de novo.</b>
+                        {submitError}
+                      </span>
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+                    <button
+                      className="btn btn-p w-full sm:w-auto"
+                      disabled={!canImport}
+                      aria-disabled={busy || undefined}
+                      onClick={() => void runImport()}
+                      type="button"
+                    >
+                      {importing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" aria-hidden />}
+                      {importing
+                        ? "Importando"
+                        : check.status !== "ok"
+                          ? "Importar datas"
+                          : chosen.length
+                            ? `Importar ${datesLabel(chosen.length)}`
+                            : "Nenhuma data marcada"}
+                    </button>
+                    <button className="btn btn-s w-full sm:w-auto" disabled={importing} onClick={() => setPreviewOpen(false)} type="button">
+                      Fechar prévia
+                    </button>
                   </div>
                 </div>
-
-                {!resultUndone && lastResult.events.length ? (
-                  <>
-                    <div className="mt-4">
-                      <DateList
-                        items={[...lastResult.events].sort(byStart).map((event) => ({
-                          key: event.id,
-                          title: event.title,
-                          category: event.category,
-                          start: new Date(event.startsAt),
-                          end: event.endsAt ? new Date(event.endsAt) : null,
-                        }))}
-                      />
-                    </div>
-                    {resultPast ? (
-                      <p className="callout amber mt-3">
-                        <Clock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                        {resultPast === 1 ? "1 data já passou e aparece só em Passados." : `${resultPast} datas já passaram e aparecem só em Passados.`}
+              ) : null}
+              {lastResult ? (
+                <section
+                  ref={resultRef}
+                  tabIndex={-1}
+                  className={cx(
+                    "rounded-2xl border p-4 outline-none",
+                    resultUndone ? "border-line-2 bg-surface-2" : "border-brand-200 bg-brand-50"
+                  )}
+                  aria-labelledby={resultTitleId}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className={cx("kpi-ico shrink-0", resultUndone ? "c-ativ" : "bg-white")}>
+                      {resultUndone ? <Undo2 className="h-[18px] w-[18px]" aria-hidden /> : <CheckCircle2 className="h-[18px] w-[18px]" aria-hidden />}
+                    </span>
+                    <div className="min-w-0">
+                      <h3 id={resultTitleId} className="text-[16px] font-bold">
+                        {resultUndone ? "Importação desfeita" : `${datesLabel(resultCount)} ${resultCount === 1 ? "importada" : "importadas"}`}
+                      </h3>
+                      <p className="sub !mt-0.5 wrap-anywhere">
+                        {resultUndone
+                          ? `As datas de "${lastResult.sourceName}" saíram do calendário.`
+                          : `De "${lastResult.sourceName}", ${formatOnDayAt(lastResult.importedAt)}.`}
                       </p>
-                    ) : null}
-                    <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
-                      {onOpenCalendar ? (
-                        <button
-                          className="btn btn-s w-full sm:w-auto"
-                          onClick={() => onOpenCalendar({ categories: [...new Set(lastResult.events.map((event) => event.category))] })}
-                          type="button"
-                        >
-                          Ver no cronograma
-                        </button>
-                      ) : null}
-                      {onUndoImport ? (
-                        <button className="btn btn-danger w-full sm:w-auto" disabled={busy} onClick={undoLastResult} type="button">
-                          <Undo2 className="h-4 w-4" aria-hidden />
-                          Desfazer importação
-                        </button>
-                      ) : null}
                     </div>
-                  </>
-                ) : null}
-              </section>
-            ) : null}
-          </section>
+                  </div>
+
+                  {!resultUndone && lastResult.events.length ? (
+                    <>
+                      <div className="mt-4">
+                        <DateList
+                          items={[...lastResult.events].sort(byStart).map((event) => ({
+                            key: event.id,
+                            title: event.title,
+                            category: event.category,
+                            start: new Date(event.startsAt),
+                            end: event.endsAt ? new Date(event.endsAt) : null,
+                          }))}
+                        />
+                      </div>
+                      {resultPast ? (
+                        <p className="callout amber mt-3">
+                          <Clock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                          {resultPast === 1 ? "1 data já passou e aparece só em Passados." : `${resultPast} datas já passaram e aparecem só em Passados.`}
+                        </p>
+                      ) : null}
+                      <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+                        {onOpenCalendar ? (
+                          <button
+                            className="btn btn-s w-full sm:w-auto"
+                            onClick={() => onOpenCalendar({ categories: [...new Set(lastResult.events.map((event) => event.category))] })}
+                            type="button"
+                          >
+                            Ver no cronograma
+                          </button>
+                        ) : null}
+                        {onUndoImport ? (
+                          <button className="btn btn-danger w-full sm:w-auto" disabled={busy} onClick={undoLastResult} type="button">
+                            <Undo2 className="h-4 w-4" aria-hidden />
+                            Desfazer importação
+                          </button>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null}
+                </section>
+              ) : null}
+            </section>
+          ) : null}
+          {/* a sobra de altura fica aqui, embaixo dos cartões: nenhum deles estica até a altura da lateral */}
+          <div className="tela-gap" aria-hidden />
         </div>
 
         <div ref={sideRef} className="tela-side">
@@ -1493,47 +1276,15 @@ export function SyncView({
 
           <section className="card pad rise" style={delay(8)} aria-labelledby={fieldsId}>
             <h2 className="h2" id={fieldsId}>
-              Campos aceitos
+              Como funciona
             </h2>
-            <dl className="info imp-fields">
-              <dt>title</dt>
-              <dd>Título da data</dd>
-              <dt>category</dt>
-              <dd>
-                institucional, feriado ou recesso
-                <span className="imp-opt block">também prova, trabalho, atividade e extracurricular, em português ou inglês</span>
-              </dd>
-              <dt>startsAt</dt>
-              <dd>Data/hora de início (AAAA-MM-DD ou DD/MM/AAAA)</dd>
-              <dt>endsAt</dt>
-              <dd>
-                Término <span className="imp-opt">opcional</span>
-              </dd>
-            </dl>
-            {/* fica com a sobra quando a coluna estica para terminar junto do card do JSON */}
+            <ol className="mt-3 grid list-decimal gap-2 pl-5 text-sm leading-6 text-ink-2">
+              <li>Arraste o PDF do Calendário Acadêmico, ou use o calendário de exemplo.</li>
+              <li>Confira as datas. Os assuntos só de servidores, como PIT e RAD, vêm desmarcados.</li>
+              <li>Importe. As datas aparecem para todas as turmas, e dá para desfazer.</li>
+            </ol>
+            {/* fica com a sobra quando a coluna estica para terminar junto da coluna principal */}
             <div ref={gapRef} className="tela-gap" aria-hidden />
-            <details className="group mt-4 rounded-xl border border-line-2 px-3.5 py-2">
-              <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold [&::-webkit-details-marker]:hidden">
-                Ver modelo de arquivo
-                <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden />
-              </summary>
-              <div className="mb-1.5 mt-2 grid gap-3">
-                <pre className="whitespace-pre-wrap break-words rounded-xl border border-line bg-surface-2 p-3 font-mono text-[13px] leading-5 text-ink-2">
-                  {template}
-                </pre>
-                <div className="flex flex-wrap items-center gap-3">
-                  <button className="btn btn-s btn-sm" onClick={() => void copyTemplate()} type="button">
-                    <Copy className="h-3.5 w-3.5" aria-hidden />
-                    Copiar modelo
-                  </button>
-                  {copyNote ? (
-                    <span role="status" className="text-sm">
-                      {copyNote}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </details>
           </section>
         </div>
       </div>

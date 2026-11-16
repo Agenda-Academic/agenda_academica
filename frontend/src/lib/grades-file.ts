@@ -1,11 +1,12 @@
 /**
- * Arquivo de notas da importação (desenho 5.7): o front lê o CSV e manda só as linhas, em JSON (api.md, fase 3).
- * Só CSV por enquanto (decisão do usuário): planilha do Excel (.xlsx ou .xls) volta com a orientação de salvar
- * como CSV. Também monta o "Modelo da Agenda" e o "Relatório das rejeitadas" (células que começam com
- * = + - @ neutralizadas) e guarda o mapeamento de colunas de cada origem no navegador.
+ * Arquivo de notas da importação (desenho 5.7): o front lê a planilha e manda só as linhas para a API (api.md,
+ * fase 3). Lê a planilha do Excel (.xlsx), que é o formato principal, e também o CSV que os sistemas exportam.
+ * Também monta a planilha modelo da turma e o relatório das linhas rejeitadas, os dois em .xlsx, e guarda no
+ * navegador as colunas escolhidas da última vez.
  * Dona: área Notas (docente).
  */
-import type { GradeImportMapping, GradeImportRow, GradeImportRowInput, GradeImportSource } from "./types";
+import type { SheetData } from "write-excel-file/browser";
+import type { GradeEventInfo, GradeImportMapping, GradeImportRow, GradeImportRowInput } from "./types";
 
 /** Teto do corpo do POST /grade-imports (bodyparser da API: 1 MB). */
 export const MAX_BODY_BYTES = 1_000_000;
@@ -26,12 +27,13 @@ export type CsvEncoding = "utf-8" | "windows-1252" | "utf-16";
 /** Uma linha de dados do arquivo: o número dela na planilha (o cabeçalho é a linha 1) e as células. */
 export type SheetRow = { rowNumber: number; cells: string[] };
 
-/** O arquivo lido: cabeçalho, linhas de dados e como ele foi lido. */
+/** O arquivo lido: cabeçalho, linhas de dados e o formato (o separador e a codificação só existem no CSV). */
 export type ParsedSheet = {
   headers: string[];
   rows: SheetRow[];
-  delimiter: CsvDelimiter;
-  encoding: CsvEncoding;
+  format: "xlsx" | "csv";
+  delimiter?: CsvDelimiter;
+  encoding?: CsvEncoding;
 };
 
 /** O arquivo escolhido, já lido. */
@@ -195,37 +197,67 @@ function uniqueHeaders(cells: string[], width: number) {
   return headers;
 }
 
-/** Lê o texto do CSV: separador, cabeçalho (a primeira linha com conteúdo) e as linhas de dados. */
-export function parseSheet(text: string, encoding: CsvEncoding = "utf-8"): ParsedSheet {
-  if (text.includes("\u0000")) {
-    throw new GradesFileError("Não deu para ler este arquivo como CSV. Salve a planilha como CSV e escolha de novo.");
-  }
-  const delimiter = detectDelimiter(text);
-  const records = parseCsv(text, delimiter);
+/** Cabeçalho (a primeira linha com conteúdo) e linhas de dados de uma planilha já lida em células de texto. */
+function sheetFromRecords(records: string[][]): Pick<ParsedSheet, "headers" | "rows"> {
   const headerIndex = records.findIndex((cells) => !isBlankRow(cells));
   if (headerIndex < 0) {
-    throw new GradesFileError("O arquivo está vazio. Escolha o CSV com as notas dos alunos.");
+    throw new GradesFileError("A planilha está vazia. Escolha a planilha com as notas dos alunos.");
   }
   const dataRecords = records
     .map((cells, index) => ({ rowNumber: index + 1, cells }))
     .slice(headerIndex + 1)
     .filter((row) => !isBlankRow(row.cells));
   if (!dataRecords.length) {
-    throw new GradesFileError("O arquivo só tem o cabeçalho, sem linhas de alunos. Confira se escolheu o arquivo certo.");
+    throw new GradesFileError("A planilha só tem o cabeçalho, sem linhas de alunos. Confira se escolheu a planilha certa.");
   }
   if (dataRecords.length > MAX_ROWS) {
     throw new GradesFileError(
-      `O arquivo tem ${dataRecords.length.toLocaleString("pt-BR")} linhas, e cada importação aceita até 2.000. Divida o arquivo em duas partes.`
+      `A planilha tem ${dataRecords.length.toLocaleString("pt-BR")} linhas, e cada importação aceita até 2.000. Divida a planilha em duas partes.`
     );
   }
   const width = Math.max(records[headerIndex].length, ...dataRecords.map((row) => row.cells.length));
   const headers = uniqueHeaders(records[headerIndex], width);
   if (headers.length < 2) {
     throw new GradesFileError(
-      "O arquivo tem uma coluna só. Ele precisa de uma coluna para o aluno (e-mail ou matrícula) e outra para a nota, separadas por ponto e vírgula ou vírgula."
+      "A planilha tem uma coluna só. Ela precisa de uma coluna para o aluno (e-mail ou matrícula) e outra para a nota."
     );
   }
-  return { headers, rows: dataRecords, delimiter, encoding };
+  return { headers, rows: dataRecords };
+}
+
+/** Lê o texto do CSV: separador, cabeçalho (a primeira linha com conteúdo) e as linhas de dados. */
+export function parseSheet(text: string, encoding: CsvEncoding = "utf-8"): ParsedSheet {
+  if (text.includes("\u0000")) {
+    throw new GradesFileError("Não deu para ler este arquivo. Salve a planilha no Excel como .xlsx e escolha de novo.");
+  }
+  const delimiter = detectDelimiter(text);
+  return { ...sheetFromRecords(parseCsv(text, delimiter)), format: "csv", delimiter, encoding };
+}
+
+/** Célula da planilha do Excel em texto, como a docente vê (7.5 continua 7.5; a API aceita ponto e vírgula). */
+function cellText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") {
+    // tira o ruído de ponto flutuante (8.300000000000001 vira 8.3)
+    return Number.isFinite(value) ? String(Number.parseFloat(value.toPrecision(12))) : "";
+  }
+  if (typeof value === "boolean") return value ? "VERDADEIRO" : "FALSO";
+  if (value instanceof Date) return value.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+  return String(value).trim();
+}
+
+/** Lê a primeira aba da planilha do Excel (.xlsx). A biblioteca só carrega quando a docente escolhe uma planilha. */
+async function parseXlsx(bytes: Uint8Array): Promise<ParsedSheet> {
+  let data: unknown[][];
+  try {
+    const { readSheet } = await import("read-excel-file/browser");
+    data = (await readSheet(new Blob([bytes as unknown as ArrayBuffer]))) as unknown[][];
+  } catch {
+    throw new GradesFileError(
+      "Não deu para ler esta planilha. Abra no Excel, use Salvar como, escolha Pasta de Trabalho do Excel (.xlsx) e tente de novo."
+    );
+  }
+  return { ...sheetFromRecords(data.map((row) => row.map(cellText))), format: "xlsx" };
 }
 
 /** Hash SHA-256 em hexadecimal (o checksum da importação). Sem crypto.subtle, um hash simples com o tamanho. */
@@ -246,23 +278,28 @@ async function checksumOf(bytes: Uint8Array) {
   return `${hash.toString(16).padStart(8, "0")}-${bytes.length}`;
 }
 
-/** Lê o arquivo escolhido. Erros (planilha do Excel, vazio, grande demais) saem como GradesFileError. */
+/** Lê o arquivo escolhido (.xlsx ou CSV). Erros (vazio, grande demais, formato antigo) saem como GradesFileError. */
 export async function readGradesFile(file: File): Promise<GradesFile> {
   if (file.size === 0) {
-    throw new GradesFileError("O arquivo está vazio. Escolha o CSV com as notas dos alunos.");
+    throw new GradesFileError("A planilha está vazia. Escolha a planilha com as notas dos alunos.");
   }
   if (file.size > MAX_FILE_BYTES) {
-    throw new GradesFileError("O arquivo passa de 5 MB. Confira se é o CSV das notas desta avaliação.");
+    throw new GradesFileError("A planilha passa de 5 MB. Confira se é a planilha das notas desta avaliação.");
   }
   const bytes = new Uint8Array(await file.arrayBuffer());
-  // .xlsx e .ods são zip (PK); .xls antigo começa com D0 CF 11 E0
-  if (startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) || startsWith(bytes, [0xd0, 0xcf, 0x11, 0xe0])) {
+  let sheet: ParsedSheet;
+  if (startsWith(bytes, [0xd0, 0xcf, 0x11, 0xe0])) {
+    // .xls do Excel antigo
     throw new GradesFileError(
-      "Este arquivo é uma planilha do Excel. Por enquanto a Agenda lê só CSV: no Excel, use Salvar como, escolha CSV (separado por ponto e vírgula) e selecione o arquivo de novo."
+      "Esta planilha está no formato antigo do Excel (.xls). Abra no Excel, use Salvar como, escolha Pasta de Trabalho do Excel (.xlsx) e tente de novo."
     );
+  } else if (startsWith(bytes, [0x50, 0x4b, 0x03, 0x04])) {
+    // .xlsx é um zip (começa com PK)
+    sheet = await parseXlsx(bytes);
+  } else {
+    const { text, encoding } = decode(bytes);
+    sheet = parseSheet(text, encoding);
   }
-  const { text, encoding } = decode(bytes);
-  const sheet = parseSheet(text, encoding);
   const modifiedAt = file.lastModified > 0 ? new Date(file.lastModified).toISOString() : null;
   return { name: file.name, size: file.size, modifiedAt, checksum: await checksumOf(bytes), sheet };
 }
@@ -449,24 +486,17 @@ export function jsonSize(body: unknown) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Mapeamento salvo por origem (localStorage)                          */
+/* Colunas salvas (localStorage)                                       */
 /* ------------------------------------------------------------------ */
 
-const mappingKey = (source: GradeImportSource) => `agenda.notas.colunas.${source}`;
-const SOURCE_KEY = "agenda.notas.origem";
-const sources: GradeImportSource[] = ["modelo", "suap", "moodle", "classroom"];
+const MAPPING_KEY = "agenda.notas.colunas";
 
-/** O mapeamento usado da última vez com esta origem (ou null). */
-export function loadSavedMapping(source: GradeImportSource): GradeImportMapping | null {
+/** As colunas usadas na última importação (ou null). */
+export function loadSavedMapping(): GradeImportMapping | null {
   try {
-    const raw = window.localStorage.getItem(mappingKey(source));
+    const raw = window.localStorage.getItem(MAPPING_KEY);
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<GradeImportMapping>;
-    // o Modelo da Agenda acha o aluno pelo e-mail (a matrícula não vem para a docente): um mapeamento antigo dele
-    // pela matrícula não vale mais, e a importação começa pelo palpite (a coluna do e-mail)
-    if (source === "modelo" && value.identifierType === "registration") {
-      return null;
-    }
     if (
       (value.identifierType === "email" || value.identifierType === "registration") &&
       typeof value.identifierColumn === "string" &&
@@ -485,69 +515,18 @@ export function loadSavedMapping(source: GradeImportSource): GradeImportMapping 
   return null;
 }
 
-/** Guarda o mapeamento desta origem (e a origem, para a próxima importação começar nela). */
-export function saveMapping(source: GradeImportSource, mapping: GradeImportMapping) {
+/** Guarda as colunas desta importação para a próxima começar por elas. */
+export function saveMapping(mapping: GradeImportMapping) {
   try {
-    window.localStorage.setItem(mappingKey(source), JSON.stringify(mapping));
-    window.localStorage.setItem(SOURCE_KEY, source);
+    window.localStorage.setItem(MAPPING_KEY, JSON.stringify(mapping));
   } catch {
     // sem localStorage: a próxima importação começa pelo palpite
   }
 }
 
-/** A origem da última importação (padrão: o modelo da Agenda). */
-export function loadLastSource(): GradeImportSource {
-  try {
-    const value = window.localStorage.getItem(SOURCE_KEY);
-    if (value && (sources as string[]).includes(value)) {
-      return value as GradeImportSource;
-    }
-  } catch {
-    // sem localStorage
-  }
-  return "modelo";
-}
-
 /* ------------------------------------------------------------------ */
-/* Arquivos gerados: modelo e relatório                                */
+/* Planilhas geradas: modelo da turma e linhas rejeitadas (.xlsx)      */
 /* ------------------------------------------------------------------ */
-
-/**
- * Célula segura para abrir no Excel: texto que começa com = + - @ (ou tabulação e retorno) vira texto puro com
- * um apóstrofo na frente, para não virar fórmula (injeção de CSV).
- */
-export function neutralizeCell(value: string) {
-  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-}
-
-/** Monta o CSV (separador ";", fim de linha do Windows), com as células neutralizadas e entre aspas quando precisa. */
-export function toCsv(rows: Array<Array<string | number | null | undefined>>, delimiter: CsvDelimiter = ";") {
-  return rows
-    .map((cells) =>
-      cells
-        .map((cell) => {
-          const text = neutralizeCell(cell === null || cell === undefined ? "" : String(cell));
-          return /["\r\n]/.test(text) || text.includes(delimiter) ? `"${text.replace(/"/g, '""')}"` : text;
-        })
-        .join(delimiter)
-    )
-    .join("\r\n");
-}
-
-/** Baixa o texto como .csv em UTF-8 com BOM (o Excel abre os acentos certos). */
-export function downloadCsv(fileName: string, content: string) {
-  const blob = new Blob(["﻿", content, "\r\n"], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.rel = "noopener";
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 /** "Prova 2 de Matemática" vira "prova-2-de-matematica" (nome de arquivo). */
 export function fileSlug(value: string) {
@@ -564,50 +543,124 @@ export function fileSlug(value: string) {
 
 type TemplateStudent = { email: string; registration?: string | null; fullName: string | null };
 
-/**
- * Colunas do Modelo da Agenda (a importação reconhece estes nomes sozinha). O aluno é achado pelo e-mail da conta,
- * que vem para todos; a matrícula entra só quando a lista traz alguma (a administração), porque a da docente vem
- * sem ela e a coluna ficaria vazia.
- */
-export function templateHeaders(students: TemplateStudent[]) {
-  return students.some((student) => student.registration)
-    ? ["e-mail", "matrícula", "nome", "nota"]
-    : ["e-mail", "nome", "nota"];
+const HEADER_STYLE = {
+  fontWeight: "bold" as const,
+  textColor: "#FFFFFF",
+  backgroundColor: "#1F6F43",
+  alignVertical: "center" as const,
+  height: 24,
+};
+
+/** Baixa a planilha montada (a biblioteca só carrega quando a docente pede o arquivo). */
+type XlsxSheet = { sheet: string; data: SheetData; columns: { width: number }[]; stickyRowsCount?: number };
+
+async function downloadXlsx(fileName: string, sheets: XlsxSheet[]) {
+  const { default: writeXlsxFile } = await import("write-excel-file/browser");
+  const blob = await writeXlsxFile(sheets).toBlob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.rel = "noopener";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Modelo da Agenda: e-mail, nome e nota (vazia), um aluno por linha; com a matrícula quando a lista traz. */
-export function templateCsv(students: TemplateStudent[]) {
-  const headers = templateHeaders(students);
-  const withRegistration = headers.includes("matrícula");
-  return toCsv([
-    headers,
-    ...students.map((student) =>
-      withRegistration
-        ? [student.email, student.registration ?? "", student.fullName ?? "", ""]
-        : [student.email, student.fullName ?? "", ""]
-    ),
+/** Nome da coluna da nota na planilha modelo ("Nota (0 a 10)"); a importação acha a coluna pela palavra "nota". */
+export function templateScoreHeader(maxScoreText: string | null | undefined) {
+  return maxScoreText ? `Nota (0 a ${maxScoreText})` : "Nota";
+}
+
+/** Colunas da planilha modelo, na ordem em que aparecem. */
+export function templateHeaders(students: TemplateStudent[], maxScoreText?: string | null) {
+  return [
+    "Turma",
+    "Aluno",
+    "E-mail",
+    ...(students.some((student) => student.registration) ? ["Matrícula"] : []),
+    templateScoreHeader(maxScoreText),
+  ];
+}
+
+/**
+ * Planilha modelo da avaliação: na primeira aba, a turma e os alunos ativos (em ordem alfabética) com a nota em
+ * branco para preencher; na segunda, a avaliação e como preencher. O aluno é achado pelo e-mail da conta, e a
+ * matrícula só entra quando a lista traz alguma (a administração).
+ */
+export async function downloadTemplate(info: GradeEventInfo, students: TemplateStudent[]) {
+  const headers = templateHeaders(students, info.maxScoreText);
+  const withRegistration = headers.includes("Matrícula");
+  const className = info.academicClass?.name ?? "";
+  const sorted = [...students].sort((a, b) => (a.fullName ?? a.email).localeCompare(b.fullName ?? b.email, "pt-BR"));
+  const fill = { backgroundColor: "#FFF8DB" };
+  const headerRow = headers.map((title) => ({ value: title, ...HEADER_STYLE }));
+  const rows: SheetData = sorted.map((student) => [
+    className,
+    student.fullName ?? "",
+    student.email,
+    ...(withRegistration ? [student.registration ?? ""] : []),
+    // a nota fica em branco, com fundo amarelo, para a docente ver onde escrever
+    { type: Number, ...fill },
+  ]);
+  const date = new Date(info.startsAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const label = { fontWeight: "bold" as const };
+  const howTo: SheetData = [
+    [{ value: `Notas de ${info.title}`, fontWeight: "bold" as const, fontSize: 14 }],
+    [],
+    [{ value: "Turma", ...label }, className || "Sem turma"],
+    [{ value: "Disciplina", ...label }, info.subject?.name ?? ""],
+    [{ value: "Avaliação", ...label }, info.title],
+    [{ value: "Data", ...label }, date],
+    [{ value: "Vale", ...label }, info.maxScoreText ? `${info.maxScoreText} pontos` : "Ainda sem pontuação"],
+    [],
+    [{ value: "Como preencher", fontWeight: "bold" as const, fontSize: 13 }],
+    ["1. Na aba Notas, escreva a nota de cada aluno na coluna amarela. Vale vírgula ou ponto: 7,5."],
+    ["2. Quem não fez a avaliação fica com a nota em branco."],
+    ["3. Não mude a coluna E-mail: é por ela que a Agenda acha cada aluno."],
+    ["4. Salve a planilha e importe em Notas, na avaliação, com Importar notas."],
+  ];
+  await downloadXlsx(`notas-${fileSlug(className || "turma")}-${fileSlug(info.title)}.xlsx`, [
+    {
+      sheet: "Notas",
+      data: [headerRow, ...rows],
+      columns: [{ width: 14 }, { width: 34 }, { width: 34 }, ...(withRegistration ? [{ width: 14 }] : []), { width: 16 }],
+      stickyRowsCount: 1,
+    },
+    { sheet: "Como preencher", data: howTo, columns: [{ width: 14 }, { width: 60 }] },
   ]);
 }
 
 /**
- * Relatório das linhas que ficaram de fora da importação, com o motivo de cada uma. A situação e o motivo vêm da
- * prévia (`kindLabel` e `reason`), para o relatório dizer o mesmo que a etiqueta e o chip da tela.
+ * Planilha das linhas que ficaram de fora da importação, com o motivo de cada uma. A situação e o motivo vêm da
+ * prévia (`kindLabel` e `reason`), para a planilha dizer o mesmo que a etiqueta e o chip da tela.
  */
-export function rejectedCsv(
+export async function downloadRejected(
+  fileName: string,
   rows: GradeImportRow[],
   kindLabel: (row: GradeImportRow) => string,
   reason: (row: GradeImportRow) => string = (row) => row.message ?? ""
 ) {
-  return toCsv([
-    ["linha", "situação", "e-mail ou matrícula", "nome no arquivo", "nota no arquivo", "aluno encontrado", "motivo"],
-    ...rows.map((row) => [
-      row.rowNumber ?? "",
-      kindLabel(row),
-      row.identifier ?? "",
-      row.nameHint ?? "",
-      row.rawScore ?? "",
-      row.student?.fullName ?? "",
-      reason(row),
-    ]),
+  const headers = ["Linha", "Situação", "E-mail ou matrícula", "Nome na planilha", "Nota na planilha", "Aluno encontrado", "Motivo"];
+  await downloadXlsx(fileName, [
+    {
+      sheet: "Rejeitadas",
+      data: [
+        headers.map((title) => ({ value: title, ...HEADER_STYLE })),
+        ...rows.map((row) => [
+          row.rowNumber ?? "",
+          kindLabel(row),
+          row.identifier ?? "",
+          row.nameHint ?? "",
+          row.rawScore ?? "",
+          row.student?.fullName ?? "",
+          reason(row),
+        ]),
+      ],
+      columns: [{ width: 8 }, { width: 22 }, { width: 32 }, { width: 28 }, { width: 14 }, { width: 28 }, { width: 50 }],
+      stickyRowsCount: 1,
+    },
   ]);
 }

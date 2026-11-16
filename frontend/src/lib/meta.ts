@@ -312,9 +312,12 @@ export const gradeStatusLabels: Record<GradeStatus, string> = {
   excused: "Dispensa",
 };
 
-/** Origem do arquivo de notas ("Fonte: SUAP, importada em 04/11/2026"). */
+/**
+ * Origem do arquivo de notas. A tela não pergunta mais a origem (toda importação nova é "modelo", a planilha);
+ * os outros nomes ficam para as importações antigas.
+ */
 export const gradeImportSourceLabels: Record<GradeImportSource, string> = {
-  modelo: "Modelo da Agenda",
+  modelo: "Planilha",
   suap: "SUAP",
   moodle: "Moodle",
   classroom: "Google Classroom",

@@ -1086,7 +1086,7 @@ function Overview({
             hint={
               archived
                 ? "A turma está arquivada: as notas ficam só para leitura."
-                : "Traga o arquivo do SUAP, do Moodle, do Classroom ou o Modelo da Agenda com Importar notas."
+                : "Baixe a planilha da turma em Importar notas, preencha as notas e importe."
             }
           />
         )}

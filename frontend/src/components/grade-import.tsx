@@ -10,30 +10,26 @@ import {
   buildImportRows,
   columnHasData,
   columnSamples,
-  downloadCsv,
+  downloadRejected as downloadRejectedSheet,
+  downloadTemplate as downloadTemplateSheet,
   fileSlug,
   fitColumns,
   guessColumns,
   jsonSize,
-  loadLastSource,
   loadSavedMapping,
   readGradesFile,
-  rejectedCsv,
   saveMapping,
-  templateCsv,
   templateHeaders,
   toMapping,
   type ColumnChoice,
   type GradesFile,
 } from "@/lib/grades-file";
-import { gradeImportSourceLabels } from "@/lib/meta";
 import type {
   EventGradeRow,
   GradeEventInfo,
   GradeImport,
   GradeImportApplied,
   GradeImportInput,
-  GradeImportSource,
 } from "@/lib/types";
 import { useAppActions } from "./app-actions";
 import {
@@ -60,18 +56,10 @@ type FocusField = "file" | "points" | "identifier" | "score";
 
 type ColumnErrors = { identifierColumn?: string; scoreColumn?: string; general?: string };
 
-const sourceOptions = (Object.keys(gradeImportSourceLabels) as GradeImportSource[]).map((value) => ({
-  value,
-  label: gradeImportSourceLabels[value],
-}));
-
-const delimiterNames = { ";": "ponto e vírgula", ",": "vírgula", "\t": "tabulação" } as const;
-const encodingNames = { "utf-8": "UTF-8", "windows-1252": "Windows-1252", "utf-16": "UTF-16" } as const;
-
 export type GradeImportOptions = {
   /** A avaliação (GET /events/:id/grades). */
   info: GradeEventInfo | null;
-  /** Alunos da lista de notas (para o Modelo da Agenda). */
+  /** Alunos da lista de notas (para a planilha da turma). */
   students: EventGradeRow[];
   /** As notas da avaliação já estão publicadas (o rodapé avisa que aparecem na hora). */
   published: boolean;
@@ -98,7 +86,6 @@ export function useGradeImport({
 }: GradeImportOptions) {
   const { token, toast, showError, confirm } = useAppActions();
   const [step, setStep] = useState<ImportStep>("file");
-  const [source, setSourceState] = useState<GradeImportSource>("modelo");
   const [file, setFile] = useState<GradesFile | null>(null);
   const [fileError, setFileError] = useState("");
   const [reading, setReading] = useState(false);
@@ -127,13 +114,13 @@ export function useGradeImport({
   const counts = draft ? importKindCounts(draft) : null;
   const importCount = counts ? importableCount(counts, keepAgenda) : 0;
   const busy = sending || applying || discarding;
-  // alunos ativos do Modelo da Agenda e as colunas dele ("e-mail, nome e nota"; com a matrícula só se a lista traz)
+  // alunos ativos da planilha da turma e as colunas dela (com a matrícula só se a lista traz)
   const templateStudents = students.filter((student) => student.enrollmentStatus === "active");
-  const templateNames = templateHeaders(templateStudents);
+  // sem a pontuação no nome ("nota"): o texto da tela diz "de 0 a 10" logo depois
+  const templateNames = templateHeaders(templateStudents).map((name) => name.toLowerCase());
   const templateColumns = `${templateNames.slice(0, -1).join(", ")} e ${templateNames[templateNames.length - 1]}`;
 
-  function reset(nextSource: GradeImportSource) {
-    setSourceState(nextSource);
+  function reset() {
     setFile(null);
     setFileError("");
     setReading(false);
@@ -147,26 +134,17 @@ export function useGradeImport({
     setFocusAsk(null);
   }
 
-  /** Começa uma importação nova, no passo Arquivo, com a origem da última vez. */
+  /** Começa uma importação nova, no passo Arquivo. */
   function start() {
-    reset(loadLastSource());
+    reset();
     goStep("file");
   }
 
   /** Abre um rascunho da lista ("Continuar") direto na Prévia. */
   function openDraft(value: GradeImport) {
-    reset(value.source);
+    reset();
     setDraft(value);
     goStep("preview");
-  }
-
-  function setSource(value: GradeImportSource) {
-    setSourceState(value);
-    // outra origem: as colunas salvas dela valem para o arquivo já escolhido
-    if (file) {
-      setColumnsState(fitColumns(file.sheet, loadSavedMapping(value)));
-      setColumnErrors({});
-    }
   }
 
   function setPointsText(value: string) {
@@ -198,7 +176,7 @@ export function useGradeImport({
     try {
       const read = await readGradesFile(selected);
       setFile(read);
-      setColumnsState(fitColumns(read.sheet, loadSavedMapping(source)));
+      setColumnsState(fitColumns(read.sheet, loadSavedMapping()));
       setColumnErrors({});
     } catch (error) {
       setFile(null);
@@ -206,7 +184,7 @@ export function useGradeImport({
       setFileError(
         error instanceof GradesFileError
           ? error.message
-          : "Não deu para ler o arquivo. Confira se ele é um CSV e escolha de novo."
+          : "Não deu para ler a planilha. Confira se ela é do Excel (.xlsx) e escolha de novo."
       );
     } finally {
       setReading(false);
@@ -225,7 +203,7 @@ export function useGradeImport({
   function goColumns() {
     let firstInvalid: FocusField | null = null;
     if (!file) {
-      setFileError(fileError || "Escolha o arquivo CSV com as notas.");
+      setFileError(fileError || "Escolha a planilha com as notas.");
       firstInvalid = "file";
     }
     if (needsPoints && pointsValue() === null) {
@@ -267,7 +245,8 @@ export function useGradeImport({
     const points = needsPoints ? pointsValue() : null;
     const input: GradeImportInput = {
       academicEventId: info.id,
-      source,
+      // a origem não é mais escolhida na tela: a planilha é lida igual, venha de onde vier
+      source: "modelo",
       fileName: file.name.slice(0, 200),
       checksum: file.checksum.slice(0, 128),
       fileModifiedAt: file.modifiedAt,
@@ -291,7 +270,7 @@ export function useGradeImport({
         await deleteGradeImport(token, previous.id).catch(() => undefined);
       }
       const created = await createGradeImport(token, input);
-      saveMapping(source, toMapping(columns));
+      saveMapping(toMapping(columns));
       setDraft(created);
       setKeepAgenda(true);
       goStep("preview");
@@ -384,23 +363,30 @@ export function useGradeImport({
     });
   }
 
-  function downloadTemplate() {
+  async function downloadTemplate() {
     if (!info) return;
     const active = templateStudents;
-    const name = `modelo-notas-${fileSlug(info.title)}.csv`;
-    downloadCsv(name, templateCsv(active));
-    toast(
-      active.length
-        ? `Modelo baixado com ${active.length === 1 ? "1 aluno" : `${active.length} alunos`}. Preencha a coluna nota e importe o arquivo.`
-        : "Modelo baixado. A turma ainda não tem alunos ativos: preencha e-mail e nota de cada um.",
-      { tone: "info", key: "notas-modelo" }
-    );
+    try {
+      await downloadTemplateSheet(info, active);
+      toast(
+        active.length
+          ? `Planilha baixada com ${active.length === 1 ? "1 aluno" : `${active.length} alunos`}. Preencha a coluna da nota e importe a planilha.`
+          : "Planilha baixada. A turma ainda não tem alunos ativos: preencha nome, e-mail e nota de cada um.",
+        { tone: "info", key: "notas-modelo" }
+      );
+    } catch {
+      toast("Não deu para gerar a planilha. Tente de novo.", { tone: "danger", key: "notas-modelo" });
+    }
   }
 
-  function downloadRejected() {
+  async function downloadRejected() {
     if (!draft?.rows || !info) return;
     const rows = draft.rows.filter((row) => rejectedKinds.includes(row.kind));
-    downloadCsv(`rejeitadas-${fileSlug(info.title)}.csv`, rejectedCsv(rows, rowKindLabel, rowReason));
+    try {
+      await downloadRejectedSheet(`rejeitadas-${fileSlug(info.title)}.xlsx`, rows, rowKindLabel, rowReason);
+    } catch {
+      toast("Não deu para gerar a planilha. Tente de novo.", { tone: "danger", key: "notas-rejeitadas" });
+    }
   }
 
   /** Botão principal do rodapé: Continuar, Ver prévia, Importar N notas ou, sem nada para importar, Escolher outro arquivo. */
@@ -434,7 +420,6 @@ export function useGradeImport({
 
   return {
     step,
-    source,
     file,
     fileError,
     reading,
@@ -460,7 +445,6 @@ export function useGradeImport({
     focusAsk,
     start,
     openDraft,
-    setSource,
     setPointsText,
     setColumns,
     setKeepAgenda,
@@ -509,16 +493,17 @@ function Stepper({ applying, step }: { applying: boolean; step: ImportStep }) {
 
 /** Cartão do arquivo escolhido (nome e como foi lido). */
 function FileCard({ action, flow }: { action?: ReactNode; flow: GradeImportFlow }) {
-  const { columns, draft, file, source } = flow;
+  const { columns, draft, file } = flow;
   let detail: string;
   if (file) {
     const lines = file.sheet.rows.length;
-    detail = `${gradeImportSourceLabels[source]}, ${lines === 1 ? "1 linha" : `${lines} linhas`}, separado por ${delimiterNames[file.sheet.delimiter]}, ${encodingNames[file.sheet.encoding]}`;
+    const kind = file.sheet.format === "xlsx" ? "Planilha do Excel" : "Planilha em CSV";
+    detail = `${kind}, ${lines === 1 ? "1 linha" : `${lines} linhas`}`;
     if (flow.step === "preview" && columns) {
-      detail = `${gradeImportSourceLabels[source]}, ${lines === 1 ? "1 linha" : `${lines} linhas`}, aluno pela coluna ${columns.identifierColumn} e nota pela coluna ${columns.scoreColumn}`;
+      detail = `${detail}, aluno pela coluna ${columns.identifierColumn} e nota pela coluna ${columns.scoreColumn}`;
     }
   } else if (draft) {
-    detail = `${gradeImportSourceLabels[draft.source]}, rascunho de ${formatShortDateTime(draft.createdAt)}, aluno pela coluna ${draft.mapping.identifierColumn} e nota pela coluna ${draft.mapping.scoreColumn}`;
+    detail = `Rascunho de ${formatShortDateTime(draft.createdAt)}, aluno pela coluna ${draft.mapping.identifierColumn} e nota pela coluna ${draft.mapping.scoreColumn}`;
   } else {
     return null;
   }
@@ -566,21 +551,11 @@ function FileStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: Ref
   return (
     <div className="grid gap-4">
       <h3 ref={headingRef} className="notas-docente-h3 outline-none" tabIndex={-1}>
-        Escolha o arquivo
+        Escolha a planilha
       </h3>
 
-      <Field label="De onde vem o arquivo" hint="As colunas ficam salvas para cada origem">
-        <select className="input" value={flow.source} onChange={(event) => flow.setSource(event.target.value as GradeImportSource)}>
-          {sourceOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-
       <div>
-        <p className="lbl mb-2">Arquivo com as notas</p>
+        <p className="lbl mb-2">Planilha com as notas</p>
         {file ? (
           <FileCard
             flow={flow}
@@ -610,9 +585,9 @@ function FileStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: Ref
               {reading ? <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden /> : <FileUp className="h-[18px] w-[18px]" aria-hidden />}
             </span>
             <div className="notas-docente-file-main">
-              <p className="text-sm font-semibold text-ink">{reading ? "Lendo o arquivo" : "Arraste o arquivo para cá ou use o botão Escolher arquivo CSV"}</p>
+              <p className="text-sm font-semibold text-ink">{reading ? "Lendo a planilha" : "Arraste a planilha para cá ou use o botão Escolher planilha"}</p>
               <p className="mt-0.5 text-[13px] leading-5 text-muted" id={hintId}>
-                Só CSV por enquanto, separado por ponto e vírgula ou vírgula. Planilha do Excel: use Salvar como, CSV, antes.
+                Planilha do Excel (.xlsx). A planilha exportada de outro sistema também serve.
               </p>
             </div>
             <button
@@ -623,13 +598,13 @@ function FileStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: Ref
               onClick={() => inputRef.current?.click()}
               type="button"
             >
-              Escolher arquivo CSV
+              Escolher planilha
             </button>
           </div>
         )}
         <input
           ref={inputRef}
-          accept=".csv,text/csv"
+          accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
           className="hidden"
           aria-hidden
           tabIndex={-1}
@@ -665,13 +640,13 @@ function FileStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: Ref
           <Download className="h-[18px] w-[18px]" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="mini-t">Modelo da Agenda</p>
+          <p className="mini-t">Planilha da turma</p>
           <p className="mini-s">
-            {`Com os alunos da turma nas colunas ${flow.templateColumns}${maxText ? ` (de 0 a ${maxText})` : ""}. O aluno é achado pelo e-mail: preencha a nota e importe.`}
+            {`Já vem com a turma e os alunos, nas colunas ${flow.templateColumns}${maxText ? ` (de 0 a ${maxText})` : ""}. Preencha as notas e importe a mesma planilha.`}
           </p>
         </div>
-        <button className={cx(secondaryButton, "btn-sm shrink-0")} onClick={flow.downloadTemplate} type="button">
-          Baixar modelo da Agenda
+        <button className={cx(secondaryButton, "btn-sm shrink-0")} onClick={() => void flow.downloadTemplate()} type="button">
+          Baixar planilha da turma
         </button>
       </div>
     </div>
@@ -933,7 +908,7 @@ export function GradeImportFooter({ flow }: { flow: GradeImportFlow }) {
   // prévia sem nada para importar: o botão diz o que fazer, e a razão fica acima dele
   const nothing = step === "preview" && Boolean(flow.draft) && importCount === 0;
   let label = "Continuar";
-  let hint = "Só CSV por enquanto";
+  let hint = "Planilha do Excel (.xlsx)";
   if (step === "columns") {
     label = "Ver prévia";
     hint = "Nada muda até você confirmar na prévia";
