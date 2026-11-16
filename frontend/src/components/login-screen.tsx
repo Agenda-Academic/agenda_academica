@@ -3,9 +3,7 @@
 import {
   AlertCircle,
   ArrowLeft,
-  Bell,
   BookOpen,
-  CalendarDays,
   Check,
   CircleAlert,
   CircleCheckBig,
@@ -27,6 +25,7 @@ import { cx, errorMessage } from "@/lib/format";
 import { demoAccounts } from "@/lib/meta";
 import type { Session } from "@/lib/types";
 import { GuardianDataDialog } from "./guardian-data-dialog";
+import { LoginStage } from "./login-stage";
 import { Field, primaryButton, secondaryButton } from "./ui";
 
 type Mode = "login" | "signup";
@@ -738,54 +737,9 @@ export function LoginScreen({
     // o cartão fica no meio da altura, entre os dois vãos da .entrada (globals.css); com aviso na
     // tela, o vão de baixo guarda o lugar dele e, no fim da rolagem, o cartão fica acima do aviso
     <main className="entrada flex min-h-screen flex-col bg-login px-4 py-6 text-ink sm:px-6 lg:px-8">
-      <section className="card rise mx-auto grid w-full max-w-6xl shrink-0 overflow-hidden !rounded-[28px] xl:grid-cols-[1fr_0.95fr]">
-        <div className="hidden min-h-[600px] flex-col justify-between bg-night p-10 text-white xl:flex">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="mark">
-                <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
-              </span>
-              <div>
-                <p className="brand-name">Agenda Acadêmica</p>
-                <p className="brand-sub">Prazos, notas e lembretes</p>
-              </div>
-            </div>
-
-            <div className="mt-12 max-w-xl">
-              <p className="disp text-[44px] font-bold leading-[1.05]">Agenda acadêmica unificada do campus</p>
-              <p className="mt-4 text-[15.5px] leading-7 text-on-night">
-                Centraliza provas, trabalhos, atividades, datas oficiais e lembretes de alunos, docentes e coordenação.
-              </p>
-            </div>
-
-            <ul className="mt-10 grid gap-4 text-[14.5px] text-on-night">
-              <li className="flex items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
-                  <CalendarDays className="h-4 w-4 text-accent" aria-hidden />
-                </span>
-                Prazos docentes e datas institucionais no mesmo fluxo
-              </li>
-              <li className="flex items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
-                  <Bell className="h-4 w-4 text-accent" aria-hidden />
-                </span>
-                Lembretes pessoais antes de provas, trabalhos e eventos
-              </li>
-              <li className="flex items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
-                  <Users className="h-4 w-4 text-accent" aria-hidden />
-                </span>
-                Visão por perfil para aluno, responsável, docente e administração
-              </li>
-            </ul>
-          </div>
-
-          <p className="flex items-center gap-2 border-t border-white/10 pt-5 text-[13px] text-on-night-2">
-            <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
-            {demoOn
-              ? "Ambiente de demonstração: entre pelos atalhos para conhecer cada perfil."
-              : "Aluno e docente entram com a conta Google da instituição."}
-          </p>
+      <section className="card rise entrada-card mx-auto grid w-full max-w-6xl shrink-0 overflow-hidden !rounded-[28px] xl:grid-cols-[1.12fr_0.88fr]">
+        <div className="hidden xl:flex">
+          <LoginStage />
         </div>
 
         <div className="flex items-center justify-center p-5 sm:p-8">
