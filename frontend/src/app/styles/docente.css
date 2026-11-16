@@ -322,8 +322,8 @@ button.docente-turma-row:hover {
   width: 26px;
   height: 26px;
   border-radius: 8px;
-  background: var(--night);
-  color: #fff;
+  background: var(--bebe-botao);
+  color: var(--bebe-ink);
   font-size: 11px;
   font-weight: 700;
 }

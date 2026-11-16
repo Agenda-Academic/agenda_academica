@@ -185,11 +185,14 @@ function NavButtons({
             <button
               key={item.view}
               className={cx("nav", activeView === item.view && "on")}
+              data-view={item.view}
               aria-current={activeView === item.view ? "page" : undefined}
               onClick={() => onNavigate(item.view)}
               type="button"
             >
-              <item.icon className="h-[18px] w-[18px]" aria-hidden />
+              <span className="nav-ico" aria-hidden>
+                <item.icon className="h-[18px] w-[18px]" />
+              </span>
               {item.label}
               {count ? (
                 <span className="count">
@@ -321,7 +324,7 @@ function SideTools({
         {search ? (
           // no toque, alvo de 44px
           <button
-            className="absolute right-1.5 grid h-8 w-8 place-items-center rounded-lg text-on-night transition hover:bg-white/10 hover:text-white pointer-coarse:right-0 pointer-coarse:h-11 pointer-coarse:w-11"
+            className="absolute right-1.5 grid h-8 w-8 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink pointer-coarse:right-0 pointer-coarse:h-11 pointer-coarse:w-11"
             onClick={() => {
               onSearchChange("");
               inputRef.current?.focus();
@@ -340,13 +343,13 @@ function SideTools({
       </form>
       {/* a contagem é sempre anunciada; com o botão à vista, ela fica só para leitores de tela */}
       <p
-        className={cx("-mt-1 px-1 text-[13px] leading-5 text-on-night", (!status || showButton) && "sr-only")}
+        className={cx("-mt-1 px-1 text-[13px] leading-5 text-muted", (!status || showButton) && "sr-only")}
         role="status"
       >
         {status}
       </p>
       {showButton ? (
-        <button className="nav nav-sm -mt-1 justify-between border border-white/15 pointer-coarse:h-11" onClick={onSubmit} type="button">
+        <button className="nav nav-sm -mt-1 justify-between border border-line pointer-coarse:h-11" onClick={onSubmit} type="button">
           Ver {count} {count === 1 ? one : many}
           <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
         </button>
@@ -507,7 +510,7 @@ function SideFoot({
           </span>
         </span>
         <span
-          className="ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-[10px] text-on-night-2 transition group-hover:text-white"
+          className="ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-[10px] text-muted transition group-hover:text-ink"
           aria-hidden
         >
           <Settings2 className="h-[18px] w-[18px]" />
@@ -518,7 +521,7 @@ function SideFoot({
         Sair da conta
       </button>
       <button
-        className="sync w-full text-left hover:text-white"
+        className="sync w-full text-left hover:text-ink"
         aria-busy={refreshing || undefined}
         aria-disabled={refreshing || undefined}
         aria-label={refreshLabel}

@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Open_Sans } from "next/font/google";
+import { Bricolage_Grotesque, Figtree, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-// Mesma fonte do protótipo no Figma: Open Sans no texto e nos títulos.
-const openSans = Open_Sans({
-  variable: "--font-open-sans",
+// Figtree no texto e Bricolage Grotesque nos títulos e números grandes.
+const figtree = Figtree({
+  variable: "--font-figtree",
+  subsets: ["latin"],
+});
+
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
   subsets: ["latin"],
 });
 
@@ -26,7 +31,7 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${openSans.variable} ${jetbrains.variable} h-full antialiased`}
+      className={`${figtree.variable} ${bricolage.variable} ${jetbrains.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

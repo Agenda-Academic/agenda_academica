@@ -124,20 +124,6 @@ type GroupView = {
   annual: boolean;
 };
 
-/** "a Profa. Maraísa", "o Prof. Pedro" ou o nome como veio. */
-function withArticle(name: string | null) {
-  if (!name) {
-    return "a docente";
-  }
-  if (/^profa\.?\s/i.test(name)) {
-    return `a ${name}`;
-  }
-  if (/^prof\.?\s/i.test(name)) {
-    return `o ${name}`;
-  }
-  return name;
-}
-
 /** "ter, 03/11, 19:00" (sem horário quando é o dia todo). */
 function whenText(value: string) {
   return isAllDay(value) ? formatShortDate(value) : formatShortDateTime(value);
@@ -353,11 +339,9 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
     );
   }
 
-  const howCard = <HowGradesCard guardianName={isGuardian ? name : null} />;
   const sideCards = (
     <div className="notas-pair">
       {isGuardian ? guardianCard : <WhoSeesCard state={myGuardians} onOpenProfile={openProfile} />}
-      {howCard}
     </div>
   );
 
@@ -543,7 +527,6 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
                     focused={item.eventId === focusEventId}
                     guardianName={isGuardian ? name : null}
                     now={now}
-                    teacher={teacherByEvent.get(item.eventId) ?? group.teacher}
                   />
                 ))}
               </ul>
@@ -592,13 +575,11 @@ function GradeRow({
   focused,
   guardianName,
   now,
-  teacher,
 }: {
   evaluation: StudentEvaluation;
   focused: boolean;
   guardianName: string | null;
   now: number;
-  teacher: string | null;
 }) {
   const meta = categoryMeta[evaluation.category];
   const grade = evaluation.grade;
@@ -607,14 +588,8 @@ function GradeRow({
 
   let line: ReactNode;
   if (waiting) {
-    line = (
-      <>
-        <Info className="h-[15px] w-[15px]" aria-hidden />
-        {future
-          ? `Acontece ${whenText(evaluation.startsAt)}. A nota aparece aqui quando ${withArticle(teacher)} publicar.`
-          : `A nota aparece aqui quando ${withArticle(teacher)} publicar. Você recebe um aviso.`}
-      </>
-    );
+    // a pílula "Aguardando publicação" já diz tudo; sem frase explicando como a nota chega
+    line = null;
   } else if (grade) {
     const Icon = grade.source?.type === "import" ? FileSpreadsheet : PenLine;
     line = (
@@ -642,7 +617,7 @@ function GradeRow({
         <span>{whenText(evaluation.startsAt)}</span>
         {evaluation.status === "cancelled" ? <span className="pill stat stat-canc">Cancelada</span> : null}
       </p>
-      <p className="notas-g-src">{line}</p>
+      {line ? <p className="notas-g-src">{line}</p> : null}
       {waiting ? (
         <div className="notas-g-wait">
           <span className="pill st-ag">
@@ -865,31 +840,3 @@ function GuardianSeesCard({
   );
 }
 
-/** "Como as notas chegam": os três passos, sem média e sem comparação. */
-function HowGradesCard({ guardianName }: { guardianName: string | null }) {
-  const steps = [
-    "A docente lança ou importa as notas de cada prova e trabalho.",
-    "A nota fica oculta até a docente publicar.",
-    "Ao publicar, a nota aparece aqui e você recebe um aviso no sistema.",
-  ];
-  return (
-    <section className="card pad" aria-labelledby="notas-como">
-      <SectionTitle id="notas-como" title="Como as notas chegam" />
-      <ol className="notas-steps">
-        {steps.map((step, index) => (
-          <li key={step}>
-            <span className="notas-step-n" aria-hidden>
-              {index + 1}
-            </span>
-            <span>{step}</span>
-          </li>
-        ))}
-      </ol>
-      <p className="notas-note mt-auto">
-        {guardianName
-          ? `Sem média da turma e sem comparação com colegas. Dúvida sobre uma nota? Converse com ${guardianName} ou com a docente da disciplina.`
-          : "Sem média da turma e sem comparação com colegas. Dúvida sobre uma nota? Fale com a docente da disciplina."}
-      </p>
-    </section>
-  );
-}

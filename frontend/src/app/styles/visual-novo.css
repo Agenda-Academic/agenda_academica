@@ -1,0 +1,718 @@
+/* Visual novo (azul bebê, cores pastel).
+   Este arquivo entra por último na camada components e reveste os componentes do globals.css.
+   Os seletores começam com "html" para valer por cima das regras de lá (mesma camada); os
+   utilitários do Tailwind continuam valendo por cima de tudo.
+   Ideias principais:
+   - menu lateral claro, cada ícone num quadrado pastel com a cor da tela;
+   - o destaque de cada painel em azul bebê, com o pontilhado de caderno e a data circulada;
+   - categoria e situação como ponto + palavra, sem pílula colorida;
+   - botão principal em azul pastel com texto escuro. */
+
+@property --risco {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* ---------- menu lateral ---------- */
+html .side {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-rgb) / 0.04),
+    0 6px 20px -10px rgb(var(--shadow-rgb) / 0.14);
+}
+html .brand {
+  border-bottom-color: var(--line);
+}
+html .brand-sub {
+  color: var(--muted);
+}
+html .mark {
+  background: var(--bebe-botao);
+  color: var(--bebe-ink);
+}
+html .side-search svg {
+  color: var(--muted);
+}
+html .side-search input {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+html .side-search input::placeholder {
+  color: var(--faint);
+}
+html .side-search input:focus {
+  border-color: var(--brand);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(var(--brand-rgb) / 0.15);
+}
+html .side-search .kbd {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--muted);
+}
+html .nav-label {
+  color: var(--muted);
+}
+html .nav {
+  height: 46px;
+  padding: 0 8px;
+  gap: 12px;
+  color: var(--ink-3);
+}
+html .nav:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+html .nav.on,
+html .nav.on:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 700;
+}
+html .nav-ico {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--np, #eceff3);
+  color: var(--npi, #56616b);
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.4, 0.5, 1),
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+html .nav:hover .nav-ico {
+  transform: translateY(-1px) scale(1.04);
+}
+html .nav.on .nav-ico {
+  background: color-mix(in srgb, var(--npi) 22%, var(--np));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--npi) 40%, transparent);
+}
+/* uma cor pastel por tela */
+html .nav[data-view="dashboard"] { --np: #dceaff; --npi: #2e5fa8; }
+html .nav[data-view="calendar"] { --np: #d5f2f5; --npi: #17707a; }
+html .nav[data-view="grades"] { --np: #ebe3ff; --npi: #6a4bc4; }
+html .nav[data-view="manage"] { --np: #ffe3d8; --npi: #b0502f; }
+html .nav[data-view="classes"] { --np: #d4f4e3; --npi: #1d7a51; }
+html .nav[data-view="reminders"] { --np: #fff1c2; --npi: #8a6400; }
+html .nav[data-view="sync"] { --np: #ffe0ea; --npi: #b23a62; }
+html .nav .count {
+  background: var(--accent);
+  color: #fff;
+}
+html .semestre {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--muted);
+}
+html .semestre b {
+  color: var(--ink);
+}
+html .semestre .bar {
+  background: var(--line);
+}
+html .semestre .bar span {
+  background: var(--brand-400);
+}
+html .ucard {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+html button.ucard:hover {
+  background: var(--neutral-tint);
+}
+html .avatar {
+  background: var(--bebe-botao);
+  color: var(--bebe-ink);
+}
+html .urole,
+html .pick-s,
+html .sync {
+  color: var(--muted);
+}
+html .student-pick {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--ink);
+}
+html .student-pick svg {
+  color: var(--muted);
+}
+html .student-pick.is-select:hover {
+  background: var(--neutral-tint);
+}
+html .student-pick:has(select:focus-visible) {
+  outline-color: var(--brand);
+}
+html .ubtn {
+  color: var(--muted);
+}
+html .ubtn:hover {
+  background: var(--neutral-tint);
+  color: var(--ink);
+}
+
+/* ---------- botões ---------- */
+html .btn-p {
+  background: var(--bebe-botao);
+  color: var(--bebe-ink);
+}
+html .btn-p:hover:not(:disabled) {
+  background: var(--bebe-botao-h);
+}
+html .btn-s:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--line-hover);
+}
+
+/* ---------- controle segmentado vira abas com sublinhado ---------- */
+html .seg {
+  padding: 0;
+  gap: 4px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+html .seg button {
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 0;
+  color: var(--muted);
+}
+html .seg button:hover {
+  color: var(--ink);
+}
+html .seg .on {
+  background: transparent;
+  color: var(--ink);
+  box-shadow: inset 0 -2.5px 0 var(--brand);
+}
+
+/* ---------- filtros: ponto + palavra, sem pílula ---------- */
+html .chip,
+html .chip[class*="c-"] {
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-3);
+}
+html .chip:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+html .chip.all {
+  background: transparent;
+  border-radius: 0;
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 var(--brand);
+}
+html .chip.all .n {
+  color: var(--muted);
+}
+html .chip.picked {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ---------- categoria e situação: ponto + palavra ---------- */
+html .pill {
+  height: auto;
+  padding: 0;
+  gap: 6px;
+  border-radius: 0;
+  background: transparent;
+}
+html .pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+html .pill.stat::before,
+html .pill.prio::before {
+  display: none;
+}
+html .pill.prio {
+  color: var(--brand-ink);
+}
+html .pill.bg-brand {
+  color: var(--brand-ink);
+}
+
+/* ---------- destaque: azul bebê com pontilhado de caderno ---------- */
+html .hero {
+  --ink: var(--bebe-ink);
+  --ink-2: color-mix(in srgb, var(--bebe-ink) 86%, transparent);
+  --ink-3: color-mix(in srgb, var(--bebe-ink) 74%, transparent);
+  --muted: color-mix(in srgb, var(--bebe-ink) 64%, transparent);
+  --line: color-mix(in srgb, var(--bebe-ink) 13%, transparent);
+  border-color: transparent;
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 14%, transparent) 1.1px, transparent 1.6px) 0 0 / 20px 20px,
+    radial-gradient(90% 120% at 100% 0%, var(--bebe-2) 0%, transparent 62%),
+    var(--bebe);
+  box-shadow:
+    0 18px 44px -26px rgb(21 48 92 / 0.4),
+    0 1px 2px rgb(0 0 0 / 0.04);
+  color: var(--bebe-ink);
+}
+html .hero-kicker .eyebrow {
+  color: var(--bebe-ink);
+}
+/* a data vira a página da agenda circulada a caneta */
+html .hero .datebig {
+  position: relative;
+  background: transparent;
+  color: var(--bebe-ink);
+}
+html .hero .datebig .dw,
+html .hero .datebig .mo {
+  color: color-mix(in srgb, var(--bebe-ink) 62%, transparent);
+}
+html .hero .datebig {
+  gap: 16px;
+}
+html .hero .datebig .dn {
+  font-size: 60px;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+}
+html .hero .datebig::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 104px;
+  height: 80px;
+  translate: -50% -50%;
+  rotate: -8deg;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 56'%3E%3Cpath d='M35 5C52 4 62 16 59 30C56 45 38 53 22 49C7 45 2 31 7 19C12 8 26 3 40 6C45 7 49 9 51 11' fill='none' stroke='%23f07f86' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: conic-gradient(from 80deg, #000 var(--risco), transparent 0);
+  mask: conic-gradient(from 80deg, #000 var(--risco), transparent 0);
+  animation: caneta 1s 0.5s cubic-bezier(0.6, 0.1, 0.3, 1) forwards;
+}
+@keyframes caneta {
+  to {
+    --risco: 360deg;
+  }
+}
+/* contagem em números grandes, sem a caixa verde */
+html .hero .countdown b {
+  padding: 0;
+  background: transparent;
+  color: var(--bebe-ink);
+  font-size: 40px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+html .hero .btn-p {
+  background: var(--bebe-ink);
+  color: #fff;
+}
+html .hero .btn-p:hover:not(:disabled) {
+  background: #0d2246;
+}
+html .hero .btn-s {
+  background: rgb(255 255 255 / 0.72);
+  border-color: rgb(255 255 255 / 0.9);
+  color: var(--bebe-ink);
+}
+html .hero .btn-s:hover:not(:disabled) {
+  background: #fff;
+}
+
+/* ---------- avisos (toasts) claros ---------- */
+html .toast {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 40px rgb(var(--shadow-rgb) / 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html .hero .datebig::after {
+    animation: none;
+    --risco: 360deg;
+  }
+}
+
+/* ---------- entrar: a folha da agenda (login-stage.tsx) ---------- */
+html .entrada-card {
+  background: #fff;
+}
+.ls-palco {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-height: 600px;
+  padding: 36px 34px 34px;
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 13%, transparent) 1.1px, transparent 1.6px) 0 0 / 22px 22px,
+    radial-gradient(70% 70% at 10% 10%, var(--bebe) 0%, transparent 70%),
+    radial-gradient(60% 60% at 90% 100%, #e6f2ff 0%, transparent 70%),
+    var(--bg);
+}
+.ls-marca {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ls-marca .brand-name {
+  color: var(--ink);
+}
+.ls-marca .brand-sub {
+  color: var(--muted);
+}
+.ls-titulo {
+  max-width: 17ch;
+  font-family: var(--disp);
+  font-size: clamp(34px, 3vw, 46px);
+  font-weight: 750;
+  line-height: 1.03;
+  letter-spacing: -0.035em;
+  color: var(--ink);
+}
+.ls-titulo em {
+  position: relative;
+  z-index: 0;
+  font-style: normal;
+  white-space: nowrap;
+  color: var(--bebe-ink);
+}
+.ls-titulo em::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: -2px;
+  right: -4px;
+  bottom: 0.06em;
+  height: 0.32em;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--marca-texto) 80%, transparent);
+  transform-origin: left;
+  animation: ls-marca-texto 0.7s 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.ls-cena {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+.ls-folha {
+  flex: none;
+  padding: 18px 18px 14px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow:
+    0 30px 60px -32px rgb(21 48 92 / 0.32),
+    0 1px 3px rgb(var(--shadow-rgb) / 0.06);
+  animation: ls-sobe 0.7s 0.1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.ls-mes {
+  margin-bottom: 8px;
+  font-family: var(--disp);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-transform: capitalize;
+  color: var(--ink);
+}
+.ls-mes span {
+  font-weight: 500;
+  color: var(--faint);
+}
+.ls-grade {
+  display: grid;
+  grid-template-columns: repeat(7, 40px);
+  grid-auto-rows: 38px;
+}
+.ls-dow {
+  display: grid;
+  place-items: center;
+  height: 24px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+}
+.ls-dia {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--disp);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  animation: ls-surge 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(0.2s + var(--k, 0) * 16ms);
+}
+.ls-dia.passado {
+  color: var(--faint);
+}
+.ls-dia.domingo {
+  color: color-mix(in srgb, var(--faint) 75%, #e2566a);
+}
+.ls-dia.hoje {
+  font-weight: 700;
+  color: var(--accent);
+}
+.ls-num {
+  position: relative;
+  z-index: 0;
+}
+.ls-dia.marcado .ls-num::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 22% -6px 4% -6px;
+  border-radius: 4px 7px 5px 6px;
+  background: color-mix(in srgb, var(--marca-texto) 85%, transparent);
+  transform: scaleX(0) skewX(-8deg);
+  transform-origin: left;
+  animation: ls-marca-texto 0.45s 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.ls-pt {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.ls-pt.vazio {
+  background: transparent;
+}
+.ls-anel {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: 42px;
+  height: 36px;
+  overflow: visible;
+  transform: translate(-50%, -50%) rotate(-6deg);
+  pointer-events: none;
+}
+.ls-anel path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 210;
+  stroke-dashoffset: 210;
+  animation: ls-caneta 0.9s 0.9s cubic-bezier(0.6, 0.1, 0.3, 1) forwards;
+}
+.ls-avisos {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 44px;
+}
+.ls-nota {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  align-items: start;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow:
+    0 14px 34px -16px rgb(21 48 92 / 0.3),
+    0 1px 2px rgb(var(--shadow-rgb) / 0.05);
+  animation: ls-chega 0.6s cubic-bezier(0.34, 1.4, 0.5, 1) both;
+}
+.ls-nota.prova { animation-delay: 1.7s; }
+.ls-nota.email { animation-delay: 2.2s; margin-left: 16px; }
+.ls-nota.nota { animation-delay: 2.7s; grid-template-columns: auto minmax(0, 1fr) auto; }
+.ls-ic {
+  grid-row: span 3;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+}
+.ls-nota.prova .ls-ic { background: #ffe4e8; color: #c43a52; }
+.ls-nota.email .ls-ic { background: var(--bebe); color: var(--bebe-ink); }
+.ls-nota.nota .ls-ic { background: var(--accent-tint); color: #1b7049; }
+.ls-k {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ls-nota b {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.ls-nota small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ls-valor {
+  grid-column: 3;
+  grid-row: 1 / span 3;
+  align-self: center;
+  font-family: var(--disp);
+  font-size: 30px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.ls-valor small {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--faint);
+}
+@keyframes ls-sobe {
+  from { opacity: 0.35; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ls-surge {
+  from { opacity: 0.2; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ls-chega {
+  from { opacity: 0; transform: translateX(22px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ls-caneta {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes ls-marca-texto {
+  from { transform: scaleX(0) skewX(-8deg); }
+  to { transform: scaleX(1) skewX(-8deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ls-folha,
+  .ls-dia,
+  .ls-nota,
+  .ls-titulo em::after,
+  .ls-dia.marcado .ls-num::before,
+  .ls-anel path {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+  }
+}
+
+/* ---------- Notas: "Próxima avaliação" também em azul bebê ---------- */
+html .kpi.notas-kpi-next {
+  border-color: transparent;
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 14%, transparent) 1.1px, transparent 1.6px) 0 0 / 20px 20px,
+    var(--bebe);
+  color: var(--bebe-ink);
+}
+html .notas-kpi-next .kpi-label,
+html .notas-kpi-next .kpi-val,
+html .notas-kpi-next .kpi-val.notas-kpi-none {
+  color: var(--bebe-ink);
+}
+html .notas-kpi-next .kpi-ico {
+  background: rgb(255 255 255 / 0.72);
+  color: var(--bebe-ink);
+}
+html .notas-kpi-next .kpi-hint {
+  color: color-mix(in srgb, var(--bebe-ink) 72%, transparent);
+}
+@media (hover: hover) and (pointer: fine) {
+  html .kpi.notas-kpi-next.is-link:hover {
+    border-color: transparent;
+    background: var(--bebe-2);
+  }
+}
+
+/* ---------- Lembretes: "Próximo aviso" em azul bebê ---------- */
+html .kpi.rem-next {
+  border-color: transparent;
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 14%, transparent) 1.1px, transparent 1.6px) 0 0 / 20px 20px,
+    var(--bebe);
+  color: var(--bebe-ink);
+}
+html .rem-next .kpi-label,
+html .rem-next .kpi-val {
+  color: var(--bebe-ink);
+}
+html .rem-next .kpi-ico {
+  background: rgb(255 255 255 / 0.72);
+  color: var(--bebe-ink);
+}
+html .rem-next .kpi-hint {
+  color: color-mix(in srgb, var(--bebe-ink) 72%, transparent);
+}
+
+/* ---------- Cronograma (mês): evento = ponto + nome; hoje circulado a caneta ---------- */
+html .ce {
+  position: relative;
+  padding: 3px 4px 3px 15px;
+  border-radius: 8px;
+  background: transparent;
+}
+html .ce::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+html .ce:hover {
+  background: var(--surface-2);
+}
+html .ce .t {
+  color: var(--ink-2);
+}
+html .ce .h {
+  color: var(--muted);
+  opacity: 1;
+}
+html .day.today .dnum {
+  position: relative;
+  background: transparent;
+  color: #1b7049;
+  font-weight: 800;
+}
+html .day.today .dnum::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 34px;
+  translate: -50% -50%;
+  rotate: -6deg;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 56'%3E%3Cpath d='M35 5C52 4 62 16 59 30C56 45 38 53 22 49C7 45 2 31 7 19C12 8 26 3 40 6C45 7 49 9 51 11' fill='none' stroke='%232fae76' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: conic-gradient(from 80deg, #000 var(--risco), transparent 0);
+  mask: conic-gradient(from 80deg, #000 var(--risco), transparent 0);
+  animation: caneta 0.9s 0.3s cubic-bezier(0.6, 0.1, 0.3, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  html .day.today .dnum::after {
+    animation: none;
+    --risco: 360deg;
+  }
+}
