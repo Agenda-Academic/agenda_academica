@@ -96,7 +96,7 @@ export function ProfileModal({
       >
         <form id={formId} onSubmit={handleSubmit} noValidate>
           <div className="flex items-center gap-3.5 rounded-2xl border border-line-2 bg-surface-2 p-4">
-            <span className="disp flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-night text-[15px] font-bold text-accent">
+            <span className="disp flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-[15px] font-bold text-brand-ink">
               {user.initials ?? (user.fullName ?? user.email).slice(0, 2).toUpperCase()}
             </span>
             <div className="min-w-0">

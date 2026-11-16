@@ -9,54 +9,63 @@
 @import "./styles/docente.css" layer(components);
 @import "./styles/notas.css" layer(components);
 @import "./styles/notas-docente.css" layer(components);
+/* visual novo: vem por último e reveste os componentes deste arquivo */
+@import "./styles/visual-novo.css" layer(components);
 
 /* ==================================================================
-   Tokens do produto: azul e verde IF (mesmos do protótipo no Figma,
-   docs/telas/src/00-head.html)
+   Tokens do produto: visual novo (azul bebê). O verde ficou só para
+   "hoje" e para o que deu certo.
    ================================================================== */
 :root {
-  /* neutros */
-  --bg: #f1f3f7;
+  /* neutros (cinza frio puxado para o azul) */
+  --bg: #f4f7fc;
   --surface: #ffffff;
-  --surface-2: #f7f8fb;
-  --line: #e2e6ee;
-  --line-2: #edf0f5;
-  --line-strong: #cdd3de;
-  --line-hover: #a9b5cb;
-  --seg-bg: #e6e9f0;
-  --neutral-tint: #eef1f5;
-  --ink: #101828;
-  --ink-2: #1f2937;
-  --ink-3: #475467;
-  --muted: #5d6678;
-  --muted-2: #6b7385;
-  --faint: #a3abb9;
-  /* cor de ação */
-  --brand: #17803f;
-  --brand-600: #11692f;
-  --brand-50: #eaf6ee;
-  --brand-100: #d3eddb;
-  --brand-200: #a6dab5;
-  --brand-400: #4fb073;
-  --brand-ink: #0e5a2c;
-  --brand-rgb: 23 128 63;
-  /* base escura (menu, destaques) */
-  --night: #1f4e8c;
-  --night-2: #2a5c9e;
-  --night-3: #3769ad;
-  --night-rgb: 15 30 58;
-  --on-night: #dce6f5;
-  --on-night-2: #b9cbe6;
-  /* destaque */
-  --accent: #4ade80;
-  --accent-tint: #dcfce7;
-  --accent-rgb: 74 222 128;
-  --shadow-rgb: 16 24 40;
+  --surface-2: #f6f9fe;
+  --line: #e3e9f3;
+  --line-2: #edf1f8;
+  --line-strong: #ccd7e8;
+  --line-hover: #a8b8d2;
+  --seg-bg: #e9f0fa;
+  --neutral-tint: #eef3fa;
+  --ink: #14203a;
+  --ink-2: #26324a;
+  --ink-3: #45526a;
+  --muted: #5f6b85;
+  --muted-2: #6b7790;
+  --faint: #a1abbf;
+  /* cor de ação: azul */
+  --brand: #2f6fd6;
+  --brand-600: #245bb5;
+  --brand-50: #eaf2ff;
+  --brand-100: #d6e6ff;
+  --brand-200: #b5d2ff;
+  --brand-400: #5e9bf0;
+  --brand-ink: #1c4a96;
+  --brand-rgb: 47 111 214;
+  /* azul escuro (detalhes) */
+  --night: #1f3a68;
+  --night-2: #2a4a80;
+  --night-3: #3a5c96;
+  --night-rgb: 20 32 58;
+  --on-night: #dce7f7;
+  --on-night-2: #b6c8e4;
+  /* verde: hoje, ao vivo, deu certo */
+  --accent: #2fae76;
+  --accent-tint: #dcf5e9;
+  --accent-rgb: 47 174 118;
+  --shadow-rgb: 20 32 58;
   --danger: #b4234a;
   --danger-rgb: 180 35 74;
+  /* azul bebê do destaque e dos botões principais */
+  --bebe: #e4f0ff;
+  --bebe-2: #d0e5ff;
+  --bebe-ink: #15305c;
+  --bebe-botao: #cfe3ff;
+  --bebe-botao-h: #bbd7ff;
+  --marca-texto: #ffe27a;
 
-  --font: var(--font-open-sans), system-ui, sans-serif;
-  --disp: var(--font-open-sans), system-ui, sans-serif;
+  --font: var(--font-figtree), system-ui, sans-serif;
+  --disp: var(--font-bricolage), var(--font-figtree), system-ui, sans-serif;
   --mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
