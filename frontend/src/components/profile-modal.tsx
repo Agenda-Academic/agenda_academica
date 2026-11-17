@@ -95,7 +95,7 @@ export function ProfileModal({
         }
       >
         <form id={formId} onSubmit={handleSubmit} noValidate>
-          <div className="flex items-center gap-3.5 rounded-2xl border border-line-2 bg-surface-2 p-4">
+          <div className="flex items-center gap-3.5 rounded-2xl bg-surface-2 p-4">
             <span className="disp flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-[15px] font-bold text-brand-ink">
               {user.initials ?? (user.fullName ?? user.email).slice(0, 2).toUpperCase()}
             </span>
@@ -146,7 +146,7 @@ export function ProfileModal({
             {/* o canal num quadro e a observação embaixo, como no Figma; o aviso é no próprio sistema */}
             <div className="grid gap-2">
               <span className="lbl">Avisos</span>
-              <div className="flex items-start gap-3 rounded-2xl border border-line-2 bg-surface-2 px-4 py-3">
+              <div className="flex items-start gap-3 rounded-2xl bg-surface-2 px-4 py-3">
                 <Bell className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
                 <span className="min-w-0 text-sm leading-5">
                   <span className="block font-bold text-ink">No sistema</span>

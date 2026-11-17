@@ -546,7 +546,7 @@ function DateList({ items }: { items: Array<{ key: string | number; title: strin
       {items.map((item) => {
         const meta = categoryMeta[item.category];
         return (
-          <li key={item.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line-2 bg-white px-3 py-2 text-sm">
+          <li key={item.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-surface-2 px-3 py-2 text-sm">
             <span className="min-w-0 flex-1 basis-40 font-bold text-ink wrap-anywhere">{item.title}</span>
             <span className="text-ink-3">{rangeLabel(item.start, item.end)}</span>
             {meta ? <span className={cx("pill", meta.tint)}>{meta.short}</span> : null}
@@ -1067,7 +1067,7 @@ export function SyncView({
           {previewOpen || lastResult ? (
             <section className="card pad rise min-w-0" style={delay(5)} aria-label="Conferir e importar datas">
               {previewOpen ? (
-                <div className="grid grid-cols-1 gap-3 rounded-2xl border border-line-2 bg-surface-2 p-4">
+                <div className="grid grid-cols-1 gap-3 rounded-2xl bg-surface-2 p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                     <h3 ref={previewRef} tabIndex={-1} className="text-[16px] font-bold outline-none">
                       Conferir datas

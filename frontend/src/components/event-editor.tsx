@@ -781,7 +781,7 @@ function EventPreview({
   const description = form.description.trim();
 
   return (
-    <div className="rounded-2xl border border-dashed border-line-strong bg-surface-2 p-1.5">
+    <div className="rounded-2xl bg-surface-2 p-1.5">
       <div className="flex items-start gap-4 rounded-[14px] bg-white p-3.5">
         <span className="ev-date">
           <span className="dw">{parts?.weekday ?? "Dia"}</span>
