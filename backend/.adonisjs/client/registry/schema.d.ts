@@ -295,6 +295,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/calendar_imports_controller').default['readPdf']>>>
     }
   }
+  'calendar_imports.undo': {
+    methods: ["DELETE"]
+    pattern: '/api/v1/calendar-imports/:id/events'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/calendar_imports_controller').default['undo']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/calendar_imports_controller').default['undo']>>>
+    }
+  }
   'courses.index': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/courses'

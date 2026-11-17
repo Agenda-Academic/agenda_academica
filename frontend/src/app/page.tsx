@@ -80,6 +80,7 @@ import {
   saveReminder,
   setReachableHandler,
   setUnauthorizedHandler,
+  undoCalendarImport,
   updateEvent,
   updateProfile,
   type CalendarImportInput,
@@ -3271,7 +3272,7 @@ export default function Home() {
       pushToast(
         "success",
         `${ids.length} ${ids.length === 1 ? "data importada" : "datas importadas"} de "${result.import.sourceName}".`,
-        { action: { label: "Desfazer", onClick: () => void undoImport(ids) } }
+        { action: { label: "Desfazer", onClick: () => void undoImport(result.import.id, ids) } }
       );
       await loadAll(active);
       return { ok: true, result };
@@ -3296,14 +3297,30 @@ export default function Home() {
     return readCalendarPdf(active.token, file);
   }
 
-  /** Desfaz uma importação apagando os eventos que ela criou. */
-  async function undoImport(ids: number[]) {
+  /** Desfaz uma importação: a API tira de uma vez, numa transação, as datas que ela criou. */
+  async function undoImport(importId: number | null, ids: number[]) {
     const active = sessionRef.current;
     if (!active || !ids.length) {
       return false;
     }
     setImporting(true);
     try {
+      if (importId !== null) {
+        try {
+          const removed = await undoCalendarImport(active.token, importId);
+          await loadAll(active);
+          pushToast(
+            "success",
+            `Importação desfeita: ${removed} ${removed === 1 ? "data removida" : "datas removidas"}.`
+          );
+          return true;
+        } catch (err) {
+          await loadAll(active);
+          pushToast("danger", `Não deu para desfazer a importação. ${errorMessage(err)}`);
+          return false;
+        }
+      }
+      // reserva: importação sem id (resposta antiga), data por data
       const results = await Promise.allSettled(ids.map((id) => deleteEvent(active.token, id)));
       const failed = results.filter(
         (item) => item.status === "rejected" && !(item.reason instanceof ApiError && item.reason.status === 404)

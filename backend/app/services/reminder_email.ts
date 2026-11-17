@@ -4,9 +4,8 @@ import { BRAND, escapeHtml } from '#services/mail_layout'
 import type { MailMessage } from '#services/mail_service'
 import env from '#start/env'
 import { DateTime } from 'luxon'
+import { appTimezone } from '#services/date_time_service'
 
-/** Mesma zona em que o horário do evento é digitado (ver date_time_service). */
-const EVENT_ZONE = 'America/Sao_Paulo'
 const DEFAULT_FRONTEND_URL = 'http://localhost:3000'
 
 function plural(count: number, singular: string, pluralForm: string) {
@@ -28,7 +27,10 @@ export function timeUntil(startsAt: DateTime, now: DateTime) {
 
 /** "quarta-feira, 12 de novembro, às 19:00" */
 export function eventWhen(startsAt: DateTime) {
-  return startsAt.setZone(EVENT_ZONE).setLocale('pt-BR').toFormat("cccc, d 'de' LLLL', às' HH:mm")
+  return startsAt
+    .setZone(appTimezone())
+    .setLocale('pt-BR')
+    .toFormat("cccc, d 'de' LLLL', às' HH:mm")
 }
 
 export function buildReminderEmail(

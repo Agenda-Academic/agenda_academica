@@ -22,11 +22,21 @@ export default class SyncInstitutionalCalendar extends BaseCommand {
     const payload = this.source
       ? await this.readPayload(this.source)
       : CalendarSyncService.demoPayload()
+    const { AlreadyImported } = await import('#services/calendar_sync_service')
     const result = await CalendarSyncService.importEvents({
       ...payload,
       sourceName: this.sourceName ?? payload.sourceName,
       sourceUrl: this.source?.startsWith('http') ? this.source : payload.sourceUrl,
+    }).catch((error) => {
+      if (error instanceof AlreadyImported) {
+        return null
+      }
+      throw error
     })
+    if (!result) {
+      this.logger.info('Nothing new to import: every date is already in the official calendar')
+      return
+    }
 
     this.logger.info(
       `Imported ${result.events.length} official events from "${result.calendarImport.sourceName}"`

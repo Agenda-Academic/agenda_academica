@@ -28,6 +28,7 @@ export type ScannedRoutes = {
     'calendar_imports.index': { paramsTuple?: []; params?: {} }
     'calendar_imports.store': { paramsTuple?: []; params?: {} }
     'calendar_imports.read_pdf': { paramsTuple?: []; params?: {} }
+    'calendar_imports.undo': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'courses.index': { paramsTuple?: []; params?: {} }
     'courses.store': { paramsTuple?: []; params?: {} }
     'courses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -201,6 +202,7 @@ export type ScannedRoutes = {
   DELETE: {
     'academic_events.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'reminders.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'calendar_imports.undo': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'courses.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'classes.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'classes.disable_join_code': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

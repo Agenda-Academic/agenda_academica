@@ -590,7 +590,8 @@ export function SyncView({
   /** Importa e devolve o resultado; o texto colado só é limpo quando der certo. */
   onImport?: (payload: CalendarImportInput) => Promise<ImportOutcome>;
   /** Apaga os eventos criados por uma importação. */
-  onUndoImport?: (ids: number[]) => Promise<boolean | void>;
+  /** Desfaz a importação `importId` (as `ids` servem de reserva quando a importação não tem id). */
+  onUndoImport?: (importId: number | null, ids: number[]) => Promise<boolean | void>;
   onOpenCalendar?: (filter?: { categories?: Category[] }) => void;
   /** Reserva antiga, sem onImport: importa sem esperar a resposta. */
   onImportJson?: (payload: CalendarImportInput) => void;
@@ -875,7 +876,7 @@ export function SyncView({
     }
   }
 
-  function askUndo(ids: number[], titles: string[], sourceName: string, after: () => void) {
+  function askUndo(importId: number | null, ids: number[], titles: string[], sourceName: string, after: () => void) {
     if (!onUndoImport || !ids.length) {
       return;
     }
@@ -885,7 +886,7 @@ export function SyncView({
       message: `${datesLabel(ids.length)} de "${sourceName}" ${ids.length === 1 ? "sai" : "saem"} do calendário de todas as turmas: ${names}.`,
       confirmLabel: "Desfazer importação",
       action: async () => {
-        const ok = await onUndoImport(ids);
+        const ok = await onUndoImport(importId, ids);
         if (ok !== false) {
           after();
         }
@@ -898,6 +899,7 @@ export function SyncView({
       return;
     }
     askUndo(
+      lastResult.importId,
       lastResult.events.map((event) => event.id),
       lastResult.events.map((event) => event.title),
       lastResult.sourceName,
@@ -1386,6 +1388,7 @@ export function SyncView({
                                       disabled={busy}
                                       onClick={() =>
                                         askUndo(
+                                          item.id,
                                           current.map((event) => event.id),
                                           current.map((event) => event.title),
                                           item.sourceName,

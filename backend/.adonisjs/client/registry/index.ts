@@ -150,6 +150,12 @@ const routes = {
     tokens: [{"old":"/api/v1/calendar-imports/pdf","type":0,"val":"api","end":""},{"old":"/api/v1/calendar-imports/pdf","type":0,"val":"v1","end":""},{"old":"/api/v1/calendar-imports/pdf","type":0,"val":"calendar-imports","end":""},{"old":"/api/v1/calendar-imports/pdf","type":0,"val":"pdf","end":""}],
     types: placeholder as Registry['calendar_imports.read_pdf']['types'],
   },
+  'calendar_imports.undo': {
+    methods: ["DELETE"],
+    pattern: '/api/v1/calendar-imports/:id/events',
+    tokens: [{"old":"/api/v1/calendar-imports/:id/events","type":0,"val":"api","end":""},{"old":"/api/v1/calendar-imports/:id/events","type":0,"val":"v1","end":""},{"old":"/api/v1/calendar-imports/:id/events","type":0,"val":"calendar-imports","end":""},{"old":"/api/v1/calendar-imports/:id/events","type":1,"val":"id","end":""},{"old":"/api/v1/calendar-imports/:id/events","type":0,"val":"events","end":""}],
+    types: placeholder as Registry['calendar_imports.undo']['types'],
+  },
   'courses.index': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/courses',

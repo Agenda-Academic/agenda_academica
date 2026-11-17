@@ -1,6 +1,9 @@
 import CalendarImport from '#models/calendar_import'
 import CalendarPdfService, { CalendarPdfError } from '#services/calendar_pdf_service'
-import CalendarSyncService, { InvalidCalendarEventDate } from '#services/calendar_sync_service'
+import CalendarSyncService, {
+  AlreadyImported,
+  InvalidCalendarEventDate,
+} from '#services/calendar_sync_service'
 import { calendarImportValidator } from '#validators/academic'
 import type { HttpContext } from '@adonisjs/core/http'
 import { readFile } from 'node:fs/promises'
@@ -27,7 +30,7 @@ export default class CalendarImportsController {
       ...payload,
       importedById: user.id,
     }).catch((error) => {
-      if (error instanceof InvalidCalendarEventDate) {
+      if (error instanceof InvalidCalendarEventDate || error instanceof AlreadyImported) {
         return error
       }
       throw error
@@ -36,6 +39,9 @@ export default class CalendarImportsController {
     if (result instanceof InvalidCalendarEventDate) {
       return response.badRequest({ message: result.message })
     }
+    if (result instanceof AlreadyImported) {
+      return response.conflict({ code: 'ALREADY_IMPORTED', message: result.message })
+    }
 
     return response.created({
       data: {
@@ -43,6 +49,25 @@ export default class CalendarImportsController {
         events: result.events.map((event) => event.serialize()),
       },
     })
+  }
+
+  /**
+   * Desfaz uma importação: as datas que ela trouxe saem todas de uma vez, numa transação.
+   * Antes, a tela apagava data por data, e uma conexão que caísse no meio deixava metade.
+   */
+  async undo({ auth, params, response }: HttpContext) {
+    const user = auth.getUserOrFail()
+    if (user.role !== 'admin') {
+      return response.forbidden({ message: 'Apenas administradores desfazem importacoes.' })
+    }
+
+    const calendarImport = await CalendarImport.find(Number(params.id))
+    if (!calendarImport) {
+      return response.notFound({ message: 'Importação não encontrada.' })
+    }
+
+    const removed = await CalendarSyncService.undoImport(calendarImport.id)
+    return { data: { removed } }
   }
 
   /**

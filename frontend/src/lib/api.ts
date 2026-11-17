@@ -459,6 +459,14 @@ export async function deleteEvent(token: string, id: number) {
   await apiFetch<{ message?: string }>(`/events/${id}`, token, { method: "DELETE" });
 }
 
+/** Desfaz uma importação do calendário: a API tira todas as datas dela de uma vez. Devolve quantas saíram. */
+export async function undoCalendarImport(token: string, importId: number) {
+  const payload = await apiFetch<ApiEnvelope<{ removed: number }>>(`/calendar-imports/${importId}/events`, token, {
+    method: "DELETE",
+  });
+  return payload.data.removed;
+}
+
 /* ------------------------------------------------------------------ */
 /* Lembretes                                                           */
 /* ------------------------------------------------------------------ */
