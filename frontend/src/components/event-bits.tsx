@@ -569,7 +569,7 @@ export function EventDetailContent({
         return null;
       }
       return (
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface-2 p-4">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-2 p-4">
           <p className="min-w-0 flex-1 text-sm leading-5 text-ink-3">
             {cancelled
               ? "O evento foi cancelado. Seu lembrete não vale mais."
@@ -617,7 +617,7 @@ export function EventDetailContent({
     }
 
     return (
-      <section className="mt-5 rounded-2xl border border-line bg-surface-2 p-4" aria-labelledby={`${ids}-lembrete`}>
+      <section className="mt-5 rounded-2xl bg-surface-2 p-4" aria-labelledby={`${ids}-lembrete`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 id={`${ids}-lembrete`} className="text-[15px] font-bold">
             Lembrete pessoal

@@ -340,7 +340,7 @@ export function TeacherDashboard({
                   return (
                     <li
                       key={assignment.id}
-                      className="flex min-w-0 flex-col gap-3.5 rounded-2xl border border-line-2 bg-surface-2 p-4"
+                      className="flex min-w-0 flex-col gap-3.5 rounded-2xl bg-surface-2 p-4"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-[15.5px] font-bold">{subjectName}</p>

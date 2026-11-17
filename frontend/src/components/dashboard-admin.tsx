@@ -317,7 +317,7 @@ export function AdminDashboard({
                   // min-w-0: abaixo de 640 px a grade tem uma coluna só, do tamanho do conteúdo, e um
                   // nome longo de turma a alargaria para fora do card em vez de cortar com reticências
                   return (
-                    <div key={academicClass.id} className="min-w-0 rounded-2xl border border-line-2 bg-surface-2 p-4">
+                    <div key={academicClass.id} className="min-w-0 rounded-2xl bg-surface-2 p-4">
                       <p className="truncate text-[15.5px] font-bold">{academicClass.name}</p>
                       <p className="sub !mt-1">
                         {[academicClass.course?.code, academicClass.period, shiftLabel(academicClass.shift)]

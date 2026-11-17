@@ -749,7 +749,7 @@ export function RemindersView({
             const label = minutes ? `Lembrar ${reminderOffsetLabel(minutes)}` : "Ativar lembrete";
             const meta = categoryMeta[event.category];
             return (
-              <li key={event.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line-2 bg-white p-3">
+              <li key={event.id} className="flex flex-wrap items-center gap-3 rounded-2xl bg-surface-2 p-3">
                 <div className="min-w-0 flex-1 basis-48">
                   <p className="text-[15px] font-bold leading-snug wrap-anywhere">{event.title}</p>
                   <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">

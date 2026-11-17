@@ -617,7 +617,7 @@ function DateList({ items }: { items: Array<{ key: string | number; title: strin
       {items.map((item) => {
         const meta = categoryMeta[item.category];
         return (
-          <li key={item.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line-2 bg-white px-3 py-2 text-sm">
+          <li key={item.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-surface-2 px-3 py-2 text-sm">
             <span className="min-w-0 flex-1 basis-40 font-bold text-ink wrap-anywhere">{item.title}</span>
             <span className="text-ink-3">{rangeLabel(item.start, item.end)}</span>
             {meta ? <span className={cx("pill", meta.tint)}>{meta.short}</span> : null}
@@ -1284,7 +1284,7 @@ export function SyncView({
                 ) : null}
               </div>
             ) : (
-              <div className="mt-4 grid grid-cols-1 gap-3 rounded-2xl border border-line-2 bg-surface-2 p-4">
+              <div className="mt-4 grid grid-cols-1 gap-3 rounded-2xl bg-surface-2 p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <h3 ref={previewRef} tabIndex={-1} className="text-[16px] font-bold outline-none">
                     Conferir datas
@@ -1512,13 +1512,13 @@ export function SyncView({
             </dl>
             {/* fica com a sobra quando a coluna estica para terminar junto do card do JSON */}
             <div ref={gapRef} className="tela-gap" aria-hidden />
-            <details className="group mt-4 rounded-xl border border-line-2 px-3.5 py-2">
+            <details className="group mt-4 rounded-xl bg-surface-2 px-3.5 py-2">
               <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold [&::-webkit-details-marker]:hidden">
                 Ver modelo de arquivo
                 <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden />
               </summary>
               <div className="mb-1.5 mt-2 grid gap-3">
-                <pre className="whitespace-pre-wrap break-words rounded-xl border border-line bg-surface-2 p-3 font-mono text-[13px] leading-5 text-ink-2">
+                <pre className="whitespace-pre-wrap break-words rounded-xl bg-white p-3 font-mono text-[13px] leading-5 text-ink-2">
                   {template}
                 </pre>
                 <div className="flex flex-wrap items-center gap-3">

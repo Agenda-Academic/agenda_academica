@@ -18,10 +18,10 @@
 html .side {
   background: var(--surface);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 0;
   box-shadow:
     0 1px 2px rgb(var(--shadow-rgb) / 0.04),
-    0 6px 20px -10px rgb(var(--shadow-rgb) / 0.14);
+    0 10px 30px -18px rgb(23 50 92 / 0.22);
 }
 html .brand {
   border-bottom-color: var(--line);
@@ -338,7 +338,7 @@ html .hero .btn-s:hover:not(:disabled) {
 html .toast {
   background: #fff;
   color: var(--ink);
-  border: 1px solid var(--line);
+  border-color: transparent;
   box-shadow: 0 18px 40px rgb(var(--shadow-rgb) / 0.18);
 }
 
@@ -349,17 +349,327 @@ html .toast {
   }
 }
 
-/* ---------- entrar: a folha da agenda (login-stage.tsx) ---------- */
-html .entrada-card {
-  background: #fff;
+/* ---------- entrar: a tela inteira, sem rolagem ----------
+   A página tem a altura da janela e não rola. Os espaços usam --g, que encolhe com a altura (dvh),
+   e em telas baixas some o que é só apoio (título repetido, frase de ajuda). Se nem assim couber
+   (criar conta num celular bem baixo), quem rola é o cartão, por dentro. */
+html .entrada {
+  --g: clamp(10px, 2.4dvh, 24px);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 11%, transparent) 1.1px, transparent 1.6px) 0 0 / 22px 22px,
+    var(--bg);
 }
+html .entrada-card {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+/* celular: o cartão é a tela toda; só o vão de baixo fica, para os avisos */
+html .entrada::before {
+  display: none;
+}
+html .entrada::after {
+  flex: 0 0 auto;
+}
+@media (min-width: 640px) {
+  html .entrada {
+    padding: clamp(10px, 2.4dvh, 32px) 24px;
+  }
+  html .entrada::before {
+    display: block;
+  }
+  html .entrada::after {
+    flex: 1 1 0px;
+  }
+  html .entrada-card {
+    flex: 0 1 auto;
+    width: min(100%, 460px);
+    margin-inline: auto;
+    border-radius: 28px;
+    box-shadow:
+      0 1px 2px rgb(var(--shadow-rgb) / 0.04),
+      0 30px 70px -40px rgb(23 50 92 / 0.38);
+  }
+}
+@media (min-width: 1280px) {
+  html .entrada-card {
+    width: min(100%, 1120px);
+    grid-template-columns: 1.12fr 0.88fr;
+  }
+}
+html .entrada-form {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: clamp(14px, 2.6dvh, 40px) clamp(20px, 6vw, 44px);
+}
+/* margem automática: centraliza quando sobra altura e não corta o topo quando falta */
+html .ent-form {
+  width: 100%;
+  max-width: 400px;
+  margin: auto;
+}
+html .ent-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: var(--g);
+}
+html .ent-notice {
+  margin-bottom: var(--g);
+}
+html .ent-notice-in {
+  margin-top: calc(var(--g) * 0.75);
+}
+html .ent-tabs {
+  margin-bottom: var(--g);
+}
+html .ent-title {
+  font-size: clamp(24px, 3.6dvh, 30px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+html .ent-desc {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+html .ent-fields {
+  display: grid;
+  gap: clamp(10px, 1.6dvh, 14px);
+  margin-top: var(--g);
+}
+html .ent-senhas {
+  display: grid;
+  gap: inherit;
+}
+@media (min-width: 640px) {
+  html .ent-senhas.par {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+html .ent-dados {
+  justify-self: start;
+  min-height: 24px;
+  margin-left: 26px;
+  font-size: 13px;
+}
+html .ent-forgot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-height: 21px;
+  font-size: 13px;
+  line-height: 21px;
+}
+html .ent-submit {
+  margin-top: var(--g);
+}
+html .ent-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-block: calc(var(--g) * 0.7);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+html .ent-or span {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+html .ent-google {
+  background: #f2f2f2;
+  color: #1f1f1f;
+}
+html .ent-google:hover:not(:disabled) {
+  background: #e7e7e7;
+}
+html .ent-hint {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--muted);
+}
+html .ent-hint-google {
+  margin-top: var(--g);
+  font-size: 13px;
+  line-height: 20px;
+}
+html .ent-hint-google .link {
+  display: inline;
+  min-height: 0;
+  font-size: inherit;
+}
+html .ent-demo {
+  margin-top: var(--g);
+}
+html .ent-demo-t {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+html .ent-demo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+html .ent-demo-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 42px;
+  min-width: 0;
+  padding: 0 10px 0 6px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 650;
+  text-align: left;
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+html .ent-demo-btn:hover {
+  background: var(--fill);
+}
+html .ent-demo-btn:active {
+  transform: scale(0.98);
+}
+html .ent-demo-btn.on {
+  background: var(--bebe);
+  color: var(--bebe-ink);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brand) 50%, transparent);
+}
+html .ent-demo-ico {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--tom-bg);
+  color: var(--tom);
+}
+html .ent-demo-btn[data-tom="0"] { --tom-bg: #dceaff; --tom: #2e5fa8; }
+html .ent-demo-btn[data-tom="1"] { --tom-bg: #ebe3ff; --tom: #6a4bc4; }
+html .ent-demo-btn[data-tom="2"] { --tom-bg: #ffe3d8; --tom: #b0502f; }
+html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
+/* tela baixa: o título sai da vista (continua para o leitor de tela). O de criar conta é maior
+   e sai antes; a aba e a frase de baixo já dizem que é a conta do responsável. */
+@media (max-height: 859px) {
+  html .ent-title.longo {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  html .ent-title.longo + .ent-desc {
+    margin-top: 0;
+  }
+}
+/* criar conta tem mais campos: em tela até 819 px de altura a marca sai (as abas ficam no topo) */
+@media (max-height: 819px) {
+  html .ent-form.criar .ent-brand {
+    display: none;
+  }
+}
+@media (max-height: 719px) {
+  html .ent-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  html .ent-desc {
+    margin-top: 0;
+  }
+}
+@media (max-height: 659px) {
+  html .ent-desc.opcional,
+  html .ent-desc .opcional {
+    display: none;
+  }
+}
+/* celular bem baixo (iPhone SE antigo com as barras): sai a marca e o título das contas */
+@media (max-height: 500px) {
+  html .ent-brand,
+  html .ent-demo-t {
+    display: none;
+  }
+  html .ent-demo-grid {
+    margin-top: 0;
+  }
+}
+@media (max-height: 640px) {
+  html .entrada {
+    --g: clamp(8px, 2dvh, 14px);
+  }
+  html .entrada-form {
+    padding-block: 12px;
+  }
+  html .ent-brand .mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+  }
+  html .ent-tabs button {
+    height: 38px;
+  }
+  html .entrada .input {
+    min-height: 42px;
+  }
+  html .ent-hint.opcional {
+    display: none;
+  }
+  html .ent-demo-btn {
+    height: 36px;
+  }
+  html .ent-demo-ico {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+  }
+}
+
+/* ---------- entrar: a folha da agenda (login-stage.tsx) ---------- */
 .ls-palco {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  min-height: 600px;
-  padding: 36px 34px 34px;
+  gap: clamp(12px, 2.6dvh, 24px);
+  min-height: 0;
+  padding: clamp(20px, 4dvh, 36px) 34px clamp(20px, 4dvh, 34px);
   background:
     radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 13%, transparent) 1.1px, transparent 1.6px) 0 0 / 22px 22px,
     radial-gradient(70% 70% at 10% 10%, var(--bebe) 0%, transparent 70%),
@@ -380,7 +690,7 @@ html .entrada-card {
 .ls-titulo {
   max-width: 17ch;
   font-family: var(--disp);
-  font-size: clamp(34px, 3vw, 46px);
+  font-size: clamp(30px, min(3vw, 5.6dvh), 46px);
   font-weight: 750;
   line-height: 1.03;
   letter-spacing: -0.035em;
@@ -437,7 +747,7 @@ html .entrada-card {
 .ls-grade {
   display: grid;
   grid-template-columns: repeat(7, 40px);
-  grid-auto-rows: 38px;
+  grid-auto-rows: clamp(30px, 4.4dvh, 38px);
 }
 .ls-dow {
   display: grid;
@@ -520,8 +830,14 @@ html .entrada-card {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-top: 44px;
+  gap: clamp(8px, 1.4dvh, 12px);
+  padding-top: clamp(0px, 4.6dvh, 44px);
+}
+/* desktop baixo: a linha de apoio de cada aviso sai, para a cena caber sem rolar */
+@media (max-height: 700px) {
+  .ls-nota > small {
+    display: none;
+  }
 }
 .ls-nota {
   display: grid;
@@ -662,35 +978,117 @@ html .rem-next .kpi-hint {
   color: color-mix(in srgb, var(--bebe-ink) 72%, transparent);
 }
 
-/* ---------- Cronograma (mês): evento = ponto + nome; hoje circulado a caneta ---------- */
+/* ---------- Cronograma (mês), no molde do protótipo ----------
+   Sem caixa nem grade: cada dia é só uma linha fina em cima, com respiro entre as colunas, como
+   folha de agenda. Número na fonte de título, evento = ponto da categoria + nome, hoje circulado a
+   caneta e o dia escolhido com uma faixa azul em cima. */
+html .cal {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+html .cal-head {
+  column-gap: 6px;
+  border-bottom: 0;
+  background: var(--surface);
+}
+html .cal-head span {
+  padding: 6px 6px 10px;
+  font-size: 11.5px;
+  letter-spacing: 0.07em;
+  color: var(--ink-3);
+}
+html .week {
+  column-gap: 6px;
+  border-bottom: 0;
+}
+html .day {
+  min-height: 112px;
+  padding: 8px 6px 6px;
+  gap: 3px;
+  border-right: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  animation: cal-surge 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--k, 0) * 8ms);
+}
+html .day.we {
+  background: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  html button.day:hover {
+    background: var(--surface-2);
+  }
+  html button.day.sel:hover {
+    background: var(--brand-50);
+  }
+}
+html .day.sel {
+  background: var(--brand-50);
+  box-shadow: inset 0 2px 0 var(--brand);
+}
+html .dnum {
+  justify-content: flex-start;
+  width: 28px;
+  height: 26px;
+  margin: 0 0 2px -1px;
+  padding-left: 3px;
+  border-radius: 0;
+  font-family: var(--disp);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+html .day.out .dnum {
+  color: var(--muted);
+  font-weight: 550;
+}
+html .day.out .ce {
+  opacity: 0.6;
+}
+/* evento: ponto + nome em até duas linhas; a hora fica na dica e na lista do dia */
 html .ce {
   position: relative;
-  padding: 3px 4px 3px 15px;
-  border-radius: 8px;
+  padding: 2px 4px 2px 13px;
+  border-radius: 6px;
   background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
 }
 html .ce::before {
   content: "";
   position: absolute;
-  left: 4px;
-  top: 9px;
+  left: 3px;
+  top: 7px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
 }
+/* o ponto usa a cor viva da categoria (a mesma da legenda), não a do texto da etiqueta */
+html .ce.c-prova::before { background: #e11d48; }
+html .ce.c-trab::before { background: #7c3aed; }
+html .ce.c-ativ::before { background: #0284c7; }
+html .ce.c-extra::before { background: #d97706; }
+html .ce.c-inst::before { background: #2563eb; }
+html .ce.c-fer::before { background: #059669; }
+html .ce.c-rec::before { background: #65a30d; }
 html .ce:hover {
   background: var(--surface-2);
 }
 html .ce .t {
+  font-size: 12px;
   color: var(--ink-2);
 }
 html .ce .h {
-  color: var(--muted);
-  opacity: 1;
+  display: none;
 }
 html .day.today .dnum {
   position: relative;
+  justify-content: center;
+  padding-left: 0;
   background: transparent;
   color: #1b7049;
   font-weight: 800;
@@ -710,9 +1108,169 @@ html .day.today .dnum::after {
   mask: conic-gradient(from 80deg, #000 var(--risco), transparent 0);
   animation: caneta 0.9s 0.3s cubic-bezier(0.6, 0.1, 0.3, 1) forwards;
 }
+/* lista do dia, aberta embaixo da semana: bloco preenchido, sem as linhas em volta */
+html .cal-day {
+  margin: 4px 0 12px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--surface-2);
+}
+html .cal-day .ev:not(.sel):hover {
+  background: #fff;
+}
+/* legenda das cores: no pé da grade */
+html .cal-leg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+html .cal-leg li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+html .cal-leg .dot {
+  width: 7px;
+  height: 7px;
+}
+/* celular e tablet: o dia vira um número com os pontos embaixo */
+@media (max-width: 1023px) {
+  html .cal-head,
+  html .week {
+    column-gap: 2px;
+  }
+  html .cal-head span {
+    padding: 4px 0 8px;
+    font-size: 10.5px;
+  }
+  html .day {
+    min-height: 58px;
+    padding: 6px 2px;
+    align-items: center;
+    gap: 4px;
+  }
+  html .dnum {
+    justify-content: center;
+    margin: 0;
+    padding-left: 0;
+  }
+  html .day.today .dnum::after {
+    width: 36px;
+    height: 32px;
+  }
+}
+@keyframes cal-surge {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
+  html .day {
+    animation: none;
+  }
   html .day.today .dnum::after {
     animation: none;
     --risco: 360deg;
   }
+}
+
+/* ---------- menos bordas ----------
+   Cartão separa do fundo pela sombra; caixa dentro do cartão separa pelo preenchimento.
+   Fica com contorno só o que é estado (opção escolhida, foco) e as áreas de soltar arquivo. */
+html :is(.card, .surface) {
+  border-color: transparent;
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-rgb) / 0.04),
+    0 10px 30px -18px rgb(23 50 92 / 0.22);
+}
+html :is(
+    .semestre, .ucard, .student-pick, .side-search .kbd,
+    .ev-date, .mini, .mini-ico, .aviso, .rem-row, .empty-inline,
+    .admin-code.wt, .admin-annual, .admin-subform, .admin-offer, .admin-pill-wt, .admin-pill-warn,
+    .admin-pend-box, .admin-codebox, .admin-guard,
+    .callout.aluno-review, .aluno-guard, .aluno-codebox, .aluno-code-row, .aluno-code-ico,
+    .docente-oferta, .docente-code-chip, .docente-pill-wt, .docente-pend-box, .docente-codebox,
+    .notas-docente-imp, .notas-docente-grades, .notas-docente-file, .notas-docente-rows,
+    .notas-who, .notas-stage, .notas-howto,
+    .resp-vinc-side, .resp-sees-notes, .resp-aluno
+  ) {
+  border-color: transparent;
+}
+/* o que era branco com borda dentro do cartão branco ganha preenchimento */
+html :is(.rem-row, .notas-howto) {
+  background: var(--surface-2);
+}
+html .rem-row.past {
+  background: color-mix(in srgb, var(--surface-2) 55%, #fff);
+}
+html :is(.admin-code.wt, .admin-pill-wt, .docente-code-chip, .docente-pill-wt) {
+  background: var(--fill);
+}
+html .ev.sel .ev-date {
+  background: #fff;
+}
+html button.mini:hover,
+html a.mini:hover {
+  border-color: transparent;
+}
+
+/* botões e campos: preenchidos, sem contorno (o foco continua com a borda azul) */
+html .btn-s,
+html .ib {
+  border-color: transparent;
+  background: var(--fill);
+}
+html .btn-s:hover:not(:disabled),
+html .ib:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--fill-h);
+}
+html .btn-danger {
+  border-color: transparent;
+  background: #fdecef;
+}
+html .input,
+html .side-search input {
+  border-color: transparent;
+  background-color: var(--fill);
+}
+html .input:hover:not(:focus) {
+  background-color: var(--fill-h);
+}
+html .input:focus,
+html .side-search input:focus {
+  border-color: var(--brand);
+  background-color: #fff;
+}
+html .input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+html .rem-offset {
+  border-color: transparent;
+  background-color: #fff;
+}
+html .rem-offset:hover {
+  border-color: transparent;
+  background-color: var(--fill);
+}
+html .opt {
+  border-color: transparent;
+  background: var(--surface-2);
+}
+html .opt.on {
+  border-color: var(--brand);
+  background: var(--brand-50);
+}
+html .notas-docente-step-n {
+  border-color: transparent;
+  background: var(--fill);
 }

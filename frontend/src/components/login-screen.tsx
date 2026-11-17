@@ -4,7 +4,6 @@ import {
   AlertCircle,
   ArrowLeft,
   BookOpen,
-  Check,
   CircleAlert,
   CircleCheckBig,
   Eye,
@@ -333,7 +332,7 @@ function PasswordRecovery({
   );
 
   const brand = (
-    <div className="mb-6 flex items-center gap-3 xl:hidden">
+    <div className="ent-brand xl:hidden">
       <span className="mark">
         <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
       </span>
@@ -343,7 +342,7 @@ function PasswordRecovery({
 
   if (mode === "forgot") {
     return (
-      <form className="w-full max-w-md" onSubmit={submitForgot} noValidate>
+      <form className="ent-form" onSubmit={submitForgot} noValidate>
         {brand}
         {/* depois do envio, o "Voltar para entrar" fica só no botão grande */}
         {sentTo ? null : backButton}
@@ -424,7 +423,7 @@ function PasswordRecovery({
   }
 
   return (
-    <form className="w-full max-w-md" onSubmit={submitReset} noValidate>
+    <form className="ent-form" onSubmit={submitReset} noValidate>
       {brand}
       {backButton}
       <h1 ref={titleRef} className="disp text-[30px] font-bold leading-tight outline-none" tabIndex={-1}>
@@ -734,15 +733,16 @@ export function LoginScreen({
   }
 
   return (
-    // o cartão fica no meio da altura, entre os dois vãos da .entrada (globals.css); com aviso na
-    // tela, o vão de baixo guarda o lugar dele e, no fim da rolagem, o cartão fica acima do aviso
-    <main className="entrada flex min-h-screen flex-col bg-login px-4 py-6 text-ink sm:px-6 lg:px-8">
-      <section className="card rise entrada-card mx-auto grid w-full max-w-6xl shrink-0 overflow-hidden !rounded-[28px] xl:grid-cols-[1.12fr_0.88fr]">
+    // a tela de entrar ocupa a altura da janela e não rola: o cartão fica no meio, entre os dois
+    // vãos da .entrada (globals.css), e os espaços internos encolhem com a altura (visual-novo.css).
+    // Só se o conteúdo não couber de jeito nenhum (criar conta num celular baixo) o cartão rola por dentro.
+    <main className="entrada bg-login text-ink">
+      <section className="card rise entrada-card">
         <div className="hidden xl:flex">
           <LoginStage />
         </div>
 
-        <div className="flex items-center justify-center p-5 sm:p-8">
+        <div className="entrada-form">
           {recovery ? (
             <PasswordRecovery
               key={recovery}
@@ -765,8 +765,8 @@ export function LoginScreen({
               }}
             />
           ) : (
-            <form className="w-full max-w-md" onSubmit={handleSubmit} noValidate>
-              <div className="mb-6 flex items-center gap-3 xl:hidden">
+            <form className={cx("ent-form", mode === "signup" && "criar")} onSubmit={handleSubmit} noValidate>
+              <div className="ent-brand xl:hidden">
                 <span className="mark">
                   <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
                 </span>
@@ -774,13 +774,13 @@ export function LoginScreen({
               </div>
 
               {notice ? (
-                <p role="status" className="callout blue mb-5">
+                <p role="status" className="callout blue ent-notice">
                   <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                   {notice}
                 </p>
               ) : null}
 
-              <div className="seg mb-7 grid w-full grid-cols-2">
+              <div className="seg ent-tabs grid w-full grid-cols-2">
                 <button
                   className={cx(mode === "login" && "on")}
                   aria-pressed={mode === "login"}
@@ -801,27 +801,21 @@ export function LoginScreen({
                 </button>
               </div>
 
-              <h1 ref={titleRef} className="disp text-[30px] font-bold leading-tight" tabIndex={-1}>
+              {/* em tela baixa o título some da vista (as abas já dizem onde se está), mas segue para o leitor de tela */}
+              <h1 ref={titleRef} className={cx("ent-title disp", mode === "signup" && "longo")} tabIndex={-1}>
                 {mode === "login" ? "Entrar" : "Criar conta de responsável"}
               </h1>
-              <p className="mt-2 text-[14.5px] leading-6 text-muted">
-                {mode === "signup"
-                  ? "Para pais e responsáveis acompanharem a agenda e as notas do aluno. Tenha em mãos o código do aluno: ele gera no perfil, ou a secretaria passa."
-                  : demoOn
+              <p className={cx("ent-desc", mode === "login" && "opcional")}>
+                {mode === "signup" ? (
+                  <>
+                    <span className="opcional">Para pais e responsáveis acompanharem a agenda e as notas do aluno. </span>
+                    Tenha em mãos o código do aluno: ele gera no perfil, ou a secretaria passa.
+                  </>
+                ) : demoOn
                     ? "Use seu e-mail ou escolha uma conta de demonstração."
                     : "Use seu e-mail e senha, ou a conta Google da instituição."}
               </p>
-              {mode === "signup" ? (
-                <p className="callout blue mt-4">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                  <span className="min-w-0">
-                    Aluno ou docente não precisa criar conta: use <strong>Entrar com o Google</strong>, logo abaixo,
-                    com o e-mail da instituição.
-                  </span>
-                </p>
-              ) : null}
-
-              <div className="mt-5 grid gap-3">
+              <div className="ent-fields">
                 {mode === "signup" ? (
                   <>
                     <Field label="Nome completo" error={fieldErrors.fullName} errorId={errorId("fullName")}>
@@ -837,17 +831,6 @@ export function LoginScreen({
                         maxLength={120}
                       />
                     </Field>
-                    {guardian ? (
-                      <p className="callout blue">
-                        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                        <span className="min-w-0">
-                          Usamos seu nome e e-mail só para mostrar a agenda do aluno que você acompanha.{" "}
-                          <button className="link inline min-h-6" onClick={() => setDataOpen(true)} type="button">
-                            Quais dados o responsável vê
-                          </button>
-                        </span>
-                      </p>
-                    ) : null}
                   </>
                 ) : null}
 
@@ -870,39 +853,44 @@ export function LoginScreen({
                   />
                 </Field>
 
-                <PasswordField
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  error={fieldErrors.password}
-                  errorId={errorId("password")}
-                  hint={mode === "signup" ? "mínimo de 8 caracteres" : undefined}
-                  inputRef={passwordRef}
-                  label="Senha"
-                  shown={showPassword}
-                  value={mode === "login" ? loginForm.password : signupForm.password}
-                  onChange={(value) => {
-                    if (mode === "login") {
-                      setLoginForm({ ...loginForm, password: value });
-                    } else {
-                      setSignupForm({ ...signupForm, password: value });
-                    }
-                    touched("password");
-                  }}
-                  onToggle={() => setShowPassword((current) => !current)}
-                />
-
-                {mode === "login" ? (
-                  <button
-                    className="link -mt-1 min-h-6 justify-self-end text-sm"
-                    onClick={() => {
-                      setError(null);
-                      setFieldErrors({});
-                      setRecovery("forgot");
+                {/* ao criar conta, senha e confirmação ficam lado a lado a partir de 640 px */}
+                <div className={cx("ent-senhas", mode === "signup" && "par")}>
+                {/* "Esqueci minha senha" fica na linha do rótulo, à direita, para não gastar uma linha só dele */}
+                <div className="relative">
+                  <PasswordField
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    error={fieldErrors.password}
+                    errorId={errorId("password")}
+                    hint={mode === "signup" ? "mín. 8 caracteres" : undefined}
+                    inputRef={passwordRef}
+                    label="Senha"
+                    shown={showPassword}
+                    value={mode === "login" ? loginForm.password : signupForm.password}
+                    onChange={(value) => {
+                      if (mode === "login") {
+                        setLoginForm({ ...loginForm, password: value });
+                      } else {
+                        setSignupForm({ ...signupForm, password: value });
+                      }
+                      touched("password");
                     }}
-                    type="button"
-                  >
-                    Esqueci minha senha
-                  </button>
-                ) : null}
+                    onToggle={() => setShowPassword((current) => !current)}
+                  />
+
+                  {mode === "login" ? (
+                    <button
+                      className="link ent-forgot"
+                      onClick={() => {
+                        setError(null);
+                        setFieldErrors({});
+                        setRecovery("forgot");
+                      }}
+                      type="button"
+                    >
+                      Esqueci minha senha
+                    </button>
+                  ) : null}
+                </div>
 
                 {mode === "signup" ? (
                   <PasswordField
@@ -919,13 +907,14 @@ export function LoginScreen({
                     }}
                   />
                 ) : null}
+                </div>
 
                 {guardian ? (
                   <div className="grid gap-1.5">
-                    <label className="flex min-h-6 cursor-pointer items-start gap-2.5 text-sm leading-6 text-ink-2">
+                    <label className="flex min-h-6 cursor-pointer items-start gap-2.5 text-sm leading-5 text-ink-2">
                       <input
                         ref={consentRef}
-                        className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--brand)]"
                         type="checkbox"
                         checked={signupForm.consent}
                         onChange={(event) => {
@@ -937,20 +926,23 @@ export function LoginScreen({
                       />
                       <span>Li e concordo com o uso do meu nome e e-mail para acompanhar a agenda do aluno.</span>
                     </label>
+                    <button className="link ent-dados" onClick={() => setDataOpen(true)} type="button">
+                      Quais dados o responsável vê
+                    </button>
                     {fieldErrors.consent ? <FieldMessage id={errorId("consent")}>{fieldErrors.consent}</FieldMessage> : null}
                   </div>
                 ) : null}
               </div>
 
               {error ? (
-                <p role="alert" className="callout rose pop mt-4">
+                <p role="alert" className="callout rose pop ent-notice-in">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                   {error}
                 </p>
               ) : null}
 
               <button
-                className={cx(primaryButton, "mt-5 h-11 w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-55")}
+                className={cx(primaryButton, "ent-submit h-11 w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-55")}
                 aria-disabled={busy || undefined}
                 type="submit"
               >
@@ -970,35 +962,57 @@ export function LoginScreen({
                 </p>
               ) : null}
 
-              <div className="mt-5 flex items-center gap-3 text-[13px] font-semibold text-muted">
-                <span className="h-px flex-1 bg-line" aria-hidden />
-                ou
-                <span className="h-px flex-1 bg-line" aria-hidden />
-              </div>
+              {mode === "login" ? (
+                <>
+                  <div className="ent-or">
+                    <span aria-hidden />
+                    ou
+                    <span aria-hidden />
+                  </div>
 
-              {/* padrão do botão do Google: fundo branco, borda cinza e o "G" colorido */}
-              <button
-                className={cx(
-                  secondaryButton,
-                  "mt-4 h-11 w-full gap-3 border-[#747775] aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
-                )}
-                aria-disabled={busy || undefined}
-                aria-describedby={googleMessage ? `${googleErrorId} ${googleHintId}` : googleHintId}
-                onClick={startGoogle}
-                type="button"
-              >
-                {googleLoading ? <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden /> : <GoogleMark />}
-                {googleLoading ? "Abrindo o Google" : "Entrar com o Google"}
-              </button>
+                  {/* padrão "neutro" do botão do Google: fundo #F2F2F2, sem borda e o "G" colorido */}
+                  <button
+                    className={cx(
+                      secondaryButton,
+                      "ent-google h-11 w-full gap-3 aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
+                    )}
+                    aria-disabled={busy || undefined}
+                    aria-describedby={googleMessage ? `${googleErrorId} ${googleHintId}` : googleHintId}
+                    onClick={startGoogle}
+                    type="button"
+                  >
+                    {googleLoading ? <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden /> : <GoogleMark />}
+                    {googleLoading ? "Abrindo o Google" : "Entrar com o Google"}
+                  </button>
+                </>
+              ) : null}
               {googleMessage ? (
                 <p role="alert" className="field-error pop" id={googleErrorId}>
                   <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                   <span>{googleMessage}</span>
                 </p>
               ) : null}
-              <p id={googleHintId} className="mt-2 text-center text-[13px] leading-5 text-muted">
-                Use o e-mail da sua instituição.
-              </p>
+              {/* criar conta é só para responsável: quem é aluno ou docente caiu na aba errada, e o
+                  caminho dele (o Google) fica numa linha só, sem o botão grande */}
+              {mode === "login" ? (
+                <p id={googleHintId} className="ent-hint opcional">
+                  Use o e-mail da sua instituição.
+                </p>
+              ) : (
+                <p className="ent-hint ent-hint-google">
+                  Aluno ou docente não cria conta:{" "}
+                  <button
+                    className="link aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
+                    aria-disabled={busy || undefined}
+                    aria-describedby={googleMessage ? googleErrorId : undefined}
+                    onClick={startGoogle}
+                    type="button"
+                  >
+                    {googleLoading ? "abrindo o Google" : "entre com o Google"}
+                  </button>
+                  , com o e-mail da instituição.
+                </p>
+              )}
               {googleLoading && slow ? (
                 <p role="status" className="mt-2 text-center text-sm text-muted">
                   O servidor estava em repouso e está voltando. No primeiro acesso isso leva até um minuto.
@@ -1006,53 +1020,33 @@ export function LoginScreen({
               ) : null}
 
               {mode === "login" && demoOn ? (
-                <div className="mt-7">
-                  <p className="flex items-center gap-2 text-sm font-bold text-ink-2">
-                    <ShieldCheck className="h-4 w-4 text-muted" aria-hidden />
+                <div className="ent-demo">
+                  <p className="ent-demo-t">
+                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
                     Contas de demonstração
                   </p>
-                  <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+                  {/* uma linha curta por conta (ícone e papel); a escolhida fica azul. O que cada uma faz fica na dica do botão */}
+                  <div className="ent-demo-grid">
                     {demoAccounts.map((account, index) => {
                       const on = loginForm.email === account.email;
                       const Icon = [GraduationCap, BookOpen, ShieldCheck, Users][index % 4];
-                      const tone = [
-                        "bg-brand-50 text-brand",
-                        "bg-[#EDE9FE] text-[#5B21B6]",
-                        "bg-[#DBEAFE] text-[#1E40AF]",
-                        "bg-[#FEF3C7] text-[#92400E]",
-                      ][index % 4];
                       return (
                         <button
                           key={account.email}
                           type="button"
-                          title={`Usar conta ${account.label}`}
+                          title={`${account.label}: ${account.description}`}
                           aria-pressed={on}
                           onClick={() => {
                             setLoginForm({ email: account.email, password: account.password });
                             touched("email");
                           }}
-                          // no celular vira linha (ícone, texto, check); a partir de sm, cartão com o texto embaixo
-                          className={cx(
-                            "grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border p-3.5 text-left transition hover:-translate-y-0.5 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-2.5",
-                            on ? "border-brand bg-brand-50 shadow-[inset_0_0_0_1px_var(--brand)]" : "border-line-strong bg-white hover:border-[var(--line-hover)]"
-                          )}
+                          className={cx("ent-demo-btn", on && "on")}
+                          data-tom={index % 4}
                         >
-                          <span
-                            className={cx(
-                              "flex h-[34px] w-[34px] items-center justify-center rounded-[10px] sm:row-start-1",
-                              on ? "bg-white text-brand" : tone
-                            )}
-                          >
-                            <Icon className="h-[18px] w-[18px]" aria-hidden />
+                          <span className="ent-demo-ico">
+                            <Icon className="h-4 w-4" aria-hidden />
                           </span>
-                          <span className="min-w-0 sm:col-span-2 sm:row-start-2">
-                            <span className="block text-[14.5px] font-bold">{account.label}</span>
-                            <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-3">{account.description}</span>
-                          </span>
-                          <Check
-                            className={cx("h-4 w-4 text-brand transition-opacity sm:col-start-2 sm:row-start-1", on ? "opacity-100" : "opacity-0")}
-                            aria-hidden
-                          />
+                          <span className="min-w-0 truncate">{account.label}</span>
                         </button>
                       );
                     })}

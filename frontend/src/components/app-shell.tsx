@@ -349,7 +349,7 @@ function SideTools({
         {status}
       </p>
       {showButton ? (
-        <button className="nav nav-sm -mt-1 justify-between border border-line pointer-coarse:h-11" onClick={onSubmit} type="button">
+        <button className="nav nav-sm -mt-1 justify-between bg-surface-2 pointer-coarse:h-11" onClick={onSubmit} type="button">
           Ver {count} {count === 1 ? one : many}
           <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
         </button>

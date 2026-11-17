@@ -20,7 +20,9 @@
   /* neutros (cinza frio puxado para o azul) */
   --bg: #f4f7fc;
   --surface: #ffffff;
-  --surface-2: #f6f9fe;
+  --surface-2: #f2f6fc;
+  --fill: #ebf1f9;
+  --fill-h: #dfe8f5;
   --line: #e3e9f3;
   --line-2: #edf1f8;
   --line-strong: #ccd7e8;

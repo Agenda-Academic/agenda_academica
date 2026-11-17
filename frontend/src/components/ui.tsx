@@ -1500,7 +1500,7 @@ export function ErrorState({
   retrying?: boolean;
 }) {
   return (
-    <div className="empty-inline gap-2 border-solid border-[#f3c6d0] bg-white px-6 py-10" role="alert">
+    <div className="empty-inline gap-2 bg-[#fff3f5] px-6 py-10" role="alert">
       <span className="empty-ico bg-[#ffe4e8] text-[#be123c]">
         <TriangleAlert className="h-6 w-6" aria-hidden />
       </span>

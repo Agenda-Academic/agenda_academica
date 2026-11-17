@@ -738,17 +738,6 @@ function MonthCalendar({
         </div>
       </div>
 
-      {present.length ? (
-        <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-ink-3" aria-label="Cores das categorias">
-          {present.map((category) => (
-            <li key={category} className="inline-flex items-center gap-1.5">
-              <span className={cx("dot", categoryMeta[category].accent)} aria-hidden />
-              {categoryMeta[category].label}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
       {monthEventCount === 0 ? <p className="callout past mb-3">Nenhum evento em {monthName(cursor)}.</p> : null}
 
       <div ref={gridRef} className="cal" role="group" aria-labelledby={titleId} onKeyDown={onGridKey}>
@@ -759,10 +748,10 @@ function MonthCalendar({
             </span>
           ))}
         </div>
-        {weeks.map((week) => (
+        {weeks.map((week, weekIndex) => (
           <Fragment key={week[0].key}>
             <div className="week">
-              {week.map((cell) => {
+              {week.map((cell, dayIndex) => {
                 const weekend = cell.date.getDay() === 0 || cell.date.getDay() === 6;
                 const selected = cell.key === selectedDay;
                 const dots = Array.from(new Set(cell.events.map((event) => event.category))).slice(0, 4);
@@ -780,6 +769,8 @@ function MonthCalendar({
                       selected && "sel"
                     )}
                     data-day={cell.key}
+                    // ordem do dia na grade: os dias entram um pouco um depois do outro (visual-novo.css)
+                    style={{ ["--k" as string]: weekIndex * 7 + dayIndex }}
                     onClick={(click) => {
                       // os chips dos eventos abrem o evento; o resto do dia mostra a lista do dia
                       const chip = (click.target as HTMLElement).closest<HTMLElement>("[data-event-id]");
@@ -806,7 +797,7 @@ function MonthCalendar({
                               event.status === "cancelled" && "line-through opacity-70"
                             )}
                             data-event-id={event.id}
-                            title={event.title}
+                            title={`${event.title} · ${isWholeDay(event.startsAt, event.endsAt) ? "dia todo" : formatTime(event.startsAt)}`}
                           >
                             <span className="t">{chipTitle(event.title)}</span>
                             <span className="h">{isWholeDay(event.startsAt, event.endsAt) ? "dia todo" : formatTime(event.startsAt)}</span>
@@ -835,6 +826,18 @@ function MonthCalendar({
           </Fragment>
         ))}
       </div>
+
+      {/* legenda das cores no pé da grade, onde não disputa a atenção com o mês */}
+      {present.length ? (
+        <ul className="cal-leg" aria-label="Cores das categorias">
+          {present.map((category) => (
+            <li key={category}>
+              <span className={cx("dot", categoryMeta[category].accent)} aria-hidden />
+              {categoryMeta[category].label}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
