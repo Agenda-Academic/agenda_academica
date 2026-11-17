@@ -15,11 +15,11 @@ import NotificationService from '#services/notification_service'
 import { countOf } from '#services/query_helpers'
 import type { TransactionClientContract } from '@adonisjs/lucid/types/database'
 import { DateTime } from 'luxon'
+import { appTimezone } from '#services/date_time_service'
 
 /** Só prova e trabalho recebem nota. */
 export const GRADABLE_CATEGORIES = ['exam', 'assignment'] as const
 
-const ZONE = 'America/Sao_Paulo'
 const NOTES_LINK = '?tela=notas'
 /** Marca em audit_logs: nota de uma importação aplicada apagada depois na Agenda. */
 const CLEARED_AFTER_IMPORT = 'grade_import.grade_cleared'
@@ -86,7 +86,8 @@ export function parseScore(raw: unknown, maxScore: number): ParsedScore {
     }
   } else {
     const text = raw === null || raw === undefined ? '' : String(raw).replace(/\s+/g, '')
-    if (!text) {
+    // "-" é como o Moodle marca quem não tem nota: conta como em branco, nunca como zero
+    if (!text || /^[-–—]$/.test(text)) {
       return {
         ok: false,
         message: 'Nota em branco. A linha fica de fora e nenhuma nota é gravada.',
@@ -348,7 +349,7 @@ export default class GradeService {
       const changedAt = existing.updatedAt ?? existing.createdAt
       if (fileModifiedAt && changedAt && changedAt.toMillis() > fileModifiedAt.toMillis()) {
         row.kind = 'newer_in_agenda'
-        row.message = `Nota mudada na Agenda em ${changedAt.setZone(ZONE).toFormat('dd/MM/yyyy')}, depois do arquivo.`
+        row.message = `Nota mudada na Agenda em ${changedAt.setZone(appTimezone()).toFormat('dd/MM/yyyy')}, depois do arquivo.`
         continue
       }
       row.kind = 'changed'

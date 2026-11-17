@@ -374,11 +374,66 @@ function looksLikeEmails(sheet: ParsedSheet, column: string) {
   return values.length > 0 && values.filter((value) => value.includes("@")).length >= values.length / 2;
 }
 
+/** Coluna que junta várias avaliações: o "Total do curso" do Moodle, a "Média" do diário. */
+const aggregateWords = ["total", "media", "soma", "acumulad"];
+const isAggregate = (header: string) => aggregateWords.some((word) => headerKey(header).includes(word));
+
+/** "Tarefa:Prova 1 (Real)" do Moodle vira "prova 1": sem o tipo da atividade e sem o tipo da nota. */
+function activityKey(header: string) {
+  return headerKey(header.replace(/^[^:]{2,40}:/, "").replace(/\((real|porcentagem|letra)\)\s*$/i, ""));
+}
+
+/** Os valores da coluna parecem notas. */
+function looksLikeScores(sheet: ParsedSheet, header: string) {
+  const values = columnSamples(sheet, header).filter((value) => value.trim() !== "-");
+  return values.length > 0 && values.filter(looksLikeScore).length >= values.length / 2;
+}
+
 /**
- * Palpite das colunas pelo nome do cabeçalho e pelo conteúdo (coluna com @ é e-mail; a última numérica é a nota).
- * Sem `preferredType`, o aluno é achado pela coluna que tem dados no arquivo (o e-mail primeiro).
+ * A coluna da nota, nesta ordem:
+ * 1. a que tem o nome da avaliação ("Tarefa:Prova 1 (Real)" para a "Prova 1 de Matemática");
+ * 2. a que se chama nota, pontuação... sem ser total ou média;
+ * 3. no Moodle, a primeira atividade com nota ("Tarefa:...(Real)"), antes do "Total do curso";
+ * 4. total ou média pelo nome;
+ * 5. a última coluna com números, de preferência sem ser total ou média.
  */
-export function guessColumns(sheet: ParsedSheet, preferredType?: "email" | "registration"): ColumnChoice {
+function guessScoreColumn(sheet: ParsedSheet, identifierColumn: string, titleHint?: string) {
+  const { headers } = sheet;
+  const candidates = headers.filter((header) => header && header !== identifierColumn);
+  const title = titleHint ? ` ${headerKey(titleHint)} ` : "";
+  if (title.trim().length >= 3) {
+    const byTitle = candidates.find((header) => {
+      const key = activityKey(header);
+      return key.length >= 3 && !isAggregate(header) && title.includes(` ${key} `) && columnHasData(sheet, header);
+    });
+    if (byTitle) return byTitle;
+  }
+  const specific = findHeader(
+    headers,
+    scoreWords.filter((word) => !aggregateWords.includes(word)),
+    [identifierColumn, ...headers.filter(isAggregate)]
+  );
+  if (specific) return specific;
+  const activity = candidates.find(
+    (header) => /:/.test(header) && /\(real\)\s*$/i.test(header) && !isAggregate(header) && columnHasData(sheet, header)
+  );
+  if (activity) return activity;
+  const aggregate = findHeader(headers, scoreWords, [identifierColumn]);
+  if (aggregate) return aggregate;
+  const numeric = [...candidates].reverse().filter((header) => looksLikeScores(sheet, header));
+  return numeric.find((header) => !isAggregate(header)) ?? numeric[0] ?? "";
+}
+
+/**
+ * Palpite das colunas pelo nome do cabeçalho e pelo conteúdo (coluna com @ é e-mail; a nota pela regra de
+ * guessScoreColumn). Sem `preferredType`, o aluno é achado pela coluna que tem dados no arquivo (o e-mail primeiro).
+ * `titleHint` é o título da avaliação, para achar a coluna dela num arquivo com várias.
+ */
+export function guessColumns(
+  sheet: ParsedSheet,
+  preferredType?: "email" | "registration",
+  titleHint?: string
+): ColumnChoice {
   const { headers } = sheet;
   let email = findHeader(headers, emailWords);
   if (!email || !columnHasData(sheet, email)) {
@@ -391,16 +446,7 @@ export function guessColumns(sheet: ParsedSheet, preferredType?: "email" | "regi
     preferredType ??
     (emailFilled ? "email" : registrationFilled ? "registration" : email ? "email" : registration ? "registration" : "email");
   const identifierColumn = identifierType === "email" ? email || registration : registration || email;
-  let scoreColumn = findHeader(headers, scoreWords, [identifierColumn]);
-  if (!scoreColumn) {
-    // a última coluna com números (diários do SUAP e do Moodle trazem a nota no fim)
-    scoreColumn =
-      [...headers].reverse().find((header) => {
-        if (header === identifierColumn) return false;
-        const values = columnSamples(sheet, header);
-        return values.length > 0 && values.filter(looksLikeScore).length >= values.length / 2;
-      }) ?? "";
-  }
+  const scoreColumn = guessScoreColumn(sheet, identifierColumn, titleHint);
   const nameColumn = findHeader(headers, nameWords, [identifierColumn, scoreColumn]);
   return { identifierType, identifierColumn, scoreColumn, nameColumn };
 }
@@ -409,8 +455,8 @@ export function guessColumns(sheet: ParsedSheet, preferredType?: "email" | "regi
  * Ajusta um mapeamento salvo às colunas deste arquivo. O salvo nunca escolhe uma coluna que não existe ou que está
  * vazia neste arquivo: no lugar dela vem a coluna com dados (a matrícula vazia do Modelo vira o e-mail).
  */
-export function fitColumns(sheet: ParsedSheet, saved: GradeImportMapping | null): ColumnChoice {
-  const auto = guessColumns(sheet);
+export function fitColumns(sheet: ParsedSheet, saved: GradeImportMapping | null, titleHint?: string): ColumnChoice {
+  const auto = guessColumns(sheet, undefined, titleHint);
   if (!saved) return auto;
   const has = (column?: string | null) => Boolean(column) && sheet.headers.includes(column as string);
   const filled = (column?: string | null) => columnHasData(sheet, column);
@@ -431,7 +477,7 @@ export function fitColumns(sheet: ParsedSheet, saved: GradeImportMapping | null)
   }
 
   // a nota: a salva, se tem dados; senão a do palpite com dados; senão a salva que existe (vazia, o passo Colunas avisa)
-  const guessScore = guessColumns(sheet, identifierType).scoreColumn;
+  const guessScore = guessColumns(sheet, identifierType, titleHint).scoreColumn;
   const scoreOptions = [saved.scoreColumn, guessScore, auto.scoreColumn].filter(
     (column): column is string => Boolean(column) && column !== identifierColumn
   );

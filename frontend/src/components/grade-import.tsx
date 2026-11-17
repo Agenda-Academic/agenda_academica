@@ -155,11 +155,11 @@ export function useGradeImport({
   function setColumns(patch: Partial<ColumnChoice>) {
     if (!file) return;
     setColumnsState((current) => {
-      const base = current ?? guessColumns(file.sheet);
+      const base = current ?? guessColumns(file.sheet, undefined, info?.title);
       const next = { ...base, ...patch };
       // trocou e-mail por matrícula: a coluna do aluno acompanha, se a escolhida não serve
       if (patch.identifierType && patch.identifierType !== base.identifierType && !patch.identifierColumn) {
-        const guess = guessColumns(file.sheet, patch.identifierType);
+        const guess = guessColumns(file.sheet, patch.identifierType, info?.title);
         if (guess.identifierColumn && guess.identifierColumn !== next.scoreColumn) {
           next.identifierColumn = guess.identifierColumn;
         }
@@ -176,7 +176,7 @@ export function useGradeImport({
     try {
       const read = await readGradesFile(selected);
       setFile(read);
-      setColumnsState(fitColumns(read.sheet, loadSavedMapping()));
+      setColumnsState(fitColumns(read.sheet, loadSavedMapping(), info?.title));
       setColumnErrors({});
     } catch (error) {
       setFile(null);

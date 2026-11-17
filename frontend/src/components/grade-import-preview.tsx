@@ -174,7 +174,8 @@ function rejectedTitle(row: GradeImportRow, by: IdentifierType, maxScore: number
   }
   if (row.kind === "invalid") {
     if (!row.identifier) return `Linha sem ${idName} do aluno`;
-    if (!raw) return "Nota em branco";
+    // "-" é como o Moodle marca quem ainda não tem nota
+    if (!raw || /^[-–—]$/.test(raw)) return "Nota em branco";
     const value = parseScore(raw);
     if (value !== null && Number.isNaN(value)) {
       return /^-/.test(raw) ? `${raw} é negativa` : /^\d+[.,]\d{3,}$/.test(raw) ? `${raw} tem mais de duas casas` : `${raw} não é uma nota`;
