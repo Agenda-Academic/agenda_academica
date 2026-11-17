@@ -486,7 +486,7 @@ export default class GuardianLinksController {
     }
 
     const payload = await request.validateUsing(linkGuardianByEmailValidator)
-    const guardian = await User.query().whereRaw('lower(email) = ?', [payload.email]).first()
+    const guardian = await User.findByEmail(payload.email)
     if (!guardian || guardian.role !== 'guardian') {
       return fieldError(
         response,

@@ -103,6 +103,9 @@ function serverErrors(err: unknown, mode: Mode): FieldErrors | null {
     return null;
   }
   if (mode === "login") {
+    if (err.status === 429 && err.message) {
+      return { password: err.message };
+    }
     if (err.status === 400 || err.status === 401 || /credentials/i.test(err.message)) {
       return { password: "E-mail ou senha incorretos." };
     }
@@ -117,7 +120,12 @@ function serverErrors(err: unknown, mode: Mode): FieldErrors | null {
   const result: FieldErrors = {};
   for (const item of items) {
     if (item.field === "email") {
-      result.email ??= item.rule === "database.unique" ? emailTaken : "Digite um e-mail válido.";
+      result.email ??=
+        item.rule === "database.unique"
+          ? emailTaken
+          : item.rule === "google_only" && item.message
+            ? item.message
+            : "Digite um e-mail válido.";
     } else if (item.field === "password") {
       result.password ??= "A senha precisa ter de 8 a 32 caracteres.";
     } else if (item.field === "passwordConfirmation") {

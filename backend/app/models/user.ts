@@ -7,8 +7,9 @@ import hash from '@adonisjs/core/services/hash'
 import { compose } from '@adonisjs/core/helpers'
 import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
 import { type AccessToken, DbAccessTokensProvider } from '@adonisjs/auth/access_tokens'
-import { column, hasMany } from '@adonisjs/lucid/orm'
+import { beforeSave, column, hasMany } from '@adonisjs/lucid/orm'
 import type { HasMany } from '@adonisjs/lucid/types/relations'
+import type { TransactionClientContract } from '@adonisjs/lucid/types/database'
 
 export default class User extends compose(UserSchema, withAuthFinder(hash)) {
   static accessTokens = DbAccessTokensProvider.forModel(User)
@@ -17,6 +18,27 @@ export default class User extends compose(UserSchema, withAuthFinder(hash)) {
   // O SQLite devolve 0 ou 1; a API responde true ou false.
   @column({ consume: (value) => Boolean(value) })
   declare isMinor: boolean
+
+  /** O e-mail é guardado sempre em minúsculas e sem espaços, venha de onde vier. */
+  @beforeSave()
+  static normalizeEmail(user: User) {
+    if (user.$dirty.email && typeof user.email === 'string') {
+      user.email = user.email.trim().toLowerCase()
+    }
+  }
+
+  /**
+   * Conta do e-mail, sem diferenciar maiúsculas nem espaços. Se duas contas antigas só diferem
+   * nas maiúsculas (antes de o e-mail ser guardado em minúsculas), vale a do e-mail exato.
+   */
+  static findByEmail(email: string, client?: TransactionClientContract) {
+    const normalized = email.trim().toLowerCase()
+    return this.query({ client })
+      .whereRaw('lower(email) = ?', [normalized])
+      .orderByRaw('CASE WHEN email = ? THEN 0 ELSE 1 END', [normalized])
+      .orderBy('id', 'asc')
+      .first()
+  }
 
   @hasMany(() => Enrollment)
   declare enrollments: HasMany<typeof Enrollment>

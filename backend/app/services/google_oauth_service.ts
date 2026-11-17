@@ -1,5 +1,5 @@
 import User from '#models/user'
-import AccountPolicyService from '#services/account_policy_service'
+import AccountPolicyService, { isInstitutionDomain } from '#services/account_policy_service'
 import AuditLogService from '#services/audit_log_service'
 import ClassMembershipService from '#services/class_membership_service'
 import env from '#start/env'
@@ -7,6 +7,7 @@ import { safeEqual } from '@adonisjs/core/helpers'
 import logger from '@adonisjs/core/services/logger'
 import db from '@adonisjs/lucid/services/db'
 import { createHash, randomBytes } from 'node:crypto'
+import { DateTime } from 'luxon'
 
 /**
  * Entrar com o Google (OpenID Connect, código de autorização com PKCE S256 e state).
@@ -70,14 +71,6 @@ const loginCodes = new Map<string, LoginCodeEntry>()
 
 function randomToken() {
   return randomBytes(32).toString('base64url')
-}
-
-function isIfmsDomain(hd: string | null) {
-  if (!hd) {
-    return false
-  }
-  const domain = hd.toLowerCase()
-  return domain === 'ifms.edu.br' || domain.endsWith('.ifms.edu.br')
 }
 
 /** Perfil da conta nova pelo e-mail do IFMS; null quando o e-mail não é de aluno nem de servidor. */
@@ -246,25 +239,53 @@ export default class GoogleOAuthService {
    */
   static async findOrCreateUser(identity: GoogleIdentity): Promise<User | null> {
     const admin = AccountPolicyService.isAdminEmail(identity.email)
-    const existing = await User.query().whereRaw('lower(email) = ?', [identity.email]).first()
+    const existing = await User.findByEmail(identity.email)
     if (existing) {
-      if (admin && existing.role !== 'admin') {
+      await db.transaction(async (trx) => {
+        existing.useTransaction(trx)
+        // Conta criada pelo cadastro com senha e nunca conferida: quem cadastrou pode não ser o
+        // dono do e-mail. O Google prova que é, então a senha antiga deixa de valer e as sessões
+        // abertas caem. Quem cadastrou o e-mail de outra pessoa perde o acesso aqui.
+        if (!existing.emailVerifiedAt) {
+          existing.password = randomToken()
+          existing.emailVerifiedAt = DateTime.utc()
+          await trx.from('auth_access_tokens').where('tokenable_id', existing.id).delete()
+          await AuditLogService.record(
+            {
+              actorId: existing.id,
+              action: 'auth.google_verified',
+              entity: 'user',
+              entityId: existing.id,
+              subjectUserId: existing.id,
+            },
+            trx
+          )
+        }
         const before = existing.role
-        existing.role = 'admin'
+        if (admin && before !== 'admin') {
+          existing.role = 'admin'
+          await AuditLogService.record(
+            {
+              actorId: existing.id,
+              action: 'auth.google_admin',
+              entity: 'user',
+              entityId: existing.id,
+              subjectUserId: existing.id,
+              meta: { from: before },
+            },
+            trx
+          )
+        }
         await existing.save()
-        await AuditLogService.record({
-          actorId: existing.id,
-          action: 'auth.google_admin',
-          entity: 'user',
-          entityId: existing.id,
-          subjectUserId: existing.id,
-          meta: { from: before },
-        })
-      }
+      })
       return existing
     }
 
-    const role = admin ? 'admin' : isIfmsDomain(identity.hd) ? roleForEmail(identity.email) : null
+    const role = admin
+      ? 'admin'
+      : isInstitutionDomain(identity.hd)
+        ? roleForEmail(identity.email)
+        : null
     if (!role) {
       return null
     }
@@ -279,6 +300,7 @@ export default class GoogleOAuthService {
           password: randomToken(),
           role,
           registration: null,
+          emailVerifiedAt: DateTime.utc(),
         },
         { client: trx }
       )

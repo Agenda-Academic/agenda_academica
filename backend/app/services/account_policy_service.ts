@@ -9,6 +9,18 @@ export const DEMO_ACCOUNTS_OFF =
 export const STAFF_SIGNUP_GOOGLE_ONLY =
   'Aluno e docente não criam conta aqui: entre com o Google, usando o e-mail da instituição.'
 
+export const EMAIL_GOOGLE_ONLY =
+  'Esse e-mail entra com o Google. Use o botão Entrar com o Google, na tela de entrar.'
+
+/** Domínio de e-mail da instituição (ifms.edu.br e os subdomínios, como o dos estudantes). */
+export function isInstitutionDomain(domain: string | null | undefined) {
+  if (!domain) {
+    return false
+  }
+  const value = domain.trim().toLowerCase()
+  return value === 'ifms.edu.br' || value.endsWith('.ifms.edu.br')
+}
+
 /**
  * Quem pode entrar e como, conforme o Environment do servidor. As variáveis são lidas a cada uso,
  * então os testes (e um deploy com valores novos) mudam o comportamento sem reiniciar nada.
@@ -38,5 +50,15 @@ export default class AccountPolicyService {
       .map((item) => item.trim().toLowerCase())
       .filter(Boolean)
     return list.includes(email.trim().toLowerCase())
+  }
+
+  /**
+   * O cadastro com senha não confere se o e-mail é de quem cadastra. Por isso os e-mails da
+   * instituição e os da administração só entram pelo Google: senão, alguém cadastraria o e-mail
+   * de outra pessoa antes dela e ficaria com a senha da conta.
+   */
+  static signupNeedsGoogle(email: string) {
+    const domain = email.trim().toLowerCase().split('@').pop()
+    return isInstitutionDomain(domain) || this.isAdminEmail(email)
   }
 }

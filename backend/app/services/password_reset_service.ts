@@ -99,7 +99,7 @@ export default class PasswordResetService {
 
   static async request(rawEmail: string) {
     const email = rawEmail.trim().toLowerCase()
-    const user = await User.query().whereRaw('lower(email) = ?', [email]).first()
+    const user = await User.findByEmail(email)
     if (!user) {
       return
     }
@@ -153,6 +153,8 @@ export default class PasswordResetService {
         return null
       }
       user.password = password
+      // abrir o link do e-mail prova que o e-mail é da pessoa
+      user.emailVerifiedAt ??= now
       await user.save()
 
       await trx

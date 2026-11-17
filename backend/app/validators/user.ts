@@ -3,7 +3,9 @@ import vine from '@vinejs/vine'
 /**
  * Shared rules for email and password.
  */
-const email = () => vine.string().email().maxLength(254)
+// O e-mail é guardado e comparado sempre em minúsculas e sem espaços: no celular o teclado
+// costuma pôr a primeira letra em maiúscula.
+const email = () => vine.string().trim().toLowerCase().email().maxLength(254)
 const password = () => vine.string().minLength(8).maxLength(32)
 const notificationChannel = () => vine.enum(['email'])
 
@@ -12,7 +14,7 @@ const notificationChannel = () => vine.enum(['email'])
  */
 export const signupValidator = vine.create({
   fullName: vine.string().nullable(),
-  email: email().unique({ table: 'users', column: 'email' }),
+  email: email().unique({ table: 'users', column: 'email', caseInsensitive: true }),
   password: password(),
   passwordConfirmation: password().sameAs('password'),
   // Auto-cadastro nunca cria administradores; contas admin sao

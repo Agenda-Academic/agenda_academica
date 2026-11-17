@@ -14,6 +14,7 @@ import { Secret } from '@adonisjs/core/helpers'
 import testUtils from '@adonisjs/core/services/test_utils'
 import { test } from '@japa/runner'
 import { createHash } from 'node:crypto'
+import { DateTime } from 'luxon'
 
 /**
  * Entrar com o Google, sem rede: a troca do code pelo id_token é substituída por uma função
@@ -383,6 +384,79 @@ test.group('Entrar com o Google', (group) => {
     }
   })
 
+  test('conta do cadastro com senha: no 1º login pelo Google a senha antiga e as sessões param de valer', async ({
+    client,
+    assert,
+  }) => {
+    // alguém cadastra o e-mail de outra pessoa antes dela
+    const signup = await client.post(`${API}/auth/signup`).json({
+      fullName: 'Quem cadastrou',
+      email: 'pai.da.bia@gmail.com',
+      password: 'senha-de-outro',
+      passwordConfirmation: 'senha-de-outro',
+    })
+    signup.assertStatus(200)
+    const intruderToken = (signup.body() as unknown as SessionBody).data.token
+
+    // a dona do e-mail entra pelo Google
+    const first = await backFromGoogle(client, googleClaims({ email: 'pai.da.bia@gmail.com' }))
+    const exchange = await client
+      .post(`${API}/auth/google/exchange`)
+      .json({ code: loginCodeFrom(assert, first.location) })
+    exchange.assertStatus(200)
+    const ownerToken = (exchange.body() as unknown as SessionBody).data.token
+
+    // quem cadastrou perde a sessão e a senha
+    const oldSession = await client.get(`${API}/account/profile`).bearerToken(intruderToken)
+    oldSession.assertStatus(401)
+    const oldPassword = await client
+      .post(`${API}/auth/login`)
+      .json({ email: 'pai.da.bia@gmail.com', password: 'senha-de-outro' })
+    oldPassword.assertStatus(400)
+    const account = await User.findByOrFail('email', 'pai.da.bia@gmail.com')
+    assert.isNotNull(account.emailVerifiedAt)
+    await AuditLog.query()
+      .where('action', 'auth.google_verified')
+      .where('subjectUserId', account.id)
+      .firstOrFail()
+
+    // da segunda vez, nada muda: a sessão da dona continua valendo
+    const again = await backFromGoogle(client, googleClaims({ email: 'pai.da.bia@gmail.com' }))
+    loginCodeFrom(assert, again.location)
+    const stillValid = await client.get(`${API}/account/profile`).bearerToken(ownerToken)
+    stillValid.assertStatus(200)
+  })
+
+  test('cadastro com senha recusa e-mail da administração e da instituição', async ({
+    client,
+    assert,
+  }) => {
+    env.set('ADMIN_EMAILS', 'coordenacao.agenda@gmail.com')
+    try {
+      for (const email of [
+        'Coordenacao.Agenda@gmail.com',
+        'aluno.novo@estudante.ifms.edu.br',
+        'docente.nova@ifms.edu.br',
+      ]) {
+        const response = await client.post(`${API}/auth/signup`).json({
+          fullName: 'Quem tenta',
+          email,
+          password: 'password123',
+          passwordConfirmation: 'password123',
+        })
+        response.assertStatus(422)
+        const errors = (response.body() as unknown as { errors: { field: string; rule: string }[] })
+          .errors
+        assert.deepEqual(
+          errors.map((error) => [error.field, error.rule]),
+          [['email', 'google_only']]
+        )
+      }
+    } finally {
+      env.set('ADMIN_EMAILS', '')
+    }
+  })
+
   test('login com e-mail e senha não promove ninguém, mesmo na lista ADMIN_EMAILS', async ({
     client,
     assert,
@@ -446,6 +520,11 @@ test.group('Entrar com o Google', (group) => {
     client,
     assert,
   }) => {
+    // conta que já provou o e-mail: o login pelo Google não mexe nela
+    const verified = await User.findByOrFail('email', 'diogo@agenda.test')
+    verified.emailVerifiedAt = DateTime.utc()
+    await verified.save()
+
     const login = await client
       .post(`${API}/auth/login`)
       .json({ email: 'diogo@agenda.test', password: 'password123' })

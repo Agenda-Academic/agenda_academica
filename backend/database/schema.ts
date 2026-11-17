@@ -532,7 +532,7 @@ export class TeachingAssignmentSchema extends BaseModel {
 }
 
 export class UserSchema extends BaseModel {
-  static $columns = ['createdAt', 'defaultReminderMinutes', 'email', 'fullName', 'id', 'isMinor', 'notificationChannel', 'password', 'registration', 'role', 'updatedAt'] as const
+  static $columns = ['createdAt', 'defaultReminderMinutes', 'email', 'emailVerifiedAt', 'fullName', 'id', 'isMinor', 'notificationChannel', 'password', 'registration', 'role', 'updatedAt'] as const
   $columns = UserSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -540,6 +540,8 @@ export class UserSchema extends BaseModel {
   declare defaultReminderMinutes: number
   @column()
   declare email: string
+  @column.dateTime()
+  declare emailVerifiedAt: DateTime | null
   @column()
   declare fullName: string | null
   @column({ isPrimary: true })

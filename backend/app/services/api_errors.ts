@@ -2,6 +2,15 @@ import type { HttpContext } from '@adonisjs/core/http'
 
 type Response = HttpContext['response']
 
+/** O banco recusou por valor repetido (índice único), no SQLite ou no Postgres. */
+export function isUniqueViolation(error: unknown) {
+  const { code, message } = (error ?? {}) as { code?: unknown; message?: unknown }
+  if (code === '23505' || code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    return true
+  }
+  return code === 'SQLITE_CONSTRAINT' && typeof message === 'string' && message.includes('UNIQUE')
+}
+
 /** 422 no mesmo formato do VineJS, para o front mostrar o erro abaixo do campo. */
 export function fieldError(response: Response, field: string, message: string, rule = 'invalid') {
   return response.unprocessableEntity({ errors: [{ field, rule, message }] })
