@@ -80,6 +80,9 @@ type FieldKey = keyof EventFormState;
 const TITLE_MAX = 140;
 const teacherCategories = allCategories.filter((category) => !adminOnlyCategories.includes(category));
 
+/** Teto da pontuação de um evento (o mesmo da API). */
+const MAX_EVENT_POINTS = 100;
+
 /** Próximo dia útil (seg a sex) às 19:00, horário das aulas da noite. */
 function nextClassDay() {
   const today = new Date();
@@ -314,6 +317,8 @@ function validateForm(
       errors.points = "Use só números, como 10 ou 2,5.";
     } else if (value < 0) {
       errors.points = "A pontuação não pode ser negativa.";
+    } else if (value > MAX_EVENT_POINTS) {
+      errors.points = `A pontuação vai até ${MAX_EVENT_POINTS} pontos.`;
     } else if (!Number.isInteger(value * 2)) {
       errors.points = "Use pontos inteiros ou meio ponto, como 10 ou 2,5.";
     }
@@ -2069,6 +2074,7 @@ function EditorForm({
                 ref={locationRef}
                 id={fid("local")}
                 name="location"
+                maxLength={160}
                 className={cx("input", invalidInput)}
                 value={form.location}
                 onChange={(event) => change({ location: event.target.value })}
@@ -2086,6 +2092,7 @@ function EditorForm({
                 type="number"
                 inputMode="decimal"
                 min="0"
+                max={MAX_EVENT_POINTS}
                 step="0.5"
                 value={form.points}
                 onChange={(event) => {
@@ -2107,6 +2114,7 @@ function EditorForm({
               ref={descriptionRef}
               id={fid("descricao")}
               name="description"
+              maxLength={5000}
               className={cx("input min-h-28 [field-sizing:content]", invalidInput)}
               rows={4}
               value={form.description}

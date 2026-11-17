@@ -243,14 +243,25 @@ export default class AcademicAccessService {
     }
   }
 
-  /** Editar e excluir: a administração, ou a docente com vínculo em vigor na oferta do evento. */
+  /**
+   * Editar e excluir: a administração, ou a docente com vínculo em vigor na oferta do evento.
+   * Evento sem disciplina: só a docente autora.
+   */
   static async canManageEvent(user: User, event: AcademicEvent) {
     switch (user.role) {
       case 'admin':
         return true
       case 'teacher':
-        if (['official', 'imported'].includes(event.source)) {
+        if (['official', 'imported'].includes(event.source) || !event.academicClassId) {
           return false
+        }
+        // Evento de turma sem disciplina (antigo, ou criado pela administração) não tem oferta:
+        // só a docente autora mexe nele, como nas notas.
+        if (!event.subjectId) {
+          return (
+            event.teacherId === user.id &&
+            (await this.teacherCanManage(user, event.academicClassId))
+          )
         }
         return this.teacherCanManage(user, event.academicClassId, event.subjectId)
       default:

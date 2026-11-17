@@ -5,7 +5,7 @@ import Grade from '#models/grade'
 import GradeImport from '#models/grade_import'
 import type User from '#models/user'
 import AcademicAccessService, { type VisibilityOptions } from '#services/academic_access_service'
-import { guardianChoiceError } from '#services/api_errors'
+import { fieldError, guardianChoiceError } from '#services/api_errors'
 import { parseIsoDateTime, reminderSendAt } from '#services/date_time_service'
 import GradeService, { formatScore, GRADABLE_CATEGORIES } from '#services/grade_service'
 import { countOf, publicTeacher } from '#services/query_helpers'
@@ -18,6 +18,20 @@ import type { DateTime } from 'luxon'
 const ADMIN_ONLY_CATEGORIES = ['institutional', 'holiday', 'recess']
 const CLASS_ARCHIVED =
   'Esta turma está arquivada e fica somente leitura. Restaure a turma para mudar os eventos dela.'
+
+const SUBJECT_REQUIRED = 'Escolha a turma e a disciplina do evento.'
+
+/** Datas que a tela nunca manda: fim antes do início e anos fora de 2000 a 2100. */
+function eventDatesError(startsAt: DateTime, endsAt: DateTime | null) {
+  const year = startsAt.year
+  if (year < 2000 || year > 2100) {
+    return { field: 'startsAt', message: 'Escolha uma data entre 2000 e 2100.' }
+  }
+  if (endsAt && endsAt < startsAt) {
+    return { field: 'endsAt', message: 'O fim precisa ser depois do início.' }
+  }
+  return null
+}
 
 export default class AcademicEventsController {
   async index({ auth, request, response }: HttpContext) {
@@ -143,6 +157,12 @@ export default class AcademicEventsController {
       })
     }
 
+    // Evento de docente é sempre de uma oferta (turma e disciplina): sem disciplina, qualquer
+    // docente da turma poderia mexer nele.
+    if (user.role === 'teacher' && (!payload.academicClassId || !payload.subjectId)) {
+      return fieldError(response, 'subjectId', SUBJECT_REQUIRED, 'required')
+    }
+
     if (
       !(await AcademicAccessService.teacherCanManage(
         user,
@@ -164,8 +184,15 @@ export default class AcademicEventsController {
     if (!startsAt || (payload.endsAt && !endsAt)) {
       return response.badRequest({ message: 'Data do evento em formato invalido.' })
     }
+    const datesError = eventDatesError(startsAt, endsAt)
+    if (datesError) {
+      return fieldError(response, datesError.field, datesError.message, 'date')
+    }
 
-    const source = user.role === 'admin' ? (payload.source ?? 'official') : 'teacher'
+    // Evento com turma é da turma, mesmo criado pela administração: só o evento sem turma é
+    // oficial e aparece para todas as turmas.
+    const source =
+      user.role === 'admin' && !payload.academicClassId ? (payload.source ?? 'official') : 'teacher'
     const event = await AcademicEvent.create({
       title: payload.title,
       description: payload.description ?? null,
@@ -217,6 +244,12 @@ export default class AcademicEventsController {
     const targetSubjectId = payload.subjectId === undefined ? event.subjectId : payload.subjectId
     const changingScope =
       targetClassId !== event.academicClassId || targetSubjectId !== event.subjectId
+
+    // Quem muda a turma ou a disciplina não deixa o evento sem oferta. O evento antigo sem
+    // disciplina continua editável pela autora (canManageEvent já conferiu).
+    if (user.role === 'teacher' && changingScope && (!targetClassId || !targetSubjectId)) {
+      return fieldError(response, 'subjectId', SUBJECT_REQUIRED, 'required')
+    }
 
     // O vinculo com a turma de destino so precisa ser revalidado quando o
     // evento muda de turma/disciplina; o dono pode editar o proprio evento.
@@ -283,12 +316,25 @@ export default class AcademicEventsController {
     if ((startsAtInput && !startsAt) || (endsAtInput && !endsAt)) {
       return response.badRequest({ message: 'Data do evento em formato invalido.' })
     }
+    const datesError = eventDatesError(
+      startsAt ?? event.startsAt,
+      endsAt === undefined ? event.endsAt : endsAt
+    )
+    if (datesError) {
+      return fieldError(response, datesError.field, datesError.message, 'date')
+    }
 
     event.merge({
       ...attributes,
       startsAt: startsAt ?? event.startsAt,
       endsAt: endsAt === undefined ? event.endsAt : endsAt,
     })
+    // A administração que põe ou tira a turma muda quem vê: com turma, só a turma; sem turma,
+    // todas (oficial). O que veio do calendário importado continua importado.
+    if (user.role === 'admin' && changingScope && event.source !== 'imported') {
+      event.source = targetClassId ? 'teacher' : 'official'
+      event.officialPriority = !targetClassId
+    }
     await db.transaction(async (trx) => {
       event.useTransaction(trx)
       await event.save()

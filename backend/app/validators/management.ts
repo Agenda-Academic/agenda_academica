@@ -73,6 +73,10 @@ const messages = new SimpleMessagesProvider(
     identifier: 'e-mail ou matrícula',
     score: 'nota',
     keepAgendaWhenNewer: 'manter as notas da Agenda',
+    title: 'título',
+    description: 'descrição',
+    location: 'local',
+    color: 'cor',
   }
 )
 

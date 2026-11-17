@@ -1373,8 +1373,8 @@ test.group('Fase 3: notas', (group) => {
     const maraisaToken = await loginAs(client, maraisa.email)
     const adminToken = await loginAs(client, 'admin@agenda.test')
 
-    // A Marina (Estrutura de Dados na TADS 5) cria uma prova da turma sem disciplina.
-    const created = await expectStatus(
+    // Docente não cria mais evento sem disciplina pela API.
+    await expectStatus(
       client.post(`${API}/events`).bearerToken(marinaToken).json({
         title: 'Prova integradora',
         category: 'exam',
@@ -1382,9 +1382,23 @@ test.group('Fase 3: notas', (group) => {
         points: 10,
         academicClassId: tads.id,
       }),
-      201
+      422
     )
-    const ownExam = (created.body() as unknown as Envelope<{ id: number }>).data.id
+    // Uma prova antiga da Marina (Estrutura de Dados na TADS 5), da turma e sem disciplina.
+    const legacy = await AcademicEvent.create({
+      title: 'Prova integradora',
+      category: 'exam',
+      source: 'teacher',
+      status: 'scheduled',
+      startsAt: DateTime.fromISO('2026-12-02T22:00:00Z'),
+      points: 10,
+      academicClassId: tads.id,
+      subjectId: null,
+      teacherId: marina.id,
+      createdById: marina.id,
+      officialPriority: false,
+    })
+    const ownExam = legacy.id
     await expectStatus(putGrade(client, marinaToken, ownExam, diogo.id, { score: 700 }), 201)
     const ownDraft = await createImport(
       client,
@@ -1480,25 +1494,30 @@ test.group('Fase 3: notas', (group) => {
     assert.isUndefined(await scoreOf(mathExam.id, diogo.id))
     assert.isUndefined(await scoreOf(mathExam.id, bia.id))
 
-    // Conta com o mesmo e-mail em maiúsculas na turma: a nota do Diogo não vai para ela.
-    const lookalike = await addStudent(tads, 'DIOGO@agenda.test', 'Diogo Parecido')
+    // Duas contas que só diferem nas maiúsculas não existem mais: o e-mail é guardado em
+    // minúsculas e o banco recusa a repetida. O e-mail em maiúsculas no arquivo casa com o Diogo.
+    await assert.rejects(() =>
+      User.create({
+        fullName: 'Diogo Parecido',
+        email: 'DIOGO@agenda.test',
+        password: 'password123',
+        role: 'student',
+      })
+    )
     const byEmail = await createImport(
       client,
       token,
       importBody(mathExam.id, [
-        { identifier: 'diogo@agenda.test', score: '10' },
+        { identifier: 'DIOGO@agenda.test', score: '10' },
         { identifier: 'bia@agenda.test', score: '6' },
       ])
     )
-    assert.equal(byEmail.totals.new, 1)
-    const emailRow = byEmail.rows!.find((row) => row.kind === 'no_match')!
-    assert.include(emailRow.message ?? '', 'Mais de um aluno da turma')
+    assert.equal(byEmail.totals.new, 2)
     await expectStatus(
       client.post(`${API}/grade-imports/${byEmail.id}/apply`).bearerToken(token).json({}),
       200
     )
-    assert.isUndefined(await scoreOf(mathExam.id, diogo.id))
-    assert.isUndefined(await scoreOf(mathExam.id, lookalike.id))
+    assert.equal(await scoreOf(mathExam.id, diogo.id), 1000)
     assert.equal(await scoreOf(mathExam.id, bia.id), 600)
   })
 
