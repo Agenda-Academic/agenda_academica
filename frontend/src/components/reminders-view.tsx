@@ -1,15 +1,34 @@
 "use client";
 
-import { Bell, BellOff, CalendarDays, Check, ChevronDown, CircleCheckBig, Clock, Loader2, Settings2 } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { cx, formatShortDate, formatShortDateTime, formatTime, isWholeDay, relativeDue, startOfDay } from "@/lib/format";
+import {
+  ArrowRight,
+  Bell,
+  BellOff,
+  BellRing,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  CircleCheckBig,
+  Clock,
+  Loader2,
+  Settings2,
+} from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { countText, cx, formatShortDate, formatTime, isWholeDay, monthGroupLabel, relativeDue, startOfDay } from "@/lib/format";
 import { categoryMeta, reminderOffsetLabel, reminderOptions, statusMeta } from "@/lib/meta";
 import type { AcademicEvent, Category, Reminder } from "@/lib/types";
 import { AvisosCard, InsightTile, delay } from "./dashboard-bits";
-import { EmptyState, InfoLine } from "./ui";
+import { Pager, usePaged } from "./pager";
+import { Drawer, InfoLine, secondaryButton } from "./ui";
 
-/** Quantos lembretes cada lista mostra antes do "Ver todos (N)". */
+/** Quantos lembretes cada lista mostra na página. O resto fica no painel "Todos os lembretes", com páginas. */
 const PREVIEW = 3;
+/** Sugestões embaixo de "Aguardando aviso" quando ele já mostra os PREVIEW lembretes (só para fechar as colunas). */
+const FULL_SUGGESTIONS = 1;
+/** Lembretes por página no painel "Todos os lembretes". */
+const DRAWER_PAGE = 10;
+/** Quantos meses o card "Avisos por mês" lista antes do "Ver todos os meses". */
+const MONTHS_SHOWN = 6;
 /** Relógio da tela: o "Aviso hoje, 19:00", as antecedências que já passaram e as sugestões. */
 const CLOCK_TICK = 15000;
 /**
@@ -23,18 +42,45 @@ const OFFSET_SAVE_DELAY = 800;
 const MIN_OFFSET = Math.min(...reminderOptions.map((option) => Number(option.value)));
 /** A sugestão sai um pouco antes de o evento deixar de aceitar lembrete (o relógio da tela anda de 15 em 15 s). */
 const SUGGEST_MARGIN = 60000;
-/** Card principal mais alto que a coluna lateral por mais que isto: a lateral para de esticar e fica parada no alto. */
-const SIDE_STRETCH_MAX = 200;
+/**
+ * Colunas lado a lado: quanto a coluna mais baixa pode esticar para terminar junto da outra. É uma sobra que some
+ * no padding do último card; acima disto nenhuma estica (decisão 5: sem card esticado com buraco dentro), as duas
+ * ficam alinhadas no alto e a lateral fica do tamanho dela, parada no alto enquanto a página rola. O vão entre o pé
+ * das colunas (até uns 80 px) é permitido; o buraco dentro do card, não.
+ */
+const STRETCH_MAX = 24;
 
 type ListKey = "pending" | "past";
+/** Abas do painel "Todos os lembretes": as duas listas e, quando houver, os eventos cancelados ou concluídos. */
+type TabKey = ListKey | "void";
 /** pending: o aviso ainda vai sair; past: a hora do aviso passou; void: evento cancelado ou concluído. */
 type RowKind = "pending" | "past" | "void";
+/** Onde a linha está: na página ou no painel "Todos os lembretes" (a mesma linha pode estar nos dois). */
+type Scope = "page" | "drawer";
+
+/** "seg, 23/11"; fora do ano corrente, com o ano: "seg, 15/03/2027" (o formatShortDate já põe o ano). */
+function dayLabel(value: string | Date) {
+  return formatShortDate(value);
+}
 
 /** "ter, 09/11, 19:00"; "dia todo" só quando o evento não tem horário (começa à meia-noite, sem hora de término). */
 function eventWhen(event: AcademicEvent) {
   return isWholeDay(event.startsAt, event.endsAt)
-    ? `${formatShortDate(event.startsAt)}, dia todo`
-    : formatShortDateTime(event.startsAt);
+    ? `${dayLabel(event.startsAt)}, dia todo`
+    : `${dayLabel(event.startsAt)}, ${formatTime(event.startsAt)}`;
+}
+
+/**
+ * Linha das próximas provas e trabalhos, ao lado do selo da data (SEG / 23 / NOV): só a hora e quanto falta,
+ * "18:00, em 6 dias", como nas listas do Painel e do Cronograma. Fora do ano corrente, o dia vai com o ano
+ * ("seg, 15/03/2027, 18:00"), que o selo não mostra.
+ */
+function suggestionWhen(event: AcademicEvent) {
+  if (new Date(event.startsAt).getFullYear() !== new Date().getFullYear()) {
+    return eventWhen(event);
+  }
+  const time = isWholeDay(event.startsAt, event.endsAt) ? "Dia todo" : formatTime(event.startsAt);
+  return `${time}, ${relativeDue(event.startsAt)}`;
 }
 
 /** Quando o aviso sai (ou saiu), em rótulo curto: "hoje, 19:00", "amanhã, 07:30" ou "dom, 08/11, 19:00". */
@@ -49,11 +95,34 @@ function sendWhen(value: string, now: number) {
   if (days === -1) {
     return `ontem, ${formatTime(value)}`;
   }
-  return formatShortDateTime(value);
+  return `${dayLabel(value)}, ${formatTime(value)}`;
 }
 
-function capitalize(text: string) {
-  return text.charAt(0).toUpperCase() + text.slice(1);
+/** Mês do aviso (ano * 12 + mês): as listas seguem a hora do aviso, e os grupos também. */
+function monthOf(reminder: Reminder) {
+  const date = new Date(reminder.sendAt);
+  return date.getFullYear() * 12 + date.getMonth();
+}
+
+/** "Novembro"; fora do ano de agora, "Março de 2027". */
+function monthName(key: number, now: number) {
+  return monthGroupLabel(new Date(Math.floor(key / 12), key % 12, 1), new Date(now));
+}
+
+/** Meses de uma lista, na ordem dela, com quantos lembretes cada um tem. */
+function monthsOf(list: Reminder[]) {
+  const months: { key: number; count: number }[] = [];
+  for (const reminder of list) {
+    const key = monthOf(reminder);
+    const last = months[months.length - 1];
+    const found = last?.key === key ? last : months.find((item) => item.key === key);
+    if (found) {
+      found.count += 1;
+    } else {
+      months.push({ key, count: 1 });
+    }
+  }
+  return months;
 }
 
 /** Evento cancelado ou concluído: o aviso do lembrete não sai mais (o mesmo texto do detalhe). */
@@ -75,8 +144,8 @@ function avisoKey(reminder: Reminder) {
 
 /**
  * As listas da tela. Lembrete de evento cancelado ou concluído não avisa mais e fica fora das contas
- * (como no Painel). Os outros passam para "Já avisados" quando o aviso aparece no bloco Avisos
- * (reached: os avisos de agora e os que já apareceram com a tela aberta), assim o bloco, a linha e os
+ * (como no Painel). Os outros passam para "Já avisados" quando o aviso aparece na página
+ * (reached: os avisos de agora e os que já apareceram com a tela aberta), assim a linha e os
  * indicadores mudam juntos; sem os avisos da página, vale o relógio da tela.
  */
 function reminderLists(reminders: Reminder[], reached: Set<string> | null, now: number) {
@@ -117,51 +186,80 @@ function rowPlace(rowNode: Element | null | undefined) {
   return list ? `${list.id}:${Array.prototype.indexOf.call(list.children, rowNode)}` : null;
 }
 
-/** Decisão da coluna lateral: altura do conteúdo dela e se ela fica parada no alto em vez de esticar. */
-function sideFit(mainHeight: number, sideHeight: number, gapHeight: number, beside: boolean) {
-  const content = sideHeight - gapHeight;
-  return { content, stuck: beside && mainHeight - content > SIDE_STRETCH_MAX };
-}
-
 /**
- * Card principal e coluna lateral lado a lado (.tela-cols) terminam juntos (decisão 2): no CSS, o mais
- * baixo estica. Quando o principal passa da lateral por mais de SIDE_STRETCH_MAX ("Ver todos" aberto,
- * prévia aberta), a lateral deixa de esticar e fica do tamanho do conteúdo, parada no alto enquanto a
- * página rola (.is-stuck), como o card da Gestão; --side-h leva a altura dela para o sticky.
- * main: o card (ou a coluna) com que a lateral termina junto. gapRef: o espaçador do último card da
- * lateral, que fica com a sobra quando ela estica (sem ele, a altura da lateral é a do conteúdo).
+ * Colunas lado a lado (.tela-cols, a partir de 1200px). Se as duas têm quase a mesma altura (diferença até
+ * STRETCH_MAX), a mais baixa estica e as duas terminam juntas: a sobra fica no espaçador do último card
+ * (.tela-gap), que nunca passa de STRETCH_MAX. Se a diferença é maior, nenhuma estica (não sobra buraco dentro
+ * de card) e a lateral fica do tamanho dela, parada no alto enquanto a página rola (.is-stuck); --side-h leva a
+ * altura dela para o sticky. mainGapRef e sideGapRef: os espaçadores dos últimos cards de cada coluna.
  */
-export function useSideFit(main: RefObject<HTMLElement | null>, ready = true) {
+function useSideFit(mainRef: RefObject<HTMLElement | null>, deps: unknown) {
   const sideRef = useRef<HTMLDivElement>(null);
-  const gapRef = useRef<HTMLDivElement>(null);
+  const mainGapRef = useRef<HTMLDivElement>(null);
+  const sideGapRef = useRef<HTMLDivElement>(null);
+  // bloco opcional da lateral, junto do padrão: o curto (o caminho para lembrar de outro evento) ou o longo (os
+  // passos de "Como funciona"). Entra o que deixa as colunas mais perto de terminar juntas (decisão 5: muda o que a
+  // lateral mostra, nunca estica card). A conta usa a lateral sem ele, então ligar ou desligar não muda a decisão
+  // (não fica piscando); data-extra diz qual está na tela, para guardar a altura dele
+  const extraRef = useRef<HTMLDivElement>(null);
+  const extraHeight = useRef<Record<SideExtra, number>>({ none: 0, short: 100, long: 230 });
+  const [extraKind, setExtraKind] = useState<SideExtra>("none");
   const [stuck, setStuck] = useState(false);
 
   useLayoutEffect(() => {
-    const mainNode = main.current;
+    const main = mainRef.current;
     const side = sideRef.current;
-    if (!ready || !mainNode || !side || typeof ResizeObserver === "undefined") {
+    if (!main || !side || typeof ResizeObserver === "undefined") {
       return;
     }
     // a primeira medida vem do próprio ResizeObserver, antes da pintura
     const observer = new ResizeObserver(() => {
       // lado a lado só a partir de 1200px; uma embaixo da outra, nada estica nem gruda
-      const beside = side.offsetLeft >= mainNode.offsetLeft + mainNode.offsetWidth;
-      const fit = sideFit(mainNode.offsetHeight, side.offsetHeight, gapRef.current?.offsetHeight ?? 0, beside);
-      side.style.setProperty("--side-h", `${fit.content}px`);
-      setStuck(fit.stuck);
+      const beside = side.offsetLeft >= main.offsetLeft + main.offsetWidth;
+      const mainContent = main.offsetHeight - (mainGapRef.current?.offsetHeight ?? 0);
+      const sideContent = side.offsetHeight - (sideGapRef.current?.offsetHeight ?? 0);
+      side.style.setProperty("--side-h", `${sideContent}px`);
+      setStuck(beside && Math.abs(mainContent - sideContent) > STRETCH_MAX);
+      const extra = extraRef.current;
+      let extraNow = 0;
+      if (extra) {
+        extraNow = extra.getBoundingClientRect().height + parseFloat(getComputedStyle(extra).marginTop || "0");
+        const kind = extra.dataset.extra;
+        if (kind === "short" || kind === "long") {
+          extraHeight.current[kind] = extraNow;
+        }
+      }
+      const without = mainContent - (sideContent - extraNow);
+      // empate (diferença parecida): fica o mais simples (sem bloco, depois o curto)
+      let best: SideExtra = "none";
+      let bestGap = Math.abs(without);
+      for (const kind of ["short", "long"] as const) {
+        const gap = Math.abs(without - extraHeight.current[kind]);
+        if (gap + 24 < bestGap) {
+          best = kind;
+          bestGap = gap;
+        }
+      }
+      setExtraKind(beside ? best : "none");
     });
-    for (const node of [mainNode, side, gapRef.current]) {
+    for (const node of [main, side, mainGapRef.current, sideGapRef.current]) {
       if (node) {
         observer.observe(node);
       }
     }
     return () => observer.disconnect();
-  }, [main, ready]);
+  }, [mainRef, deps]);
 
-  return { sideRef, gapRef, stuck };
+  return { sideRef, mainGapRef, sideGapRef, extraRef, extraKind, stuck };
 }
 
-/** Linha de lembrete do Figma: ícone, evento, quando avisa e Remover. A antecedência muda na própria linha. */
+type SideExtra = "none" | "short" | "long";
+
+/**
+ * Linha de lembrete: o evento (categoria e título), quando ele acontece e quando o aviso sai; à direita, a
+ * antecedência (enquanto o aviso não saiu) e Remover. Nos já avisados, o aviso que ainda está no Painel ganha a
+ * etiqueta "Avisando agora" e o Dispensar.
+ */
 function ReminderRow({
   reminder,
   kind,
@@ -169,10 +267,12 @@ function ReminderRow({
   busy,
   change,
   draft,
+  live,
   registerRemove,
   onPickOffset,
   onCommitOffset,
   onDelete,
+  onDismiss,
   onOpenEvent,
 }: {
   reminder: Reminder;
@@ -183,14 +283,18 @@ function ReminderRow({
   change?: { from: number; to: number };
   /** Antecedência escolhida no select que ainda não foi salva. */
   draft?: number;
+  /** O aviso ainda está no Painel (não foi dispensado). */
+  live?: boolean;
   /** Guarda o botão "Remover", para o foco ir ao próximo depois de remover. */
   registerRemove: (id: number, node: HTMLButtonElement | null) => void;
   onPickOffset?: (minutes: number) => void;
   /** Salva logo a escolha (ao sair do campo, com o próximo foco, ou com Enter). */
   onCommitOffset?: (next: Element | null) => void;
   onDelete: () => void;
+  onDismiss?: () => void;
   onOpenEvent: (id: number) => void;
 }) {
+  const removeRef = useRef<HTMLButtonElement | null>(null);
   // a troca vale enquanto o lembrete ainda tem a antecedência de antes
   const changing = Boolean(change && change.from === reminder.offsetMinutes);
   // antecedência mostrada no select: a escolhida (ainda não salva ou salvando) ou a do lembrete
@@ -203,11 +307,9 @@ function ReminderRow({
   const noLonger = voidReason(reminder);
   const status = event && noLonger ? statusMeta[event.status] : null;
   const StatusIcon = status?.icon;
-  // evento cancelado ou concluído: não há mais aviso para adiantar ou atrasar
-  const canChange = Boolean(onPickOffset) && eventAhead && !noLonger;
+  // evento cancelado ou concluído, ou aviso que já saiu: não há mais aviso para adiantar ou atrasar
+  const canChange = kind === "pending" && Boolean(onPickOffset) && eventAhead && !noLonger;
   const RowIcon = kind === "past" ? Check : kind === "void" ? BellOff : Bell;
-  // nos já avisados, os dados vão sem ícone, como no Figma
-  const withIcons = kind !== "past";
   const options = reminderOptions.some((option) => Number(option.value) === offset)
     ? reminderOptions
     : [...reminderOptions, { value: String(offset), label: reminderOffsetLabel(offset) }].sort((a, b) => Number(a.value) - Number(b.value));
@@ -215,7 +317,7 @@ function ReminderRow({
   return (
     <li className={cx("rem-row", kind !== "pending" && kind)} data-reminder={reminder.id}>
       <span className="rem-ico" aria-hidden>
-        <RowIcon className="h-5 w-5" />
+        <RowIcon className="h-[18px] w-[18px]" />
       </span>
       <div className="rem-body">
         <div className="rem-head">
@@ -237,8 +339,8 @@ function ReminderRow({
         <div className="ev-meta">
           {event ? (
             <span className="rem-meta-i">
-              {withIcons ? <CalendarDays aria-hidden /> : null}
-              Evento {eventWhen(event)}
+              <CalendarDays aria-hidden />
+              {eventWhen(event)}
               {eventAhead ? ` (${relativeDue(event.startsAt)})` : ""}
             </span>
           ) : null}
@@ -247,50 +349,14 @@ function ReminderRow({
               <BellOff aria-hidden />
               {noLonger}
             </span>
-          ) : canChange ? (
-            <label className="rem-meta-i">
-              {withIcons ? <Clock aria-hidden /> : null}
-              {/* sem disabled enquanto salva: o foco fica no campo, e a escolha seguinte espera a vez */}
-              <select
-                className="rem-offset"
-                data-part="offset"
-                aria-label={`Antecedência do aviso de ${title}`}
-                value={String(offset)}
-                onChange={(pick) => onPickOffset?.(Number(pick.target.value))}
-                onBlur={(blur) => onCommitOffset?.(blur.relatedTarget)}
-                onKeyDown={(key) => {
-                  // Enter só confirma (salva logo a escolha). Sem o preventDefault, o Chrome do Windows e do
-                  // Linux também abriria a lista, que abre com espaço, Alt+seta para baixo ou clique.
-                  if (key.key === "Enter") {
-                    key.preventDefault();
-                    onCommitOffset?.(key.currentTarget);
-                  }
-                }}
-              >
-                {options.map((option) => {
-                  const minutes = Number(option.value);
-                  // antecedência que já passou não serve para um aviso novo
-                  const late = start !== null && start - minutes * 60000 <= now && minutes !== offset;
-                  return (
-                    <option key={option.value} value={option.value} disabled={late}>
-                      {option.label}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
           ) : (
             <span className="rem-meta-i">
-              {withIcons ? <Clock aria-hidden /> : null}
-              {reminderOffsetLabel(reminder.offsetMinutes)}
+              <Bell aria-hidden />
+              {kind === "past" ? "Avisado" : "Aviso"} {sendWhen(reminder.sendAt, now)}
+              {/* a antecedência que já saiu fica só como texto */}
+              {kind === "past" || !canChange ? `, ${reminderOffsetLabel(reminder.offsetMinutes)}` : ""}
             </span>
           )}
-          {!noLonger ? (
-            <span className="rem-meta-i">
-              {withIcons ? <Bell aria-hidden /> : null}
-              No sistema
-            </span>
-          ) : null}
           {changing ? (
             <span role="status" className="rem-meta-i text-ink-3">
               <Loader2 className="animate-spin" aria-hidden />
@@ -301,13 +367,62 @@ function ReminderRow({
       </div>
 
       <div className="rem-acts">
-        {!noLonger ? (
-          <span className="pill rem-when">
-            {kind === "past" ? "Avisado" : "Aviso"} {sendWhen(reminder.sendAt, now)}
+        {live ? (
+          <span className="pill stat rem-live">
+            <BellRing className="h-3 w-3" aria-hidden />
+            Avisando agora
           </span>
         ) : null}
+        {canChange ? (
+          // sem disabled enquanto salva: o foco fica no campo, e a escolha seguinte espera a vez
+          <select
+            className="rem-offset"
+            data-part="offset"
+            aria-label={`Antecedência do aviso de ${title}`}
+            value={String(offset)}
+            onChange={(pick) => onPickOffset?.(Number(pick.target.value))}
+            onBlur={(blur) => onCommitOffset?.(blur.relatedTarget)}
+            onKeyDown={(key) => {
+              // Enter só confirma (salva logo a escolha). Sem o preventDefault, o Chrome do Windows e do
+              // Linux também abriria a lista, que abre com espaço, Alt+seta para baixo ou clique.
+              if (key.key === "Enter") {
+                key.preventDefault();
+                onCommitOffset?.(key.currentTarget);
+              }
+            }}
+          >
+            {options.map((option) => {
+              const minutes = Number(option.value);
+              // antecedência que já passou não serve para um aviso novo
+              const late = start !== null && start - minutes * 60000 <= now && minutes !== offset;
+              return (
+                <option key={option.value} value={option.value} disabled={late}>
+                  {option.label}
+                </option>
+              );
+            })}
+          </select>
+        ) : null}
+        {live && onDismiss ? (
+          <button
+            className="btn btn-g btn-sm"
+            data-part="dismiss"
+            aria-label={`Dispensar o aviso de ${title}`}
+            onClick={() => {
+              onDismiss();
+              // o Dispensar sai com o aviso: o foco fica no Remover da mesma linha
+              window.requestAnimationFrame(() => removeRef.current?.focus());
+            }}
+            type="button"
+          >
+            Dispensar
+          </button>
+        ) : null}
         <button
-          ref={(node) => registerRemove(reminder.id, node)}
+          ref={(node) => {
+            removeRef.current = node;
+            registerRemove(reminder.id, node);
+          }}
           className="btn btn-danger btn-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
           data-part="remove"
           aria-label={`Remover lembrete de ${title}`}
@@ -359,12 +474,22 @@ export function RemindersView({
   const baseId = useId();
   const pendId = `${baseId}-aguardando`;
   const pastId = `${baseId}-avisados`;
+  const startId = `${baseId}-comeco`;
   const pendListId = `${baseId}-aguardando-lista`;
   const pastListId = `${baseId}-avisados-lista`;
+  const drawerListId = `${baseId}-todos-lista`;
   const prefId = `${baseId}-padrao`;
-  const stepsId = `${baseId}-passos`;
+  const monthsId = `${baseId}-meses`;
+  const howId = `${baseId}-como`;
+  const tabIds: Record<TabKey, string> = {
+    pending: `${baseId}-aba-aguardando`,
+    past: `${baseId}-aba-avisados`,
+    void: `${baseId}-aba-cancelados`,
+  };
+  const panelId = `${baseId}-aba-painel`;
   const shownAvisos = avisos ?? [];
   const avisoKeys = shownAvisos.map(avisoKey);
+  const liveKeys = new Set(avisoKeys);
 
   const [now, setNow] = useState(() => Date.now());
   // antecedência salvando: { de, para }
@@ -373,8 +498,14 @@ export function RemindersView({
   // OFFSET_SAVE_DELAY sem nova troca, ao sair do campo ou com Enter, uma de cada vez
   const [drafts, setDrafts] = useState<Record<number, number>>({});
   const [quickId, setQuickId] = useState<number | null>(null);
-  // "Ver todos (N)": cada lista abre no próprio card, sem rolagem por dentro
-  const [showAll, setShowAll] = useState<Record<ListKey, boolean>>({ pending: false, past: false });
+  // painel "Todos os lembretes": a aba e o mês escolhidos (null: todos os meses); opened conta as aberturas,
+  // para o painel sempre abrir na página 1
+  const [drawer, setDrawer] = useState<{ open: boolean; tab: TabKey; month: number | null; opened: number }>({
+    open: false,
+    tab: "pending",
+    month: null,
+    opened: 0,
+  });
   // avisos que já apareceram com a tela aberta: dispensado, o lembrete continua em "Já avisados"
   const [seenAvisos, setSeenAvisos] = useState(avisoKeys);
   const unseen = avisoKeys.filter((key) => !seenAvisos.includes(key));
@@ -390,26 +521,32 @@ export function RemindersView({
       setQuickId(null);
     }
   }
-  // antecedência que a página está salvando ({ lembrete, antecedência nova }), até o lembrete voltar salvo
-  const [landing, setLanding] = useState<{ id: number; to: number } | null>(null);
+  // antecedência que a página está salvando ({ lembrete, antecedência nova, controle com o foco }), até o
+  // lembrete voltar salvo
+  const [landing, setLanding] = useState<{ id: number; to: number; part: string | null } | null>(null);
+  // no painel "Todos os lembretes": a linha que mudou de lugar ao salvar, para a página dela abrir e o foco ir junto
+  const [follow, setFollow] = useState<{ id: number; part: string | null } | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerPanelRef = useRef<HTMLDivElement>(null);
   const pendRef = useRef<HTMLElement>(null);
-  const pastRef = useRef<HTMLElement>(null);
   const pendTitleRef = useRef<HTMLHeadingElement>(null);
   const pastTitleRef = useRef<HTMLHeadingElement>(null);
-  const removeButtons = useRef(new Map<number, HTMLButtonElement>());
-  const moreButtons = useRef(new Map<ListKey, HTMLButtonElement>());
-  const removing = useRef<{ id: number; order: number[]; list: ListKey } | null>(null);
+  const startTitleRef = useRef<HTMLHeadingElement>(null);
+  const tabRefs = useRef(new Map<TabKey, HTMLButtonElement>());
+  // a aba escolhida: o foco entra nela quando o painel abre
+  const drawerFocusRef = useRef<HTMLButtonElement | null>(null);
+  const removeButtons = useRef(new Map<string, HTMLButtonElement>());
+  const removing = useRef<{ id: number; order: number[]; list: TabKey; scope: Scope } | null>(null);
   // controle de linha com o foco quando uma antecedência foi salva (saved: o lembrete salvo; place: onde a
   // linha estava, para saber se ela mudou de lugar; scrolled: a pessoa rolou a página por conta própria)
   const restore = useRef<{ saved: number; id: number; part: string; place: string | null; scrolled: boolean } | null>(null);
   // evento cujo lembrete a sugestão está criando
   const createdFor = useRef<number | null>(null);
-  // lista que acabou de abrir ou fechar, e o primeiro lembrete que apareceu
-  const toggled = useRef<{ list: ListKey; firstNew: number | null } | null>(null);
   const commitRef = useRef<(only?: number, next?: Element | null) => void>(() => undefined);
-  const { sideRef, gapRef, stuck } = useSideFit(pendRef);
+  const mainColRef = useRef<HTMLDivElement>(null);
+  const lastPage = useRef(1);
 
   // o "Aviso hoje", as opções que já passaram e as sugestões andam com o relógio
   useEffect(() => {
@@ -419,30 +556,63 @@ export function RemindersView({
 
   const { voided, upcoming, past } = reminderLists(reminders, avisos ? new Set([...seenAvisos, ...avisoKeys]) : null, now);
   const next = upcoming.find((reminder) => reminder.enabled) ?? null;
+  const hasAny = reminders.length > 0;
+  const upcomingMonths = monthsOf(upcoming);
 
-  // o lembrete voltou salvo: se a lista nova deixou a linha depois dos primeiros de uma lista fechada, ela
-  // abre no mesmo render, e a linha aparece no lugar novo (com o foco, se ele estava nela). Se o salvar
-  // falhou, nada abre.
+  // painel "Todos os lembretes": a lista da aba, filtrada pelo mês, uma página por vez. A aba dos cancelados
+  // some quando fica vazia (todos removidos): o painel volta para "Aguardando aviso"
+  const tab: TabKey = drawer.tab === "void" && !voided.length ? "pending" : drawer.tab;
+  const tabList = tab === "past" ? past : tab === "void" ? voided : upcoming;
+  const tabMonths = monthsOf(tabList);
+  // short: o nome curto, para as três abas caberem numa linha no celular
+  const tabs: { key: TabKey; label: string; short: string; count: number }[] = [
+    { key: "pending", label: "Aguardando aviso", short: "Aguardando", count: upcoming.length },
+    { key: "past", label: "Já avisados", short: "Avisados", count: past.length },
+    ...(voided.length ? [{ key: "void" as const, label: "Cancelados", short: "Cancelados", count: voided.length }] : []),
+  ];
+  // o mês escolhido pode ter ficado vazio (lembretes removidos): volta para todos os meses
+  const month = drawer.month !== null && tabMonths.some((item) => item.key === drawer.month) ? drawer.month : null;
+  const drawerItems = month === null ? tabList : tabList.filter((reminder) => monthOf(reminder) === month);
+  const paged = usePaged(drawerItems, DRAWER_PAGE, `${drawer.opened}|${tab}|${month ?? "todos"}`);
+
+  const { sideRef, mainGapRef, sideGapRef, extraRef, extraKind, stuck } = useSideFit(
+    mainColRef,
+    `${hasAny}|${upcoming.length}|${past.length > 0}|${upcomingMonths.length}`
+  );
+
+  // o lembrete voltou salvo. No painel, se a linha mudou de aba, de mês ou de página, o painel vai atrás dela
   if (landing) {
     const saved = reminders.find((reminder) => reminder.id === landing.id);
     if (saved?.offsetMinutes === landing.to) {
       setLanding(null);
-      const list: ListKey | null = upcoming.indexOf(saved) >= PREVIEW ? "pending" : past.indexOf(saved) >= PREVIEW ? "past" : null;
-      if (list && !showAll[list]) {
-        setShowAll({ ...showAll, [list]: true });
+      if (drawer.open) {
+        const list: ListKey = past.includes(saved) ? "past" : "pending";
+        const savedMonth = monthOf(saved);
+        setDrawer({ ...drawer, tab: list, month: drawer.month === null || drawer.month === savedMonth ? drawer.month : savedMonth });
+        setFollow({ id: saved.id, part: landing.part });
       }
     } else if (wasSaving && !saving) {
       setLanding(null);
     }
   }
 
-  // os primeiros de cada lista; o "Ver todos (N)" conta o mesmo que o indicador do alto.
-  // Os de evento cancelado ou concluído (raros) ficam inteiros no fim de Aguardando aviso, para poder remover.
-  const upcomingShown = showAll.pending ? upcoming : upcoming.slice(0, PREVIEW);
-  const pastShown = showAll.past ? past : past.slice(0, PREVIEW);
+  // a linha que o painel segue: a página dela abre (ela pode ter ido para outra página ao salvar)
+  if (follow && drawer.open) {
+    const at = drawerItems.findIndex((reminder) => reminder.id === follow.id);
+    if (at < 0) {
+      setFollow(null);
+    } else if (Math.floor(at / DRAWER_PAGE) + 1 !== paged.page) {
+      paged.setPage(Math.floor(at / DRAWER_PAGE) + 1);
+    }
+  }
 
-  const nextLabel = next ? capitalize(sendWhen(next.sendAt, now)) : "Nenhum";
+  const upcomingShown = upcoming.slice(0, PREVIEW);
+  const pastShown = past.slice(0, PREVIEW);
+
+  // como o "Próxima avaliação" de Notas ("seg, 23/11"): o dia da semana em minúscula, igual às linhas
+  const nextLabel = next ? sendWhen(next.sendAt, now) : null;
   const nextTitle = next ? (next.academicEvent?.title ?? `Evento #${next.academicEventId}`) : null;
+  const liveCount = past.filter((reminder) => liveKeys.has(avisoKey(reminder))).length;
 
   // sugestão só de evento que ainda aceita lembrete: o aviso de 15 minutos antes ainda cai no futuro (com folga)
   const soon = now + SUGGEST_MARGIN;
@@ -459,7 +629,7 @@ export function RemindersView({
     )
     .slice(0, 3);
 
-  // depois de remover, o foco vai para o próximo "Remover" da mesma lista (ou para o título dela)
+  // depois de remover, o foco vai para o próximo "Remover" da mesma lista (ou para o título dela, ou para a aba)
   useEffect(() => {
     const target = removing.current;
     if (!target || reminders.some((reminder) => reminder.id === target.id)) {
@@ -467,10 +637,15 @@ export function RemindersView({
     }
     removing.current = null;
     const at = target.order.indexOf(target.id);
-    const rest = target.order.filter((id) => id !== target.id && removeButtons.current.has(id));
+    const rest = target.order.filter((id) => id !== target.id && removeButtons.current.has(`${target.scope}:${id}`));
     const nextId = rest[Math.min(at, rest.length - 1)];
-    const title = target.list === "past" ? pastTitleRef.current : pendTitleRef.current;
-    (nextId !== undefined ? removeButtons.current.get(nextId) : title)?.focus();
+    const fallback =
+      target.scope === "drawer"
+        ? tabRefs.current.get(target.list)
+        : ((target.list === "past" ? pastTitleRef.current : pendTitleRef.current) ?? pendTitleRef.current ?? startTitleRef.current);
+    // a aba dos cancelados some quando o último sai: o foco vai para a primeira aba
+    const fallbackTarget = fallback ?? (target.scope === "drawer" ? tabRefs.current.get("pending") : undefined);
+    (nextId !== undefined ? removeButtons.current.get(`${target.scope}:${nextId}`) : fallbackTarget)?.focus();
   }, [reminders]);
 
   // terminou de salvar e o lembrete continua na lista: a remoção falhou, o foco fica onde está
@@ -489,12 +664,14 @@ export function RemindersView({
     if (!target) {
       return;
     }
-    const rowNode = rootRef.current?.querySelector(`[data-reminder="${target.id}"]`);
+    const root = drawer.open ? drawerRef.current : rootRef.current;
+    const rowNode = root?.querySelector(`[data-reminder="${target.id}"]`);
     const active = document.activeElement;
     if (!active || active === document.body) {
       const control = rowNode?.querySelector<HTMLElement>(`[data-part="${target.part}"]`) ?? firstControl(rowNode);
       const moved = reminders.find((reminder) => reminder.id === target.id);
-      const title = moved && new Date(moved.sendAt).getTime() <= now ? pastTitleRef.current : pendTitleRef.current;
+      const list: ListKey = moved && new Date(moved.sendAt).getTime() <= now ? "past" : "pending";
+      const title = drawer.open ? tabRefs.current.get(list) : list === "past" ? pastTitleRef.current : pendTitleRef.current;
       (control ?? title)?.focus({ preventScroll: target.scrolled });
     } else if (rowNode?.contains(active)) {
       const place = rowPlace(rowNode);
@@ -510,7 +687,36 @@ export function RemindersView({
     if (!pending[target.saved]) {
       restore.current = null;
     }
-  }, [reminders, pending, now]);
+  }, [reminders, pending, now, drawer.open]);
+
+  // no painel: a linha salva está à vista (a página dela já abriu): o foco vai para o mesmo controle dela
+  useEffect(() => {
+    if (!follow || !drawer.open) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const rowNode = drawerRef.current?.querySelector(`[data-reminder="${follow.id}"]`);
+      if (!rowNode) {
+        return;
+      }
+      const control =
+        (follow.part ? rowNode.querySelector<HTMLElement>(`[data-part="${follow.part}"]`) : null) ?? firstControl(rowNode);
+      if (control && control !== document.activeElement) {
+        control.focus({ preventScroll: true });
+        rowNode.scrollIntoView({ block: "nearest" });
+      }
+      setFollow(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [follow, drawer.open, paged.page]);
+
+  // trocou de página no painel: a lista volta ao alto (o Pager leva o foco para o começo dela)
+  useEffect(() => {
+    if (paged.page !== lastPage.current) {
+      lastPage.current = paged.page;
+      drawerPanelRef.current?.closest(".drawer-body")?.scrollTo({ top: 0 });
+    }
+  }, [paged.page]);
 
   // um clique ou toque da pessoa enquanto salva vale mais que a volta do foco; se ela rolou a página
   // com a roda do mouse, o foco ainda volta, mas a página não é puxada de volta até a linha
@@ -547,23 +753,6 @@ export function RemindersView({
       createdFor.current = null;
     }
   }, [reminders, quickId]);
-
-  // "Ver todos": o foco vai para o primeiro lembrete que apareceu; "Mostrar menos": o botão continua à vista
-  useEffect(() => {
-    const target = toggled.current;
-    if (!target) {
-      return;
-    }
-    toggled.current = null;
-    const root = target.list === "past" ? pastRef.current : pendRef.current;
-    const rowNode = target.firstNew !== null ? root?.querySelector(`[data-reminder="${target.firstNew}"]`) : null;
-    const control = firstControl(rowNode);
-    if (control) {
-      control.focus();
-    } else {
-      moreButtons.current.get(target.list)?.scrollIntoView({ block: "nearest" });
-    }
-  }, [showAll]);
 
   // a escolha sem nova troca vai para a página; enquanto ela salva outra coisa, a escolha espera a vez
   useEffect(() => {
@@ -644,7 +833,7 @@ export function RemindersView({
             scrolled: false,
           }
         : null;
-    setLanding({ id, to: minutes });
+    setLanding({ id, to: minutes, part: focusedRow && Number(focusedRow.getAttribute("data-reminder")) === id ? (focused?.dataset.part ?? null) : null });
     void changeOffset(reminder, minutes);
   }
 
@@ -666,61 +855,55 @@ export function RemindersView({
     }
   }
 
-  function registerRemove(id: number, node: HTMLButtonElement | null) {
+  function registerRemove(scope: Scope, id: number, node: HTMLButtonElement | null) {
     if (node) {
-      removeButtons.current.set(id, node);
+      removeButtons.current.set(`${scope}:${id}`, node);
     } else {
-      removeButtons.current.delete(id);
+      removeButtons.current.delete(`${scope}:${id}`);
     }
   }
 
-  /** Remove e guarda a ordem da lista, para o foco ir ao próximo "Remover" dela. */
-  function removeReminder(reminder: Reminder, list: ListKey) {
-    const order = (list === "past" ? past : [...upcoming, ...voided]).map((item) => item.id);
-    removing.current = { id: reminder.id, order, list };
+  /** Remove e guarda a ordem da lista à vista, para o foco ir ao próximo "Remover" dela. */
+  function removeReminder(reminder: Reminder, list: TabKey, scope: Scope) {
+    const shown = scope === "drawer" ? paged.items : list === "past" ? pastShown : upcomingShown;
+    removing.current = { id: reminder.id, order: shown.map((item) => item.id), list, scope };
     onDelete(reminder);
   }
 
-  function toggleList(list: ListKey, items: Reminder[]) {
-    const open = !showAll[list];
-    toggled.current = { list, firstNew: open ? (items[PREVIEW]?.id ?? null) : null };
-    setShowAll((current) => ({ ...current, [list]: open }));
+  function openDrawer(tabKey: TabKey, monthKey: number | null = null) {
+    setDrawer((current) => ({ open: true, tab: tabKey, month: monthKey, opened: current.opened + 1 }));
   }
 
-  /**
-   * "Ver todos (N)": a lista abre ali mesmo; "Mostrar menos" volta aos primeiros. No pé do card, ou logo
-   * embaixo da lista (inline) quando o grupo dos cancelados vem depois dela.
-   */
-  function moreButton(list: ListKey, items: Reminder[], controls: string, inline = false) {
-    if (items.length <= PREVIEW) {
-      return null;
+  function closeDrawer() {
+    setDrawer((current) => ({ ...current, open: false }));
+  }
+
+  function chooseTab(tabKey: TabKey) {
+    setDrawer((current) => ({ ...current, tab: tabKey, month: null }));
+  }
+
+  // abas com as setas, Home e End (o foco anda junto com a escolha)
+  function tabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const order = tabs.map((item) => item.key);
+    const at = order.indexOf(tab);
+    let target: TabKey | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+      target = order[(at + (event.key === "ArrowRight" ? 1 : order.length - 1)) % order.length];
+    } else if (event.key === "Home") {
+      target = order[0];
+    } else if (event.key === "End") {
+      target = order[order.length - 1];
     }
-    const open = showAll[list];
-    return (
-      <div className={inline ? "rem-more" : "card-foot"}>
-        <button
-          ref={(node) => {
-            if (node) {
-              moreButtons.current.set(list, node);
-            } else {
-              moreButtons.current.delete(list);
-            }
-          }}
-          className="link"
-          aria-controls={controls}
-          aria-expanded={open}
-          onClick={() => toggleList(list, items)}
-          type="button"
-        >
-          {open ? "Mostrar menos" : `Ver todos (${items.length})`}
-          <ChevronDown className={cx("h-[15px] w-[15px] transition", open && "rotate-180")} aria-hidden />
-        </button>
-      </div>
-    );
+    if (target) {
+      event.preventDefault();
+      chooseTab(target);
+      tabRefs.current.get(target)?.focus();
+    }
   }
 
-  function row(reminder: Reminder, kind: RowKind, list: ListKey) {
-    const changeable = kind !== "void" && onChangeOffset;
+  function row(reminder: Reminder, kind: RowKind, list: TabKey, scope: Scope) {
+    const changeable = kind === "pending" && onChangeOffset;
+    const live = kind === "past" && liveKeys.has(avisoKey(reminder));
     return (
       <ReminderRow
         key={reminder.id}
@@ -730,35 +913,59 @@ export function RemindersView({
         busy={saving}
         change={pending[reminder.id]}
         draft={drafts[reminder.id]}
-        registerRemove={registerRemove}
+        live={live}
+        registerRemove={(id, node) => registerRemove(scope, id, node)}
         onPickOffset={changeable ? (minutes) => pickOffset(reminder, minutes) : undefined}
         onCommitOffset={changeable ? (nextFocus) => commitDraft(reminder.id, nextFocus) : undefined}
-        onDelete={() => removeReminder(reminder, list)}
+        onDelete={() => removeReminder(reminder, list, scope)}
+        onDismiss={live && onDismissAviso ? () => onDismissAviso(reminder.id) : undefined}
         onOpenEvent={onOpenEvent}
       />
     );
   }
 
-  const suggestionBlock =
-    suggestions.length && onQuickReminder ? (
-      <div className="mt-4 w-full max-w-xl text-left">
-        <p className="text-sm font-bold text-ink-2">Próximas provas e trabalhos</p>
-        <ul className="mt-2 grid grid-cols-1 gap-2">
-          {suggestions.map((event) => {
+  /** "Ver todos (22)": abre o painel "Todos os lembretes" na aba da lista. */
+  function moreButton(list: ListKey, count: number) {
+    if (count <= PREVIEW) {
+      return null;
+    }
+    return (
+      <div className="rem-foot">
+        <button className="btn btn-s btn-sm" aria-haspopup="dialog" onClick={() => openDrawer(list)} type="button">
+          Ver todos ({count})
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+    );
+  }
+
+  // as próximas provas e trabalhos, cada uma com o botão de lembrar na ponta da linha
+  const suggestionsOf = (list: AcademicEvent[]) =>
+    list.length && onQuickReminder ? (
+      <div className="rem-sugg">
+        <p className="rem-sugg-t">Próximas provas e trabalhos</p>
+        <ul className="rem-sugg-list">
+          {list.map((event) => {
             const minutes = defaultReminderMinutes ? quickOffset(event, defaultReminderMinutes, soon) : null;
             const label = minutes ? `Lembrar ${reminderOffsetLabel(minutes)}` : "Ativar lembrete";
             const meta = categoryMeta[event.category];
+            const start = new Date(event.startsAt);
             return (
-              <li key={event.id} className="flex flex-wrap items-center gap-3 rounded-2xl bg-surface-2 p-3">
-                <div className="min-w-0 flex-1 basis-48">
-                  <p className="text-[15px] font-bold leading-snug wrap-anywhere">{event.title}</p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+              <li key={event.id} className="rem-sugg-row">
+                <span className="rem-sugg-date" aria-hidden>
+                  <span className="dw">{start.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}</span>
+                  <span className="dn">{String(start.getDate()).padStart(2, "0")}</span>
+                  <span className="dm">{start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</span>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="rem-sugg-title wrap-anywhere">{event.title}</p>
+                  <p className="rem-sugg-meta">
                     <span className={cx("pill", meta.tint)}>{meta.short}</span>
-                    {eventWhen(event)}
+                    {suggestionWhen(event)}
                   </p>
                 </div>
                 <button
-                  className="btn btn-s btn-sm"
+                  className="btn btn-s btn-sm shrink-0"
                   aria-label={`${label}: ${event.title}`}
                   aria-busy={quickId === event.id || undefined}
                   aria-disabled={quickId !== null || saving || undefined}
@@ -773,149 +980,450 @@ export function RemindersView({
           })}
         </ul>
       </div>
-    ) : onOpenCalendar ? (
-      <button className="btn btn-s btn-sm mt-2" onClick={() => onOpenCalendar()} type="button">
-        Abrir cronograma
-      </button>
     ) : null;
+  const suggestionBlock = suggestionsOf(suggestions);
+
+  // índice por mês só quando há lembretes fora da tela: com todos à vista em "Aguardando aviso", ele só repetiria
+  // os mesmos itens ao lado (decisão 13)
+  const showMonths = hasAny && upcoming.length > PREVIEW;
+  // "Aguardando aviso" cheio (os PREVIEW lembretes, nenhum fora da tela): ganha uma sugestão, a lista não fica
+  // longa. Com menos lembretes, as sugestões vão todas
+  const pendSuggestions =
+    upcoming.length < PREVIEW
+      ? suggestionBlock
+      : upcoming.length === PREVIEW
+        ? suggestionsOf(suggestions.slice(0, FULL_SUGGESTIONS))
+        : null;
+  // "Como funciona" no card próprio da coluna lateral (sem lembrete nenhum e com avaliações a sugerir)
+  const howBeside = !hasAny && suggestionBlock !== null;
+  // com lembretes, a lateral só com o "Padrão" pode ficar bem mais baixa que "Aguardando aviso" (sugestões, mais
+  // linhas ou "Já avisados" embaixo). Aí entra no mesmo card do padrão o bloco que deixa as colunas mais perto de
+  // terminar juntas (useSideFit mede): o curto, com o caminho para lembrar de outro evento (uns 100 px), ou os
+  // passos de "Como funciona" (uns 230 px). Nunca estica card (decisão 5)
+  const sideExtra: SideExtra = hasAny && !showMonths ? extraKind : "none";
+
+  // os três passos de "Como funciona"; "rem-steps-row" põe os três lado a lado (dentro do card de começo)
+  const howSteps = (row: boolean) => (
+    <ol className={cx("rem-steps", row && "rem-steps-row")}>
+      <li>
+        <span className="rem-step-n" aria-hidden>
+          1
+        </span>
+        <span>
+          Abra um evento no cronograma e use <b>Ativar lembrete</b>.
+        </span>
+      </li>
+      <li>
+        <span className="rem-step-n" aria-hidden>
+          2
+        </span>
+        <span>Escolha a antecedência, de 15 minutos a 7 dias.</span>
+      </li>
+      <li>
+        <span className="rem-step-n" aria-hidden>
+          3
+        </span>
+        <span>
+          Na hora marcada, o aviso aparece no Painel e aqui, e chega no seu <span className="whitespace-nowrap">e-mail</span>.
+        </span>
+      </li>
+    </ol>
+  );
+
+  // o padrão (antecedência e canal) e o botão do perfil: no card próprio, ou no fim do "Como funciona" ao lado
+  const prefLines = (
+    <>
+      <dl className="info mt-[18px]">
+        <InfoLine icon={Clock} label={howBeside ? "Padrão" : "Antecedência"} value={reminderOffsetLabel(defaultReminderMinutes ?? 1440)} />
+        <InfoLine icon={Bell} label="Canal" value="No sistema e no e-mail" />
+      </dl>
+      {onOpenProfile ? (
+        <button className="btn btn-s mt-[18px] w-full" onClick={onOpenProfile} type="button">
+          <Settings2 className="h-4 w-4" aria-hidden />
+          Alterar no perfil
+        </button>
+      ) : null}
+    </>
+  );
+
+  const prefCard = howBeside ? null : (
+    <section className="card pad rise rem-grow" style={delay(6)} aria-labelledby={prefId}>
+      <h2 className="h2" id={prefId}>
+        Padrão para novos lembretes
+      </h2>
+      {prefLines}
+      {sideExtra === "long" ? (
+        <div ref={extraRef} data-extra="long" className="rem-how">
+          <h3 className="rem-how-t">Como funciona</h3>
+          {howSteps(false)}
+        </div>
+      ) : sideExtra === "short" ? (
+        <div ref={extraRef} data-extra="short" className="rem-how">
+          <p className="rem-how-s">
+            <b>Outro evento?</b> Abra no cronograma e use <b>Ativar lembrete</b>.
+          </p>
+          {onOpenCalendar ? (
+            <button className="btn btn-s btn-sm mt-3" onClick={() => onOpenCalendar()} type="button">
+              <CalendarDays className="h-4 w-4" aria-hidden />
+              Ver cronograma
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {/* fica com a sobra (no máximo STRETCH_MAX) quando a coluna estica para terminar junto da principal */}
+      {showMonths ? null : <div ref={sideGapRef} className="tela-gap" aria-hidden />}
+    </section>
+  );
+
+  // sem nenhum lembrete e com as próximas avaliações no card de começo: os passos vão para a coluna lateral, um
+  // embaixo do outro, num card só com o padrão (antecedência, canal e "Alterar no perfil"). Dois cards na lateral
+  // passavam uns 100 px do card de começo, que esticava com um buraco embaixo da lista (decisão 5).
+  // Sem avaliações, o card de começo é baixo: os passos ficam nele, lado a lado, e a lateral só tem o "Padrão"
+  const howCard = howBeside ? (
+    <section className="card pad rise rem-grow rem-how-card" style={delay(6)} aria-labelledby={howId}>
+      <h2 className="h2" id={howId}>
+        Como funciona
+      </h2>
+      {howSteps(false)}
+      <div className="rem-how-pref">{prefLines}</div>
+      <div ref={sideGapRef} className="tela-gap" aria-hidden />
+    </section>
+  ) : null;
+
+  // índice por mês dos próximos avisos: cada mês abre o painel "Todos os lembretes" já nele
+  const monthsCard = showMonths ? (
+      <section className="card pad rise rem-grow" style={delay(7)} aria-labelledby={monthsId}>
+        <h2 className="h2" id={monthsId}>
+          Avisos por mês
+        </h2>
+        <p className="sub">Os que ainda vão sair, pela data do aviso.</p>
+        <ul className="rem-months">
+          {upcomingMonths.slice(0, MONTHS_SHOWN).map((item) => {
+            const name = monthName(item.key, now);
+            const count = countText(item.count, "aviso", "avisos");
+            return (
+              <li key={item.key}>
+                <button
+                  className="rem-mrow"
+                  aria-haspopup="dialog"
+                  aria-label={`${name}: ${count}. Ver no painel de todos os lembretes`}
+                  onClick={() => openDrawer("pending", item.key)}
+                  type="button"
+                >
+                  <CalendarDays className="h-4 w-4 shrink-0 text-brand" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">{name}</span>
+                  <span className="c">{count}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {upcomingMonths.length > MONTHS_SHOWN ? (
+          <button className="btn btn-g btn-sm mt-2 self-start" aria-haspopup="dialog" onClick={() => openDrawer("pending")} type="button">
+            Mais {countText(upcomingMonths.length - MONTHS_SHOWN, "mês", "meses")}
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </button>
+        ) : null}
+        <div ref={sideGapRef} className="tela-gap" aria-hidden />
+      </section>
+    ) : null;
+
+  // sem nenhum lembrete: o card de começo (o que fazer e as próximas avaliações); o "Como funciona" fica ao lado
+  const startCard = (
+    <section className="card pad rise rem-grow rem-start" style={delay(1)} aria-labelledby={startId}>
+      <div className="rem-start-head">
+        <span className="empty-ico" aria-hidden>
+          <Bell className="h-6 w-6" />
+        </span>
+        <div className="rem-start-txt">
+          <h2 ref={startTitleRef} id={startId} tabIndex={-1} className="h2 outline-none">
+            Nenhum lembrete ativo
+          </h2>
+          <p className="sub">
+            {suggestionBlock
+              ? "Ative um lembrete nas próximas avaliações ou em qualquer evento do cronograma."
+              : "Abra um evento no cronograma e ative um lembrete pessoal."}
+          </p>
+        </div>
+        {!suggestionBlock && onOpenCalendar ? (
+          <button className="btn btn-p rem-start-btn" onClick={() => onOpenCalendar()} type="button">
+            Ver cronograma
+          </button>
+        ) : null}
+      </div>
+      {suggestionBlock ? <div className="mt-5">{suggestionBlock}</div> : null}
+      {howBeside ? null : (
+        <div className="rem-how">
+          <h3 className="rem-how-t">Como funciona</h3>
+          {howSteps(true)}
+        </div>
+      )}
+      <div ref={mainGapRef} className="tela-gap" aria-hidden />
+    </section>
+  );
+
+  const pendCard = (
+    <section ref={pendRef} className={cx("card pad rise rem-pend", !past.length && "rem-grow")} style={delay(4)} aria-labelledby={pendId}>
+      <h2 ref={pendTitleRef} id={pendId} tabIndex={-1} className="h2 outline-none">
+        Aguardando aviso
+      </h2>
+      {upcoming.length > PREVIEW ? <p className="sub">Os {PREVIEW} mais próximos, de {upcoming.length}.</p> : null}
+      <div className="rem-pend-body mt-4">
+        {upcomingShown.length ? (
+          <>
+            <ul id={pendListId} className="rem-list">
+              {upcomingShown.map((reminder) => row(reminder, "pending", "pending", "page"))}
+            </ul>
+            {/* poucos lembretes: as avaliações que ainda estão sem lembrete, logo embaixo, a um toque */}
+            {pendSuggestions}
+          </>
+        ) : (
+          <div className="rem-empty">
+            <div className="rem-empty-head">
+              <span className="empty-ico" aria-hidden>
+                <Bell className="h-6 w-6" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="rem-empty-t">Nenhum aviso por vir</p>
+                <p className="rem-empty-s">
+                  {suggestionBlock
+                    ? "Ative um lembrete nas próximas avaliações ou abra um evento no cronograma."
+                    : "Abra um evento no cronograma e ative um lembrete pessoal."}
+                </p>
+              </div>
+              {!suggestionBlock && onOpenCalendar ? (
+                <button className="btn btn-s btn-sm shrink-0" onClick={() => onOpenCalendar()} type="button">
+                  Ver cronograma
+                </button>
+              ) : null}
+            </div>
+            {suggestionBlock}
+          </div>
+        )}
+      </div>
+      {moreButton("pending", upcoming.length)}
+        {/* lembretes de eventos cancelados ou concluídos: uma linha só, com quantos são; a lista fica no painel */}
+        {voided.length ? (
+          <div className="rem-void-sum">
+            <span className="rem-ico" aria-hidden>
+              <BellOff className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="rem-void-t">
+                {countText(voided.length, "lembrete de evento cancelado ou concluído", "lembretes de eventos cancelados ou concluídos")}
+              </p>
+              <p className="rem-void-s">{voided.length === 1 ? "O aviso dele não sai mais." : "Os avisos deles não saem mais."}</p>
+            </div>
+            <button className="btn btn-s btn-sm shrink-0" aria-haspopup="dialog" onClick={() => openDrawer("void")} type="button">
+              {voided.length === 1 ? "Ver e remover" : `Ver todos (${voided.length})`}
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+        ) : null}
+      {!past.length ? <div ref={mainGapRef} className="tela-gap" aria-hidden /> : null}
+    </section>
+  );
+
+  const pastCard = past.length ? (
+    <section className="card pad rise rem-grow rem-past" style={delay(5)} aria-labelledby={pastId}>
+      <h2 ref={pastTitleRef} id={pastId} tabIndex={-1} className="h2 outline-none">
+        Já avisados
+      </h2>
+      <p className="sub">O aviso fica no Painel até o evento começar ou até você dispensar.</p>
+      <ul id={pastListId} className="rem-list mt-4">
+        {pastShown.map((reminder) => row(reminder, "past", "past", "page"))}
+      </ul>
+      {moreButton("past", past.length)}
+      <div ref={mainGapRef} className="tela-gap" aria-hidden />
+    </section>
+  ) : null;
+
+  // os itens da página do painel em grupos por mês, cada um com o nome do mês e quantos lembretes ele tem
+  const drawerGroups: { key: number; items: Reminder[] }[] = [];
+  for (const reminder of paged.items) {
+    const key = monthOf(reminder);
+    const last = drawerGroups[drawerGroups.length - 1];
+    if (last?.key === key) {
+      last.items.push(reminder);
+    } else {
+      drawerGroups.push({ key, items: [reminder] });
+    }
+  }
+
 
   return (
     <div ref={rootRef} className="grid gap-5">
-      {/* o mesmo bloco de avisos do Painel */}
-      <AvisosCard
-        avisos={shownAvisos}
-        events={upcomingEvents}
-        fallbackFocus={() => pendTitleRef.current}
-        onDismiss={onDismissAviso}
-        onOpen={onOpenEvent}
-      />
+      {/* os avisos do sistema (os dos lembretes ficam na própria linha, em "Já avisados", com Dispensar) */}
+      <AvisosCard avisos={[]} events={upcomingEvents} fallbackFocus={() => pendTitleRef.current ?? startTitleRef.current} onOpen={onOpenEvent} />
 
-      <div className="kpis rem-kpis">
-        <InsightTile icon={Clock} label="Aguardando aviso" value={String(upcoming.length)} tone="c-ativ" hint="um lembrete por evento" order={1} />
-        <InsightTile icon={CircleCheckBig} label="Já avisados" value={String(past.length)} hint="a hora do aviso já passou" order={2} />
-        <div className="card kpi rise rem-next" style={delay(3)}>
-          <div className="kpi-top">
-            <p className="kpi-label">Próximo aviso</p>
-            <span className="kpi-ico">
-              <Bell className="h-[18px] w-[18px]" aria-hidden />
-            </span>
-          </div>
-          <p className={cx("kpi-val", nextLabel.length > 12 && "long")}>{nextLabel}</p>
-          <p className="kpi-hint wrap-anywhere">{nextTitle ? `${nextTitle}, no sistema` : "nenhum lembrete agendado"}</p>
-        </div>
-      </div>
-
-      {/* "Aguardando aviso" e a coluna lateral terminam juntos (Figma); "Já avisados" fica embaixo, na coluna larga */}
-      <div className={cx("tela-cols rem-cols", stuck && "is-stuck")}>
-        <div className="tela-main">
-          <section ref={pendRef} className="card pad rise rem-pend" style={delay(4)} aria-labelledby={pendId}>
-            <h2 ref={pendTitleRef} id={pendId} tabIndex={-1} className="h2 outline-none">
-              Aguardando aviso
-            </h2>
-            <div className="rem-pend-body mt-[18px]">
-              {upcomingShown.length ? (
-                <ul id={pendListId} className="rem-list">
-                  {upcomingShown.map((reminder) => row(reminder, "pending", "pending"))}
-                </ul>
-              ) : (
-                <div className="empty-inline">
-                  <span className="empty-ico">
-                    <Bell className="h-6 w-6" aria-hidden />
-                  </span>
-                  <p className="mt-1.5 text-[15px] font-bold text-ink">Tudo em dia por aqui</p>
-                  <p className="max-w-md text-sm leading-5 text-muted">Abra um evento no cronograma e ative um lembrete pessoal.</p>
-                  {suggestionBlock}
-                </div>
-              )}
-              {voided.length ? (
-                <>
-                  {/* o "Ver todos" fica junto da lista que ele abre, antes dos cancelados */}
-                  {moreButton("pending", upcoming, pendListId, true)}
-                  <div>
-                    <h3 className="ev-group">Eventos cancelados ou concluídos</h3>
-                    <ul className="rem-list">{voided.map((reminder) => row(reminder, "void", "pending"))}</ul>
-                  </div>
-                </>
-              ) : null}
+      {hasAny ? (
+        <div className="kpis rem-kpis">
+          <InsightTile icon={Clock} label="Aguardando aviso" value={String(upcoming.length)} tone="c-ativ" hint="um lembrete por evento" order={1} />
+          <InsightTile
+            icon={CircleCheckBig}
+            label="Já avisados"
+            value={String(past.length)}
+            hint={
+              liveCount
+                ? countText(liveCount, "ainda no Painel", "ainda no Painel")
+                : past.length
+                  ? "a hora do aviso já passou"
+                  : "nenhum aviso saiu ainda"
+            }
+            order={2}
+          />
+          <div className="card kpi rise rem-next" style={delay(3)}>
+            <div className="kpi-top">
+              <p className="kpi-label">Próximo aviso</p>
+              <span className="kpi-ico">
+                <Bell className="h-[18px] w-[18px]" aria-hidden />
+              </span>
             </div>
-            {voided.length ? null : moreButton("pending", upcoming, pendListId)}
-          </section>
-
-          <section ref={pastRef} className="card pad rise rem-past" style={delay(5)} aria-labelledby={pastId}>
-            <h2 ref={pastTitleRef} id={pastId} tabIndex={-1} className="h2 outline-none">
-              Já avisados
-            </h2>
-            <p className="sub">O aviso fica no Painel e aqui em Lembretes até o evento começar ou até você dispensar.</p>
-            {past.length ? (
-              <ul id={pastListId} className="rem-list mt-[18px]">
-                {pastShown.map((reminder) => row(reminder, "past", "past"))}
-              </ul>
+            {nextLabel ? (
+              <>
+                <p className={cx("kpi-val", nextLabel.length > 12 && "long")}>{nextLabel}</p>
+                <p className="kpi-hint wrap-anywhere">{nextTitle}</p>
+              </>
             ) : (
-              <div className="mt-[18px]">
-                <EmptyState
-                  compact
-                  icon={CircleCheckBig}
-                  text="Nenhum aviso chegou ainda."
-                  hint="Depois da hora marcada, o lembrete passa para esta lista."
-                />
-              </div>
+              <>
+                <p className="rem-next-none">Nenhum agendado</p>
+                <p className="kpi-hint">ative um lembrete num evento do cronograma</p>
+              </>
             )}
-            {moreButton("past", past, pastListId)}
-          </section>
+          </div>
+        </div>
+      ) : null}
+
+      {/* as duas colunas terminam juntas quando têm quase a mesma altura; se não, a lateral fica do tamanho
+          dela e parada no alto (nenhum card estica com buraco no pé) */}
+      <div className={cx("tela-cols rem-cols", stuck && "is-stuck")}>
+        <div ref={mainColRef} className="tela-main">
+          {hasAny ? (
+            <>
+              {pendCard}
+              {pastCard}
+            </>
+          ) : (
+            startCard
+          )}
         </div>
 
         <div ref={sideRef} className="tela-side">
-          <section className="card pad rise" style={delay(6)} aria-labelledby={prefId}>
-            <h2 className="h2" id={prefId}>
-              Padrão para novos lembretes
-            </h2>
-            <dl className="info mt-[18px]">
-              <InfoLine icon={Clock} label="Antecedência" value={reminderOffsetLabel(defaultReminderMinutes ?? 1440)} />
-              <InfoLine icon={Bell} label="Canal" value="No sistema" />
-            </dl>
-            {onOpenProfile ? (
-              <button className="btn btn-s mt-[18px] w-full" onClick={onOpenProfile} type="button">
-                <Settings2 className="h-4 w-4" aria-hidden />
-                Alterar no perfil
-              </button>
-            ) : null}
-          </section>
-
-          <section className="card pad rise" style={delay(7)} aria-labelledby={stepsId}>
-            <h2 className="h2" id={stepsId}>
-              Três passos
-            </h2>
-            <ol className="rem-steps">
-              <li>
-                <span className="rem-step-n" aria-hidden>
-                  1
-                </span>
-                <span>
-                  Abra um evento no cronograma e toque em <b>Ativar lembrete</b>.
-                </span>
-              </li>
-              <li>
-                <span className="rem-step-n" aria-hidden>
-                  2
-                </span>
-                <span>Escolha a antecedência, de 15 minutos a 7 dias.</span>
-              </li>
-              <li>
-                <span className="rem-step-n" aria-hidden>
-                  3
-                </span>
-                <span>
-                  Na hora marcada, o aviso aparece no Painel e aqui em Lembretes.
-                  {/* a mesma frase já está no bloco de avisos quando há algum */}
-                  {shownAvisos.length ? null : " Também chega no seu e-mail."}
-                </span>
-              </li>
-            </ol>
-            {/* fica com a sobra quando a coluna estica para terminar junto de "Aguardando aviso" */}
-            <div ref={gapRef} className="tela-gap" aria-hidden />
-          </section>
+          {prefCard}
+          {monthsCard}
+          {howCard}
         </div>
       </div>
+
+      <Drawer
+        open={drawer.open}
+        title="Todos os lembretes"
+        subtitle={`${countText(upcoming.length, "aguardando aviso", "aguardando aviso")}, ${countText(past.length, "já avisado", "já avisados")}${
+          voided.length ? `, ${countText(voided.length, "cancelado ou concluído", "cancelados ou concluídos")}` : ""
+        }`}
+        size="wide"
+        initialFocusRef={drawerFocusRef}
+        onClose={closeDrawer}
+        footer={
+          <button className={secondaryButton} onClick={closeDrawer} type="button">
+            Fechar
+          </button>
+        }
+      >
+        <div ref={drawerRef} className="rem-dr">
+          <div className="rem-dr-top">
+            <div className={cx("seg rem-tabs", tabs.length > 2 && "three")} role="tablist" aria-label="Lembretes">
+              {tabs.map((item) => {
+                const selected = tab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    ref={(node) => {
+                      if (node) {
+                        tabRefs.current.set(item.key, node);
+                      } else {
+                        tabRefs.current.delete(item.key);
+                      }
+                      if (selected) {
+                        drawerFocusRef.current = node;
+                      }
+                    }}
+                    id={tabIds[item.key]}
+                    className={cx(selected && "on")}
+                    role="tab"
+                    aria-selected={selected}
+                    aria-controls={panelId}
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => chooseTab(item.key)}
+                    onKeyDown={tabKeyDown}
+                    type="button"
+                  >
+                    {item.short === item.label ? (
+                      item.label
+                    ) : (
+                      <>
+                        <span className="rem-tab-full">{item.label}</span>
+                        <span className="rem-tab-short">{item.short}</span>
+                      </>
+                    )}
+                    <span className="n">{item.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {tabMonths.length > 1 ? (
+              <label className="rem-dr-month">
+                <span>Mês</span>
+                <select
+                  className="input"
+                  value={month === null ? "" : String(month)}
+                  onChange={(change) => setDrawer({ ...drawer, month: change.target.value === "" ? null : Number(change.target.value) })}
+                >
+                  <option value="">Todos os meses ({tabList.length})</option>
+                  {tabMonths.map((item) => (
+                    <option key={item.key} value={String(item.key)}>
+                      {monthName(item.key, now)} ({item.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+
+          <div ref={drawerPanelRef} id={panelId} role="tabpanel" aria-labelledby={tabIds[tab]} className="rem-dr-panel outline-none">
+            {tab === "void" && paged.items.length ? (
+              <p className="sub rem-dr-note">O evento foi cancelado ou concluído, então o aviso não sai mais. Remova o que não precisa.</p>
+            ) : null}
+            {paged.items.length ? (
+              drawerGroups.map((group) => {
+                // o mês pode se dividir entre páginas: a conta é a desta página, com o total do mês ao lado
+                const monthTotal = tabMonths.find((item) => item.key === group.key)?.count ?? group.items.length;
+                return (
+                  <div key={group.key} className="rem-month">
+                    <h3 className="rem-month-h drawer-h3">
+                      {monthName(group.key, now)}
+                      <span className="n">
+                        {monthTotal > group.items.length
+                          ? `${group.items.length} de ${countText(monthTotal, "lembrete", "lembretes")} nesta página`
+                          : countText(monthTotal, "lembrete", "lembretes")}
+                      </span>
+                    </h3>
+                    <ul id={`${drawerListId}-${group.key}`} className="rem-list">
+                      {group.items.map((reminder) => row(reminder, tab, tab, "drawer"))}
+                    </ul>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="empty-inline rem-dr-empty">
+                {tab === "past" ? "Nenhum aviso saiu ainda" : "Nenhum aviso por vir"}
+              </p>
+            )}
+            <Pager className="mt-4" paged={paged} noun={["lembrete", "lembretes"]} focusRef={drawerPanelRef} />
+          </div>
+        </div>
+      </Drawer>
     </div>
   );
 }

@@ -1,0 +1,884 @@
+/* Cronograma: lista por mês com o seletor de meses. Dono: calendar-view.tsx (e month-pager.tsx).
+   Este arquivo entra antes das regras do globals.css na mesma camada: o que muda uma regra de lá
+   (.ev, .ev-group) usa seletor mais forte. */
+
+/* ---------- cabeçalho do mês: "‹ Novembro de 2026 ›" (Agenda e Calendário) ---------- */
+.crono-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+.crono-bar-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.crono-title {
+  min-width: 0;
+  padding: 0 6px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  border-radius: 8px;
+}
+.crono-bar-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+html .crono-bar .crono-step[aria-disabled="true"] {
+  opacity: 0.4;
+  /* !important: o "button { cursor: pointer }" do globals.css fica fora das camadas e ganhava desta regra */
+  cursor: default !important;
+  box-shadow: none;
+}
+/* "Hoje" já no mês atual: esmaecido e sem a mão, como as setas na ponta (ux.css dá a opacidade do .btn) */
+html .crono-bar .crono-today[aria-disabled="true"] {
+  cursor: default !important;
+}
+html .crono-bar .crono-today[aria-disabled="true"]:hover {
+  border-color: var(--line-strong);
+  background: #fff;
+}
+html .crono-bar .crono-step[aria-disabled="true"]:hover {
+  border-color: var(--line-strong);
+  background: #fff;
+  color: var(--ink-3);
+}
+@media (max-width: 479px) {
+  .crono-title {
+    padding: 0 4px;
+    font-size: 19px;
+  }
+}
+
+/* ---------- faixa dos meses: "nov 3", "dez 5" ---------- */
+.crono-nav {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line-2);
+}
+.crono-strip {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+/* o ano e o primeiro mês dele, juntos */
+.crono-ystart {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.crono-year {
+  padding: 0 2px 0 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.crono-ystart:first-child .crono-year {
+  padding-left: 0;
+}
+.crono-mchip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s;
+}
+.crono-mchip:hover {
+  background: var(--fill-h);
+  color: var(--ink);
+}
+.crono-mchip .n {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.crono-mchip .ds {
+  display: inline-flex;
+  gap: 3px;
+}
+.crono-mchip .ds .dot {
+  width: 6px;
+  height: 6px;
+}
+/* mês de hoje: contorno azul fino (o leitor de tela ouve "mês atual") */
+.crono-mchip.now {
+  box-shadow: inset 0 0 0 1.5px var(--brand-200);
+}
+/* mês na tela */
+.crono-mchip.on {
+  background: var(--bebe-botao);
+  color: var(--bebe-ink);
+  font-weight: 750;
+  box-shadow: none;
+}
+.crono-mchip.on .n {
+  color: var(--bebe-ink);
+  opacity: 0.8;
+}
+/* o mês veio do Calendário e não tem eventos no filtro */
+.crono-mchip.zero:not(.on) {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--muted);
+}
+/* computador e tablet: quando a faixa quebra, as linhas ficam equilibradas (sem "2028 jan 1" sozinho na 2ª
+   linha). A faixa vira texto: os meses ficam em linha, com a mesma folga de 6 px entre eles. */
+@media (min-width: 640px) {
+  .crono-nav .crono-strip {
+    display: block;
+    margin: -3px;
+    line-height: 0;
+    text-wrap: balance;
+  }
+  .crono-nav .crono-strip > * {
+    margin: 3px;
+    line-height: normal;
+    vertical-align: middle;
+  }
+}
+/* celular: a faixa fica numa linha que rola de lado, só ela, com as bordas em degradê. A folga de 20 px
+   nas pontas (desfeita pela margem) deixa o primeiro e o último mês inteiros fora do degradê e o anel de
+   foco inteiro; o scroll-padding é onde para o chip focado pelo teclado (month-pager.tsx). */
+@media (max-width: 639px) {
+  .crono-strip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 24px;
+    margin: -5px -20px;
+    padding: 5px 20px;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  }
+  .crono-strip::-webkit-scrollbar {
+    display: none;
+  }
+  .crono-strip > * {
+    flex-shrink: 0;
+    scroll-snap-align: center;
+  }
+}
+
+/* ---------- lista do mês, por semana ---------- */
+.crono-list .crono-week .ev-group {
+  margin: 18px 0 4px;
+}
+.crono-list .crono-week:first-child .ev-group {
+  margin-top: 2px;
+}
+.crono-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+/* datas do campus (institucional, feriado, recesso): linha mais baixa e letra menor, com o mesmo selo da data
+   em versão de contorno (branco, sem o fundo cinza): a diferença fica clara e não parece falta de caixa.
+   O título continua alinhado com o das provas (a coluna da data tem a mesma largura). */
+.crono-list .crono-item[data-campus] .ev {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+html .crono-list .crono-item[data-campus] .ev-date {
+  padding: 3px 0;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.crono-list .crono-item[data-campus] .ev-date .dw {
+  font-size: 10.5px;
+}
+.crono-list .crono-item[data-campus] .ev-date .dn {
+  font-size: 17px;
+  color: var(--ink-3);
+}
+.crono-list .crono-item[data-campus] .ev-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.crono-list .crono-item[data-campus] .ev-meta {
+  margin-top: 2px;
+  font-size: 13px;
+}
+.crono-list .crono-item[data-campus] .ev-time {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.crono-list .crono-item[data-campus] .ev-rel {
+  margin-top: 1px;
+  font-size: 13px;
+}
+
+/* ---------- pé da lista: o mês vizinho, sem voltar ao topo ---------- */
+.crono-pager {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-2);
+}
+.crono-pg {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 62px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: var(--fill);
+  color: var(--ink);
+  text-align: left;
+  transition: background-color 0.15s;
+}
+.crono-pg:hover {
+  background: var(--fill-h);
+}
+/* no computador cada um fica no seu canto, sem esticar pela metade do card */
+.crono-pg.prev {
+  grid-column: 1;
+  justify-self: start;
+  width: min(100%, 460px);
+}
+.crono-pg.next {
+  grid-column: 2;
+  justify-self: end;
+  width: min(100%, 460px);
+  flex-direction: row-reverse;
+  text-align: right;
+}
+.crono-pg.main {
+  background: var(--bebe-botao);
+  color: var(--bebe-ink);
+}
+.crono-pg.main:hover {
+  background: var(--bebe-botao-h);
+}
+.crono-pg-ico {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.crono-pg-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.crono-pg-txt .k {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.crono-pg.main .crono-pg-txt .k {
+  color: var(--bebe-ink);
+  opacity: 0.75;
+}
+.crono-pg-txt .v {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.crono-pg-txt .c {
+  font-weight: 550;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+/* celular: um embaixo do outro, o do sentido da leitura primeiro */
+@media (max-width: 639px) {
+  .crono-pager {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .crono-pg.prev,
+  .crono-pg.next {
+    grid-column: 1;
+    width: 100%;
+  }
+  .crono-pg.main {
+    order: -1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crono-mchip,
+  .crono-pg {
+    transition: none;
+  }
+}
+
+/* ---------- rodada de UX 17/11: filtros, lista por dia e a grade com faixas ---------- */
+
+/* abas do período com a contagem ao lado, menor e cinza ("Próximos 118") */
+.seg .crono-period {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.seg .crono-period .crono-n {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+/* contagem dentro de um botão ("Mostrar todas 2", "Ver março de 2027 16"): como a das abas, sem parênteses */
+.btn .crono-btn-n {
+  margin-left: 2px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+/* linha das categorias: os chips e, no fim, o contador e o "Limpar filtros" */
+.crono-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+.crono-filters .crono-cats {
+  min-width: 0;
+  gap: 4px 6px;
+}
+/* um só jeito de dizer "escolhido" na linha: o "Todas" ativo ganha o mesmo fundo das categorias escolhidas
+   (antes era sublinhado, como as abas, e a categoria tinha fundo) */
+html .crono-cats .chip.all {
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: none;
+}
+.crono-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-left: auto;
+}
+/* "7 escondidos pelo filtro Mostrar todos": o texto e a ação juntos, separados do "Limpar filtros" */
+.crono-hidden {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 0;
+}
+/* celular, no Calendário: a linha do que o filtro esconde fica embaixo da faixa das categorias, à esquerda */
+@media (max-width: 639px) {
+  .crono-filters > .crono-count {
+    margin-left: 0;
+  }
+}
+/* com o detalhe aberto ao lado (card mais estreito), os chips ficam mais justos para caber numa linha; dois
+   escolhidos lado a lado continuam separados */
+.crono-filters.tight .crono-cats {
+  column-gap: 4px;
+}
+html .crono-filters.tight .chip {
+  gap: 6px;
+  padding: 0 7px;
+}
+/* celular: as categorias numa faixa de uma linha que rola de lado, como a dos meses (antes eram 2 linhas,
+   e com o título, as abas e os meses o primeiro evento caía na metade de baixo da tela). As bordas em
+   degradê mostram que há mais chips; a folga de 20 px nas pontas (desfeita pela margem) deixa o primeiro e o
+   último inteiros fora do degradê. A folga de 5 px em cima e embaixo é onde cabe a área de toque de 44 px
+   (o ::after do chip), que a rolagem cortaria. O "Limpar filtros" entra no fim, como mais um item. */
+@media (max-width: 639px) {
+  html .crono-filters .crono-cats {
+    position: relative;
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin: -5px -20px;
+    padding: 5px 20px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  }
+  html .crono-filters .crono-cats::-webkit-scrollbar {
+    display: none;
+  }
+  html .crono-filters .crono-cats > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  html .crono-filters .chip {
+    gap: 5px;
+    padding: 0 9px;
+  }
+  /* min-height: no toque, o .link ganha 44 px (globals.css) e a faixa crescia 10 px quando o "Limpar filtros"
+     aparecia, empurrando a lista. A área de toque de 44 px fica no ::after do .link (ux.css), na folga de 5 px */
+  html .crono-filters .crono-clear {
+    padding: 0 7px;
+    height: 34px;
+    min-height: 34px;
+    white-space: nowrap;
+  }
+  /* título e dica mais enxutos: a dica "Escolha um evento..." some (o convite a entrar numa turma fica) */
+  .crono-card > .head .sub:has(> .crono-hint) {
+    display: none;
+  }
+  .crono-card > .head .h2 {
+    font-size: 20px;
+  }
+  .crono-card > .head {
+    gap: 10px;
+  }
+  /* respiros mais curtos no alto do card e em volta da faixa dos meses */
+  .crono-card.pad {
+    padding-top: 18px;
+  }
+  .crono-card .crono-nav {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+  }
+  .crono-card .crono-bar {
+    margin-bottom: 8px;
+  }
+}
+
+/* rótulo da semana e do mês da busca em frase normal (sem caixa alta), como os outros títulos */
+.crono-list .crono-week .ev-group {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-3);
+}
+
+/* coluna estreita (1024 px, ou o card ao lado do detalhe): a linha ia de um jeito ou de outro conforme o
+   tamanho do texto ("Prova" e os dados na mesma linha numa; "Prova" sozinha e os dados inteiros embaixo na
+   outra, porque o flex-wrap leva o bloco todo). Abaixo de 860 px de card, a categoria e os dados (disciplina,
+   turma, local) seguem no mesmo fluxo de texto em todas as linhas: os dados começam logo depois das pílulas e,
+   se não couberem, continuam na linha de baixo, sem reticências. Até 400 px os dados já somem (globals.css). */
+@container (min-width: 401px) and (max-width: 859px) {
+  .crono-list .ev-meta,
+  .cal-day .ev-meta {
+    display: block;
+    line-height: 22px;
+  }
+  .crono-list .ev-meta > *,
+  .cal-day .ev-meta > * {
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .crono-list .ev-meta .det,
+  .cal-day .ev-meta .det {
+    display: inline;
+    margin-right: 0;
+    /* !important: o "truncate" do Tailwind (camada utilities) ganha das regras desta camada */
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* várias datas no mesmo dia: o bloco da data só na 1ª linha; nas outras fica o espaço dele, para os
+   títulos seguirem alinhados (a pseudo-caixa entra como item da linha, no lugar do .ev-date) */
+.crono-list .crono-item[data-cont] > .ev::before {
+  content: "";
+  width: 54px;
+  flex-shrink: 0;
+}
+/* linhas do mesmo dia juntas (o grupo do dia), sem o respiro entre dias */
+.crono-day {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.crono-list .crono-day .crono-item[data-cont] .ev {
+  padding-top: 5px;
+}
+
+/* telas largas: a lista ocupa a largura do card, alinhada com os filtros e o contador (com o limite de
+   1180 px sobravam uns 330 px vazios à direita a 1920) */
+
+/* celular: o título inteiro, sem corte (no resto do app, até a 2ª linha). Os nomes do calendário oficial são
+   longos e só se diferenciam no fim ("... de unidades curriculares, exceto para ingressantes"), justamente a
+   parte que o corte escondia. A lista é paginada por mês, então isso não vira rolagem sem fim. */
+@media (max-width: 639px) {
+  .crono-list .ev-title,
+  .cal-day .ev-title {
+    -webkit-line-clamp: none;
+    line-clamp: none;
+  }
+}
+
+/* cabeçalho do mês no celular: setas, mês e "Hoje" numa linha só */
+@media (max-width: 479px) {
+  .crono-bar {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .crono-bar-main {
+    gap: 2px;
+  }
+  .crono-title {
+    font-size: 18px;
+    white-space: nowrap;
+    /* nunca por baixo da seta: se ainda faltar espaço, o nome termina em reticência dentro do título */
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .crono-bar-extra .btn {
+    padding-inline: 10px;
+  }
+  /* com o "Hoje" ao lado, o mês vai abreviado ("Nov de 2026"); o nome inteiro fica para o leitor de tela */
+  .crono-title .crono-title-full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .crono-title .crono-title-short {
+    display: inline;
+  }
+}
+.crono-title-short {
+  display: none;
+}
+/* 320 px: o nome curto inteiro ao lado do "Hoje" */
+@media (max-width: 359px) {
+  .crono-title {
+    padding: 0 2px;
+    font-size: 16px;
+  }
+  .crono-bar-extra .btn {
+    padding-inline: 8px;
+  }
+}
+
+
+/* ---------- grade do mês: eventos de vários dias viram faixas ---------- */
+/* As faixas ficam numa camada por cima da semana, do 1º ao último dia de cada evento nela, com o nome uma
+   vez só. Cada dia reserva o lugar delas (.cal-lanes) logo abaixo do número, e os chips dos eventos de um
+   dia vêm depois. A camada não pega o clique (o dia continua clicável); só as faixas pegam. */
+.cal-week {
+  position: relative;
+  --lane-h: 20px;
+  --lane-gap: 3px;
+}
+.cal-lanes {
+  display: block;
+  height: calc(var(--lanes) * var(--lane-h) + (var(--lanes) - 1) * var(--lane-gap));
+}
+.cal-bars {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .cal-bars {
+    position: absolute;
+    z-index: 1;
+    top: 39px;
+    left: 0;
+    right: 0;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-auto-rows: var(--lane-h);
+    column-gap: 6px;
+    row-gap: var(--lane-gap);
+    pointer-events: none;
+  }
+}
+.cal-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0 3px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: var(--lane-h);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: filter 0.15s;
+}
+.cal-bar:hover {
+  filter: brightness(0.95);
+}
+/* continua da semana anterior ou na próxima: a ponta fica reta e encosta na borda */
+.cal-bar.from-before {
+  margin-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.cal-bar.to-after {
+  margin-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.cal-bar.out {
+  opacity: 0.6;
+}
+.cal-bar.sel {
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+.cal-bar-t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-bar.c-prova { background: #ffe4e8; color: #9f1239; }
+.cal-bar.c-trab { background: #ede9fe; color: #5b21b6; }
+.cal-bar.c-ativ { background: #e0f2fe; color: #075985; }
+.cal-bar.c-extra { background: #fef3c7; color: #92400e; }
+.cal-bar.c-inst { background: #dbeafe; color: #1e40af; }
+.cal-bar.c-fer { background: #d1fae5; color: #065f46; }
+.cal-bar.c-rec { background: #ecfccb; color: #3f6212; }
+
+/* grade estreita (card com menos de 1060 px, de 1024 a uns 1400 px de tela): o chip mostra o título como veio
+   do PDF (decisão 12), em até 2 linhas e cortado só no fim (globals.css .ce .t); o nome inteiro fica na dica,
+   no nome do dia e na lista do dia. Abaixo de 1024 px os dias só têm os pontos. */
+
+/* "+3 eventos": selo que parece clicável (abre a lista do dia); abaixo de 1280 px, só "+3" */
+.cal-more {
+  align-self: flex-start;
+  display: inline-flex;
+  column-gap: 0.28em;
+  margin-top: 1px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+.day:hover .cal-more {
+  background: var(--fill-h);
+  color: var(--ink);
+}
+@media (max-width: 1279px) {
+  .cal-more-w {
+    display: none;
+  }
+}
+
+/* celular: quantos eventos o dia tem, ao lado dos pontos (dia com 9 não parece igual a dia com 1) */
+.cal-count {
+  margin-left: 1px;
+  font-size: 10.5px;
+  font-weight: 750;
+  line-height: 7px;
+  color: var(--ink-3);
+}
+.day.busy .cal-count {
+  color: var(--brand-ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-bar,
+  .cal-more {
+    transition: none;
+  }
+}
+
+/* celular estreito: as três abas do período com a contagem cabem numa linha (sem "Todos" sozinho embaixo) */
+@media (max-width: 479px) {
+  html .seg .crono-period {
+    gap: 4px;
+    padding: 0 7px;
+    font-size: 13.5px;
+  }
+  html .seg .crono-period .crono-n {
+    font-size: 12px;
+  }
+}
+
+/* toque: os chips dos meses e das categorias têm alvo de 44 px (34 + 5 + 5), sem mudar o desenho; as setas
+   já têm 44 px pelo .ib.sm do globals.css. A área a mais (::after) não invade o vizinho: entre as colunas
+   ela vai até a metade da folga, e entre as linhas a folga é de 10 px. Na faixa que rola de lado (celular)
+   a área cabe na folga de 5 px de cima e de baixo da própria faixa, que a rolagem não corta. */
+@media (pointer: coarse) {
+  .crono-mchip::after {
+    content: "";
+    position: absolute;
+    inset: -5px -3px;
+  }
+  html .crono-cats .chip::after {
+    inset: -5px -3px;
+  }
+  .crono-filters .crono-cats {
+    row-gap: 10px;
+  }
+}
+/* tablet com toque: a faixa dos meses quebra em linhas; 10 px entre elas */
+@media (pointer: coarse) and (min-width: 640px) {
+  .crono-nav .crono-strip {
+    margin: -5px -3px;
+  }
+  .crono-nav .crono-strip > * {
+    margin: 5px 3px;
+  }
+}
+
+/* busca com vários meses juntos: o mês escolhido na faixa para no alto, abaixo do cabeçalho do celular */
+.crono-list .ev-group[id] {
+  scroll-margin-top: 16px;
+  border-radius: 6px;
+}
+@media (max-width: 767px) {
+  .crono-list .ev-group[id] {
+    scroll-margin-top: 100px;
+  }
+}
+
+/* ---------- detalhe do evento no Modal: a ação principal no rodapé fixo ---------- */
+/* O detalhe (event-bits.tsx) põe no rodapé o "Editar" e o "Mais ações" (quem gerencia) ou o botão do lembrete
+   (quem só lê). Sem nenhuma ação (evento que já passou, para quem só lê), o rodapé some. */
+.modal-foot:has(> .ev-foot:empty) {
+  display: none;
+}
+.ev-foot {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ev-foot-in {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+/* o "Mais ações" fica do tamanho dos botões ao lado (44 px), à esquerda do principal */
+html .ev-foot-in .ib.ev-more {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+@media (max-width: 639px) {
+  .ev-foot-in > .btn {
+    flex: 1 1 auto;
+  }
+}
+/* painel ao lado da Agenda: as mesmas ações numa linha, com o "Editar" ocupando o espaço e o menu no fim */
+.ev-foot-in.ev-side-act {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+.ev-foot-in.ev-side-act > .btn {
+  flex: 1 1 auto;
+}
+
+/* ---------- busca na Agenda: todos os meses juntos, 12 por página ---------- */
+/* "28 resultados de março a dezembro de 2027", acima da faixa dos meses encontrados */
+.crono-range {
+  margin-bottom: 10px;
+  padding: 0 2px;
+  border-radius: 6px;
+  font-size: 14.5px;
+  font-weight: 550;
+  color: var(--ink-3);
+  scroll-margin-top: 16px;
+}
+.crono-range b {
+  font-weight: 750;
+  color: var(--ink);
+}
+@media (max-width: 767px) {
+  .crono-range {
+    scroll-margin-top: 100px;
+  }
+}
+.crono-search-pager {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-2);
+}
+
+/* ---------- busca que acertou só na descrição: um trecho dela na linha, com a palavra marcada ---------- */
+.ev-snip {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* ---------- dia de hoje no Calendário: círculo cheio ----------
+   O traço de caneta em volta do número ficava parado no meio do desenho e parecia um arco quebrado. */
+html .cal .day.today .dnum {
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: -3px;
+  padding-left: 0;
+  border-radius: 999px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+  font-weight: 800;
+}
+html .cal .day.today .dnum::after {
+  content: none;
+}
+/* hoje escolhido: o dia ganha o fundo --brand-50; o círculo fica um tom acima para não sumir */
+html .cal .day.today.sel .dnum {
+  background: var(--brand-100);
+}
+@media (max-width: 1023px) {
+  html .cal .day.today .dnum {
+    margin: 0;
+  }
+}
+
+/* ---------- lembrete do detalhe: antecedência em 3 colunas iguais no painel estreito ----------
+   No painel ao lado (400 px), no Modal do celular e no tablet, os 6 chips quebravam em 4 + 2 e pareciam
+   dois grupos. Abaixo de 560 px de largura do bloco, ficam em 2 linhas de 3 (15 min, 1 hora, 3 horas /
+   1 dia, 2 dias, 7 dias). */
+.ev-remind {
+  container-type: inline-size;
+}
+@container (max-width: 559px) {
+  .chips.ev-offsets {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .chips.ev-offsets > .chip {
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+  }
+}
+/* toque: a área de 44 px de cada chip (ux.css) não cobre o vizinho */
+@media (pointer: coarse) {
+  .chips.ev-offsets {
+    gap: 10px;
+  }
+}

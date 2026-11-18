@@ -1,0 +1,408 @@
+/* Lembretes e perfil (reminders-view.tsx, profile-*.tsx). Entra depois do visual-novo.css e antes do ux.css;
+   os seletores com "html" vencem as regras antigas do globals.css e do visual-novo.css. */
+
+/* ---------- colunas: terminam juntas só quando têm quase a mesma altura ----------
+   useSideFit (reminders-view.tsx) liga o .is-stuck quando a diferença passa de 24 px: aí nenhuma coluna estica
+   (sem buraco no pé do card) e a lateral fica do tamanho dela, parada no alto enquanto a página rola. */
+@media (min-width: 1200px) {
+  html .rem-cols.is-stuck {
+    align-items: start;
+  }
+  html .rem-cols.is-stuck > .tela-main > .card:last-child,
+  html .rem-cols.is-stuck > .tela-side > .card:last-child {
+    flex: none;
+  }
+}
+/* o último card de cada coluna vira coluna flexível: o espaçador (.tela-gap) fica com a sobra no pé */
+.rem-grow {
+  display: flex;
+  flex-direction: column;
+}
+.rem-foot {
+  display: flex;
+  padding-top: 16px;
+}
+/* bloco curto da lateral, junto do padrão: o caminho para lembrar de outro evento (useSideFit escolhe) */
+.rem-how-s {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+@media (pointer: coarse) {
+  html .rem-how .btn-sm {
+    min-height: 44px;
+  }
+}
+
+/* ---------- linha de lembrete, mais baixa ----------
+   Ícone, evento (categoria e título) e, embaixo, quando ele acontece e quando o aviso sai. À direita, a
+   antecedência e os botões. Perto de 70 px por linha no computador. */
+html .rem-list {
+  gap: 8px;
+}
+html .rem-row {
+  gap: 10px 14px;
+  padding: 12px 14px;
+}
+html .rem-ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+html .rem-head {
+  gap: 4px 10px;
+}
+html .rem-title {
+  font-size: 15px;
+}
+html .rem-row .ev-meta {
+  margin-top: 4px;
+  gap: 2px 16px;
+  font-size: 13.5px;
+}
+html .rem-acts {
+  gap: 8px;
+}
+html .rem-offset {
+  height: 34px;
+}
+/* "Avisando agora": etiqueta de situação, em azul (o aviso ainda está no Painel) */
+html .pill.stat.rem-live {
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+/* card estreito (celular): o evento usa a largura toda e os controles vão para a linha de baixo, cheios */
+@container (max-width: 520px) {
+  html .rem-acts {
+    width: 100%;
+  }
+  html .rem-acts > .rem-offset {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+  html .rem-acts > .btn {
+    flex: 1 1 auto;
+  }
+  html .rem-acts > .rem-live {
+    flex-basis: 100%;
+    width: max-content;
+    max-width: 100%;
+  }
+}
+/* toque: alvos de 44 px */
+@media (pointer: coarse) {
+  html .rem-acts > .btn,
+  html .rem-foot > .btn,
+  html .rem-sugg-row > .btn,
+  html .rem-mrow {
+    min-height: 44px;
+  }
+  html .rem-offset {
+    height: 44px;
+  }
+  /* abas do painel e do perfil, botões dos vínculos, o link "Quais dados o responsável vê" e o mês do painel */
+  html .rem-tabs > button,
+  html .prof-tabs > button {
+    height: 44px;
+    min-height: 44px;
+  }
+  html .aluno-g-acts > .btn,
+  html .rem-void-sum > .btn {
+    min-height: 44px;
+  }
+  html .link.aluno-sec-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  html .rem-dr-month .input {
+    height: 44px;
+  }
+  /* o título que abre o evento: a caixa do botão tem 44 px de altura (12 px a mais em cima e embaixo), sem
+     mudar a altura da linha (a margem negativa devolve o espaço) */
+  html button.rem-title {
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+  html button.rem-title::after {
+    content: none;
+  }
+  /* chave "Compartilhar minhas notas": o desenho continua com 26 px, a área de toque tem 44 px de altura */
+  html .aluno-switch::before {
+    content: "";
+    position: absolute;
+    inset: -9px 0;
+  }
+}
+
+/* lembretes de eventos cancelados ou concluídos: uma linha de resumo na página (a lista fica no painel) */
+.rem-void-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.rem-void-sum .rem-ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: #fff;
+  color: var(--muted);
+}
+.rem-void-t {
+  font-size: 14.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.rem-void-s {
+  margin-top: 2px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+@container (max-width: 520px) {
+  .rem-void-sum > .btn {
+    flex: 1 1 100%;
+  }
+}
+.rem-dr-note {
+  margin-top: 14px;
+}
+
+/* grupo "Eventos cancelados ou concluídos" (frase normal, sem caixa alta) */
+.rem-group-h {
+  margin: 4px 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+/* ---------- sugestões: a data mostra o mês ("SEG 23 NOV") ---------- */
+html .rem-sugg-date {
+  height: 62px;
+}
+.rem-sugg-date .dm {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--brand-ink);
+}
+
+/* ---------- "Próximo aviso" sem aviso: texto normal, nunca no tamanho do número ---------- */
+.rem-next-none {
+  margin-top: 12px;
+  font-family: var(--disp);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--bebe-ink);
+}
+
+/* ---------- começo (nenhum lembrete): o que fazer e as próximas avaliações; ao lado, como funciona ---------- */
+.rem-start-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+}
+.rem-start-head .empty-ico {
+  margin: 0;
+}
+.rem-start-head .sub {
+  margin-top: 4px;
+}
+/* o texto pede pelo menos 240px antes de dividir a linha com o botão: no celular o botão desce (o
+   flex-wrap só quebra quando a base do texto não cabe; com flex-1, base 0, o título ficava espremido) */
+.rem-start-txt {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.rem-start-btn {
+  flex-shrink: 0;
+}
+@media (max-width: 639px) {
+  .rem-start-btn {
+    flex-basis: 100%;
+  }
+}
+/* "Como funciona": na coluna lateral (sem lembrete e com avaliações a sugerir), os passos um embaixo do outro;
+   sem avaliações, dentro do card de começo, lado a lado */
+html .rem-how-card .rem-steps {
+  margin-top: 16px;
+}
+/* o padrão (antecedência, canal e "Alterar no perfil") no fim do "Como funciona", separado por uma linha */
+.rem-how-pref {
+  margin-top: 18px;
+  border-top: 1px solid var(--line-2);
+}
+.rem-how {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-2);
+}
+.rem-how-t {
+  font-family: var(--disp);
+  font-size: 16.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+html .rem-steps.rem-steps-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 14px 22px;
+  margin-top: 14px;
+}
+
+/* ---------- "Avisos por mês" (coluna lateral) ---------- */
+.rem-months {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rem-mrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--ink);
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease;
+}
+.rem-mrow:hover {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+}
+.rem-mrow .c {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- painel "Todos os lembretes" ---------- */
+.rem-dr {
+  container-type: inline-size;
+}
+.rem-dr-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+.rem-tabs .n {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.rem-tabs .on .n {
+  color: var(--ink-3);
+}
+.rem-tab-short {
+  display: none;
+}
+/* painel estreito com as três abas: nomes curtos ("Aguardando", "Avisados", "Cancelados"), numa linha só */
+@container (max-width: 520px) {
+  html .rem-tabs.three {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+  html .rem-tabs.three > button {
+    min-width: 0;
+    padding: 0 4px;
+    gap: 6px;
+  }
+  .rem-tabs.three .rem-tab-full {
+    display: none;
+  }
+  .rem-tabs.three .rem-tab-short {
+    display: inline;
+  }
+}
+.rem-dr-month {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.rem-dr-month .input {
+  width: auto;
+  min-width: 210px;
+  height: 40px;
+}
+.rem-dr-panel {
+  margin-top: 6px;
+}
+.rem-month + .rem-month {
+  margin-top: 6px;
+}
+.rem-month-h {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 16px 0 10px;
+  /* fonte, tamanho e cor vêm do .drawer-h3 (ux.css) */
+}
+.rem-month-h .n {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.rem-dr-empty {
+  margin-top: 16px;
+}
+@media (max-width: 559px) {
+  .rem-dr-month {
+    width: 100%;
+  }
+  .rem-dr-month .input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+/* ---------- perfil ---------- */
+/* título de bloco dentro do perfil e dos painéis (o mesmo em todos) */
+html .lem-h3 {
+  font-family: var(--disp);
+  font-size: 16.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+/* abas do perfil: Preferências e Responsáveis (ou Alunos) */
+.prof-tabs {
+  margin-top: 18px;
+  width: 100%;
+}
+.prof-panel {
+  padding-top: 18px;
+}
+/* na aba, a seção dos vínculos começa no alto, sem a linha de separação de quando vinha embaixo do formulário */
+html .prof-panel > .aluno-sec {
+  padding-top: 0;
+  border-top: 0;
+}

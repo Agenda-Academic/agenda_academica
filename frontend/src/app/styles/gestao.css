@@ -1,0 +1,440 @@
+/* Gestão (manage-view.tsx e gestao-row-menu.tsx). Dono: grupo gestao.
+   Entra no globals.css dentro de @layer components, antes do ux.css. Tokens de :root (--brand, --ink,
+   --muted, --line...). A lista mostra um mês por vez com o cabeçalho e a faixa de meses do Cronograma
+   (.crono-bar, .crono-strip, .crono-pager, de month-pager.tsx e cronograma.css). */
+
+/* ---------- filtros: período ("Próximos 118") e origem (administração) ---------- */
+.gestao-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 28px;
+  margin-top: 20px;
+}
+.gestao-seg .n {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.gestao-seg .on .n {
+  color: var(--ink-3);
+}
+.gestao-origin {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+.gestao-origin-l {
+  padding-bottom: 12px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* abaixo de 1100px: listas de escolha, lado a lado quando há duas */
+.gestao-selects {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+.gestao-selects.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+/* "Da instituição 115" não cabe em meia largura no celular: uma lista embaixo da outra */
+@media (max-width: 479px) {
+  .gestao-selects.two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- aviso da busca do menu (a única busca da tela) ---------- */
+.gestao-searchnote {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 6px 6px 6px 12px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.gestao-searchnote b {
+  font-weight: 700;
+}
+.gestao-searchnote-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
+}
+/* no celular, o texto em cima e as ações embaixo, à direita (sem estourar a largura) */
+@media (max-width: 639px) {
+  .gestao-searchnote {
+    flex-wrap: wrap;
+  }
+  .gestao-searchnote > span:first-of-type {
+    flex: 1 1 0;
+  }
+  .gestao-searchnote-acts {
+    flex-basis: 100%;
+  }
+}
+
+/* ---------- mês: "‹ Janeiro de 2027 ›  16 eventos" e a faixa dos meses ---------- */
+.crono-nav.gestao-nav {
+  margin: 22px 0 0;
+  padding: 0;
+  border: 0;
+}
+/* o título do mês fica abaixo do título do card na hierarquia */
+.gestao-nav .crono-title {
+  font-size: 19px;
+}
+.gestao-nav-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* celular: a contagem já está no chip do mês */
+@media (max-width: 479px) {
+  .gestao-nav-count {
+    display: none;
+  }
+}
+/* pé do mês embaixo da tabela: a última linha já tem a borda */
+.gestao-foot .crono-pager {
+  margin-top: 0;
+  border-top: 0;
+}
+.gestao-foot:has(.crono-pager) {
+  padding-top: 18px;
+}
+
+/* ---------- tabela (a partir de 1280px) ---------- */
+/* o nome das colunas fica preso no alto enquanto o mês rola (o card usa overflow: clip, que não segura o sticky) */
+.gestao-tbl thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+/* mês comprido rolado: a barra do mês saiu pelo alto e o nome dele vai junto do cabeçalho preso */
+.gestao-th-month {
+  margin-left: 14px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* lista curta, tudo de uma vez: o nome do mês (com o ano) antes do primeiro evento de cada um */
+html .gestao-tbl .gestao-month-row th {
+  position: static;
+  height: auto;
+  padding: 18px 24px 8px !important;
+  background: #fff;
+  box-shadow: none;
+  border-bottom: 1px solid var(--line-2);
+  font-family: var(--disp);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+.gestao-month-row .n,
+.gestao-group-h .n {
+  margin-left: 10px;
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.gestao-group + .gestao-group {
+  margin-top: 18px;
+}
+.gestao-group-h {
+  margin-bottom: 8px;
+  font-family: var(--disp);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* "Notas" com texto e o espaço que guarda o lugar dele nas linhas sem notas: Editar e Mais ações alinhados */
+.gestao-notas {
+  width: 88px;
+  flex-shrink: 0;
+  padding: 0 10px;
+}
+.gestao-slot {
+  display: inline-block;
+  height: 1px;
+}
+
+/* ---------- linhas curtas (abaixo de 1280px) ---------- */
+.gestao-rows {
+  display: grid;
+  border-top: 1px solid var(--line-2);
+}
+.gestao-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.gestao-row:last-child {
+  border-bottom: 0;
+}
+.gestao-row-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-left: -8px;
+  padding: 8px;
+  border-radius: 12px;
+  text-align: left;
+  color: var(--ink);
+  transition: background-color 0.15s ease;
+}
+.gestao-row-main:hover {
+  background: var(--surface-2);
+}
+.gestao-row-main:hover .ev-date {
+  background: #fff;
+}
+.gestao-row.editing .gestao-row-main {
+  background: var(--brand-50);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+.gestao-row.closed .gestao-row-t {
+  color: var(--ink-3);
+}
+.gestao-row.closed .ev-date {
+  opacity: 0.7;
+}
+.gestao-row-txt {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+/* o título inteiro, sem corte: os importados do calendário são longos ("Dia Nacional de Zumbi e da Consciência
+   Negra (Feriado Nacional)") e o cartão é curto */
+.gestao-row-t {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+/* categoria, hora e para quem é: o texto corre depois da etiqueta e quebra a linha inteiro, sem reticências
+   (no celular a turma e a disciplina só aparecem aqui) */
+.gestao-row-s {
+  display: block;
+  min-width: 0;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.gestao-row-s > .pill {
+  display: inline-flex;
+  margin-right: 8px;
+  vertical-align: top;
+}
+.gestao-row-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+/* o lápis diz que a linha abre a edição: no mesmo botão de ícone com contorno do "Mais ações" ao lado (.ib.sm) */
+.gestao-row-pen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink-3);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.gestao-row-main:hover .gestao-row-pen {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+@media (max-width: 479px) {
+  .gestao-row-main {
+    gap: 10px;
+  }
+  .gestao-row-pen {
+    display: none;
+  }
+}
+
+/* ---------- "Mais ações": botão de três pontos e o menu ---------- */
+html .ib.gestao-more.on {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+.gestao-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow:
+    0 14px 34px rgb(var(--shadow-rgb) / 0.16),
+    0 2px 6px rgb(var(--shadow-rgb) / 0.08);
+  animation: gestao-menu-in 0.12s ease-out;
+}
+.gestao-menu.up {
+  animation-name: gestao-menu-up;
+}
+@keyframes gestao-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes gestao-menu-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.gestao-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-align: left;
+  white-space: nowrap;
+}
+.gestao-menu-item svg {
+  flex-shrink: 0;
+  color: var(--ink-3);
+}
+.gestao-menu-item:hover,
+.gestao-menu-item:focus-visible {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.gestao-menu-item:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+.gestao-menu-item.danger,
+.gestao-menu-item.danger svg {
+  color: var(--danger);
+}
+.gestao-menu-item.danger:hover,
+.gestao-menu-item.danger:focus-visible {
+  background: #fff1f3;
+}
+/* Excluir fica separado das outras ações por uma linha */
+.gestao-menu-item.danger:not(:first-child) {
+  margin-top: 7px;
+}
+.gestao-menu-item.danger:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: 6px;
+  left: 6px;
+  height: 1px;
+  background: var(--line-2);
+}
+.gestao-menu-item[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- card ao lado: datas da instituição, por mês ---------- */
+.gestao-side-group {
+  margin-top: 16px;
+}
+.gestao-side-month {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink-3);
+}
+.gestao-side-group .manage-side-list {
+  margin-top: 8px;
+}
+.gestao-side-link {
+  margin-top: 14px;
+}
+
+/* toque: alvos de 44px */
+@media (pointer: coarse) {
+  .gestao-notas,
+  .gestao-searchnote .btn-sm {
+    min-height: 44px;
+  }
+  .gestao-row-pen {
+    width: 44px;
+    height: 44px;
+  }
+  .gestao-menu-item {
+    height: 46px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gestao-menu {
+    animation: none;
+  }
+  .gestao-row-main {
+    transition: none;
+  }
+}
+
+/* ---------- docente: abas Eventos e Minhas turmas na linha do título ---------- */
+/* As abas vêm antes dos painéis (tablist e depois tabpanel), mas, com o card largo, flutuam à direita: o
+   título de cada painel ("Eventos que você gerencia", "Turmas em que você dá aula") fica no alto, à esquerda,
+   e o cabeçalho (flex) encolhe ao lado delas. No card estreito, continuam numa linha própria acima do título. */
+@container (min-width: 680px) {
+  .gestao-tabcard > .docente-tabs-row {
+    float: right;
+    padding: 20px 24px 0 16px;
+  }
+}
+
+/* docente: "Disciplinas e turmas" embaixo da lista, na largura toda. Os itens dividem a largura (auto-fit), sem
+   colunas vazias à direita quando são só dois ou três */
+.manage-side-list.gestao-assign-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
