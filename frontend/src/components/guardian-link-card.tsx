@@ -16,7 +16,7 @@ import { relationshipOptions } from "@/lib/meta";
 import type { ClaimLinkResult, GuardianRelationship, LinkedStudent } from "@/lib/types";
 import { useAppActions } from "./app-actions";
 import { delay } from "./dashboard-bits";
-import { GuardianDataDialog, GuardianDataView } from "./guardian-data-dialog";
+import { GuardianDataDialog, GuardianDataView, guardianDataLinkLabel } from "./guardian-data-dialog";
 import { Field } from "./ui";
 
 /**
@@ -290,7 +290,8 @@ export function GuardianLinkCard({
         </button>
         <button ref={dataLinkRef} className="link resp-link" onClick={() => setDataOpen(true)} type="button">
           <Info className="h-4 w-4" aria-hidden />
-          Quais dados o responsável vê
+          {/* quem lê é o próprio responsável: o link fala com ele (decisão 10) */}
+          {guardianDataLinkLabel(true)}
         </button>
       </div>
     </form>
@@ -298,7 +299,7 @@ export function GuardianLinkCard({
 
   const pending = pendingStudents.length ? (
     <div className="resp-pend" aria-labelledby={pendingId} role="group">
-      <h3 id={pendingId} className="resp-h3">
+      <h3 id={pendingId} className="resp-h3 drawer-h3">
         Aguardando a secretaria
       </h3>
       <ul className="mt-3 grid gap-2">
@@ -318,7 +319,7 @@ export function GuardianLinkCard({
         ))}
       </ul>
       {isCard ? (
-        <button className="link resp-link mt-2" onClick={openProfile} type="button">
+        <button className="link resp-link mt-2" onClick={() => openProfile("links")} type="button">
           Cancelar um pedido no perfil
         </button>
       ) : null}
@@ -339,7 +340,7 @@ export function GuardianLinkCard({
 
   const steps = (
     <aside className="resp-vinc-side" aria-labelledby={stepsId}>
-      <h3 id={stepsId} className="resp-h3">
+      <h3 id={stepsId} className="resp-h3 drawer-h3">
         Como conseguir o código
       </h3>
       <ol className="resp-steps">
@@ -348,7 +349,7 @@ export function GuardianLinkCard({
             1
           </span>
           <span>
-            O aluno abre o <b>perfil</b> dele e toca em <b>Gerar código para responsável</b>. A secretaria também
+            O aluno abre o <b>perfil</b> dele e escolhe <b>Gerar código para responsável</b>. A secretaria também
             entrega um código impresso.
           </span>
         </li>
@@ -378,7 +379,7 @@ export function GuardianLinkCard({
     return (
       <div ref={rootRef} className="resp-vinc is-panel">
         {dataOpen ? (
-          <GuardianDataView onBack={closeData} />
+          <GuardianDataView forGuardian onBack={closeData} />
         ) : (
           <>
             <p className="text-sm leading-6 text-ink-3">
@@ -396,7 +397,7 @@ export function GuardianLinkCard({
   }
 
   // no Painel sem vínculo nada está aberto por baixo: aqui o texto abre no diálogo
-  const dialog = <GuardianDataDialog open={dataOpen} onClose={() => setDataOpen(false)} />;
+  const dialog = <GuardianDataDialog forGuardian open={dataOpen} onClose={() => setDataOpen(false)} />;
 
   return (
     <section ref={rootRef} className="card resp-vinc rise" style={delay(order)} aria-labelledby={titleId}>
@@ -409,7 +410,7 @@ export function GuardianLinkCard({
             Vincular aluno
           </h2>
           <p className="sub resp-vinc-sub">
-            Com o código, as provas, os trabalhos e as datas do campus do aluno aparecem aqui no seu Painel. Você
+            Com o código, as provas, os trabalhos e as datas da instituição do aluno aparecem aqui no seu Painel. Você
             acompanha sem alterar nada.
           </p>
           {form}

@@ -10,38 +10,29 @@ import {
   Info,
   Loader2,
   MapPin,
-  ShieldCheck,
   Trophy,
   UserPlus,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import {
-  classPeriodLine,
-  countdown,
-  cx,
-  dateParts,
-  firstName,
-  formatShortDate,
-  formatShortDateTime,
-  isWholeDay,
-} from "@/lib/format";
+import { useEffect, useId, useState } from "react";
+import { classPeriodLine, cx, dateParts, firstName } from "@/lib/format";
 import { categoryMeta, gradableCategories, reminderOffsetLabel, reminderOptions } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, LinkedStudent, Reminder } from "@/lib/types";
 import { useAppActions, useBackLayer } from "./app-actions";
 import {
   AvisosCard,
   EventList,
+  InstitutionDatesCard,
   NextEventHero,
   calendarUpcomingCount,
   delay,
   heightKey,
+  heroCountdown,
+  heroWhen,
   officialCategories,
-  officialWhen,
   openAhead,
   pointsLabel,
-  showAllText,
   upcomingOfficialDates,
   useColumnFill,
   type CalendarFilter,
@@ -49,7 +40,7 @@ import {
 import { GuardianDataDialog } from "./guardian-data-dialog";
 import { GuardianLinkCard } from "./guardian-link-card";
 import { LatestGradesCard } from "./latest-grades-card";
-import { Drawer, EmptyState, SectionTitle } from "./ui";
+import { Drawer, EmptyState, SectionTitle, secondaryButton } from "./ui";
 
 /**
  * Painel do responsável com o aluno escolhido (desenho 5.6, amostra responsavel-painel): faixa "Você acompanha
@@ -89,8 +80,16 @@ const DAY = 24 * 60 * 60 * 1000;
 /** Até quantos itens cada lista mostra para as duas colunas terminarem juntas (useColumnFill). */
 const EXAMS_MIN = 5;
 const EXAMS_MAX = 10;
-const DATES_MIN = 2;
+const DATES_MIN = 3;
 const DATES_MAX = 6;
+/** Lado a lado, as datas da instituição descem até 1 quando a lista de provas acaba (sem buraco no card dela). */
+const DATES_FLOOR = 1;
+/**
+ * Nada da turma à frente (examsIdle): as datas da instituição e as notas ficam na largura toda, uma embaixo da
+ * outra, e as datas mostram as 5 próximas. Lado a lado, o card de notas vazio é baixo e as datas cairiam para 1, com
+ * metade da tela vazia embaixo.
+ */
+const IDLE_DATES = 5;
 
 /** Maior antecedência que ainda dá tempo de avisar, até a padrão da pessoa (a mesma conta do Painel do aluno). */
 function quickOffset(event: AcademicEvent, defaultMinutes: number, now: number) {
@@ -106,30 +105,8 @@ function joinNames(names: string[]) {
   return names.length > 1 ? `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}` : (names[0] ?? "");
 }
 
-/** Quando é a avaliação do destaque, no rótulo curto da amostra: "seg, 09/11, 19:00" ou "sex, 20/11, dia todo". */
-function heroWhen(event: AcademicEvent) {
-  return isWholeDay(event.startsAt, event.endsAt)
-    ? `${formatShortDate(event.startsAt)}, dia todo`
-    : formatShortDateTime(event.startsAt);
-}
-
 function plural(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
-}
-
-/** "Faltam 4 dias, 4 horas e 40 minutos", para leitores de tela. */
-function countdownWords(value: string, now: Date) {
-  const minutes = Math.floor((new Date(value).getTime() - now.getTime()) / 60000);
-  if (minutes < 1) {
-    return minutes < 0 ? "Começa agora" : "Falta menos de 1 minuto";
-  }
-  const parts = [
-    Math.floor(minutes / 1440) ? plural(Math.floor(minutes / 1440), "dia", "dias") : null,
-    Math.floor((minutes % 1440) / 60) ? plural(Math.floor((minutes % 1440) / 60), "hora", "horas") : null,
-    minutes % 60 ? plural(minutes % 60, "minuto", "minutos") : null,
-  ].filter((part): part is string => Boolean(part));
-  const text = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}` : parts[0];
-  return `${parts.length === 1 && /^1 /.test(text) ? "Falta" : "Faltam"} ${text}`;
 }
 
 /** Contagem regressiva do destaque (a mesma marcação do destaque do aluno), atualizada a cada 30 s. */
@@ -139,16 +116,18 @@ function HeroCountdown({ startsAt, until }: { startsAt: string; until: string })
     const timer = window.setInterval(() => setNow(new Date()), 30000);
     return () => window.clearInterval(timer);
   }, []);
+  // a mesma conta do destaque do aluno: "6 dias" (como o "em 6 dias" da lista) e, perto, o relógio
+  const count = heroCountdown(startsAt, now);
   return (
     <div className="countdown">
-      <p className="eyebrow" aria-hidden>
-        <span className="live" />
+      <p className="eyebrow hero-label" aria-hidden>
+        {count.live ? <span className="live" /> : null}
         Faltam
       </p>
-      <b aria-hidden>{countdown(startsAt, now)}</b>
+      <b aria-hidden>{count.text}</b>
       <small aria-hidden>{until}</small>
       <span className="sr-only">
-        {countdownWords(startsAt, now)} {until}.
+        {count.words} {until}.
       </span>
     </div>
   );
@@ -197,7 +176,7 @@ function GuardianHero({
       </div>
       <div className="hero-body">
         <div className="hero-kicker">
-          <span className="resp-kicker">{kicker}</span>
+          <span className="hero-label resp-kicker">{kicker}</span>
           <span className={cx("pill", meta.tint)}>{meta.short}</span>
         </div>
         {/* título, disciplina, local e nome vêm de quem publicou: palavra longa quebra sem passar da borda */}
@@ -318,21 +297,10 @@ export function GuardianDashboard({
   const closeLink = () => setLinkOpen(false);
   useBackLayer(linkOpen, closeLink);
 
-  // altura do card de notas, que carrega sozinho: quando ela muda, as colunas refazem a conta
-  const gradesRef = useRef<HTMLDivElement>(null);
-  const [gradesHeight, setGradesHeight] = useState(0);
-  useLayoutEffect(() => {
-    const element = gradesRef.current;
-    if (!element || typeof ResizeObserver === "undefined") {
-      return;
-    }
-    const observer = new ResizeObserver(() => setGradesHeight(Math.round(element.offsetHeight)));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+  // o card de notas carrega sozinho: quando o que ele mostra muda, as colunas refazem a conta
+  const [gradesKey, setGradesKey] = useState("");
 
   const examsTitleId = useId();
-  const datesTitleId = useId();
 
   const name = firstName(student.fullName ?? "Aluno");
   const classes = student.classes;
@@ -341,7 +309,7 @@ export function GuardianDashboard({
   const firstClass = classes[0] ?? null;
   const classLine = firstClass
     ? [firstClass.course?.name, classPeriodLine(firstClass)].filter(Boolean).join(", ")
-    : "Sem turma ativa no momento. As datas do campus continuam aqui.";
+    : "Sem turma ativa no momento. As datas da instituição continuam aqui.";
   const pending = linkedStudents.filter((item) => item.status === "pending");
   const pendingNames = joinNames(pending.map((item) => firstName(item.fullName ?? "Aluno")));
 
@@ -350,8 +318,9 @@ export function GuardianDashboard({
     upcomingEvents.find((event) => gradableCategories.includes(event.category)) ??
     upcomingEvents.find((event) => event.academicClassId !== null) ??
     null;
+  // sem nada à frente, o sobretítulo não promete uma "próxima prova" que o título logo abaixo nega
   const kicker = !heroEvent
-    ? `Próxima prova de ${name}`
+    ? `Provas e trabalhos de ${name}`
     : heroEvent.category === "exam"
       ? `Próxima prova de ${name}`
       : heroEvent.category === "assignment"
@@ -403,6 +372,15 @@ export function GuardianDashboard({
     (event) => gradableCategories.includes(event.category) && new Date(event.startsAt).getTime() <= now + 30 * DAY
   );
   const examsListed = calendarUpcomingCount(events, now, gradableCategories);
+  // a primeira já está no destaque: a lista logo abaixo começa pela seguinte (decisão 13). O "Ver todos (N)" segue
+  // com o número do Cronograma, que lista também a do destaque
+  const heroInExams = heroEvent ? exams30.some((event) => event.id === heroEvent.id) : false;
+  const examsList = heroInExams ? exams30.filter((event) => event.id !== heroEvent?.id) : exams30;
+  const examsLater = Math.max(0, examsListed - (heroInExams ? 1 : 0));
+  // nada da turma à frente: o destaque já diz "Nenhuma prova ou trabalho à frente" e leva ao Cronograma. O card de
+  // provas logo abaixo repetiria o mesmo vazio com outro "Ver cronograma" (decisão 13): ele sai, e as datas da
+  // instituição e as notas ficam na largura toda, uma embaixo da outra (IDLE_DATES)
+  const examsIdle = !heroEvent && exams30.length === 0;
   const openExams = () => onOpenCalendar({ categories: gradableCategories });
 
   // Datas do campus: a regra única das datas oficiais (dashboard-bits)
@@ -411,17 +389,16 @@ export function GuardianDashboard({
   const openOfficial = () => onOpenCalendar({ categories: officialCategories });
 
   // as duas colunas terminam juntas: as listas mostram mais itens enquanto a coluna delas for a mais baixa
-  const { gridRef, mainGapRef, sideGapRef, mainCount, sideCount } = useColumnFill(
-    { total: exams30.length, min: EXAMS_MIN, max: EXAMS_MAX },
-    { total: officialDates.length, min: DATES_MIN, max: DATES_MAX },
-    [student.id, gradesHeight, heightKey(exams30.slice(0, EXAMS_MAX)), heightKey(officialDates.slice(0, DATES_MAX))].join("|")
+  const { gridRef, mainGapRef, sideGapRef, mainCount, sideCount, gridClass } = useColumnFill(
+    { total: examsList.length, min: EXAMS_MIN, max: EXAMS_MAX },
+    { total: officialDates.length, min: DATES_MIN, max: DATES_MAX, floor: DATES_FLOOR },
+    [student.id, gradesKey, examsIdle, heightKey(examsList.slice(0, EXAMS_MAX)), heightKey(officialDates.slice(0, DATES_MAX))].join("|")
   );
-  const examsShown = Math.min(mainCount, exams30.length);
-  const datesShown = Math.min(sideCount, officialDates.length);
+  const examsShown = Math.min(mainCount, examsList.length);
 
   return (
-    <div className="grid gap-5">
-      {avisos.length ? <AvisosCard avisos={avisos} events={events} onDismiss={onDismissAviso} onOpen={onSelect} /> : null}
+    <div className="pnl grid gap-5">
+      <AvisosCard host avisos={avisos} events={events} onDismiss={onDismissAviso} onOpen={onSelect} />
 
       <section className="card resp-faixa rise" style={delay(0)} aria-label="Aluno acompanhado">
         <span className="avatar" aria-hidden>
@@ -477,122 +454,114 @@ export function GuardianDashboard({
         )}
       </div>
 
-      <div ref={gridRef} className="duo">
-        <div className="duo-col duo-main">
-          <section className="card pad rise duo-fill" style={delay(2)} aria-labelledby={examsTitleId}>
-            <div className="head">
-              <SectionTitle
-                id={examsTitleId}
-                title="Próximas provas e trabalhos"
-                subtitle={classNames ? `Da turma ${classNames}, nos próximos 30 dias` : "Nos próximos 30 dias"}
-              />
-              <button className="btn btn-s btn-sm" onClick={openExams} type="button">
-                <CalendarDays className="h-[15px] w-[15px]" aria-hidden />
-                Ver cronograma
-              </button>
-            </div>
-            {exams30.length ? (
-              <EventList
-                className="mt-3.5"
-                events={exams30}
-                grouped
-                hideClass={singleClass}
-                limit={mainCount}
-                fillRef={mainGapRef}
-                emptyIcon={CalendarDays}
-                emptyText="Nenhuma prova ou trabalho nos próximos 30 dias."
-                // o rodapé leva ao Cronograma filtrado, que lista também o que vem depois dos 30 dias
-                showAll={{ label: "Ver todos", count: examsListed, always: examsListed > examsShown, onClick: openExams }}
-                onSelect={onSelect}
-              />
-            ) : (
-              // sem avaliação nos 30 dias: o vazio diz o próximo passo, e a sobra vai para o espaçador
-              <>
-                <div className="mt-3.5">
-                  <EmptyState
-                    compact
-                    icon={CalendarDays}
-                    text="Nenhuma prova ou trabalho nos próximos 30 dias."
-                    hint={
-                      examsListed
-                        ? `O cronograma mostra ${plural(examsListed, "avaliação", "avaliações")} mais adiante.`
-                        : "Quando a docente publicar, aparece aqui e no cronograma."
-                    }
-                    action={{ label: "Ver cronograma", onClick: examsListed ? openExams : () => onOpenCalendar() }}
-                  />
-                </div>
-                <div ref={mainGapRef} className="fill-gap" aria-hidden />
-              </>
-            )}
-          </section>
-        </div>
+      {examsIdle ? (
+        // nada da turma à frente: as datas da instituição (o que há à frente, as 5 próximas) e as notas na largura
+        // toda, uma embaixo da outra, cada card do tamanho do conteúdo
+        <>
+          <InstitutionDatesCard
+            events={officialDates}
+            limit={IDLE_DATES}
+            listed={officialListed}
+            order={2}
+            onOpenAll={openOfficial}
+            onSelect={onSelect}
+          />
+          <LatestGradesCard
+            key={student.id}
+            studentId={student.id}
+            title="Notas publicadas"
+            order={3}
+            onContentChange={setGradesKey}
+            onSeeAll={(eventId) => onOpenGrades(eventId)}
+          />
+        </>
+      ) : (
+        <div ref={gridRef} className={cx("duo", gridClass)}>
+          <div className="duo-col duo-main">
+            <section className="card pad rise" style={delay(2)} aria-labelledby={examsTitleId}>
+              <div className="head">
+                <SectionTitle
+                  id={examsTitleId}
+                  title="Próximas provas e trabalhos"
+                  subtitle={
+                    heroInExams
+                      ? classNames
+                        ? `Depois desta, da turma ${classNames}, nos próximos 30 dias`
+                        : "Depois desta, nos próximos 30 dias"
+                      : classNames
+                        ? `Da turma ${classNames}, nos próximos 30 dias`
+                        : "Nos próximos 30 dias"
+                  }
+                />
+                <button className="btn btn-s btn-sm" onClick={openExams} type="button">
+                  <CalendarDays className="h-[15px] w-[15px]" aria-hidden />
+                  Ver cronograma
+                </button>
+              </div>
+              {examsList.length ? (
+                <EventList
+                  className="mt-3.5"
+                  events={examsList}
+                  grouped
+                  hideClass={singleClass}
+                  limit={mainCount}
+                  emptyIcon={CalendarDays}
+                  emptyText="Nenhuma prova ou trabalho nos próximos 30 dias"
+                  // o rodapé leva ao Cronograma filtrado, que lista também o que vem depois dos 30 dias
+                  showAll={{ label: "Ver todos no cronograma", count: examsListed, always: examsListed > examsShown, onClick: openExams }}
+                  onSelect={onSelect}
+                />
+              ) : (
+                // sem avaliação nos 30 dias: o vazio diz o próximo passo. O "Ver cronograma" fica só no cabeçalho do
+                // card (e no destaque, quando ele também está vazio): três botões iguais na mesma tela confundiam
+                <>
+                  <div className="mt-3.5">
+                    <EmptyState
+                      compact
+                      icon={CalendarDays}
+                      text={
+                        heroInExams
+                          ? "Nenhuma outra prova ou trabalho nos próximos 30 dias"
+                          : "Nenhuma prova ou trabalho nos próximos 30 dias"
+                      }
+                      hint={
+                        examsLater
+                          ? `O cronograma mostra ${plural(examsLater, "avaliação", "avaliações")} mais adiante.`
+                          : "Quando a docente publicar, aparece aqui e no cronograma."
+                      }
+                    />
+                  </div>
+                </>
+              )}
+            </section>
 
-        <div className="duo-col duo-side">
-          <div ref={gradesRef} className="resp-grades-slot">
+            {/* as notas embaixo das provas (como no Painel do aluno): a coluna larga não fica curta ao lado das datas */}
             <LatestGradesCard
               key={student.id}
+              className="duo-fill"
+              fillRef={mainGapRef}
               studentId={student.id}
               title="Notas publicadas"
               order={3}
+              onContentChange={setGradesKey}
               onSeeAll={(eventId) => onOpenGrades(eventId)}
             />
           </div>
 
-          <section className="card pad rise duo-fill" style={delay(4)} aria-labelledby={datesTitleId}>
-            <SectionTitle id={datesTitleId} title="Datas do campus" subtitle="Calendário oficial da instituição" />
-            {officialDates.length ? (
-              <>
-                <ul className="mt-3.5 flex flex-col gap-2">
-                  {officialDates.slice(0, datesShown).map((event) => (
-                    <li key={event.id}>
-                      <button
-                        className="mini"
-                        data-event-id={event.id}
-                        data-opens-event={event.id}
-                        onClick={() => onSelect(event.id)}
-                        type="button"
-                      >
-                        <span className="mini-ico text-night">
-                          <ShieldCheck className="h-[18px] w-[18px]" aria-hidden />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="mini-t block wrap-anywhere">{event.title}</span>
-                          <span className="mini-s block">
-                            {officialWhen(event)}, {categoryMeta[event.category].short}
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div ref={sideGapRef} className="fill-gap" aria-hidden />
-                {officialListed > datesShown ? (
-                  <div className="card-foot">
-                    <button className="link" onClick={openOfficial} type="button">
-                      {/* o N é o que o Cronograma lista com o filtro das datas oficiais */}
-                      {showAllText("Ver todas", officialDates.length, officialListed)}
-                      <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
-                    </button>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <div className="mt-3.5">
-                  <EmptyState
-                    compact
-                    icon={ShieldCheck}
-                    text="Nenhuma data do campus à frente."
-                    hint="Feriados e semanas acadêmicas aparecem aqui quando a secretaria publica."
-                    action={{ label: "Ver cronograma", onClick: () => onOpenCalendar() }}
-                  />
-                </div>
-                <div ref={sideGapRef} className="fill-gap" aria-hidden />
-              </>
-            )}
-          </section>
+          <div className="duo-col duo-side">
+            <InstitutionDatesCard
+              className="duo-fill"
+              events={officialDates}
+              limit={sideCount}
+              listed={officialListed}
+              fillRef={sideGapRef}
+              order={4}
+              onOpenAll={openOfficial}
+              onSelect={onSelect}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <GuardianDataDialog open={dataOpen} student={student} onClose={() => setDataOpen(false)} />
 
@@ -602,6 +571,11 @@ export function GuardianDashboard({
         title="Acompanhar outro aluno"
         subtitle={`Você continua acompanhando ${name}.`}
         onClose={closeLink}
+        footer={
+          <button className={secondaryButton} onClick={closeLink} type="button">
+            Fechar
+          </button>
+        }
       >
         <GuardianLinkCard
           variant="panel"

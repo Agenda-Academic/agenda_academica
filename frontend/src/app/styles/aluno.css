@@ -1,5 +1,5 @@
 /* ==================================================================
-   Área Aluno: card Entrar em uma turma (student-join-card.tsx), seção Quem acompanha minha agenda (profile-guardians.tsx) e dashboard-student.tsx.
+   Área Aluno: card Entrar em uma turma (student-join-card.tsx), seção Quem acompanha minha agenda (profile-guardians.tsx), dashboard-student.tsx.
 
    Importado por globals.css dentro de @layer components (depois de @import "tailwindcss"): os
    utilitários do Tailwind continuam valendo por cima destas regras. Use os tokens de :root
@@ -183,49 +183,82 @@
   margin-left: auto;
 }
 
-/* mais de uma turma no card "Suas turmas" */
+/* mais de uma turma no card "Suas turmas": uma turma por linha, compacta (nome e, embaixo, período, turno e
+   período letivo). Cada linha tem altura fixa (as duas linhas de texto cortam com reticências), e com mais de
+   uma página a lista guarda a altura de três linhas: a página não pula ao trocar de página no Pager */
 .aluno-classes {
-  margin-top: 14px;
+  margin-top: 12px;
   display: grid;
-  gap: 12px;
+  align-content: start;
+  gap: 8px;
+}
+.aluno-classes.is-paged {
+  /* 3 linhas de 40 px, 2 vãos de 8 px e o filete de cima (8 px + 1 px) das duas de baixo */
+  min-height: 154px;
 }
 .aluno-class {
-  padding-top: 12px;
+  min-width: 0;
+  padding-top: 8px;
   border-top: 1px solid var(--line-2);
 }
 .aluno-class:first-child {
   padding-top: 0;
   border-top: 0;
 }
+.aluno-class-name,
+.aluno-class-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .aluno-class-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 21px;
 }
-.aluno-class-course {
-  margin-top: 2px;
-  font-size: 13.5px;
-  color: var(--muted);
-  line-height: 1.45;
-}
-.aluno-class .chips {
-  margin-top: 8px;
-}
-.aluno-class-subjects {
-  margin-top: 8px;
+.aluno-class-meta {
+  margin-top: 1px;
   font-size: 13.5px;
   color: var(--ink-3);
-  line-height: 1.5;
+  line-height: 18px;
+}
+/* nenhuma turma com disciplina ainda: a nota uma vez só, no fim da lista (o visual vem de .aluno-class-empty-tx) */
+.aluno-classes-note {
+  margin-top: 12px;
+}
+/* rodapé do card: "Entrar em outra turma" e, com mais de uma página, as setas do Pager na mesma linha. O
+   "Mostrando 1 a 3 de 5" já está no subtítulo: aqui fica só para o leitor de tela (aria-live do Pager) */
+.aluno-classes-foot {
+  flex-wrap: nowrap;
+}
+.aluno-classes-foot > .pager {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  padding-top: 0;
+  border-top: 0;
+}
+.aluno-classes-foot .pager-info {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.aluno-classes-foot .pager-b:not(.pager-arrow),
+.aluno-classes-foot .pager-arrow-t,
+.aluno-classes-foot .pager-gap {
+  display: none;
+}
+@media (pointer: fine) {
+  .aluno-classes-foot .pager-b {
+    min-width: 36px;
+    height: 36px;
+  }
 }
 
-/* turma sem disciplina ainda: uma linha e o "Ver cronograma", no lugar da lista. Na coluna de 360 px o link
-   desce para a linha de baixo; com largura (celular e tablet, o card na largura toda) fica ao lado do texto */
-.aluno-class-empty {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 14px;
-}
+/* turma sem disciplina ainda: uma linha no lugar da lista (o destaque e "Próximos compromissos" já levam ao
+   Cronograma; o rodapé do card fica com "Entrar em outra turma") */
 .aluno-class-empty-tx {
   display: flex;
   align-items: center;
@@ -254,6 +287,9 @@
 .aluno-sec {
   padding-top: 22px;
   border-top: 1px solid var(--line-2);
+  /* "Quais dados o responsável vê" sobe a seção para o alto da área que rola: o título fica com um respiro, sem
+     encostar (nem parecer cortado) na linha de baixo do cabeçalho do diálogo */
+  scroll-margin-top: 16px;
 }
 .aluno-sec-t {
   font-size: 17px;
@@ -314,6 +350,12 @@
   color: var(--brand-ink);
   font-size: 14px;
   font-weight: 700;
+}
+/* nome e dados da pessoa: com menos de 180 px ao lado das ações, as ações descem para a linha de baixo (antes, o
+   nome encolhia até quebrar letra por letra entre 375 e 560 px) */
+.aluno-g-main {
+  flex: 1 1 180px;
+  min-width: 0;
 }
 .aluno-g-name {
   font-size: 15px;
@@ -545,5 +587,20 @@
   }
   .aluno-cb-code code {
     font-size: 26px;
+  }
+}
+
+/* Painel sem turma: o card de entrar estica até a altura dos lembretes ao lado; o conteúdo fica no meio */
+.hero.aluno-join.duo-fill {
+  align-content: center;
+}
+/* no celular e no tablet (um card embaixo do outro), as datas da instituição vêm antes dos lembretes, que
+   sem turma costumam estar vazios: a linha das duas colunas some (contents) e os lembretes vão para o fim */
+@media (max-width: 1279px) {
+  .pnl-noclass > .duo {
+    display: contents;
+  }
+  .pnl-noclass > .duo > .duo-side {
+    order: 1;
   }
 }

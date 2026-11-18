@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import type { AcademicContext, AcademicEvent, AppNotification, LinkedStudent, User, UserRole } from "@/lib/types";
 import type { View } from "./app-shell";
+import type { ProfileTab } from "./profile-modal";
 import type { ToastTone } from "./ui";
 
 /**
@@ -101,8 +102,14 @@ export type AppActions = {
   openClasses: (target?: { classId?: number | null; memberId?: number | null }) => void;
   /** Abre a gaveta de notas da avaliação (EventGradesDrawer). Docente da oferta e administração. */
   openGrades: (eventId: number) => void;
-  /** Abre as Configurações do perfil. */
-  openProfile: () => void;
+  /**
+   * Abre as Configurações do perfil, na aba pedida (padrão: Preferências; "links" = Responsáveis ou Alunos).
+   * Também vale direto num onClick (onClick={openProfile}): o evento do clique não é aba e abre nas Preferências.
+   */
+  openProfile: {
+    (): void;
+    (tab?: ProfileTab): void;
+  };
 
   /** Responsável: todos os vínculos ativos e pendentes (context.linkedStudents). */
   linkedStudents: LinkedStudent[];
@@ -129,7 +136,13 @@ export type AppActions = {
 const AppActionsContext = createContext<AppActions | null>(null);
 
 export function AppActionsProvider({ children, value }: { children: ReactNode; value: AppActions }) {
-  return <AppActionsContext.Provider value={value}>{children}</AppActionsContext.Provider>;
+  // quem passa openProfile direto a um onClick entrega o evento do clique como "aba": só "prefs" e "links" contam
+  const safe = useMemo<AppActions>(() => {
+    const open = value.openProfile;
+    const openProfile = (tab?: unknown) => open(tab === "prefs" || tab === "links" ? tab : undefined);
+    return { ...value, openProfile };
+  }, [value]);
+  return <AppActionsContext.Provider value={safe}>{children}</AppActionsContext.Provider>;
 }
 
 /** Ações da página. Só dentro do app (depois de entrar); fora dele, use useOptionalAppActions. */

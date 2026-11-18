@@ -495,9 +495,26 @@ function onLayerKey(event: KeyboardEvent) {
   }
 }
 
+/** Campo que, com o foco, levanta o teclado da tela (texto, número, data...). Caixa de marcar e botão não. */
+function raisesKeyboard(element: HTMLElement) {
+  if (element instanceof HTMLTextAreaElement) {
+    return !element.readOnly;
+  }
+  if (!(element instanceof HTMLInputElement) || element.readOnly) {
+    return false;
+  }
+  return !["checkbox", "radio", "button", "submit", "reset", "range", "color", "file", "image"].includes(element.type);
+}
+
 /** Foco de quando a camada abre: o pedido, o primeiro campo ou o próprio painel. */
 function focusEntry(layer: DialogLayer) {
-  (layer.entry() ?? firstField(layer.panel) ?? layer.panel).focus();
+  let target = layer.entry() ?? firstField(layer.panel) ?? layer.panel;
+  // no toque, abrir um diálogo não levanta o teclado (cobria metade da folha do perfil): o foco fica no próprio
+  // diálogo, que o leitor de tela anuncia pelo título, e o campo recebe o foco quando a pessoa toca nele
+  if (target !== layer.panel && raisesKeyboard(target) && window.matchMedia("(pointer: coarse)").matches) {
+    target = layer.panel;
+  }
+  target.focus();
   if (!layer.panel.contains(document.activeElement)) {
     layer.panel.focus();
   }
@@ -1520,8 +1537,68 @@ export function Spinner({ label }: { label?: string }) {
   );
 }
 
-/** Esqueleto do painel (destaque, KPIs e dois cards) enquanto os dados chegam. */
-export function PageSkeleton() {
+/**
+ * Desenho de carregamento de cada tela: o esqueleto antecipa o formato da tela que vem, para nada pular quando
+ * os dados chegam.
+ * - "painel": destaque, 4 indicadores e duas colunas (Painel de todos os perfis);
+ * - "lista": um card com abas e linhas de evento (Cronograma, Gestão);
+ * - "tabela": tabela larga e o card de apoio ao lado (Turmas e disciplinas, Importar calendário);
+ * - "kpis-lista": 3 indicadores e, embaixo, a lista e a coluna de apoio (Notas, Lembretes).
+ */
+export type SkeletonVariant = "painel" | "lista" | "tabela" | "kpis-lista";
+
+function SkelRows({ count, date = true }: { count: number; date?: boolean }) {
+  return (
+    <>
+      {Array.from({ length: count }, (_, row) => (
+        <span key={row} className="flex items-center gap-3">
+          {date ? <span className="skel h-12 w-12 shrink-0 !rounded-xl" /> : null}
+          <span className="grid flex-1 gap-2">
+            <span className="skel h-3.5 w-3/4" />
+            <span className="skel h-3 w-1/2" />
+          </span>
+        </span>
+      ))}
+    </>
+  );
+}
+
+function SkelCardHead({ tabs = 0 }: { tabs?: number }) {
+  return (
+    <span className="flex flex-wrap items-end justify-between gap-3">
+      <span className="grid gap-2">
+        <span className="skel h-5 w-48" />
+        <span className="skel h-3 w-64 max-w-full" />
+      </span>
+      {tabs ? (
+        <span className="flex gap-2">
+          {Array.from({ length: tabs }, (_, tab) => (
+            <span key={tab} className="skel h-9 w-20 !rounded-xl" />
+          ))}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function SkelKpis({ count }: { count: number }) {
+  return (
+    <div className={cx("grid gap-4 sm:grid-cols-2", count === 3 ? "xl:grid-cols-3" : "xl:grid-cols-4")}>
+      {Array.from({ length: count }, (_, item) => (
+        <div key={item} className="card pad flex items-center gap-3.5">
+          <span className="skel h-11 w-11 shrink-0 !rounded-xl" />
+          <span className="grid flex-1 gap-2">
+            <span className="skel h-3 w-20" />
+            <span className="skel h-6 w-14" />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Esqueleto da tela enquanto os dados chegam (ver SkeletonVariant). */
+export function PageSkeleton({ variant = "painel" }: { variant?: SkeletonVariant }) {
   // no plano gratuito a API dorme; se demorar, explica a espera
   const [slow, setSlow] = useState(false);
   useEffect(() => {
@@ -1530,7 +1607,7 @@ export function PageSkeleton() {
   }, []);
 
   return (
-    <div className="pop grid gap-5" role="status">
+    <div className="pop grid gap-5" role="status" data-skeleton={variant}>
       <span className="sr-only">Carregando dados da agenda...</span>
       {slow ? (
         <p className="callout blue pop">
@@ -1538,41 +1615,48 @@ export function PageSkeleton() {
           O servidor estava em repouso e está voltando. No primeiro acesso isso leva até um minuto.
         </p>
       ) : null}
-      <div className="card pad grid gap-3">
-        <span className="skel h-3 w-28" />
-        <span className="skel h-8 w-2/3" />
-        <span className="skel h-4 w-1/2" />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[0, 1, 2, 3].map((item) => (
-          <div key={item} className="card pad flex items-center gap-3.5">
-            <span className="skel h-11 w-11 shrink-0 !rounded-xl" />
-            <span className="grid flex-1 gap-2">
-              <span className="skel h-3 w-20" />
-              <span className="skel h-6 w-14" />
-            </span>
+      {variant === "painel" ? (
+        <>
+          <div className="card pad grid gap-3">
+            <span className="skel h-3 w-28" />
+            <span className="skel h-8 w-2/3" />
+            <span className="skel h-4 w-1/2" />
           </div>
-        ))}
-      </div>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        {[0, 1].map((card) => (
-          <div key={card} className="card pad grid content-start gap-4">
-            <span className="grid gap-2">
-              <span className="skel h-3 w-24" />
-              <span className="skel h-5 w-48" />
-            </span>
-            {[0, 1, 2, 3].map((row) => (
-              <span key={row} className="flex items-center gap-3">
-                <span className="skel h-12 w-12 shrink-0 !rounded-xl" />
-                <span className="grid flex-1 gap-2">
-                  <span className="skel h-3.5 w-3/4" />
-                  <span className="skel h-3 w-1/2" />
-                </span>
-              </span>
+          <SkelKpis count={4} />
+        </>
+      ) : null}
+      {variant === "kpis-lista" ? <SkelKpis count={3} /> : null}
+      {variant === "lista" ? (
+        <div className="card pad grid content-start gap-5">
+          <SkelCardHead tabs={3} />
+          <span className="flex flex-wrap gap-2">
+            {[0, 1, 2, 3, 4].map((chip) => (
+              <span key={chip} className="skel h-8 w-24 !rounded-full" />
             ))}
+          </span>
+          <SkelRows count={6} />
+        </div>
+      ) : (
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_var(--side-w)]">
+          <div className="card pad grid content-start gap-4">
+            <SkelCardHead tabs={variant === "tabela" ? 0 : 2} />
+            {variant === "tabela" ? (
+              <span className="grid gap-3">
+                <span className="skel h-9 w-full !rounded-lg" />
+                {[0, 1, 2, 3, 4].map((row) => (
+                  <span key={row} className="skel h-11 w-full !rounded-lg opacity-70" />
+                ))}
+              </span>
+            ) : (
+              <SkelRows count={4} />
+            )}
           </div>
-        ))}
-      </div>
+          <div className="card pad grid content-start gap-4">
+            <SkelCardHead />
+            <SkelRows count={variant === "painel" ? 4 : 3} date={variant !== "tabela"} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1676,6 +1760,7 @@ export function Modal({
   describedBy,
   footer,
   initialFocusRef,
+  kind: kindProp,
   onClose,
   role = "dialog",
   title,
@@ -1693,6 +1778,12 @@ export function Modal({
   initialFocusRef?: RefObject<HTMLElement | null>;
   /** id do texto que descreve o diálogo. */
   describedBy?: string;
+  /**
+   * Lugar na pilha de camadas, quando o padrão não serve. Sem ela: "confirm" no alertdialog, "form" com
+   * rodapé e "view" sem rodapé. Ex.: o detalhe do evento com rodapé de ações continua "view" (fica por
+   * baixo do painel de edição que ele abre).
+   */
+  kind?: LayerKind;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -1706,7 +1797,7 @@ export function Modal({
   );
   // na pilha: a confirmação fica por cima de tudo; com rodapé (as Preferências) é formulário, como o
   // painel de edição; sem rodapé (o detalhe do evento) fica por baixo deles
-  const kind: LayerKind = role === "alertdialog" ? "confirm" : footer ? "form" : "view";
+  const kind: LayerKind = kindProp ?? (role === "alertdialog" ? "confirm" : footer ? "form" : "view");
 
   useDialogLayer({ open: shown, rootRef, panelRef, onClose, busy, initialFocusRef, kind });
 
@@ -1779,6 +1870,8 @@ export type DrawerProps = {
   initialFocusRef?: RefObject<HTMLElement | null>;
   busy?: boolean;
   labelClose?: string;
+  /** "wide": painel mais largo no computador (listas longas para conferir); no celular continua em tela cheia. */
+  size?: "wide";
 };
 
 /** Painel à direita, por cima da tela atual, que não muda nem rola por baixo. */
@@ -1790,6 +1883,7 @@ export function Drawer({
   labelClose = "Fechar painel",
   onClose,
   open,
+  size,
   subtitle,
   title,
 }: DrawerProps) {
@@ -1824,7 +1918,7 @@ export function Drawer({
     >
       <div
         ref={panelRef}
-        className="drawer animate-drawer-right"
+        className={cx("drawer animate-drawer-right", size === "wide" && "drawer-wide")}
         role="dialog"
         aria-busy={busy || undefined}
         aria-describedby={subtitle ? subtitleId : undefined}

@@ -64,13 +64,20 @@ export function formatFullDate(value: Date) {
   });
 }
 
-/** "hoje", "amanhã", "em 5 dias", "ontem", "há 3 dias". Não repete a data, que já aparece ao lado. */
-export function relativeDue(value: string) {
+/** Espaço não separável: "45 dias" nunca quebra entre o número e a palavra. */
+export const NBSP = String.fromCharCode(0xa0);
+
+/**
+ * Prazo relativo, o único da Agenda: "hoje", "amanhã", "em 45 dias", "ontem", "há 3 dias". Conta dias corridos
+ * do calendário (não horas), para a lista, o detalhe e o destaque dizerem a mesma coisa do mesmo evento. O
+ * número e "dias" ficam juntos (espaço não separável). Não repete a data, que já aparece ao lado.
+ */
+export function relativeDue(value: string | Date) {
   const diff = startOfDay(new Date(value)).getTime() - startOfDay(new Date()).getTime();
   const days = Math.round(diff / (24 * 60 * 60 * 1000));
 
   if (days < 0) {
-    return days === -1 ? "ontem" : `há ${Math.abs(days)} dias`;
+    return days === -1 ? "ontem" : `há ${Math.abs(days)}${NBSP}dias`;
   }
   if (days === 0) {
     return "hoje";
@@ -78,7 +85,7 @@ export function relativeDue(value: string) {
   if (days === 1) {
     return "amanhã";
   }
-  return `em ${days} dias`;
+  return `em ${days}${NBSP}dias`;
 }
 
 export function toDateTimeLocal(value: Date) {
@@ -485,14 +492,52 @@ export function cx(...classes: Array<string | false | null | undefined>) {
 const shortWeekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const shortMonths = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-/** "Sex", "26", "Jun": blocos de data das listas e do destaque. */
+/** "Sex", "26", "Jun": blocos de data das listas e do destaque; year e otherYear para mostrar o ano fora do ano corrente. */
 export function dateParts(value: string) {
   const date = new Date(value);
   return {
     weekday: shortWeekdays[date.getDay()],
     day: String(date.getDate()).padStart(2, "0"),
     month: shortMonths[date.getMonth()],
+    year: date.getFullYear(),
+    otherYear: date.getFullYear() !== new Date().getFullYear(),
   };
+}
+
+/** "/2027" quando a data não é do ano corrente (decisão da rodada de UX: o ano aparece fora do ano corrente). */
+export function yearSuffix(value: string | Date) {
+  const year = new Date(value).getFullYear();
+  return year === new Date().getFullYear() ? "" : `/${year}`;
+}
+
+const monthNames = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
+
+/** "Dezembro" no ano corrente; "Janeiro de 2027" fora dele (cabeçalho de grupo por mês). */
+export function monthGroupLabel(value: string | Date, now = new Date()) {
+  const date = new Date(value);
+  const name = monthNames[date.getMonth()];
+  const label = date.getFullYear() === now.getFullYear() ? name : `${name} de ${date.getFullYear()}`;
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/** "1 de jan de 2027" ou, no ano corrente, "23 de nov". */
+export function dayMonthText(value: string | Date, now = new Date()) {
+  const date = new Date(value);
+  const base = `${date.getDate()} de ${shortMonths[date.getMonth()].toLowerCase()}`;
+  return date.getFullYear() === now.getFullYear() ? base : `${base} de ${date.getFullYear()}`;
 }
 
 /** "qua, 04/11, às 19:00". Mantido por compatibilidade: em frase, use formatOnDayAt. */
@@ -508,10 +553,10 @@ const weekdayNames = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta
 /* Datas do glossário: em rótulo curto, o formato das listas ("qua, 04/11, 19:00");
    em frase, o dia da semana por extenso com o artigo certo ("na quarta, 04/11, às 19:00"). */
 
-/** "qua, 04/11" */
+/** "qua, 04/11"; fora do ano corrente, com o ano: "sex, 01/01/2027". */
 export function formatShortDate(value: string | Date) {
   const date = new Date(value);
-  return `${shortWeekdays[date.getDay()].toLowerCase()}, ${two(date.getDate())}/${two(date.getMonth() + 1)}`;
+  return `${shortWeekdays[date.getDay()].toLowerCase()}, ${two(date.getDate())}/${two(date.getMonth() + 1)}${yearSuffix(date)}`;
 }
 
 /** "qua, 04/11, 19:00" */
@@ -520,12 +565,12 @@ export function formatShortDateTime(value: string | Date) {
   return `${formatShortDate(date)}, ${clock(date)}`;
 }
 
-/** Dia da semana por extenso com o artigo: "a quarta, 04/11" ou "o domingo, 08/11" (para "até a ..."). */
+/** Dia da semana por extenso com o artigo: "a quarta, 04/11" ou "o sábado, 01/01/2028" (para "até a ..."). */
 export function formatWeekday(value: string | Date) {
   const date = new Date(value);
   // sábado e domingo são masculinos; os outros dias, femininos
   const article = date.getDay() === 0 || date.getDay() === 6 ? "o" : "a";
-  return `${article} ${weekdayNames[date.getDay()]}, ${two(date.getDate())}/${two(date.getMonth() + 1)}`;
+  return `${article} ${weekdayNames[date.getDay()]}, ${two(date.getDate())}/${two(date.getMonth() + 1)}${yearSuffix(date)}`;
 }
 
 /** "na quarta, 04/11" ou "no domingo, 08/11" */
@@ -534,9 +579,21 @@ export function formatOnDay(value: string | Date) {
   return `n${formatWeekday(value)}`;
 }
 
-/** "na quarta, 04/11, às 19:00" ou "no domingo, 08/11, às 19:00" (ex.: quando um aviso sai). */
-export function formatOnDayAt(value: string | Date) {
-  return `${formatOnDay(value)}, às ${clock(new Date(value))}`;
+/**
+ * "hoje, às 17:34", "ontem, às 21:11", "na quarta, 04/11, às 19:00" ou "no domingo, 08/11, às 19:00" (ex.: quando
+ * um aviso sai ou uma importação foi feita). Hoje e ontem dizem só o dia relativo, para o Painel, o Importar e as
+ * listas falarem a mesma coisa da mesma hora.
+ */
+export function formatOnDayAt(value: string | Date, now: Date | number = new Date()) {
+  const date = new Date(value);
+  const days = Math.round((startOfDay(new Date(now)).getTime() - startOfDay(date).getTime()) / (24 * 60 * 60 * 1000));
+  if (days === 0) {
+    return `hoje, às ${clock(date)}`;
+  }
+  if (days === 1) {
+    return `ontem, às ${clock(date)}`;
+  }
+  return `${formatOnDay(date)}, às ${clock(date)}`;
 }
 
 /** "2026-11-01" no fuso local (para chaves por dia). */
@@ -592,29 +649,66 @@ export function shiftLabel(value?: string | null) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : null;
 }
 
-/** "2 nov a 6 nov": intervalo de dias nos títulos de semana (Figma). */
-export function dayMonthRange(start: Date, end: Date) {
-  const label = (date: Date) => `${date.getDate()} ${shortMonths[date.getMonth()].toLowerCase()}`;
-  return `${label(start)} a ${label(end)}`;
+/**
+ * Intervalo de uma semana, o mesmo no Painel e no Cronograma: "22 a 28 de nov" e, quando muda o mês,
+ * "29 de nov a 5 de dez". Fora do ano corrente, o ano vai no fim ("27 de dez a 2 de jan de 2027").
+ */
+export function weekRangeLabel(start: Date, end: Date, now = new Date()) {
+  const month = (date: Date) => shortMonths[date.getMonth()].toLowerCase();
+  const year = end.getFullYear() === now.getFullYear() && start.getFullYear() === now.getFullYear() ? "" : ` de ${end.getFullYear()}`;
+  return start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+    ? `${start.getDate()} a ${end.getDate()} de ${month(end)}${year}`
+    : `${start.getDate()} de ${month(start)} a ${end.getDate()} de ${month(end)}${year}`;
 }
 
-/** Agrupa eventos futuros em "Esta semana", "Próxima semana, 29 jun a 5 jul" e "Mais adiante". */
+/** Mantido por compatibilidade: o mesmo texto de weekRangeLabel. */
+export function dayMonthRange(start: Date, end: Date) {
+  return weekRangeLabel(start, end);
+}
+
+/**
+ * Agrupa eventos futuros em "Esta semana", "Próxima semana, 22 a 28 de nov" e, depois, um grupo por mês
+ * ("Dezembro", "Janeiro de 2027"): numa lista que atravessa meses, cada data fica com o mês à vista.
+ */
 export function groupByWeek<T extends { startsAt: string }>(items: T[], now = new Date()) {
   const today = startOfDay(now);
   const nextWeekStart = addDays(today, 7 - today.getDay());
   const nextWeekEnd = addDays(nextWeekStart, 6);
-  const range = dayMonthRange(nextWeekStart, nextWeekEnd);
-  const groups: Array<{ label: string; items: T[] }> = [
-    { label: "Esta semana", items: [] },
-    { label: `Próxima semana, ${range}`, items: [] },
-    { label: "Mais adiante", items: [] },
-  ];
+  const groups: Array<{ label: string; items: T[] }> = [];
+  const push = (label: string, item: T) => {
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) {
+      last.items.push(item);
+    } else {
+      groups.push({ label, items: [item] });
+    }
+  };
   for (const item of items) {
     const day = startOfDay(new Date(item.startsAt));
-    const index = day < nextWeekStart ? 0 : day <= nextWeekEnd ? 1 : 2;
-    groups[index].items.push(item);
+    if (day < nextWeekStart) {
+      push("Esta semana", item);
+    } else if (day <= nextWeekEnd) {
+      push(`Próxima semana, ${weekRangeLabel(nextWeekStart, nextWeekEnd, now)}`, item);
+    } else {
+      push(monthGroupLabel(day, now), item);
+    }
   }
-  return groups.filter((group) => group.items.length);
+  return groups;
+}
+
+/** Agrupa por mês ("Dezembro", "Janeiro de 2027"), na ordem em que os itens vêm. */
+export function groupByMonth<T extends { startsAt: string }>(items: T[], now = new Date()) {
+  const groups: Array<{ label: string; items: T[] }> = [];
+  for (const item of items) {
+    const label = monthGroupLabel(item.startsAt, now);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) {
+      last.items.push(item);
+    } else {
+      groups.push({ label, items: [item] });
+    }
+  }
+  return groups;
 }
 
 /* ------------------------------------------------------------------ */
@@ -626,10 +720,10 @@ export function countText(count: number, singular: string, plural: string) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-/** "04/11/2026". */
+/** "04/11" no ano corrente; fora dele, com o ano: "04/11/2025" (decisão da rodada de UX). */
 export function formatDateBR(value: string | Date) {
   const date = new Date(value);
-  return `${two(date.getDate())}/${two(date.getMonth() + 1)}/${date.getFullYear()}`;
+  return `${two(date.getDate())}/${two(date.getMonth() + 1)}${yearSuffix(date)}`;
 }
 
 /** Código como a pessoa digitou ("tads 5k7q", "TADS-5K7Q") no formato que a API compara: maiúsculo, sem espaço nem hífen. */
@@ -737,7 +831,7 @@ export function enrollmentSourceText(value: EnrollmentSource | string) {
   return enrollmentSourceLabels[value as EnrollmentSource] ?? value;
 }
 
-/** "Mãe, desde 02/11/2026". */
+/** "Mãe, desde 02/11" (fora do ano corrente, "desde 02/11/2025"). */
 export function linkSinceText(relationship: GuardianRelationship | string, since?: string | null) {
   return since ? `${relationshipText(relationship)}, desde ${formatDateBR(since)}` : relationshipText(relationship);
 }
@@ -820,7 +914,10 @@ export function gradeDisplay(grade: Pick<Grade, "status" | "score" | "scoreText"
   return gradeText(grade.scoreText ?? grade.score, maxScoreText) || "Sem nota";
 }
 
-/** "Fonte: SUAP, importada em 04/11/2026" ou "Fonte: lançada na Agenda em 06/11/2026". */
+/**
+ * "Fonte: SUAP, importada em 04/11" ou "Fonte: lançada na Agenda em 06/11" (formatDateBR: o ano só aparece
+ * fora do ano corrente, "em 06/11/2025").
+ */
 export function gradeSourceText(source: GradeSourceInfo | null | undefined, updatedAt?: string | null) {
   if (!source) {
     return "";

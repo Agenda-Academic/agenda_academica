@@ -27,7 +27,7 @@ import { cx, firstName, formatTime, startOfDay } from "@/lib/format";
 import { roleLabels } from "@/lib/meta";
 import { personClasses, semesterWeek, type SemesterWeek } from "@/lib/semester";
 import type { AcademicClass, AcademicContext, LinkedStudent, User, UserRole } from "@/lib/types";
-import { isOnTopLayer, primaryButton, useDialogLayer } from "./ui";
+import { isOnTopLayer, primaryButton, secondaryButton, useDialogLayer } from "./ui";
 
 /** Telas do app. O endereço de cada uma (?tela=) fica em app/page.tsx (viewSlugs). */
 export type View = "dashboard" | "calendar" | "grades" | "manage" | "classes" | "reminders" | "sync";
@@ -43,12 +43,17 @@ const navItems: Array<{ view: View; label: string; icon: LucideIcon; roles: User
   { view: "sync", label: "Importar calendário", icon: CalendarArrowDown, roles: ["admin"] },
 ];
 
-// texto oculto que acompanha o número do item (lido como "Lembretes, 2 avisos novos")
+// texto que acompanha o número do item (lido como "Lembretes, 2 avisos novos")
 const badgeText: Partial<Record<View, (count: number) => string>> = {
   reminders: (count) => (count === 1 ? "aviso novo" : "avisos novos"),
 };
+// itens em que o número vira só um ponto: em Lembretes ele conta avisos (o card "Avisos" da tela), e um "1"
+// ao lado de "Lembretes" parecia um lembrete. O ponto diz "tem novidade"; o texto ("1 aviso novo") fica
+// no title e no leitor de tela
+const badgeAsDot = new Set<View>(["reminders"]);
 
-// no cartão do menu, o papel curto do Figma ("Admin, ADM-001"), para caber com a matrícula
+// no cartão do menu, o papel curto do Figma ("Admin, ADM-001"), para caber com a matrícula. Os outros vêm de
+// roleLabels ("Estudante" é neutro: a aluna não aparece como "Aluno")
 const cardRoleLabels: Record<UserRole, string> = { ...roleLabels, admin: "Admin" };
 
 // partículas do nome: não ficam sozinhas no fim da linha ("Diogo Queiroz da" vira "Diogo Queiroz")
@@ -194,7 +199,14 @@ function NavButtons({
                 <item.icon className="h-[18px] w-[18px]" />
               </span>
               {item.label}
-              {count ? (
+              {count && badgeAsDot.has(item.view) ? (
+                <span className="count dot" title={extra ? `${count} ${extra}` : String(count)}>
+                  <span className="sr-only">
+                    , {count}
+                    {extra ? ` ${extra}` : null}
+                  </span>
+                </span>
+              ) : count ? (
                 <span className="count">
                   <span className="sr-only">, </span>
                   {count}
@@ -236,6 +248,10 @@ function Brand({
   );
 }
 
+/** A partir desta largura o menu fica fixo ao lado; abaixo (celular e tablet), ele é uma gaveta aberta pelo
+ *  botão do cabeçalho. No tablet de 768 px o menu fixo de 264 px apertava a tela numa coluna de celular. */
+const WIDE_MENU = "(min-width: 1024px)";
+
 /** O que a busca do menu procura na tela de agora: o texto do campo, o rótulo e o nome do resultado. */
 export type SearchScope = {
   /** "Buscar evento" */
@@ -257,6 +273,7 @@ function SideTools({
   inPlace,
   inputRef,
   newEventLabel,
+  quietNewEvent = false,
   resultCount,
   scope = eventSearch,
   search,
@@ -270,6 +287,11 @@ function SideTools({
   /** Campo da busca: o Ctrl+K leva o foco até ele. */
   inputRef: RefObject<HTMLInputElement | null>;
   newEventLabel: string | null;
+  /**
+   * O atalho de criação com contorno (não azul cheio): na Gestão, o "Novo evento" do alto da lista já é a ação
+   * principal, e dois botões azuis iguais na mesma tela disputavam a atenção.
+   */
+  quietNewEvent?: boolean;
   resultCount?: number;
   /** O que a busca procura nesta tela (padrão: eventos). */
   scope?: SearchScope;
@@ -283,12 +305,15 @@ function SideTools({
   const term = search.trim();
   const count = term ? resultCount : undefined;
   const [one, many] = scope.noun;
+  // sem ponto final, como os outros subtítulos. A conta vem da tela inteira, sem filtro de categoria nem de origem
+  // (decisão 14): quando um filtro esconde o que a busca achou, a própria tela diz "N escondidos pelo filtro", e
+  // aqui continua "N eventos encontrados", nunca "Nenhum"
   const status =
     count === undefined
       ? ""
       : count === 0
-        ? `Nenhum ${one} encontrado.`
-        : `${count} ${count === 1 ? `${one} encontrado` : `${many} encontrados`}.`;
+        ? `Nenhum ${one} encontrado`
+        : `${count} ${count === 1 ? `${one} encontrado` : `${many} encontrados`}`;
   // botão que leva ao resultado: funciona no toque, onde o teclado não tem Enter (o Enter continua valendo)
   const showButton = count !== undefined && count > 0 && !inPlace;
 
@@ -355,7 +380,7 @@ function SideTools({
         </button>
       ) : null}
       {newEventLabel ? (
-        <button className={cx(primaryButton, "w-full")} onClick={onNewEvent} type="button">
+        <button className={cx(quietNewEvent ? secondaryButton : primaryButton, "w-full")} onClick={onNewEvent} type="button">
           <CalendarPlus className="h-4 w-4" aria-hidden />
           {newEventLabel}
         </button>
@@ -374,7 +399,7 @@ function studentClassesText(student: LinkedStudent) {
 }
 
 /**
- * Responsável: o bloco "Aluno: Diogo, TADS 5" no menu azul, acima dos itens (amostra responsavel-painel).
+ * Responsável: o bloco "Estudante: Diogo, TADS 5" no menu azul, acima dos itens (amostra responsavel-painel).
  * Com mais de um aluno ativo, vira seletor: um select nativo por cima do bloco, que funciona no toque, no
  * teclado e no leitor de tela. A escolha vai para o endereço (?aluno=) e para o histórico.
  */
@@ -399,7 +424,7 @@ function StudentPick({
         {student.initials}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="pick-t block truncate">Aluno: {name}</span>
+        <span className="pick-t block truncate">Estudante: {name}</span>
         <span className="pick-s block truncate">{classes}</span>
       </span>
       {many ? <ChevronsUpDown className="h-[18px] w-[18px] shrink-0" aria-hidden /> : null}
@@ -419,13 +444,13 @@ function StudentPick({
         {body}
       </span>
       <label htmlFor={selectId} className="sr-only">
-        Aluno acompanhado
+        Estudante acompanhado
       </label>
       <select
         id={selectId}
         value={student.id}
         onChange={(event) => onChoose?.(Number(event.target.value))}
-        title="Trocar aluno"
+        title="Trocar estudante"
       >
         {students.map((item) => (
           <option key={item.id} value={item.id}>
@@ -437,16 +462,18 @@ function StudentPick({
   );
 }
 
-/** "Semestre 2026/2" e "semana 13 de 20", com a barra do quanto já foi (Figma, pé do menu). */
+/**
+ * "Semestre 2026/2" e "16ª de 20 semanas", com a barra do quanto já foi (Figma, pé do menu). Ordinal e com
+ * "semanas" no fim: "semana 16 de 20" se confundia com o "Semana de 16 a 20 de nov" do Painel, ao lado.
+ */
 function SemesterBar({ semester }: { semester: SemesterWeek }) {
+  const weekText = `${semester.week}ª de ${semester.weeks} semanas`;
   return (
     // role="img": o leitor de tela lê o texto inteiro uma vez, pelo aria-label
-    <div className="semestre" role="img" aria-label={semester.label}>
+    <div className="semestre" role="img" aria-label={`Semestre ${semester.term}, ${weekText}`}>
       <div className="row1">
         <span>Semestre {semester.term}</span>
-        <b>
-          semana {semester.week} de {semester.weeks}
-        </b>
+        <b>{weekText}</b>
       </div>
       <div className="bar">
         <span style={{ width: `${semester.percent}%` }} />
@@ -476,7 +503,7 @@ function SideFoot({
   onRefresh: () => void;
 }) {
   const name = user.fullName ?? user.email;
-  // "Aluno, ALU-001", "Docente, DOC-001", "Admin, ADM-001"; o responsável não tem matrícula: só "Responsável"
+  // "Estudante, ALU-001", "Docente, DOC-001", "Admin, ADM-001"; o responsável não tem matrícula: só "Responsável"
   const role = [cardRoleLabels[user.role], user.role === "guardian" ? null : user.registration].filter(Boolean).join(", ");
   const time = updatedAt ? formatTime(updatedAt.toISOString()) : null;
   const offline = Boolean(loadError) && !refreshing;
@@ -509,8 +536,9 @@ function SideFoot({
             {role}
           </span>
         </span>
+        {/* 24 px de largura (o ícone tem 18): sobra lugar para "Estudante, ALU-002" sem cortar a matrícula */}
         <span
-          className="ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-[10px] text-muted transition group-hover:text-ink"
+          className="ml-auto grid h-8 w-6 shrink-0 place-items-center rounded-[10px] text-muted transition group-hover:text-ink"
           aria-hidden
         >
           <Settings2 className="h-[18px] w-[18px]" />
@@ -594,7 +622,7 @@ export function AppShell({
   searchResultCount?: number;
   /** O que a busca procura na tela de agora (padrão: eventos). Em Turmas e disciplinas: turmas, disciplinas e alunos. */
   searchScope?: SearchScope;
-  /** Responsável: o aluno escolhido (bloco "Aluno: Diogo, TADS 5" acima dos itens do menu). */
+  /** Responsável: o aluno escolhido (bloco "Estudante: Diogo, TADS 5" acima dos itens do menu). */
   student?: LinkedStudent | null;
   /** Responsável: os alunos com vínculo ativo; com mais de um, o bloco vira seletor. */
   students?: LinkedStudent[];
@@ -646,6 +674,18 @@ export function AppShell({
     returnFocusRef: drawerStart === "search" ? undefined : menuButtonRef,
   });
 
+  // Aberta pelo Ctrl+K, a gaveta já entra com o foco na busca, e o que se digita filtra. Num aparelho de toque o
+  // diálogo começa no próprio painel (para não levantar o teclado da tela); quem usou o atalho tem teclado
+  useEffect(() => {
+    if (drawerOpen && drawerStart === "search") {
+      const input = drawerSearchRef.current;
+      if (input && document.activeElement !== input) {
+        input.focus();
+        input.select();
+      }
+    }
+  }, [drawerOpen, drawerStart]);
+
   useEffect(() => {
     const wanted = `${pageTitle} | Agenda Acadêmica`;
     document.title = wanted;
@@ -682,7 +722,7 @@ export function AppShell({
     if (!drawerOpen) {
       return;
     }
-    const wide = window.matchMedia("(min-width: 768px)");
+    const wide = window.matchMedia(WIDE_MENU);
     const onChange = () => {
       if (wide.matches) {
         latest.current.onMenuChange(false);
@@ -706,7 +746,7 @@ export function AppShell({
       if (event.defaultPrevented || event.repeat || event.isComposing || !isSearchShortcut(event, shortcut.mac)) {
         return;
       }
-      if (window.matchMedia("(min-width: 768px)").matches) {
+      if (window.matchMedia(WIDE_MENU).matches) {
         focusSearch(event, sideSearchRef.current);
       } else if (latest.current.drawerOpen) {
         focusSearch(event, drawerSearchRef.current);
@@ -755,6 +795,7 @@ export function AppShell({
         inPlace={searchInPlace && !inDrawer}
         inputRef={inDrawer ? drawerSearchRef : sideSearchRef}
         newEventLabel={newEventLabel}
+        quietNewEvent={activeView === "manage"}
         resultCount={searchResultCount}
         scope={searchScope}
         search={search}
@@ -781,7 +822,7 @@ export function AppShell({
       </a>
 
       {/* Barra do topo (celular): presa no topo, com uma faixa da cor do fundo atrás */}
-      <header className="sticky top-0 z-40 bg-app px-3 pt-3 pb-2 md:hidden">
+      <header className="sticky top-0 z-40 bg-app px-3 pt-3 pb-2 lg:hidden">
         <div className="card flex items-center justify-between gap-3 px-3 py-2.5">
           <Brand subtitle={pageTitle} />
           <button
@@ -808,7 +849,7 @@ export function AppShell({
         ? createPortal(
             <div
               ref={sheetRef}
-              className="fixed inset-0 z-50 bg-[rgb(15_30_58/0.48)] animate-fade-in md:hidden"
+              className="fixed inset-0 z-50 bg-[rgb(15_30_58/0.48)] animate-fade-in lg:hidden"
               role="dialog"
               aria-label="Menu de navegação"
               aria-modal="true"
@@ -854,9 +895,9 @@ export function AppShell({
           )
         : null}
 
-      <div className="app max-md:block max-md:px-3 max-md:pt-2">
+      <div className="app max-lg:block max-lg:min-h-0 max-lg:px-3 max-lg:pt-2">
         {/* Menu lateral fixo, da altura da tela (tablet/desktop) */}
-        <aside ref={sideRef} className="side max-md:hidden" aria-label="Menu">
+        <aside ref={sideRef} className="side max-lg:hidden" aria-label="Menu">
           <Brand onDark />
           {tools(false)}
           {pick()}

@@ -17,12 +17,13 @@ import {
   classTermLabel,
   cx,
   dateParts,
-  dayMonthRange,
   formatShortDate,
   formatTime,
   isWholeDay,
+  relativeDue,
   shiftLabel,
   startOfDay,
+  weekRangeLabel,
 } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, Reminder } from "@/lib/types";
@@ -30,17 +31,15 @@ import {
   AvisosCard,
   EventList,
   InsightTile,
+  InstitutionDatesCard,
   NextEventHero,
   SavedPill,
-  calendarNote,
   calendarUpcomingCount,
   delay,
   heightKey,
   isOfficialDate,
   isOfficialSource,
   officialCategories,
-  officialWhen,
-  showAllText,
   upcomingOfficialDates,
   useColumnFill,
   useSavedReveal,
@@ -59,6 +58,29 @@ const WEEK_LIMIT = 7;
  * por vez, antes da pintura: 16 deixa folga e fica longe do limite de atualizações seguidas do React.
  */
 const MINE_MAX = 16;
+
+/**
+ * Maior sobra (px) que "Meus próximos eventos" ou "Datas da instituição" guardam esticados antes do "Ver todos"; acima
+ * dela, as colunas ficam do tamanho do conteúdo (duo-loose) e o link fica logo depois da lista.
+ */
+const LIST_LOOSE_GAP = 20;
+
+/** Uma semana em ms (para comparar a semana do Painel com a de hoje). */
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Título da semana com a mesma regra do Cronograma (semanas de domingo a sábado, como a grade do calendário):
+ * "Esta semana, 15 a 21 de nov" ou, no sábado, "Próxima semana, 22 a 28 de nov". O dia da semana de aula (a
+ * segunda) diz qual é a semana. Com o intervalo por extenso, o título não parece o "semana 16 de 20" do semestre.
+ */
+function weekTitleOf(monday: Date, now: number) {
+  const sunday = addDays(monday, -1);
+  const today = startOfDay(new Date(now));
+  const thisSunday = addDays(today, -today.getDay());
+  const offset = Math.round((sunday.getTime() - thisSunday.getTime()) / WEEK_MS);
+  const range = weekRangeLabel(sunday, addDays(sunday, 6));
+  return offset === 0 ? `Esta semana, ${range}` : offset === 1 ? `Próxima semana, ${range}` : `Semana de ${range}`;
+}
 
 type WeekDay = {
   key: number;
@@ -119,6 +141,20 @@ function schoolWeek(events: AcademicEvent[], now: number) {
   const listed = [...new Set(days.flatMap((day) => [...day.continuing, ...day.events]))];
   const hidden = days.reduce((sum, day) => sum + day.hidden, 0);
   return { start: monday, end: new Date(endTime), days, listed, hidden };
+}
+
+const shortMonthNames = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+/** "01 jan": a data no número grande do indicador. */
+function shortDayMonth(value: string) {
+  const date = new Date(value);
+  return `${String(date.getDate()).padStart(2, "0")} ${shortMonthNames[date.getMonth()]}`;
+}
+
+/** O ano ao lado do número, só fora do ano corrente. */
+function yearUnit(value: string) {
+  const year = new Date(value).getFullYear();
+  return year === new Date().getFullYear() ? undefined : String(year);
 }
 
 /** O que muda a altura da semana (para as colunas refazerem a conta). */
@@ -218,7 +254,13 @@ export function TeacherDashboard({
   // datas oficiais: a regra única de dashboard-bits (a mesma do card da Gestão e do filtro do Cronograma)
   const officialDates = upcomingOfficialDates(events ?? officialUpcoming, referenceNow);
   const week = schoolWeek(allEvents, referenceNow);
-  const weekTitle = `Semana de ${dayMonthRange(week.start, week.end)}`;
+  const weekTitle = weekTitleOf(week.start, referenceNow);
+  const todayKey = startOfDay(new Date(referenceNow)).getTime();
+  // semana sem nada: uma linha só, "Semana livre" (em vez de cinco "Livre"); o próximo evento já está no destaque
+  const weekEmpty = week.listed.length === 0 && week.hidden === 0;
+  const nextOfficial = officialDates.find((event) => startOfDay(new Date(event.startsAt)).getTime() >= todayKey) ?? officialDates[0] ?? null;
+  // a próxima já está no indicador "Próxima data da instituição": o card das datas começa pela seguinte (decisão 13)
+  const listedDates = nextOfficial ? officialDates.filter((event) => event.id !== nextOfficial.id) : officialDates;
   const classes = [
     ...new Map(
       assignments
@@ -233,25 +275,40 @@ export function TeacherDashboard({
       ? [classes[0].name, shiftLabel(classes[0].shift)].filter(Boolean).join(", ")
       : classes.map((academicClass) => academicClass.name).join(", ") || "sem vínculo";
   const openOfficial = onOpenCalendar ? () => onOpenCalendar({ categories: officialCategories }) : undefined;
+  // indicadores Turmas e Disciplinas: levam ao card "Minhas turmas e disciplinas", com o foco no título dele
+  // (todos os indicadores do Painel clicam, como no da administração)
+  const openClassesCard = () => {
+    const heading = document.getElementById("prof-turmas-titulo");
+    if (!heading) {
+      return;
+    }
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    heading.closest("section")?.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+  };
   // o Cronograma aberto com as categorias oficiais lista também as canceladas e as concluídas:
   // o rodapé usa o número dele e o indicador diz a diferença
   const officialListed = calendarUpcomingCount(allEvents, referenceNow, officialCategories);
-  const officialNote = calendarNote(allEvents, referenceNow, officialDates.length, {
-    categories: officialCategories,
-    feminine: true,
-  });
+  // com um evento só, ele já está no destaque: a lista não o repete e mostra o caminho para publicar mais
+  const listEvents = myOpen.length === 1 && nextMine && myOpen[0].id === nextMine.id ? [] : myOpen;
 
-  // as duas colunas terminam juntas: "Meus próximos eventos" e "Datas oficiais à frente" mostram
-  // mais itens enquanto a coluna delas for a mais baixa (com a semana cheia, a lista passa de 8)
-  const { gridRef, mainGapRef, sideGapRef, mainCount, sideCount } = useColumnFill(
-    { total: myOpen.length, min: 3, max: MINE_MAX },
-    { total: officialDates.length, min: 3, max: 6 },
+  // as duas colunas terminam juntas: "Meus próximos eventos" e "Datas da instituição" mostram mais itens
+  // enquanto a coluna delas for a mais baixa (com a semana cheia, a lista passa de 8); quando a lista da
+  // docente acaba, as datas da instituição descem até 1 para a coluna dela não ficar com um buraco. Se ainda
+  // sobrar mais que um respiro (LIST_LOOSE_GAP), o card não estica: o "Ver todos" fica logo depois da lista e as
+  // colunas terminam a menos de 80 px uma da outra (sem vão antes do link nem embaixo dele)
+  const { gridRef, mainGapRef, sideGapRef, mainCount, sideCount, gridClass } = useColumnFill(
+    { total: listEvents.length, min: 3, max: MINE_MAX },
+    { total: listedDates.length, min: 3, max: 6, floor: 1 },
     [
       assignments.length,
-      heightKey(myOpen.slice(0, MINE_MAX)),
-      heightKey(officialDates.slice(0, 6)),
+      heightKey(listEvents.slice(0, MINE_MAX)),
+      heightKey(listedDates.slice(0, 6)),
       weekKey(week.days),
-    ].join("|")
+      weekEmpty,
+    ].join("|"),
+    LIST_LOOSE_GAP
   );
 
   function upcomingCountFor(academicClassId: number, subjectId: number) {
@@ -259,10 +316,8 @@ export function TeacherDashboard({
   }
 
   return (
-    <div ref={rootRef} className="grid gap-5">
-      {avisos?.length ? (
-        <AvisosCard avisos={avisos} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
-      ) : null}
+    <div ref={rootRef} className="pnl grid gap-5">
+      <AvisosCard host avisos={avisos ?? []} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
 
       <div className="hero-slot rise" style={delay(0)}>
         <NextEventHero
@@ -304,6 +359,8 @@ export function TeacherDashboard({
           value={String(classes.length)}
           tone="c-trab"
           hint={classesHint}
+          actionLabel="Ver minhas turmas e disciplinas"
+          onClick={openClassesCard}
         />
         <InsightTile
           icon={BookOpen}
@@ -312,25 +369,29 @@ export function TeacherDashboard({
           value={String(assignments.length)}
           tone="c-ativ"
           hint={term ? `no semestre ${term}` : "sem vínculo"}
+          actionLabel="Ver minhas turmas e disciplinas"
+          onClick={openClassesCard}
         />
+        {/* a próxima data da instituição (feriado, recesso) ajuda a marcar a prova; "115 à frente" não ajudava */}
         <InsightTile
           icon={ShieldCheck}
-          label="Datas oficiais à frente"
+          label="Próxima data da instituição"
           order={5}
-          value={String(officialDates.length)}
+          value={nextOfficial ? shortDayMonth(nextOfficial.startsAt) : "Nenhuma"}
+          unit={nextOfficial ? yearUnit(nextOfficial.startsAt) : undefined}
           tone="c-inst"
-          hint="evite marcar provas nelas"
-          note={openOfficial ? officialNote : null}
-          actionLabel="Ver no cronograma"
+          valueClassName={nextOfficial ? "is-date" : undefined}
+          hint={nextOfficial ? `${nextOfficial.title}, ${relativeDue(nextOfficial.startsAt)}` : "nenhuma data da instituição à frente"}
+          actionLabel="Ver as datas da instituição no cronograma"
           onClick={openOfficial}
         />
       </div>
 
       {/* Arranjo do Figma: turmas e próximos eventos na coluna larga; semana e datas oficiais ao lado */}
-      <div ref={gridRef} className="duo">
+      <div ref={gridRef} className={cx("duo", gridClass)}>
         <div className="duo-col duo-main">
-          <section className="card pad rise" style={delay(6)} aria-label="Minhas turmas e disciplinas">
-            <SectionTitle title="Minhas turmas e disciplinas" />
+          <section className="card pad rise" style={delay(6)} aria-labelledby="prof-turmas-titulo">
+            <SectionTitle id="prof-turmas-titulo" title="Minhas turmas e disciplinas" />
             {assignments.length ? (
               <ul className="subj-grid">
                 {assignments.map((assignment) => {
@@ -377,7 +438,7 @@ export function TeacherDashboard({
                 <EmptyState
                   compact
                   icon={Users}
-                  text="Sem turmas vinculadas."
+                  text="Sem turmas vinculadas"
                   hint="Peça à administração para vincular suas disciplinas e turmas."
                 />
               </div>
@@ -388,16 +449,20 @@ export function TeacherDashboard({
             <SectionTitle title="Meus próximos eventos" />
             <EventList
               className="mt-3"
-              events={myOpen}
+              events={listEvents}
               limit={mainCount}
               fillRef={mainGapRef}
               savedId={savedId}
               emptyCompact
               emptyIcon={CalendarPlus}
-              emptyText="Nenhum evento publicado ainda."
-              emptyHint="Use os atalhos das disciplinas para publicar o primeiro."
+              emptyText={myOpen.length ? "Só o evento do destaque está publicado" : "Nenhum evento publicado ainda"}
+              emptyHint={
+                myOpen.length
+                  ? "Use + Evento nas disciplinas acima para publicar o próximo."
+                  : "Use os atalhos das disciplinas para publicar o primeiro."
+              }
               // o mesmo conjunto da aba "Próximos" da Gestão e do KPI "Publicações futuras"
-              showAll={{ label: "Ver todos na Gestão", onClick: onOpenManage, always: true }}
+              showAll={{ label: "Ver todos na Gestão", count: myOpen.length, onClick: onOpenManage, always: true }}
               onSelect={onSelect}
             />
           </section>
@@ -405,51 +470,72 @@ export function TeacherDashboard({
 
         <div className="duo-col duo-side">
           <section className="card pad rise" style={delay(8)} aria-label={weekTitle}>
-            <SectionTitle title={weekTitle} subtitle={weekSubtitle(week.listed, isMine)} />
-            {/* todos os dias da semana (Figma): "Livre" apagado no dia sem nada */}
-            <ul className="wk">
-              {week.days.map((day) => {
-                const parts = dateParts(day.date.toISOString());
-                const free = !day.events.length && !day.continuing.length && !day.hidden;
-                return (
-                  <li key={day.key} className="wk-day">
-                    <span className="wk-label">
-                      {parts.weekday} {parts.day}
-                    </span>
-                    <div className="wk-evs">
-                      {day.continuing.map((event) => (
-                        <p key={`segue-${event.id}`} className="wk-line">
-                          <span className={cx("dot", categoryMeta[event.category].accent)} aria-hidden />
-                          {event.title} ({eventLastDay(event).getTime() === day.key ? "último dia" : "continua"})
-                        </p>
-                      ))}
-                      {day.events.map((event) => (
-                        <button
-                          key={event.id}
-                          className={cx("wk-ev", categoryMeta[event.category].tint)}
-                          data-event-id={event.id}
-                          data-opens-event={event.id}
-                          onClick={() => onSelect(event.id)}
-                          type="button"
-                        >
-                          <span className="wk-t">{event.title}</span>
-                          <span className="wk-h">{weekHint(event, isMine(event))}</span>
-                          {savedId === event.id ? (
-                            <span className="mt-1.5 flex">
-                              <SavedPill />
-                            </span>
-                          ) : null}
-                        </button>
-                      ))}
-                      {day.hidden ? (
-                        <p className="wk-more">+{day.hidden === 1 ? "1 evento" : `${day.hidden} eventos`}</p>
-                      ) : null}
-                      {free ? <p className="wk-free">Livre</p> : null}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <SectionTitle title={weekTitle} subtitle={weekEmpty ? undefined : weekSubtitle(week.listed, isMine)} />
+            {weekEmpty ? (
+              // semana inteira livre: uma linha só. O próximo evento da docente já é o destaque logo acima; repetir
+              // "Próximo: ..." aqui seria o mesmo item duas vezes seguidas (decisão 13)
+              <div className="wk-empty">
+                <EmptyState
+                  compact
+                  icon={CalendarDays}
+                  text="Semana livre"
+                  hint="Nenhum evento seu, das suas turmas ou da instituição nestes dias."
+                />
+              </div>
+            ) : (
+              // todos os dias da semana (Figma): "Livre" apagado no dia sem nada; hoje em destaque e os dias que já
+              // passaram mais apagados
+              <ul className="wk">
+                {week.days.map((day) => {
+                  const parts = dateParts(day.date.toISOString());
+                  const free = !day.events.length && !day.continuing.length && !day.hidden;
+                  const isToday = day.key === todayKey;
+                  const past = day.key < todayKey;
+                  return (
+                    <li
+                      key={day.key}
+                      className={cx("wk-day", isToday && "wk-today", past && "wk-past")}
+                      aria-current={isToday ? "date" : undefined}
+                    >
+                      <span className="wk-label">
+                        {parts.weekday} {parts.day}
+                        {isToday ? <span className="wk-today-tag">Hoje</span> : null}
+                      </span>
+                      <div className="wk-evs">
+                        {day.continuing.map((event) => (
+                          <p key={`segue-${event.id}`} className="wk-line">
+                            <span className={cx("dot", categoryMeta[event.category].accent)} aria-hidden />
+                            {event.title} ({eventLastDay(event).getTime() === day.key ? "último dia" : "continua"})
+                          </p>
+                        ))}
+                        {day.events.map((event) => (
+                          <button
+                            key={event.id}
+                            className={cx("wk-ev", categoryMeta[event.category].tint)}
+                            data-event-id={event.id}
+                            data-opens-event={event.id}
+                            onClick={() => onSelect(event.id)}
+                            type="button"
+                          >
+                            <span className="wk-t">{event.title}</span>
+                            <span className="wk-h">{weekHint(event, isMine(event))}</span>
+                            {savedId === event.id ? (
+                              <span className="mt-1.5 flex">
+                                <SavedPill />
+                              </span>
+                            ) : null}
+                          </button>
+                        ))}
+                        {day.hidden ? (
+                          <p className="wk-more">+{day.hidden === 1 ? "1 evento" : `${day.hidden} eventos`}</p>
+                        ) : null}
+                        {free ? <p className="wk-free">Livre</p> : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
             {week.hidden && onOpenCalendar ? (
               // os que não couberam estão no Cronograma, que lista todos os próximos (não só a semana):
               // "+N eventos" no dia já diz quantos faltam, e o rodapé fica sem número
@@ -462,55 +548,19 @@ export function TeacherDashboard({
             ) : null}
           </section>
 
-          <section className="card pad rise duo-fill" style={delay(9)} aria-label="Datas oficiais à frente">
-            <SectionTitle title="Datas oficiais à frente" />
-            {officialDates.length ? (
-              <>
-                <ul className="mt-3.5 flex flex-col gap-2">
-                  {officialDates.slice(0, sideCount).map((event) => (
-                    <li key={event.id}>
-                      <button
-                        className="mini"
-                        data-event-id={event.id}
-                        data-opens-event={event.id}
-                        onClick={() => onSelect(event.id)}
-                        type="button"
-                      >
-                        <span className="mini-ico text-[#1e40af]">
-                          <ShieldCheck className="h-[18px] w-[18px]" aria-hidden />
-                        </span>
-                        <span className="min-w-0">
-                          {/* o título quebra linha; palavra ou link longo quebra em qualquer ponto */}
-                          <span className="mini-t block wrap-anywhere">{event.title}</span>
-                          <span className="mini-s block">
-                            {officialWhen(event)}, {categoryMeta[event.category].short}
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div ref={sideGapRef} className="fill-gap" aria-hidden />
-                {officialDates.length > sideCount && openOfficial ? (
-                  <div className="card-foot">
-                    <button className="link" onClick={openOfficial} type="button">
-                      {/* o N é o que o Cronograma lista (decisão 2) */}
-                      {showAllText("Ver todas no cronograma", officialDates.length, officialListed)}
-                      <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
-                    </button>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              // o vazio fica logo abaixo do título, como nos outros cards; a sobra vai para o espaçador
-              <>
-                <div className="mt-3.5">
-                  <EmptyState compact icon={CalendarDays} text="Nenhuma data oficial à frente." />
-                </div>
-                <div ref={sideGapRef} className="fill-gap" aria-hidden />
-              </>
-            )}
-          </section>
+          <InstitutionDatesCard
+            className="duo-fill"
+            emptyText={nextOfficial ? "Nenhuma outra data da instituição à frente" : undefined}
+            events={listedDates}
+            subtitle={nextOfficial ? "Depois da próxima, feriados, recessos e eventos oficiais" : undefined}
+            limit={sideCount}
+            listed={officialListed}
+            fillRef={sideGapRef}
+            order={9}
+            savedId={savedId}
+            onOpenAll={openOfficial}
+            onSelect={onSelect}
+          />
         </div>
       </div>
     </div>

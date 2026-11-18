@@ -49,8 +49,8 @@ import type {
   JoinCodeResult,
 } from "@/lib/types";
 import { useAppActions, useBackLayer } from "./app-actions";
-import { showAllText } from "./dashboard-bits";
-import { Drawer, EmptyState, ErrorState, isOnTopLayer } from "./ui";
+import { Pager, usePaged } from "./pager";
+import { Drawer, EmptyState, ErrorState, Field, isOnTopLayer } from "./ui";
 
 /**
  * Aba "Minhas turmas" da Gestão da docente (desenho 5.4, amostra docente-notas-evento: abas "Eventos" e "Minhas
@@ -74,7 +74,7 @@ export type MyClassesProps = {
 
 export type MyClassesSummary = { classes: number; pending: number };
 
-/** Alunos ativos mostrados antes do "Ver todos (N)" no painel da turma. */
+/** Alunos ativos por página no painel da turma (nada de "Ver todos" que despeja a turma inteira). */
 const STUDENTS_SHOWN = 8;
 
 type ListState =
@@ -356,6 +356,7 @@ export function MyClasses({ context, search, onSummary, onSearchCount }: MyClass
       <>
         <div className="docente-turma-head" aria-hidden>
           <span>Turma</span>
+          <span className="docente-turma-hsubj">Suas disciplinas</span>
           <span>Período</span>
           <span>Alunos</span>
           <span />
@@ -393,7 +394,7 @@ export function MyClasses({ context, search, onSummary, onSearchCount }: MyClass
                     <span className="docente-turma-line">
                       <span className="t">{item.name}</span>
                       {pending ? (
-                        <span className="pill st-alt">
+                        <span className="pill stat stat-alt">
                           <UserPlus className="h-3 w-3" aria-hidden />
                           {countText(pending, "pedido", "pedidos")}
                         </span>
@@ -407,12 +408,25 @@ export function MyClasses({ context, search, onSummary, onSearchCount }: MyClass
                       </span>
                     ) : null}
                   </span>
+                  {/* na tabela larga, as disciplinas da docente ganham coluna própria (sem o vão no meio da linha) */}
+                  <span className="docente-turma-subjcol">
+                    {subjects.length ? (
+                      subjects.map((name) => (
+                        <span key={name} className="docente-subj-chip">
+                          <BookOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          {name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="s">Nenhuma em vigor</span>
+                    )}
+                  </span>
                   <span className="docente-turma-per">
                     <span className="t">{classTermLabel(item)}</span>
                     <span className="s">{classPeriodLine(item)}</span>
                   </span>
                   <span className="docente-turma-num">
-                    <span className="t">{active}</span>
+                    <span className="t docente-num">{active}</span>
                     <span className="s">{active === 1 ? "aluno ativo" : "alunos ativos"}</span>
                   </span>
                   <ChevronRight className="docente-turma-go" aria-hidden />
@@ -457,7 +471,7 @@ function ClassDrawer({
 
   const subtitle = cls ? (
     <>
-      {cls.course?.name ? <span className="w-full">{cls.course.name}</span> : null}
+      {cls.course?.name ? <span className="w-full docente-sub-course">{cls.course.name}</span> : null}
       <span className="pill st-ag">{classTermLabel(cls, { long: true })}</span>
       {cls.period ? <span className="pill st-ag">{cls.period}</span> : null}
       {cls.shift ? <span className="pill st-ag">{shiftText(cls.shift)}</span> : null}
@@ -471,15 +485,9 @@ function ClassDrawer({
       subtitle={subtitle}
       onClose={onClose}
       footer={
-        <>
-          <p className="docente-foot-note">
-            <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            Dados da turma, disciplinas e docentes ficam com a secretaria.
-          </p>
-          <button className="btn btn-s ml-auto" onClick={onClose} type="button">
-            Fechar
-          </button>
-        </>
+        <button className="btn btn-s ml-auto" onClick={onClose} type="button">
+          Fechar
+        </button>
       }
     >
       {cls ? <ClassPanelBody key={cls.id} cls={cls} onCounts={onCounts} /> : null}
@@ -512,10 +520,11 @@ function ClassPanelBody({
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState<Busy | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
-  const [showAll, setShowAll] = useState(false);
+  const [filter, setFilter] = useState("");
   const [codeShown, setCodeShown] = useState(false);
   const studentsRef = useRef<HTMLDivElement>(null);
   const studentsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const activeHeadRef = useRef<HTMLParagraphElement>(null);
   const codeRef = useRef<HTMLParagraphElement>(null);
   const codeActionsRef = useRef<HTMLDivElement>(null);
   // depois de aprovar ou recusar: o índice do pedido que saiu (o foco vai para o pedido que ficou no lugar)
@@ -575,6 +584,16 @@ function ClassPanelBody({
     }
   }
 
+  // alunos ativos em páginas de 8, com filtro quando passam de uma página (antes da volta antecipada: é um hook)
+  const activeAll = (data?.students ?? []).filter((student) => student.status === "active");
+  const filterWords = normalizeText(filter).split(/\s+/).filter(Boolean);
+  const activeFiltered = activeAll.filter(
+    (student) =>
+      !filterWords.length ||
+      filterWords.every((word) => normalizeText(`${student.fullName ?? ""} ${student.email}`).includes(word))
+  );
+  const activePaged = usePaged(activeFiltered, STUDENTS_SHOWN, filter);
+
   if (!data) {
     if (error) {
       return (
@@ -604,7 +623,9 @@ function ClassPanelBody({
   const withoutTeacher = offers.filter((offer) => offer.withoutTeacher).length;
   const pending = students.filter((student) => student.status === "pending");
   const active = students.filter((student) => student.status === "active");
-  const visibleActive = showAll ? active : active.slice(0, STUDENTS_SHOWN);
+  const visibleActive = activePaged.items;
+  // rótulo de grupo só com pedidos e ativos juntos; com um grupo só, o subtítulo basta
+  const labeled = pending.length > 0 && active.length > 0;
   const chosen = selected.filter((id) => pending.some((student) => student.enrollmentId === id));
   const allChosen = pending.length > 0 && chosen.length === pending.length;
   const codeOn = detail.joinCodeActive && Boolean(detail.joinCodeFormatted ?? detail.joinCode);
@@ -816,85 +837,21 @@ function ClassPanelBody({
 
   return (
     <div className="docente-panel">
-      {/* Disciplinas e docentes */}
-      <section className="docente-dsec" aria-labelledby={ids.offers}>
-        <div className="docente-dsec-head">
-          <div>
-            <h3 id={ids.offers} className="docente-dsec-t">
-              Disciplinas e docentes
-            </h3>
-            <p className="docente-dsec-s">
-              {offers.length
-                ? [
-                    countText(offers.length, "disciplina", "disciplinas"),
-                    mineCount ? countText(mineCount, "sua", "suas") : null,
-                    withoutTeacher ? `${withoutTeacher} sem docente` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(", ")
-                : "Nenhuma disciplina ofertada nesta turma."}
-            </p>
-          </div>
-        </div>
-        {offers.length ? (
-          <ul className="docente-ofertas">
-            {offers.map((offer) => {
-              const mine = isMine(offer);
-              return (
-                <li key={offer.id} className={cx("docente-oferta", mine && "mine", offer.withoutTeacher && "warn")}>
-                  <div className="docente-of-top">
-                    <span className="docente-of-name">
-                      <b>{offer.subject?.name ?? "Disciplina"}</b>
-                      {offer.subject?.code ? <span className="docente-code-chip">{offer.subject.code}</span> : null}
-                    </span>
-                    {mine ? <span className="pill docente-pill-mine">Sua disciplina</span> : null}
-                  </div>
-                  {offer.withoutTeacher ? (
-                    <p className="docente-docs">
-                      <span className="pill st-alt">Sem docente</span>
-                      <span>A secretaria ainda vai vincular quem dá aula.</span>
-                    </p>
-                  ) : (
-                    <ul className="docente-docs">
-                      {offer.teachers.map((teacher) => {
-                        const you = teacher.teacherId === user.id;
-                        return (
-                          <li key={teacher.assignmentId} className="docente-doc">
-                            <span className="docente-av-xs" aria-hidden>
-                              {initials(teacher.fullName ?? "")}
-                            </span>
-                            <span>{you ? `${teacher.fullName} (você)` : teacher.fullName}</span>
-                            <span className="pill docente-pill-wt">
-                              {teachingRoleLabels[teacher.role] ?? teacher.role}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <EmptyState
-            compact
-            icon={BookOpen}
-            text="Nenhuma disciplina ofertada"
-            hint="A secretaria inclui as disciplinas da turma. Fale com ela se faltar alguma."
-          />
-        )}
-      </section>
-
-      {/* Alunos */}
+      {/* Alunos (com os pedidos de entrada no alto): o que a docente mais vem fazer aqui, como no painel da secretaria */}
       <section className="docente-dsec" aria-labelledby={ids.students}>
         <div className="docente-dsec-head">
           <div>
-            <h3 id={ids.students} ref={studentsHeadingRef} tabIndex={-1} className="docente-dsec-t">
+            <h3 id={ids.students} ref={studentsHeadingRef} tabIndex={-1} className="docente-dsec-t drawer-h3">
               Alunos
             </h3>
             <p className="docente-dsec-s">
-              {`${countText(active.length, "ativo", "ativos")} e ${countText(pending.length, "pedido de entrada", "pedidos de entrada")}`}
+              {/* sem partes zeradas: "1 ativo", "2 pedidos de entrada" ou "1 ativo e 2 pedidos de entrada" */}
+              {[
+                active.length || !pending.length ? countText(active.length, "ativo", "ativos") : null,
+                pending.length ? countText(pending.length, "pedido de entrada", "pedidos de entrada") : null,
+              ]
+                .filter(Boolean)
+                .join(" e ")}
             </p>
           </div>
         </div>
@@ -902,7 +859,11 @@ function ClassPanelBody({
         <div ref={studentsRef}>
           {pending.length ? (
             <>
-              <p className="docente-group">{`Pedidos de entrada (${pending.length})`}</p>
+              {labeled ? (
+                <p className="docente-group">
+                  Pedidos de entrada <span className="docente-n">{pending.length}</span>
+                </p>
+              ) : null}
               <div className="docente-pend-box">
                 {pending.length > 1 ? (
                   <div className="docente-bulk">
@@ -997,7 +958,34 @@ function ClassPanelBody({
 
           {active.length ? (
             <>
-              <p className="docente-group">{`Alunos ativos (${active.length})`}</p>
+              {labeled ? (
+                <p ref={activeHeadRef} className="docente-group">
+                  Alunos ativos <span className="docente-n">{active.length}</span>
+                </p>
+              ) : null}
+              {active.length > STUDENTS_SHOWN ? (
+                <div className="docente-stu-filter">
+                  <Field label="Filtrar alunos">
+                    <input
+                      className="input"
+                      autoComplete="off"
+                      placeholder="Nome ou e-mail"
+                      type="search"
+                      value={filter}
+                      onChange={(event) => setFilter(event.target.value)}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+              {!visibleActive.length ? (
+                <EmptyState
+                  compact
+                  icon={Users}
+                  text={`Nenhum aluno com "${filter.trim()}"`}
+                  hint="Confira o nome ou o e-mail."
+                  action={{ label: "Limpar filtro", onClick: () => setFilter("") }}
+                />
+              ) : null}
               <ul className="docente-slist">
                 {visibleActive.map((student) => {
                   const name = studentName(student);
@@ -1014,16 +1002,12 @@ function ClassPanelBody({
                   );
                 })}
               </ul>
-              {active.length > STUDENTS_SHOWN ? (
-                <button
-                  className="link docente-more"
-                  aria-expanded={showAll}
-                  onClick={() => setShowAll((value) => !value)}
-                  type="button"
-                >
-                  {showAll ? "Mostrar menos" : showAllText("Ver todos", active.length)}
-                </button>
-              ) : null}
+              <Pager
+                paged={activePaged}
+                noun={["aluno", "alunos"]}
+                focusRef={labeled ? activeHeadRef : studentsHeadingRef}
+                className="docente-pager"
+              />
             </>
           ) : null}
 
@@ -1039,16 +1023,92 @@ function ClassPanelBody({
         </div>
       </section>
 
+      {/* Disciplinas e docentes */}
+      <section className="docente-dsec" aria-labelledby={ids.offers}>
+        <div className="docente-dsec-head">
+          <div>
+            <h3 id={ids.offers} className="docente-dsec-t drawer-h3">
+              Disciplinas e docentes
+            </h3>
+            <p className="docente-dsec-s">
+              {offers.length
+                ? [
+                    countText(offers.length, "disciplina", "disciplinas"),
+                    mineCount ? countText(mineCount, "sua", "suas") : null,
+                    withoutTeacher ? `${withoutTeacher} sem docente` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")
+                : "Nenhuma disciplina ofertada nesta turma."}
+            </p>
+          </div>
+        </div>
+        {offers.length ? (
+          <ul className="docente-ofertas">
+            {offers.map((offer) => {
+              const mine = isMine(offer);
+              return (
+                <li key={offer.id} className={cx("docente-oferta", mine && "mine", offer.withoutTeacher && "warn")}>
+                  <div className="docente-of-top">
+                    <span className="docente-of-name">
+                      <b>{offer.subject?.name ?? "Disciplina"}</b>
+                      {offer.subject?.code ? <span className="docente-code-chip">{offer.subject.code}</span> : null}
+                    </span>
+                    {mine ? <span className="pill docente-pill-mine">Sua disciplina</span> : null}
+                  </div>
+                  {offer.withoutTeacher ? (
+                    <p className="docente-docs">
+                      <span className="pill stat stat-alt">Sem docente</span>
+                      <span>A secretaria ainda vai vincular quem dá aula.</span>
+                    </p>
+                  ) : (
+                    <ul className="docente-docs">
+                      {offer.teachers.map((teacher) => {
+                        const you = teacher.teacherId === user.id;
+                        return (
+                          <li key={teacher.assignmentId} className="docente-doc">
+                            <span className="docente-av-xs" aria-hidden>
+                              {initials(teacher.fullName ?? "")}
+                            </span>
+                            <span>{you ? `${teacher.fullName} (você)` : teacher.fullName}</span>
+                            <span className="pill docente-pill-wt">
+                              {teachingRoleLabels[teacher.role] ?? teacher.role}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState
+            compact
+            icon={BookOpen}
+            text="Nenhuma disciplina ofertada"
+            hint="A secretaria inclui as disciplinas da turma. Fale com ela se faltar alguma."
+          />
+        )}
+        {offers.length ? (
+          <p className="field-help docente-note">
+            <Info className="h-4 w-4 shrink-0" aria-hidden />
+            Dados da turma, disciplinas e docentes ficam com a secretaria.
+          </p>
+        ) : null}
+      </section>
+
       {/* Código da turma */}
       <section className="docente-dsec" aria-labelledby={ids.code}>
         <div className="docente-dsec-head">
           <div>
-            <h3 id={ids.code} className="docente-dsec-t">
+            <h3 id={ids.code} className="docente-dsec-t drawer-h3">
               Código da turma
             </h3>
             <p className="docente-dsec-s">Quem tem o código pede para entrar, e o pedido aparece em Alunos.</p>
           </div>
-          <span className={cx("pill shrink-0", codeOn ? "st-conc" : "st-ag")}>{codeOn ? "Ligado" : "Desligado"}</span>
+          <span className={cx("pill stat shrink-0", codeOn && "stat-conc")}>{codeOn ? "Ligado" : "Desligado"}</span>
         </div>
         <div className="docente-codebox">
           <span className="mini-ico">

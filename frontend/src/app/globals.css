@@ -11,6 +11,13 @@
 @import "./styles/notas-docente.css" layer(components);
 /* visual novo: vem por último e reveste os componentes deste arquivo */
 @import "./styles/visual-novo.css" layer(components);
+/* telas redesenhadas na rodada de UX e, por último, os ajustes gerais dela (largura, botões e números) */
+@import "./styles/importar.css" layer(components);
+@import "./styles/cronograma.css" layer(components);
+@import "./styles/painel.css" layer(components);
+@import "./styles/gestao.css" layer(components);
+@import "./styles/lembretes.css" layer(components);
+@import "./styles/ux.css" layer(components);
 
 /* ==================================================================
    Tokens do produto: visual novo (azul bebê). O verde ficou só para
@@ -140,7 +147,7 @@ button:disabled {
   main .hero[data-event-id] {
     scroll-margin-top: 16px;
   }
-  @media (max-width: 767px) {
+  @media (max-width: 1023px) {
     main :is(a[href], button, input, select, textarea, summary, [tabindex]) {
       scroll-margin-top: 96px;
     }
@@ -319,13 +326,12 @@ button:disabled {
       display: none;
     }
   }
+  /* cabeçalho do grupo do menu em frase normal ("Menu"), como os outros cabeçalhos de lista */
   .nav-label {
     margin: 0 0 6px 14px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--on-night-2);
+    color: var(--ink-3);
   }
   .navlist {
     display: flex;
@@ -544,7 +550,7 @@ button:disabled {
   /* tela baixa (notebook de 768, janela de 1280x720, 1440 com a barra do navegador): o menu fixo
      aperta os espaços para caber inteiro, com a barra do semestre, sem rolar por dentro. Se ainda
      faltar altura, a barra sai (useSemesterFits, app-shell.tsx). A 900 de altura fica como no Figma. */
-  @media (min-width: 768px) and (max-height: 800px) {
+  @media (min-width: 1024px) and (max-height: 800px) {
     .side {
       gap: 14px;
       padding-block: 14px;
@@ -575,14 +581,14 @@ button:disabled {
     }
   }
   /* com mouse, os itens do menu descem para 40 px; no toque ficam os 44 px */
-  @media (min-width: 768px) and (max-height: 800px) and (pointer: fine) {
+  @media (min-width: 1024px) and (max-height: 800px) and (pointer: fine) {
     .navlist .nav {
       height: 40px;
     }
   }
   /* mais baixa ainda (notebook de 1366x768 com a barra de tarefas e a do navegador, de 600 a 700 px):
      mais um aperto, para o menu da administração caber sem rolar */
-  @media (min-width: 768px) and (max-height: 700px) {
+  @media (min-width: 1024px) and (max-height: 700px) {
     .side {
       gap: 12px;
     }
@@ -593,7 +599,7 @@ button:disabled {
       padding-block: 7px;
     }
   }
-  @media (min-width: 768px) and (max-height: 700px) and (pointer: fine) {
+  @media (min-width: 1024px) and (max-height: 700px) and (pointer: fine) {
     .navlist .nav {
       height: 36px;
     }
@@ -667,11 +673,12 @@ button:disabled {
     justify-content: space-between;
     gap: 12px 16px;
   }
+  /* rótulo curto acima de um título ("Próximo compromisso"): em frase, sem caixa alta (regra do Diogo) */
   .eyebrow {
-    font-size: 12px;
+    font-size: 13.5px;
     font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    line-height: 1.35;
     color: var(--muted);
   }
   .h2 {
@@ -797,15 +804,16 @@ button:disabled {
     padding-bottom: 0;
     border-bottom: 0;
   }
+  /* dia da semana na semana da docente ("Seg 23"): título do grupo de eventos do dia, em frase, como o .tbl th */
   .wk-label {
     width: 56px;
     flex-shrink: 0;
     white-space: nowrap;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--muted);
+    letter-spacing: 0;
+    text-transform: capitalize;
+    color: var(--ink-3);
   }
   .wk-free,
   .wk-line,
@@ -1221,22 +1229,9 @@ button:disabled {
     flex-wrap: wrap;
     gap: 8px;
   }
-  /* no celular os filtros de categoria ficam numa linha só, com rolagem lateral;
-     o degradê na borda direita mostra que há mais. A folga de 4 px, desfeita pela margem,
-     deixa o anel de foco do chip inteiro sem mudar o lugar dos chips. O scroll-padding (degradê
-     de 40 px mais o anel) é onde para o chip focado pelo teclado (calendar-view.tsx), e a folga
-     da direita, do mesmo tamanho, deixa o último chip inteiro fora do degradê no fim da linha. */
+  /* no celular os filtros de categoria quebram em mais de uma linha: são poucos e curtos, e numa linha só
+     com rolagem lateral "Recessos" e "Feriados" ficavam escondidos atrás do degradê. */
   @media (max-width: 639px) {
-    .chips.chips-row {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      scrollbar-width: none;
-      padding: 4px 44px 4px 4px;
-      margin: -4px 0 -2px -4px;
-      scroll-padding-inline: 4px 44px;
-      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
-      mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
-    }
     .chips.chips-row > * {
       flex-shrink: 0;
       white-space: nowrap;
@@ -1604,7 +1599,7 @@ button:disabled {
         align-self: center;
         margin-left: 0;
       }
-      .hero.with-date > .countdown:not(.next) .eyebrow,
+      /* "Faltam" fica (vira a pílula do fim do arquivo); some só o texto miúdo de baixo */
       .hero.with-date > .countdown:not(.next) small,
       .hero.with-date > .countdown.next b + small {
         display: none;
@@ -1652,6 +1647,31 @@ button:disabled {
       }
       .hero.with-date .hero-actions > .btn {
         padding-inline: 14px;
+      }
+      /* docente (rótulo com a etiqueta da situação, "Agendado"): a pílula "Faltam 5d 20h 02m" desce para
+         baixo do título, como no celular; ao lado do rótulo ela empurrava "Agendado" para uma segunda
+         linha. O rótulo usa a largura toda, e dados e botões descem uma linha. O aluno (rótulo mais
+         curto, cabe ao lado da pílula) fica como está, da altura do card da turma */
+      .hero.with-date:has(> .countdown:not(.next)):has(.hero-kicker > .pill.stat) {
+        grid-template-rows: repeat(5, auto);
+      }
+      .hero.with-date:has(> .countdown:not(.next)):has(.hero-kicker > .pill.stat) > .datebig {
+        grid-row: 1 / 6;
+      }
+      .hero.with-date:has(> .countdown:not(.next)):has(.hero-kicker > .pill.stat) .hero-kicker {
+        grid-column: 2 / 4;
+      }
+      .hero.with-date:has(.hero-kicker > .pill.stat) > .countdown:not(.next) {
+        grid-column: 2 / 4;
+        grid-row: 3;
+        justify-self: start;
+        margin-top: 8px;
+      }
+      .hero.with-date:has(> .countdown:not(.next)):has(.hero-kicker > .pill.stat) .hero-meta {
+        grid-row: 4;
+      }
+      .hero.with-date:has(> .countdown:not(.next)):has(.hero-kicker > .pill.stat) .hero-actions {
+        grid-row: 5;
       }
     }
   }
@@ -1727,12 +1747,25 @@ button:disabled {
     .hero.with-date .hero-actions {
       order: 2;
     }
-    .hero.with-date > .countdown:not(.next) {
-      grid-column: 3;
-      grid-row: 1;
-      align-self: center;
+    /* a contagem ("Faltam 5d 20h 02m", pílula do fim do arquivo) desce para baixo do título, ao lado da
+       data: no alto, ao lado do rótulo, ela espremia "Próximo compromisso" e a etiqueta da categoria. A data
+       ocupa as duas linhas (título e contagem), e o rótulo usa a largura toda */
+    .hero.with-date:has(> .countdown:not(.next)) .hero-kicker {
+      grid-column: 1 / -1;
     }
-    .hero.with-date > .countdown:not(.next) .eyebrow,
+    .hero.with-date:has(> .countdown:not(.next)) > .datebig {
+      grid-row: 2 / 4;
+    }
+    .hero.with-date:has(> .countdown:not(.next)) .hero-title {
+      align-self: end;
+    }
+    .hero.with-date > .countdown:not(.next) {
+      grid-column: 2 / 4;
+      grid-row: 3;
+      align-self: start;
+      justify-self: start;
+      margin-left: 0;
+    }
     .hero.with-date > .countdown:not(.next) small {
       display: none;
     }
@@ -1742,6 +1775,31 @@ button:disabled {
       border-radius: 999px;
       font-size: 14px;
       line-height: 1.3;
+    }
+    /* a data da instituição (administração) é texto, sem fundo: sem o recuo de pílula, alinhada ao rótulo */
+    .hero.with-date > .countdown.next b {
+      padding-inline: 0;
+    }
+    /* o círculo a caneta envolve só o número: com 104 x 80 (o do computador) ele riscava "SEG" e "NOV" no
+       bloco compacto. O desenho estica para a elipse do número, e o dia e o mês ganham folga */
+    .hero.with-date > .datebig {
+      gap: 5px;
+    }
+    .hero.with-date > .datebig::after {
+      width: 56px;
+      height: 38px;
+      background-size: 100% 100%;
+    }
+    /* o escudo da administração: no bloco de 56 px ele fica com 32 px (o "h-12 w-12" do ícone é da camada
+       utilities, que ganha desta, por isso o !important; os 26 px de cima não chegavam a valer), e o círculo
+       envolve o ícone inteiro sem passar da largura do bloco (o título começa logo ao lado) */
+    .hero.with-date > .datebig > svg {
+      width: 32px !important;
+      height: 32px !important;
+    }
+    .hero.with-date > .datebig:has(> svg)::after {
+      width: 54px;
+      height: 48px;
     }
     .hero.with-date > .countdown.next {
       display: flex;
@@ -1758,17 +1816,52 @@ button:disabled {
     }
   }
 
+  /* destaque compacto (abaixo de 720 px: docente e administração a 1024, celular): a contagem não fica como
+     número solto ("5d 20h 02m" sem dizer o quê). Vira uma pílula branca legível com o rótulo junto:
+     "Faltam 5d 20h 02m". No computador largo ela segue grande, com "Faltam" em cima e "até o início" embaixo */
+  @container hero (max-width: 719.98px) {
+    .hero.with-date > .countdown:not(.next) {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px 5px 10px;
+      border-radius: 999px;
+      background: #fff;
+      box-shadow: inset 0 0 0 1px var(--bebe-2), 0 1px 2px rgb(21 48 92 / 0.08);
+      text-align: left;
+      white-space: nowrap;
+    }
+    .hero.with-date > .countdown:not(.next) .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.3;
+    }
+    .hero.with-date > .countdown:not(.next) .eyebrow .live {
+      margin-right: 6px;
+      vertical-align: 0;
+    }
+    .hero.with-date > .countdown:not(.next) b {
+      margin: 0;
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      font-size: 15px;
+      line-height: 1.3;
+    }
+  }
+
   /* listas de eventos */
   .ev-group {
     display: flex;
     align-items: center;
     gap: 12px;
     margin: 20px 0 6px;
-    font-size: 12px;
+    font-size: 13.5px;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
+    letter-spacing: 0;
+    color: var(--ink-3);
   }
   .ev-group::after {
     content: "";
@@ -2049,11 +2142,10 @@ button:disabled {
   .tbl th {
     padding: 12px 16px;
     text-align: left;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
+    letter-spacing: 0;
+    color: var(--ink-3);
     background: var(--surface-2);
     border-bottom: 1px solid var(--line);
   }
@@ -2149,22 +2241,6 @@ button:disabled {
       position: sticky;
       top: min(20px, calc(100vh - var(--side-h, 0px) - 20px));
     }
-    /* Lembretes: "Aguardando aviso" e a lateral na mesma linha, como no Figma; "Já avisados" embaixo */
-    .rem-cols {
-      grid-template-areas: "pend side" "past .";
-    }
-    .rem-cols > .tela-main {
-      display: contents;
-    }
-    .rem-pend {
-      grid-area: pend;
-    }
-    .rem-past {
-      grid-area: past;
-    }
-    .rem-cols > .tela-side {
-      grid-area: side;
-    }
     /* Importar: o card do JSON estica pelo campo, que fica mais alto */
     .imp-json-card > .input.imp-json {
       flex: 1 0 auto;
@@ -2184,6 +2260,100 @@ button:disabled {
   .rem-pend-body > .empty-inline {
     flex: 1 1 auto;
     justify-content: center;
+  }
+  /* sem lembrete esperando: o aviso numa linha (ícone à esquerda) e as sugestões na largura toda do card */
+  .rem-empty {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .rem-empty-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+    padding: 16px 18px;
+    border-radius: 16px;
+    background: var(--surface-2);
+  }
+  .rem-empty-head .empty-ico {
+    margin: 0;
+  }
+  .rem-empty-t {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .rem-empty-s {
+    margin-top: 2px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .rem-sugg-t {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink-2);
+  }
+  .rem-sugg-list {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  .rem-sugg-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 4px;
+    border-top: 1px solid var(--line-2);
+  }
+  .rem-sugg-row:first-child {
+    border-top: 0;
+  }
+  .rem-sugg-date {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 54px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    background: var(--surface-2);
+    line-height: 1.05;
+  }
+  .rem-sugg-date .dw {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .rem-sugg-date .dn {
+    font-family: var(--disp);
+    font-size: 21px;
+    font-weight: 750;
+    color: var(--ink);
+  }
+  .rem-sugg-title {
+    font-size: 15px;
+    font-weight: 650;
+    line-height: 1.35;
+  }
+  .rem-sugg-meta {
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  @media (max-width: 639px) {
+    .rem-sugg-row {
+      flex-wrap: wrap;
+    }
+    .rem-sugg-row > .btn {
+      margin-left: 66px;
+    }
   }
   /* "Ver todos" logo embaixo da lista, quando o grupo dos cancelados vem depois dela */
   .rem-more {
@@ -2244,7 +2414,7 @@ button:disabled {
        com as folgas dos campos: acima dos avisos do celular e, nele, abaixo do cabeçalho grudado */
     scroll-margin-bottom: var(--toast-room, 0px);
   }
-  @media (max-width: 767px) {
+  @media (max-width: 1023px) {
     .rem-row {
       scroll-margin-top: 96px;
     }
@@ -2614,8 +2784,8 @@ button:disabled {
     background: var(--surface-2);
     border-bottom: 1px solid var(--line);
   }
-  /* no celular, abaixo do cabeçalho fixo do app */
-  @media (max-width: 767px) {
+  /* no celular e no tablet, abaixo do cabeçalho fixo do app */
+  @media (max-width: 1023px) {
     .cal-head {
       top: 88px;
     }
@@ -2864,10 +3034,13 @@ button:disabled {
     overscroll-behavior: contain;
     padding: 20px 24px 24px;
   }
+  /* rodapé dos painéis: a mesma ordem do .modal-foot. À direita, o secundário (Cancelar ou Fechar) e depois o
+     principal; o que fica à esquerda (dica, contagem, ação de situação) usa margin-right: auto */
   .drawer-foot {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
     gap: 10px;
     padding: 14px 24px calc(14px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line-2);
@@ -3071,8 +3244,8 @@ button:disabled {
     transform: scale(0.97);
   }
 
-  /* toque: alvos de pelo menos 44px (40px nos chips e botões pequenos). Os campos com 16px
-     ficam logo depois, fora das camadas. */
+  /* toque: alvos de pelo menos 44px (40px nos chips; os botões pequenos, como "Abrir" e "Marcar como lido" dos
+     avisos, também com 44 px). Os campos com 16px ficam logo depois, fora das camadas. */
   @media (pointer: coarse) {
     .ib.sm,
     .ubtn {
@@ -3088,7 +3261,7 @@ button:disabled {
       height: 40px;
     }
     .btn-sm {
-      min-height: 40px;
+      min-height: 44px;
     }
     .kpi-chip {
       height: 36px;
@@ -3099,21 +3272,21 @@ button:disabled {
     }
   }
 
-  /* toque: o X dos diálogos e dos avisos e a ação do aviso têm alvo de 44 px sem mudar o desenho.
-     A área de toque é um ::after vazio centrado no botão; o X dos diálogos segue com 38 px. */
+  /* toque: o X ("Fechar painel", "Fechar") dos painéis laterais e dos diálogos é um botão de 44x44; a margem
+     negativa deixa o cabeçalho com a mesma altura de antes. A ação e o X dos avisos têm alvo de 44 px sem mudar
+     o desenho: um ::after vazio centrado no botão. */
   @media (any-pointer: coarse) {
     .modal-head > .ib.sm,
     .drawer-head > .ib.sm {
-      width: 38px;
-      height: 38px;
-      min-width: 38px;
-      min-height: 38px;
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      min-height: 44px;
+      margin: -3px -3px -3px 0;
     }
     .toast button {
       position: relative;
     }
-    .modal-head > .ib.sm::after,
-    .drawer-head > .ib.sm::after,
     .toast button::after {
       content: "";
       position: absolute;
@@ -3281,10 +3454,14 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-/* menu azul-marinho: anel branco (8:1 sobre o azul), também no item escolhido e no botão verde */
+/* menu lateral (branco desde o visual novo): anel azul afastado, como no resto da tela. O botão azul cheio
+   ("Evento oficial") fica com o anel escuro da regra .btn-p acima */
 .side :focus-visible {
-  outline-color: #fff;
+  outline-color: var(--brand);
   outline-offset: 2px;
+}
+.side .btn-p:focus-visible {
+  outline-color: var(--ink);
 }
 
 /* aviso de sucesso, também azul-marinho: anel branco no Desfazer e no X (o Tab chega neles pelo diálogo) */
@@ -3298,6 +3475,17 @@ button.day:focus-visible {
   outline-offset: -2px;
 }
 
+/* abas segmentadas (.seg: Próximos / Passados / Todos, Agenda / Calendário, Ativas / Arquivadas) e linhas das
+   turmas: anel por dentro. O .seg rola na horizontal (overflow-x) e o card das turmas corta o que passa da borda,
+   então o anel de fora perdia o topo e a base. Fica aqui, fora das camadas, para vencer o "button:focus-visible"
+   acima (as regras dos arquivos de tela ficam em @layer e perdem para ele) */
+.seg button:focus-visible,
+.admin-row:focus-visible,
+.admin-drow:focus-visible,
+.admin-srow:focus-visible {
+  outline-offset: -2px;
+}
+
 /* KPI clicável: o anel contorna o card inteiro (desenhado no ::after) */
 .kpi-hit:focus-visible {
   outline: none;
@@ -3307,7 +3495,8 @@ button.day:focus-visible {
   outline-offset: 2px;
 }
 
-/* busca do menu: o anel verde-claro do próprio campo já marca o foco */
+/* busca do menu: a borda azul e o halo do próprio campo (visual-novo.css) já marcam o foco; o anel
+   transparente fica para o alto contraste do Windows */
 .side-search input:focus-visible {
   outline: 2px solid transparent;
 }

@@ -27,6 +27,8 @@ export type StudentJoinCardProps = {
   order?: number;
   /** Entrou ou pediu para entrar (a página já recarrega pelo reload do card). */
   onJoined?: (result: JoinClassResult) => void;
+  /** Classe a mais na seção (ex.: "duo-fill", para esticar até a altura da coluna ao lado no Painel). */
+  className?: string;
 };
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -233,7 +235,7 @@ export function PendingEnrollmentNotice({
         <b>Pedido enviado para {academicClass.name}.</b> A docente ou a secretaria confirma.
         {when ? <span className="aluno-pending-when">{when}</span> : null}
       </p>
-      {compact ? null : <span className="pill st-alt">Aguardando</span>}
+      {compact ? null : <span className="pill stat stat-alt">Aguardando</span>}
     </div>
   );
 }
@@ -264,7 +266,13 @@ export function pendingList(
 /* Card do Painel                                                      */
 /* ------------------------------------------------------------------ */
 
-export function StudentJoinCard({ autoFocus = true, order = 0, pendingEnrollments = [], onJoined }: StudentJoinCardProps) {
+export function StudentJoinCard({
+  autoFocus = true,
+  order = 0,
+  pendingEnrollments = [],
+  onJoined,
+  className,
+}: StudentJoinCardProps) {
   const { toast } = useAppActions();
   const join = useJoinClass();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -277,7 +285,8 @@ export function StudentJoinCard({ autoFocus = true, order = 0, pendingEnrollment
 
   // o campo já vem focado (desenho 5.5); não tira o foco de um diálogo aberto nem de algo que a pessoa focou
   useEffect(() => {
-    if (!autoFocus) {
+    // no celular e no tablet (toque), o foco automático abriria o teclado sozinho ao entrar no Painel
+    if (!autoFocus || window.matchMedia("(pointer: coarse)").matches) {
       return;
     }
     const frame = window.requestAnimationFrame(() => {
@@ -311,7 +320,7 @@ export function StudentJoinCard({ autoFocus = true, order = 0, pendingEnrollment
   const pending = pendingList(pendingEnrollments, sent);
 
   return (
-    <section className="hero aluno-join rise" style={delay(order)} aria-labelledby={titleId}>
+    <section className={cx("hero aluno-join rise", className)} style={delay(order)} aria-labelledby={titleId}>
       <span className="aluno-join-ico" aria-hidden>
         <Users />
       </span>

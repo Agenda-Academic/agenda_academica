@@ -107,7 +107,7 @@ export function showsOfficialPill(event: AcademicEvent) {
 
 /** Mesmos nomes de perfil no login, no menu e nas preferências. */
 export const roleLabels: Record<UserRole, string> = {
-  student: "Aluno",
+  student: "Estudante",
   teacher: "Docente",
   admin: "Administração",
   guardian: "Responsável",

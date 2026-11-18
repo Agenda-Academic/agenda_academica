@@ -3,7 +3,6 @@
 import {
   Archive,
   ArchiveRestore,
-  ArrowRight,
   Check,
   ChevronRight,
   CircleAlert,
@@ -11,6 +10,7 @@ import {
   EyeOff,
   Info,
   KeyRound,
+  Pencil,
   Plus,
   Power,
   RefreshCw,
@@ -29,6 +29,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import {
   ApiError,
@@ -60,11 +61,13 @@ import {
   formatOnDayAt,
   isIntegratedCourse,
   normalizeCode,
+  normalizeText,
 } from "@/lib/format";
 import { modalityLabels, shiftLabels, shiftOptions, teachingRoleLabels } from "@/lib/meta";
 import type { ClassDetail, ClassInvite, ClassStudent, Course, CourseModality } from "@/lib/types";
 import { useAppActions, type AppActions } from "./app-actions";
 import type { ClassesData } from "./classes-view";
+import { Pager, usePaged, type Paged } from "./pager";
 import {
   CopyButton,
   PanelFooter,
@@ -91,8 +94,42 @@ import { EmptyState, ErrorState, Field, primaryButton, secondaryButton } from ".
 type ClassErrors = Partial<Record<keyof ClassDraft | "form", string>>;
 
 const NEW_COURSE = "__novo";
-const STUDENT_LIMIT = 8;
-const INVITE_LIMIT = 3;
+/** Alunos por página no painel da turma (rodada de UX de 2026-11-17: nada de "Ver todos" que despeja a turma). */
+const STUDENT_PAGE = 8;
+const INVITE_LIMIT = 5;
+
+/**
+ * Trocar de página numa lista do painel lateral: o rótulo da lista (ou o título Alunos) volta para a vista dentro do
+ * corpo do painel, que rola sozinho. O Pager já leva o foco para ele, mas só rola a janela quando o rótulo sai pelo
+ * alto da tela; aqui ele também volta quando ficou escondido em cima do corpo do painel ou embaixo dele.
+ */
+function useRevealOnPage<T>(paged: Paged<T>, target: RefObject<HTMLElement | null>): Paged<T> {
+  const asked = useRef(false);
+  const { page } = paged;
+  useEffect(() => {
+    if (!asked.current) return;
+    asked.current = false;
+    const element = target.current;
+    if (!element) return;
+    let box = element.parentElement;
+    while (box && !/(auto|scroll)/.test(window.getComputedStyle(box).overflowY)) {
+      box = box.parentElement;
+    }
+    const area = box?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
+    const top = element.getBoundingClientRect().top;
+    if (top < area.top || top > area.bottom - 96) {
+      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      element.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+    }
+  }, [page, target]);
+  return {
+    ...paged,
+    setPage: (value: number) => {
+      asked.current = true;
+      paged.setPage(value);
+    },
+  };
+}
 
 /** Restaurar a turma (e o Desfazer do arquivar) deixa o código desligado, por regra da API. */
 const CODE_OFF_TEXT = "O código da turma ficou desligado. Gere um novo para voltar a aceitar pedidos.";
@@ -298,7 +335,7 @@ function ClassFields({
   draft,
   errors,
   extraCourse,
-  focusName,
+  focusField,
   restoreLabel,
   onChange,
   onBlurField,
@@ -311,8 +348,11 @@ function ClassFields({
   errors: ClassErrors;
   /** Curso da turma que não está na lista (arquivado). */
   extraCourse?: Course | null;
-  /** Nova turma: o foco começa no nome (curso e período já vêm preenchidos). */
-  focusName?: boolean;
+  /**
+   * Campo que recebe o foco quando o conteúdo abre: na turma nova, o nome (curso e período já vêm preenchidos) ou
+   * o curso; em "Editar dados", o nome. Sem ele, nenhum (o foco fica no título do painel).
+   */
+  focusField?: "course" | "name";
   restoreLabel?: string | null;
   onChange: (draft: ClassDraft) => void;
   onBlurField: (field: keyof ClassDraft) => void;
@@ -349,7 +389,7 @@ function ClassFields({
         <Field label="Curso" error={errors.courseId}>
           <select
             className="input"
-            data-panel-focus={focusName || disabled ? undefined : ""}
+            data-panel-focus={focusField === "course" && !disabled ? "" : undefined}
             disabled={disabled}
             value={creatingCourse ? NEW_COURSE : draft.courseId}
             onBlur={() => onBlurField("courseId")}
@@ -384,10 +424,11 @@ function ClassFields({
           <input
             className="input"
             autoComplete="off"
-            data-panel-focus={focusName && !disabled ? "" : undefined}
+            data-panel-focus={focusField === "name" && !disabled ? "" : undefined}
+            data-class-name=""
             disabled={disabled}
             maxLength={60}
-            placeholder="Ex.: TADS 5"
+            placeholder={integrated ? "Ex.: INF 3A" : "Ex.: TADS 5"}
             value={draft.name}
             onBlur={() => onBlurField("name")}
             onChange={(event) => onChange({ ...draft, name: event.target.value })}
@@ -437,7 +478,9 @@ function ClassFields({
         {integrated ? (
           <div className="grid content-start gap-2">
             <span className="lbl">Semestre</span>
-            <p className="admin-annual">Turma anual, sem semestre</p>
+            <p className="admin-annual" title="Turma anual: o curso integrado não tem semestre">
+              Anual
+            </p>
           </div>
         ) : (
           <Field label="Semestre" error={errors.semester}>
@@ -903,7 +946,7 @@ export function NewClassPanel({ api, data, view }: PanelProps<"newClass">) {
           courses={courses}
           draft={draft}
           errors={form.errors}
-          focusName={Boolean(draft.courseId)}
+          focusField={draft.courseId ? "name" : "course"}
           restoreLabel={form.archivedId ? "Restaurar turma" : null}
           onBlurField={form.blur}
           onChange={change}
@@ -1169,14 +1212,32 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
   const future = item.futureEvents;
   const busy = working !== null;
 
+  const editing = !archived && (Boolean(view.editing) || dirty || Object.keys(form.errors).length > 0);
+
+  function openEditing() {
+    api.setView({ ...view, editing: true });
+    // o foco vai para o nome da turma (o campo que mais muda), e o formulário entra na vista
+    window.requestAnimationFrame(() => {
+      const field = formEl?.querySelector<HTMLElement>("[data-class-name]");
+      field?.focus({ preventScroll: true });
+      formEl?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  }
+
+  function closeEditing() {
+    form.setErrors({});
+    api.setView({ ...view, editing: false, draft: undefined, dirty: false });
+    window.requestAnimationFrame(() => document.getElementById(`${formId}-editar`)?.focus({ preventScroll: true }));
+  }
+
   return (
     <>
       <PanelSubtitle node={subtitle}>
-        <span className="basis-full">{item.course?.name}</span>
+        <span className="basis-full admin-sub-course">{item.course?.name}</span>
         <span className="pill st-ag">{classTermLabel(item)}</span>
         {item.period ? <span className="pill st-ag">{item.period}</span> : null}
         {item.shift ? <span className="pill st-ag">{shiftLabels[item.shift as keyof typeof shiftLabels] ?? item.shift}</span> : null}
-        {archived ? <span className="pill st-canc">Arquivada</span> : <span className="pill st-conc">Ativa</span>}
+        {archived ? <span className="pill stat stat-canc">Arquivada</span> : <span className="pill stat stat-conc">Ativa</span>}
       </PanelSubtitle>
 
       {archived ? (
@@ -1187,52 +1248,15 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
         </p>
       ) : null}
 
-      {/* 1. Dados */}
-      <form ref={setFormEl} id={formId} className="admin-sec" aria-labelledby={`${formId}-t`} noValidate onSubmit={(event) => void save(event)}>
-        <div className="admin-sec-head">
-          <h3 id={`${formId}-t`} className="admin-sec-t" data-panel-start tabIndex={-1}>
-            Dados
-          </h3>
-        </div>
-        {form.errors.form ? (
-          <p className="callout rose mb-4" role="alert">
-            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            {form.errors.form}
-          </p>
-        ) : null}
-        <ClassFields
-          courses={courses}
-          disabled={archived}
-          draft={draft}
-          errors={form.errors}
-          extraCourse={item.course}
-          restoreLabel={form.archivedId ? "Restaurar turma" : null}
-          onBlurField={form.blur}
-          onChange={change}
-          onCourseCreated={(course) => {
-            setCreatedCourses((current) => [...current, course]);
-            api.changed({ catalog: true });
-          }}
-          onRestore={() => {
-            const target = form.archivedId;
-            if (target) {
-              void run("restore-other", () => restoreTo(target));
-            }
-          }}
-        />
-      </form>
-
-      {/* 2. Disciplinas e docentes */}
-      <OffersSection api={api} archived={archived} item={item} />
-
-      {/* 3. Alunos */}
+      {/* 1. Alunos (com os pedidos de entrada no alto): é o que mais se vem fazer no painel da turma */}
       <StudentsSection
         api={api}
         archived={archived}
         invites={invites.data}
         item={item}
         loadingError={students.error ?? invites.error}
-        showAll={Boolean(view.showAll)}
+        filter={view.studentFilter ?? ""}
+        page={view.studentPage ?? 1}
         showOthers={Boolean(view.showOthers)}
         students={students.data}
         onChanged={() => refreshAll()}
@@ -1240,7 +1264,8 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
           void students.reload();
           void invites.reload();
         }}
-        onShowAll={(value) => api.setView({ ...view, showAll: value })}
+        onFilter={(value) => api.setView({ ...view, studentFilter: value, studentPage: 1 })}
+        onPage={(value) => api.setView({ ...view, studentPage: value })}
         onShowOthers={(value) => api.setView({ ...view, showOthers: value })}
         onShowCode={() => {
           setCodeShown(true);
@@ -1252,7 +1277,10 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
         }}
       />
 
-      {/* 4. Código da turma */}
+      {/* 2. Disciplinas e docentes */}
+      <OffersSection api={api} archived={archived} item={item} />
+
+      {/* 3. Código da turma */}
       <CodeSection
         archived={archived}
         headingId={`${formId}-codigo`}
@@ -1267,29 +1295,111 @@ export function ClassPanel({ api, data, subtitle, view }: PanelProps<"class">) {
         }}
       />
 
+      {/* 4. Dados: um resumo; o formulário abre em "Editar dados" (muda pouco, e não pode mudar sem querer) */}
+      <form ref={setFormEl} id={formId} className="admin-sec" aria-labelledby={`${formId}-t`} noValidate onSubmit={(event) => void save(event)}>
+        <div className="admin-sec-head">
+          <div className="min-w-0">
+            <h3 id={`${formId}-t`} className="admin-sec-t drawer-h3" tabIndex={-1}>
+              Dados da turma
+            </h3>
+            <p className="admin-sec-s">
+              {editing ? "Mude o que precisar e salve no rodapé." : "Curso, nome, período, ano e turno."}
+            </p>
+          </div>
+          {archived ? null : editing ? (
+            dirty ? null : (
+              <button className={cx(secondaryButton, "btn-sm")} onClick={closeEditing} type="button">
+                Fechar edição
+              </button>
+            )
+          ) : (
+            <button
+              id={`${formId}-editar`}
+              className={cx(secondaryButton, "btn-sm")}
+              onClick={openEditing}
+              type="button"
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Editar dados
+            </button>
+          )}
+        </div>
+        {form.errors.form ? (
+          <p className="callout rose mb-4" role="alert">
+            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            {form.errors.form}
+          </p>
+        ) : null}
+        {editing ? (
+          <ClassFields
+            courses={courses}
+            draft={draft}
+            errors={form.errors}
+            extraCourse={item.course}
+            restoreLabel={form.archivedId ? "Restaurar turma" : null}
+            onBlurField={form.blur}
+            onChange={change}
+            onCourseCreated={(course) => {
+              setCreatedCourses((current) => [...current, course]);
+              api.changed({ catalog: true });
+            }}
+            onRestore={() => {
+              const target = form.archivedId;
+              if (target) {
+                void run("restore-other", () => restoreTo(target));
+              }
+            }}
+          />
+        ) : (
+          <dl className="admin-facts">
+            <div>
+              <dt>Curso</dt>
+              <dd>{item.course?.name ?? "Sem curso"}</dd>
+            </div>
+            <div>
+              <dt>Nome da turma</dt>
+              <dd>{item.name}</dd>
+            </div>
+            <div>
+              <dt>{isIntegratedCourse(item.course) ? "Ano do curso" : "Período do curso"}</dt>
+              <dd>{item.period || "Não informado"}</dd>
+            </div>
+            <div>
+              <dt>{item.semester ? "Ano e semestre" : "Ano"}</dt>
+              <dd>{item.semester ? `${item.year}, ${item.semester}º semestre` : `${item.year}, turma anual`}</dd>
+            </div>
+            <div>
+              <dt>Turno</dt>
+              <dd>{item.shift ? (shiftLabels[item.shift as keyof typeof shiftLabels] ?? item.shift) : "Não informado"}</dd>
+            </div>
+          </dl>
+        )}
+      </form>
+
       <PanelFooter api={api}>
-        <p className="admin-foot-note">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          {archived
-            ? "Restaurar devolve a turma aos seletores. O código continua desligado até você gerar um novo."
-            : future
-              ? future === 1
-                ? "Ao arquivar, o evento futuro continua visível, sem lembretes."
-                : `Ao arquivar, os ${future} eventos futuros continuam visíveis, sem lembretes.`
-              : "Ao arquivar, a turma sai dos seletores e o código é desligado. Dá para restaurar depois."}
-        </p>
         {archived ? (
           <button
             className={cx(secondaryButton, busyLook)}
             aria-disabled={busy || undefined}
             onClick={() => void run("restore", () => restoreTo(id))}
+            title="Restaurar devolve a turma aos seletores. O código continua desligado até você gerar um novo."
             type="button"
           >
             <ArchiveRestore className="h-4 w-4" aria-hidden />
             Restaurar turma
           </button>
         ) : (
-          <button className={cx(secondaryButton, busyLook)} aria-disabled={busy || undefined} onClick={() => void archive()} type="button">
+          <button
+            className={cx(secondaryButton, busyLook)}
+            aria-disabled={busy || undefined}
+            onClick={() => void archive()}
+            title={
+              future
+                ? `Ao arquivar, ${future === 1 ? "o evento futuro continua visível" : `os ${future} eventos futuros continuam visíveis`}, sem lembretes. Dá para desfazer.`
+                : "Ao arquivar, a turma sai dos seletores e o código é desligado. Dá para desfazer."
+            }
+            type="button"
+          >
             <Archive className="h-4 w-4" aria-hidden />
             Arquivar turma
           </button>
@@ -1343,7 +1453,7 @@ function OffersSection({ api, archived, item }: { api: PanelApi; archived: boole
     <section className="admin-sec" aria-labelledby={headingId}>
       <div className="admin-sec-head">
         <div className="min-w-0">
-          <h3 id={headingId} className="admin-sec-t">
+          <h3 id={headingId} className="admin-sec-t drawer-h3">
             Disciplinas e docentes
           </h3>
           <p className="admin-sec-s">
@@ -1396,7 +1506,7 @@ function OffersSection({ api, archived, item }: { api: PanelApi; archived: boole
                 </div>
                 {offer.withoutTeacher ? (
                   <div className="admin-docs warn">
-                    <span className="pill admin-pill-warn">
+                    <span className="pill stat stat-alt">
                       <CircleAlert className="h-3 w-3" aria-hidden />
                       Sem docente
                     </span>
@@ -1467,30 +1577,36 @@ function sourceLine(student: ClassStudent) {
 function StudentsSection({
   api,
   archived,
+  filter,
   invites,
   item,
   loadingError,
-  showAll,
+  page,
   showOthers,
   students,
   onChanged,
+  onFilter,
+  onPage,
   onRetry,
-  onShowAll,
   onShowOthers,
   onShowCode,
 }: {
   api: PanelApi;
   archived: boolean;
+  /** Filtro da lista de alunos (aparece com mais de STUDENT_PAGE alunos). */
+  filter: string;
   invites: ClassInvite[] | null;
   item: ClassDetail;
   loadingError: unknown;
-  showAll: boolean;
+  /** Página dos alunos ativos. */
+  page: number;
   /** Mostra quem não está na turma (recusados, removidos e concluídos). */
   showOthers: boolean;
   students: ClassStudent[] | null;
   onChanged: () => void;
+  onFilter: (value: string) => void;
+  onPage: (value: number) => void;
   onRetry: () => void;
-  onShowAll: (value: boolean) => void;
   onShowOthers: (value: boolean) => void;
   onShowCode: () => void;
 }) {
@@ -1509,16 +1625,47 @@ function StudentsSection({
   const pending = list.filter((student) => student.status === "pending");
   const active = list.filter((student) => student.status === "active");
   const others = list.filter((student) => student.status === "inactive" || student.status === "completed");
-  const combined = [...pending, ...active];
-  const shown = showAll ? combined : combined.slice(0, STUDENT_LIMIT);
-  const shownPending = shown.filter((student) => student.status === "pending");
-  const shownActive = shown.filter((student) => student.status === "active");
   const inviteList = invites ?? [];
-  const shownInvites = showAll ? inviteList : inviteList.slice(0, INVITE_LIMIT);
-  // "Ver todos (N)": N é o que a lista mostra aberta (pedidos, ativos e convites). Quem foi recusado, removido ou
-  // concluiu fica à parte, em "Ver quem não está na turma"
-  const listTotal = combined.length + inviteList.length;
-  const hiddenCount = listTotal - shown.length - shownInvites.length;
+  // Nada de "Ver todos (N)" que despeja a turma inteira: os alunos ativos vêm em páginas de 8, com um filtro por
+  // nome, e-mail ou matrícula quando a turma passa de uma página. Pedidos, convites e quem saiu também paginam
+  const filterWords = normalizeText(filter).split(/\s+/).filter(Boolean);
+  const matches = (student: ClassStudent) =>
+    !filterWords.length ||
+    filterWords.every((word) =>
+      normalizeText(`${student.fullName ?? ""} ${student.email} ${student.registration ?? ""}`).includes(word)
+    );
+  const filteredActive = active.filter(matches);
+  const activePaged = usePaged(filteredActive, STUDENT_PAGE, filter, page);
+  const pendingPaged = usePaged(pending, pending.length <= STUDENT_PAGE + 2 ? Math.max(pending.length, 1) : STUDENT_PAGE);
+  const invitePaged = usePaged(inviteList, inviteList.length <= INVITE_LIMIT + 1 ? Math.max(inviteList.length, 1) : INVITE_LIMIT);
+  const othersPaged = usePaged(others, STUDENT_PAGE);
+  const shownPending = pendingPaged.items;
+  const shownActive = activePaged.items;
+  const shownInvites = invitePaged.items;
+  // rótulo de grupo ("Pedidos de entrada 2") só quando a lista tem mais de um grupo; com um só, o subtítulo basta
+  const groups = [pending.length, active.length, inviteList.length, showOthers ? others.length : 0].filter(Boolean).length;
+  const labeled = groups > 1;
+  const activeListRef = useRef<HTMLParagraphElement>(null);
+  const pendingLabelRef = useRef<HTMLParagraphElement>(null);
+  const inviteLabelRef = useRef<HTMLParagraphElement>(null);
+  const othersLabelRef = useRef<HTMLParagraphElement>(null);
+  // trocar de página leva o foco para o rótulo da lista (sem rótulo, a lista é a única: o título Alunos) e traz a
+  // página nova para a vista dentro do painel
+  const activeTarget = labeled ? activeListRef : headingRef;
+  const pendingTarget = labeled ? pendingLabelRef : headingRef;
+  const inviteTarget = labeled ? inviteLabelRef : headingRef;
+  const othersTarget = labeled ? othersLabelRef : headingRef;
+  const activeRevealed = useRevealOnPage(activePaged, activeTarget);
+  const activePager = {
+    ...activeRevealed,
+    setPage: (value: number) => {
+      activeRevealed.setPage(value);
+      onPage(value);
+    },
+  };
+  const pendingPager = useRevealOnPage(pendingPaged, pendingTarget);
+  const invitePager = useRevealOnPage(invitePaged, inviteTarget);
+  const othersPager = useRevealOnPage(othersPaged, othersTarget);
   const selectedPending = selected.filter((id) => pending.some((student) => student.enrollmentId === id));
   const allSelected = shownPending.length > 0 && shownPending.every((student) => selected.includes(student.enrollmentId));
 
@@ -1720,7 +1867,7 @@ function StudentsSection({
   }
 
   const summary = [
-    plural(active.length, "ativo", "ativos"),
+    active.length || (!pending.length && !inviteList.length) ? plural(active.length, "ativo", "ativos") : null,
     pending.length ? plural(pending.length, "pedido de entrada", "pedidos de entrada") : null,
     inviteList.length ? plural(inviteList.length, "convite", "convites") : null,
   ]
@@ -1734,8 +1881,8 @@ function StudentsSection({
     <section ref={sectionRef} className="admin-sec" aria-labelledby={headingId} aria-busy={students === null || undefined}>
       <div className="admin-sec-head">
         <div className="min-w-0">
-          {/* recebe o foco quando o último pedido de entrada é decidido */}
-          <h3 ref={headingRef} id={headingId} className="admin-sec-t" tabIndex={-1}>
+          {/* recebe o foco ao abrir a turma e quando o último pedido de entrada é decidido */}
+          <h3 ref={headingRef} id={headingId} className="admin-sec-t drawer-h3" data-panel-start tabIndex={-1}>
             Alunos
           </h3>
           <p className="admin-sec-s">{students === null ? "Carregando alunos" : summary}</p>
@@ -1761,7 +1908,7 @@ function StudentsSection({
         )
       ) : (
         <>
-          {!combined.length && !inviteList.length ? (
+          {!pending.length && !active.length && !inviteList.length ? (
             <div className="empty-inline compact">
               <span className="empty-ico">
                 <Users className="h-5 w-5" aria-hidden />
@@ -1793,7 +1940,11 @@ function StudentsSection({
 
           {shownPending.length ? (
             <>
-              <p className="admin-group">Pedidos de entrada ({pending.length})</p>
+              {labeled ? (
+                <p ref={pendingLabelRef} className="admin-group">
+                  Pedidos de entrada <span className="admin-n">{pending.length}</span>
+                </p>
+              ) : null}
               <div className="admin-pend-box">
                 {!archived ? (
                   <div className="admin-bulk">
@@ -1879,22 +2030,59 @@ function StudentsSection({
             </>
           ) : null}
 
-          {shownActive.length ? (
+          {shownPending.length && pendingPaged.pageCount > 1 ? (
+            <Pager paged={pendingPager} noun={["pedido", "pedidos"]} focusRef={pendingTarget} />
+          ) : null}
+
+          {active.length ? (
             <>
-              <p className="admin-group">Alunos ativos ({active.length})</p>
-              <ul className="admin-people">
-                {shownActive.map((student) => (
-                  <li key={student.enrollmentId}>
-                    <StudentRow api={api} classId={item.id} student={student} />
-                  </li>
-                ))}
-              </ul>
+              {labeled ? (
+                <p ref={activeListRef} className="admin-group">
+                  Alunos ativos <span className="admin-n">{active.length}</span>
+                </p>
+              ) : null}
+              {active.length > STUDENT_PAGE ? (
+                <div className="admin-stu-filter">
+                  <Field label="Filtrar alunos">
+                    <input
+                      className="input"
+                      autoComplete="off"
+                      placeholder="Nome, e-mail ou matrícula"
+                      type="search"
+                      value={filter}
+                      onChange={(event) => onFilter(event.target.value)}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+              {shownActive.length ? (
+                <ul className="admin-people">
+                  {shownActive.map((student) => (
+                    <li key={student.enrollmentId}>
+                      <StudentRow api={api} classId={item.id} student={student} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState
+                  compact
+                  icon={Users}
+                  text={`Nenhum aluno com "${filter.trim()}"`}
+                  hint="Confira o nome, o e-mail ou a matrícula."
+                  action={{ label: "Limpar filtro", onClick: () => onFilter("") }}
+                />
+              )}
+              <Pager paged={activePager} noun={["aluno", "alunos"]} focusRef={activeTarget} />
             </>
           ) : null}
 
           {shownInvites.length ? (
             <>
-              <p className="admin-group">Convites pendentes ({inviteList.length})</p>
+              {labeled ? (
+                <p ref={inviteLabelRef} className="admin-group">
+                  Convites pendentes <span className="admin-n">{inviteList.length}</span>
+                </p>
+              ) : null}
               <ul className="admin-people">
                 {shownInvites.map((invite) => (
                   <li key={invite.id} className="admin-irow">
@@ -1923,11 +2111,17 @@ function StudentsSection({
             </>
           ) : null}
 
+          {shownInvites.length && invitePaged.pageCount > 1 ? <Pager paged={invitePager} noun={["convite", "convites"]} focusRef={inviteTarget} /> : null}
+
           {showOthers && others.length ? (
             <>
-              <p className="admin-group">Fora da turma ({others.length})</p>
+              {labeled ? (
+                <p ref={othersLabelRef} className="admin-group">
+                  Fora da turma <span className="admin-n">{others.length}</span>
+                </p>
+              ) : null}
               <ul className="admin-people">
-                {others.map((student) => (
+                {othersPaged.items.map((student) => (
                   <li key={student.enrollmentId}>
                     <StudentRow api={api} classId={item.id} student={student} />
                   </li>
@@ -1936,26 +2130,18 @@ function StudentsSection({
             </>
           ) : null}
 
-          {hiddenCount > 0 || showAll || others.length ? (
+          {showOthers && othersPaged.pageCount > 1 ? <Pager paged={othersPager} noun={["aluno", "alunos"]} focusRef={othersTarget} /> : null}
+
+          {others.length ? (
             <div className="admin-list-foot">
-              {hiddenCount > 0 || showAll ? (
-                <button className="link" aria-expanded={showAll} onClick={() => onShowAll(!showAll)} type="button">
-                  {showAll ? "Mostrar menos" : `Ver todos (${listTotal})`}
-                  <ArrowRight className={cx("h-[15px] w-[15px]", showAll && "-rotate-90")} aria-hidden />
-                </button>
-              ) : (
-                <span />
-              )}
-              {others.length ? (
-                <button
-                  className="link admin-link-muted"
-                  aria-expanded={showOthers}
-                  onClick={() => onShowOthers(!showOthers)}
-                  type="button"
-                >
-                  {showOthers ? "Esconder quem não está na turma" : `Ver quem não está na turma (${others.length})`}
-                </button>
-              ) : null}
+              <button
+                className="link admin-link-muted"
+                aria-expanded={showOthers}
+                onClick={() => onShowOthers(!showOthers)}
+                type="button"
+              >
+                {showOthers ? "Esconder quem não está na turma" : `Ver quem não está na turma (${others.length})`}
+              </button>
             </div>
           ) : null}
         </>
@@ -2100,12 +2286,12 @@ function CodeSection({
     <section className="admin-sec" aria-labelledby={headingId}>
       <div className="admin-sec-head">
         <div className="min-w-0">
-          <h3 id={headingId} className="admin-sec-t" tabIndex={-1}>
+          <h3 id={headingId} className="admin-sec-t drawer-h3" tabIndex={-1}>
             Código da turma
           </h3>
           <p className="admin-sec-s">Quem tem o código pede para entrar, e o pedido aparece em Alunos.</p>
         </div>
-        <span className={cx("pill", on ? "st-conc" : "st-ag")}>{on ? "Ligado" : "Desligado"}</span>
+        <span className={cx("pill stat", on && "stat-conc")}>{on ? "Ligado" : "Desligado"}</span>
       </div>
       <div className="admin-codebox">
         <span className="mini-ico">

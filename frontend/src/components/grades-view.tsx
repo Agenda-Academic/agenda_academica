@@ -5,7 +5,6 @@ import {
   Bell,
   BookOpen,
   CalendarDays,
-  ChevronUp,
   CircleCheck,
   ClipboardCheck,
   Clock,
@@ -14,12 +13,15 @@ import {
   FileSpreadsheet,
   Info,
   Lock,
+  MessageSquare,
   PenLine,
+  Search,
+  Settings2,
   ShieldCheck,
-  SlidersHorizontal,
   Users,
+  X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getMyGuardians } from "@/lib/api";
 import {
   classLabel,
@@ -32,6 +34,7 @@ import {
   formatTime,
   gradeSourceText,
   isAllDay,
+  monthGroupLabel,
   normalizeText,
   relationshipText,
 } from "@/lib/format";
@@ -40,9 +43,9 @@ import type { AcademicContext, AcademicEvent, LinkedStudent, MyGuardians, Studen
 import { useAppActions } from "./app-actions";
 import { delay, showAllText } from "./dashboard-bits";
 import { GradesTeacher } from "./grades-teacher";
-import { GuardianDataDialog } from "./guardian-data-dialog";
+import { GuardianDataDialog, guardianSeesLabels } from "./guardian-data-dialog";
 import { GradeValue, awaitingGrades, isAwaitingGrade, scoreParts, useApiLoad, useStudentGrades } from "./latest-grades-card";
-import { EmptyState, ErrorState, RetryButton, SectionTitle, primaryButton, secondaryButton } from "./ui";
+import { Drawer, EmptyState, ErrorState, RetryButton, SectionTitle, primaryButton, secondaryButton } from "./ui";
 
 /**
  * Tela Notas (?tela=notas). Decide pelo papel:
@@ -50,7 +53,7 @@ import { EmptyState, ErrorState, RetryButton, SectionTitle, primaryButton, secon
  * - responsável: as do aluno escolhido (GET /students/:id/grades); "Diogo não compartilha as notas" quando
  *   shareGrades vem false (sem nenhum número);
  * - docente e administração: GradesTeacher (área Notas docente).
- * Por disciplina, "7,5 de 10" (gradeDisplay), a data e "Fonte: SUAP, importada em 04/11/2026" (gradeSourceText);
+ * Por disciplina, "7,5 de 10" (gradeDisplay), a data e "Fonte: SUAP, importada em 04/11" (gradeSourceText; o ano só fora do ano corrente);
  * "Aguardando publicação" quando published é false; sem média e sem ranking (desenho 5.8, amostras notas-*).
  * Dona: área Notas (leitura).
  */
@@ -101,7 +104,10 @@ export function GradesView(props: GradesViewProps) {
 /* Aluno e responsável                                                 */
 /* ------------------------------------------------------------------ */
 
-/** Avaliações por disciplina mostradas antes do "Ver todas (N)". */
+/**
+ * Avaliações por disciplina mostradas no card. "Ver todas (N)" abre o painel lateral com a lista inteira da
+ * disciplina, agrupada por mês: o card não cresce e a página não vira uma rolagem sem fim (rodada de UX de 2026-11-17).
+ */
 const GROUP_LIMIT = 3;
 
 type GroupView = {
@@ -115,8 +121,10 @@ type GroupView = {
    * ficam de fora (amostra notas-aluno): a próxima aparece só no indicador "Próxima avaliação".
    */
   items: StudentEvaluation[];
-  /** Próxima avaliação do grupo (o "Ver no Cronograma" do grupo em que nada aconteceu ainda). */
+  /** Próxima avaliação do grupo (o "Ver no cronograma" do grupo em que nada aconteceu ainda). */
   next: StudentEvaluation | null;
+  /** As que ainda não aconteceram, da mais próxima para a mais distante (entram só na busca, como "Agendada"). */
+  upcoming: StudentEvaluation[];
   published: number;
   awaiting: number;
   /** Turma com matrícula ativa (vem antes das turmas que o aluno já deixou). */
@@ -129,7 +137,7 @@ function whenText(value: string) {
   return isAllDay(value) ? formatShortDate(value) : formatShortDateTime(value);
 }
 
-/** "Fonte: SUAP, importada em 04/11/2026", "Fonte: modelo da Agenda, importada em 04/11/2026" ou "Fonte: lançada na Agenda em 06/11/2026". */
+/** "Fonte: SUAP, importada em 04/11", "Fonte: planilha importada em 04/11" ou "Fonte: lançada na Agenda em 06/11/2025" (ano só fora do corrente). */
 function sourceLine(grade: NonNullable<StudentEvaluation["grade"]>) {
   return gradeSourceText(grade.source, grade.updatedAt);
 }
@@ -138,7 +146,12 @@ function pointsText(max: string) {
   return max === "1" ? "vale 1 ponto" : `vale ${max} pontos`;
 }
 
-function ReaderGrades({ role, context, student, focusEventId, search, onOpenEvent, onSearchCount }: GradesViewProps) {
+/** "Novembro" no ano corrente; "Dezembro de 2025" em outro ano. */
+function monthHeading(value: string, currentYear: number) {
+  return monthGroupLabel(value, new Date(currentYear, 0, 1));
+}
+
+function ReaderGrades({ role, context, student, focusEventId, search, onOpenEvent, onSearchCount, onClearSearch }: GradesViewProps) {
   const { navigate, linkedStudents, events, openProfile } = useAppActions();
   const isGuardian = role === "guardian";
   const grades = useStudentGrades(isGuardian ? (student?.id ?? null) : null);
@@ -146,8 +159,10 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
   // referência de "agora" fixada na montagem (render precisa ser puro)
   const [now] = useState(() => Date.now());
   const [dataOpen, setDataOpen] = useState(false);
-  // grupo aberto ("Ver todas") ou fechado pela pessoa; sem escolha, abre o grupo da avaliação destacada
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // disciplina aberta no painel lateral ("Ver todas")
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  // responsável: quantas próximas avaliações cabem embaixo de "O que você vê" (NotasColumns mede)
+  const [guardianUp, setGuardianUp] = useState(UPCOMING_SHOWN);
   const focusDone = useRef<number | null>(null);
 
   const data = grades.data;
@@ -204,6 +219,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         teacher: teachers[0] ?? null,
         items,
         next: upcoming[0] ?? null,
+        upcoming: upcoming.filter((item) => item.eventId !== focusEventId),
         published: items.filter((item) => item.published).length,
         awaiting: items.filter((item) => isAwaitingGrade(item, now)).length,
         current: activeClassIds.has(group.academicClass.id),
@@ -214,13 +230,14 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
     return views.sort((a, b) => Number(b.current) - Number(a.current));
   }, [activeClassIds, data, focusEventId, now, teacherByEvent]);
 
-  // busca do menu: título, disciplina, código, docente ou tipo ("prova", "trabalho")
+  // busca do menu: título, disciplina, código, docente ou tipo ("prova", "trabalho"); acha também as que ainda
+  // não aconteceram (com a etiqueta "Agendada"), como a "Prova de Matemática" do indicador Próxima avaliação
   const words = normalizeText(search).split(/\s+/).filter(Boolean);
   const visibleGroups = words.length
     ? groups
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) => {
+          items: [...group.upcoming, ...group.items].filter((item) => {
             const haystack = normalizeText(
               [item.title, group.title, group.sub, categoryMeta[item.category]?.short, teacherByEvent.get(item.eventId)].join(" ")
             );
@@ -238,6 +255,18 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
   }, [onSearchCount, searchCount]);
 
   const all = groups.flatMap((group) => group.items);
+
+  /** "Limpar busca": apaga a busca do menu e leva o foco para a primeira disciplina (o botão some com o vazio). */
+  function clearSearch() {
+    onClearSearch?.();
+    window.requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLElement>(".notas-disc .h2");
+      if (target) {
+        target.setAttribute("tabindex", "-1");
+        target.focus({ preventScroll: true });
+      }
+    });
+  }
   const focusKnown = focusEventId !== null && Boolean(data?.subjects.some((group) => group.evaluations.some((item) => item.eventId === focusEventId)));
 
   // aviso "Nota publicada": leva até a avaliação e põe o foco nela (uma vez por pedido)
@@ -298,7 +327,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
     isGuardian && student ? (
       <GuardianSeesCard name={name} shares={data.shareGrades} student={student} onOpenData={() => setDataOpen(true)} />
     ) : null;
-  const dialog = isGuardian ? <GuardianDataDialog open={dataOpen} onClose={() => setDataOpen(false)} /> : null;
+  const dialog = isGuardian ? <GuardianDataDialog forGuardian open={dataOpen} onClose={() => setDataOpen(false)} /> : null;
 
   /* ---------- responsável de aluno adulto que não compartilha: nenhum número ---------- */
   if (isGuardian && !data.shareGrades) {
@@ -339,11 +368,16 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
     );
   }
 
-  const sideCards = (
-    <div className="notas-pair">
-      {isGuardian ? guardianCard : <WhoSeesCard state={myGuardians} onOpenProfile={openProfile} />}
-    </div>
-  );
+  // provas e trabalhos que ainda vão acontecer, das turmas atuais primeiro, da mais próxima para a mais distante
+  const upcomingAll = groups
+    .flatMap((group) => group.upcoming.map((item) => ({ item, group })))
+    .sort((a, b) => new Date(a.item.startsAt).getTime() - new Date(b.item.startsAt).getTime());
+
+  // card de apoio: na coluna da direita a partir de 1200 px (parado no alto enquanto a lista rola); antes disso, embaixo
+  // "Alterar no perfil" abre o perfil na aba dos vínculos (Responsáveis), onde fica "Compartilhar minhas notas",
+  // como o "Abrir" do aviso de vínculo
+  const openProfileLinks = () => openProfile("links");
+  const sideCard = isGuardian ? guardianCard : <WhoSeesCard state={myGuardians} onOpenProfile={openProfileLinks} />;
 
   /* ---------- sem nenhuma prova ou trabalho ---------- */
   if (!groups.length) {
@@ -367,15 +401,16 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         action: { label: "Ver cronograma", onClick: () => navigate("calendar") },
       };
     }
+    // os dois cards lado a lado terminam na mesma linha (o vazio no meio do card principal)
     return (
-      <div className="grid gap-5">
-        <section className="card pad rise" style={delay(0)} aria-labelledby="notas-titulo">
+      <div className="notas-pair notas-wide notas-empty-pair">
+        <section className="card pad rise notas-empty-card" style={delay(0)} aria-labelledby="notas-titulo">
           <SectionTitle id="notas-titulo" title={isGuardian ? `Notas de ${name}` : "Suas notas"} />
-          <div className="mt-5">
+          <div className="notas-empty-body">
             <EmptyState icon={ClipboardCheck} text={empty.text} hint={empty.hint} action={empty.action} />
           </div>
         </section>
-        {sideCards}
+        {sideCard}
         {dialog}
       </div>
     );
@@ -400,13 +435,17 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
       .filter((item): item is StudentEvaluation => item !== null)
       .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0] ?? null;
 
-  let waitingHint = "Nenhuma avaliação esperando nota";
+  let waitingHint = "nenhuma avaliação esperando nota";
   if (waiting.length === 1) {
     waitingHint = waiting[0].title;
   } else if (waiting.length > 1) {
-    waitingHint = `A mais recente: ${waiting[0].title}`;
+    waitingHint = `a mais recente: ${waiting[0].title}`;
   }
-  let nextHint = "Nenhuma prova ou trabalho marcado";
+  // "Próximas avaliações" começa depois da que já está no indicador "Próxima avaliação" (decisão 13: a mesma prova
+  // não aparece duas vezes seguidas); sem nenhuma depois dela, o card sai
+  const upcomingRest = nextEval ? upcomingAll.filter(({ item }) => item.eventId !== nextEval.eventId) : upcomingAll;
+  const restLead = nextEval && upcomingRest.length ? `Depois da próxima, mais ${upcomingRest.length}.` : null;
+  let nextHint = "nenhuma prova ou trabalho marcado";
   if (nextEval) {
     const max = scoreParts(nextEval).max;
     nextHint = [nextEval.title, isAllDay(nextEval.startsAt) ? null : formatTime(nextEval.startsAt), max ? pointsText(max) : null]
@@ -428,7 +467,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
           <p className="kpi-hint">
             {publishedTotal
               ? `em ${countText(groupsWithGrades.length, "disciplina", "disciplinas")}${scope}`
-              : "A docente publica depois de corrigir"}
+              : "a docente publica depois de corrigir"}
           </p>
         </div>
         <div className="card kpi rise" style={delay(1)}>
@@ -448,7 +487,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
               <button
                 className="kpi-hit kpi-label inline-flex min-h-6 items-center"
                 onClick={() => onOpenEvent(nextEval.eventId)}
-                aria-label={`Próxima avaliação: ${nextEval.title}, ${whenText(nextEval.startsAt)}. Ver no Cronograma`}
+                aria-label={`Próxima avaliação: ${nextEval.title}, ${whenText(nextEval.startsAt)}. Ver no cronograma`}
                 type="button"
               >
                 Próxima avaliação
@@ -462,6 +501,13 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
           </div>
           <p className={cx("kpi-val", !nextEval && "notas-kpi-none")}>{nextEval ? formatShortDate(nextEval.startsAt) : "Nenhuma"}</p>
           <p className="kpi-hint wrap-anywhere">{nextHint}</p>
+          {nextEval ? (
+            // o card inteiro é o botão (kpi-hit); o texto só mostra para onde ele leva
+            <p className="notas-kpi-go" aria-hidden>
+              Ver no cronograma
+              <ArrowRight className="h-4 w-4" />
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -472,100 +518,343 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         </p>
       ) : null}
 
-      {words.length && matchCount ? (
-        <p className="notas-search" role="status">
-          Busca do menu: {countText(matchCount, "avaliação encontrada", "avaliações encontradas")}. Apague a busca para ver
-          todas.
-        </p>
-      ) : null}
-
-      {words.length && !matchCount ? (
-        <section className="card pad" aria-label="Busca nas notas" role="status">
-          <EmptyState
-            icon={ClipboardCheck}
-            text={`Nenhuma prova ou trabalho com “${search.trim()}”`}
-            hint="Confira o texto da busca no menu, ou apague a busca para ver todas as notas."
-            action={{ label: "Buscar no Cronograma", onClick: () => navigate("calendar") }}
-          />
-        </section>
-      ) : null}
-
-      {visibleGroups.map((group, index) => {
-        const hiddenFocus = group.items.slice(GROUP_LIMIT).some((item) => item.eventId === focusEventId);
-        const open = expanded[group.key] ?? hiddenFocus;
-        const shown = open ? group.items : group.items.slice(0, GROUP_LIMIT);
-        const listId = `notas-lista-${group.key}`;
-        // o mesmo critério em todos os grupos: publicadas e aguardando, nunca as futuras
-        const countParts = [
-          group.published ? countText(group.published, "publicada", "publicadas") : null,
-          group.awaiting ? `${group.awaiting} aguardando` : null,
-        ].filter(Boolean);
-        if (!countParts.length) {
-          countParts.push("Nenhuma nota ainda");
+      <NotasColumns
+        // busca nova ou limpa: o número de próximas recomeça do máximo e desce até as colunas fecharem juntas
+        fitKey={words.join(" ")}
+        // limite e máximo presos ao tamanho da lista: cada passo muda um item na tela e dispara nova medida
+        fit={
+          isGuardian
+            ? {
+                limit: Math.min(guardianUp, upcomingRest.length),
+                max: Math.min(UPCOMING_SHOWN, upcomingRest.length),
+                onLimit: setGuardianUp,
+              }
+            : undefined
         }
-        return (
-          <section key={group.key} className="card notas-disc rise" style={delay(3 + index)} aria-labelledby={`notas-d-${group.key}`}>
-            <div className="notas-disc-head">
-              <span className="notas-disc-ico" aria-hidden>
-                <BookOpen className="h-[18px] w-[18px]" />
-              </span>
-              <div className="min-w-0">
-                <h2 className="h2 wrap-anywhere" id={`notas-d-${group.key}`}>
-                  {group.title}
-                </h2>
-                {group.sub ? <p className="sub">{group.sub}</p> : null}
-              </div>
-              <p className="notas-disc-count">{countParts.join(", ")}</p>
-            </div>
-
-            {shown.length ? (
-              <ul id={listId}>
-                {shown.map((item) => (
-                  <GradeRow
-                    key={item.eventId}
-                    evaluation={item}
-                    focused={item.eventId === focusEventId}
-                    guardianName={isGuardian ? name : null}
-                    now={now}
-                  />
-                ))}
-              </ul>
-            ) : (
-              <div className="notas-soon">
-                <p>Nenhuma prova ou trabalho desta disciplina aconteceu ainda. A nota aparece aqui depois da avaliação.</p>
-                <button
-                  className="link min-h-6"
-                  aria-label={`Ver no Cronograma: ${group.next ? group.next.title : group.title}`}
-                  onClick={() => (group.next ? onOpenEvent(group.next.eventId) : navigate("calendar"))}
-                  type="button"
-                >
-                  Ver no Cronograma
-                  <ArrowRight className="h-4 w-4" aria-hidden />
-                </button>
-              </div>
+        side={
+          <>
+            {sideCard}
+            {isGuardian ? (
+              // responsável: as próximas que cabem para a lateral terminar junto com as disciplinas (decisão 5).
+              // Sem o pé (repetiria o "Ver no cronograma" do indicador Próxima avaliação); quando não cabem todas,
+              // o subtítulo diz quantas são e leva ao cronograma
+              guardianUp > 0 && upcomingRest.length ? (
+                <UpcomingCard
+                  inlineMore
+                  lead={restLead}
+                  list={upcomingRest}
+                  limit={guardianUp}
+                  onOpenEvent={onOpenEvent}
+                  onOpenCalendar={() => navigate("calendar")}
+                />
+              ) : null
+            ) : nextEval && !upcomingRest.length ? null : (
+              <UpcomingCard
+                lead={restLead}
+                list={upcomingRest}
+                onOpenEvent={onOpenEvent}
+                onOpenCalendar={() => navigate("calendar")}
+              />
             )}
-
-            {group.items.length > GROUP_LIMIT ? (
-              <div className="notas-more">
-                <button
-                  className="link min-h-6"
-                  aria-controls={listId}
-                  aria-expanded={open}
-                  onClick={() => setExpanded((previous) => ({ ...previous, [group.key]: !open }))}
-                  type="button"
-                >
-                  {open ? "Mostrar menos" : showAllText("Ver todas", group.items.length)}
-                  {open ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ArrowRight className="h-4 w-4" aria-hidden />}
+          </>
+        }
+      >
+          {words.length && matchCount ? (
+            // a busca do menu filtra as disciplinas: a tela diz isso, quantas achou e como voltar (decisão 14)
+            <div className="notas-busca" role="status">
+              <Search className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="wrap-anywhere">
+                Busca: <b>{search.trim()}</b>,{" "}
+                {`${countText(matchCount, "avaliação", "avaliações")} em ${countText(visibleGroups.length, "disciplina", "disciplinas")}`}
+              </span>
+              {onClearSearch ? (
+                <button className="btn btn-g btn-sm shrink-0" onClick={clearSearch} type="button">
+                  <X className="h-4 w-4" aria-hidden />
+                  Limpar busca
                 </button>
-              </div>
-            ) : null}
-          </section>
-        );
-      })}
+              ) : null}
+            </div>
+          ) : null}
 
-      {sideCards}
+          {words.length && !matchCount ? (
+            <section className="card pad" aria-label="Busca nas notas" role="status">
+              <EmptyState
+                icon={ClipboardCheck}
+                text={`Nenhuma prova ou trabalho com “${search.trim()}”`}
+                hint="Confira o texto da busca ou limpe a busca para ver todas as notas."
+                action={onClearSearch ? { label: "Limpar busca", onClick: clearSearch } : undefined}
+              />
+            </section>
+          ) : null}
+
+          {visibleGroups.map((group, index) => {
+            // com ou sem busca, o card mostra no máximo três; o resto do que a busca achou abre no painel lateral
+            const limit = GROUP_LIMIT;
+            let shown = group.items.slice(0, limit);
+            // a avaliação de um aviso fica à vista no card mesmo quando é mais antiga que as três primeiras
+            const focusItem = group.items.slice(limit).find((item) => item.eventId === focusEventId);
+            if (focusItem) {
+              shown = [...shown, focusItem];
+            }
+            const listId = `notas-lista-${group.key}`;
+            return (
+              <section key={group.key} className="card notas-disc rise" style={delay(3 + index)} aria-labelledby={`notas-d-${group.key}`}>
+                <div className="notas-disc-head">
+                  <span className="notas-disc-ico" aria-hidden>
+                    <BookOpen className="h-[18px] w-[18px]" />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="h2 wrap-anywhere" id={`notas-d-${group.key}`}>
+                      {group.title}
+                    </h2>
+                    {group.sub ? <p className="sub">{group.sub}</p> : null}
+                  </div>
+                  <GroupCounts group={group} />
+                </div>
+
+                {shown.length ? (
+                  <ul id={listId}>
+                    {shown.map((item) => (
+                      <GradeRow
+                        key={item.eventId}
+                        evaluation={item}
+                        focused={item.eventId === focusEventId}
+                        guardianName={isGuardian ? name : null}
+                        now={now}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="notas-soon">
+                    <p>Nenhuma prova ou trabalho desta disciplina aconteceu ainda. A nota aparece aqui depois da avaliação.</p>
+                    <button
+                      className="link min-h-6"
+                      aria-label={`Ver no cronograma: ${group.next ? group.next.title : group.title}`}
+                      onClick={() => (group.next ? onOpenEvent(group.next.eventId) : navigate("calendar"))}
+                      type="button"
+                    >
+                      Ver no cronograma
+                      <ArrowRight className="h-4 w-4" aria-hidden />
+                    </button>
+                  </div>
+                )}
+
+                {group.items.length > shown.length ? (
+                  <div className="notas-more">
+                    <button
+                      className={cx(secondaryButton, "btn-sm")}
+                      aria-haspopup="dialog"
+                      aria-label={
+                        words.length
+                          ? `Ver as ${group.items.length} avaliações de ${group.title} com “${search.trim()}”`
+                          : `Ver todas as ${group.items.length} avaliações de ${group.title}`
+                      }
+                      onClick={() => setOpenGroup(group.key)}
+                      type="button"
+                    >
+                      {showAllText("Ver todas", group.items.length)}
+                      <ArrowRight className="h-4 w-4" aria-hidden />
+                    </button>
+                  </div>
+                ) : null}
+              </section>
+            );
+          })}
+      </NotasColumns>
       {dialog}
+      <GroupDrawer
+        group={visibleGroups.find((group) => group.key === openGroup) ?? null}
+        searchText={words.length ? search.trim() : ""}
+        focusEventId={focusEventId}
+        guardianName={isGuardian ? name : null}
+        now={now}
+        onClose={() => setOpenGroup(null)}
+      />
     </div>
+  );
+}
+
+/** "2 publicadas" (verde) e "1 aguardando" (amarelo) no canto do card da disciplina. */
+/**
+ * Disciplinas e o card de apoio lado a lado (a partir de 1200 px). O card de apoio fica parado no alto enquanto a
+ * lista rola e termina no próprio conteúdo (decisão 5: nada de card esticado); as colunas fecham juntas ajustando o
+ * número de itens (fit), nunca um vão dentro do card.
+ */
+const FILL_GAP = 80;
+
+/**
+ * fit: a lateral tem um card que pode mostrar menos itens (as próximas avaliações do responsável). Lado a lado, ele
+ * tira um por vez enquanto a lateral passar mais de FILL_GAP do fim da lista; a lista mudou de altura (busca, largura),
+ * recomeça do máximo. Assim o número depende só da lista de agora. Um embaixo do outro, mostra o máximo.
+ */
+type SideFit = { limit: number; max: number; onLimit: (limit: number) => void };
+
+function NotasColumns({
+  children,
+  side,
+  fit,
+  fitKey = "",
+}: {
+  children: ReactNode;
+  side: ReactNode;
+  fit?: SideFit;
+  /** Mudou (a busca do menu, por exemplo), o ajuste recomeça do máximo, como quando a tela abre. */
+  fitKey?: string;
+}) {
+  const mainRef = useRef<HTMLDivElement>(null);
+  const sideRef = useRef<HTMLDivElement>(null);
+  const fitRef = useRef(fit);
+  const fitFor = useRef<number | null>(null);
+  const fitKeyRef = useRef(fitKey);
+  const restart = useRef(false);
+  const updateRef = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => {
+    fitRef.current = fit;
+    if (fitKeyRef.current !== fitKey) {
+      fitKeyRef.current = fitKey;
+      restart.current = true;
+    }
+    // mede de novo a cada render: a lista e a lateral podem mudar sem o ResizeObserver avisar a tempo
+    updateRef.current?.();
+  });
+  useLayoutEffect(() => {
+    const main = mainRef.current;
+    const column = sideRef.current;
+    if (!main || !column) {
+      return;
+    }
+    const wide = window.matchMedia("(min-width: 1200px)");
+    const update = () => {
+      const sideFit = fitRef.current;
+      if (!sideFit) {
+        return;
+      }
+      const gap = main.offsetHeight - column.offsetHeight;
+      const changed = restart.current || (fitFor.current !== null && Math.abs(fitFor.current - main.offsetHeight) > 2);
+      restart.current = false;
+      fitFor.current = main.offsetHeight;
+      if (sideFit.limit < sideFit.max && (!wide.matches || changed)) {
+        sideFit.onLimit(sideFit.max);
+        return;
+      }
+      if (wide.matches && -gap > FILL_GAP && sideFit.limit > 0) {
+        sideFit.onLimit(sideFit.limit - 1);
+      }
+    };
+    updateRef.current = update;
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(main);
+    observer.observe(column);
+    wide.addEventListener("change", update);
+    return () => {
+      observer.disconnect();
+      wide.removeEventListener("change", update);
+      updateRef.current = null;
+    };
+  }, []);
+  return (
+    <div className="notas-layout">
+      <div ref={mainRef} className="notas-main">
+        {children}
+      </div>
+      <div ref={sideRef} className="notas-side">
+        {side}
+      </div>
+    </div>
+  );
+}
+
+function GroupCounts({ group }: { group: GroupView }) {
+  if (!group.published && !group.awaiting) {
+    return (
+      <p className="notas-disc-count">
+        <span className="pill stat">Nenhuma nota ainda</span>
+      </p>
+    );
+  }
+  return (
+    <p className="notas-disc-count">
+      {group.published ? <span className="pill stat stat-conc">{countText(group.published, "publicada", "publicadas")}</span> : null}
+      {group.awaiting ? <span className="pill stat stat-alt">{`${group.awaiting} aguardando`}</span> : null}
+    </p>
+  );
+}
+
+/**
+ * Painel lateral com todas as avaliações de uma disciplina, agrupadas por mês (o painel tem rolagem própria; o
+ * card da disciplina continua com as três mais recentes).
+ */
+function GroupDrawer({
+  focusEventId,
+  group,
+  guardianName,
+  now,
+  onClose,
+  searchText,
+}: {
+  focusEventId: number | null;
+  /** Na busca do menu, o grupo traz só o que a busca achou (as que ainda vão acontecer entram também). */
+  group: GroupView | null;
+  guardianName: string | null;
+  now: number;
+  onClose: () => void;
+  /** Texto da busca do menu ("" sem busca). */
+  searchText: string;
+}) {
+  const months = useMemo(() => {
+    const result: Array<{ key: string; title: string; items: StudentEvaluation[] }> = [];
+    const currentYear = new Date(now).getFullYear();
+    // da mais recente para a mais antiga (na busca, as agendadas vêm primeiro, no mês delas)
+    const ordered = [...(group?.items ?? [])].sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
+    for (const item of ordered) {
+      const date = new Date(item.startsAt);
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const last = result[result.length - 1];
+      if (last && last.key === key) {
+        last.items.push(item);
+      } else {
+        result.push({ key, title: monthHeading(item.startsAt, currentYear), items: [item] });
+      }
+    }
+    return result;
+  }, [group, now]);
+
+  if (!group) {
+    return null;
+  }
+  const counts = searchText
+    ? `${countText(group.items.length, "avaliação", "avaliações")} com “${searchText}”`
+    : [
+        group.published ? countText(group.published, "publicada", "publicadas") : null,
+        group.awaiting ? `${group.awaiting} aguardando` : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
+  return (
+    <Drawer open title={group.title} subtitle={[group.sub, counts].filter(Boolean).join(". ")} onClose={onClose}>
+      <div className="notas-dr">
+        {months.map((month) => (
+          <section key={month.key} className="notas-dr-month" aria-labelledby={`notas-dr-${month.key}`}>
+            <h3 className="notas-dr-h drawer-h3" id={`notas-dr-${month.key}`}>
+              {month.title}
+              <span className="n">{month.items.length}</span>
+            </h3>
+            <ul>
+              {month.items.map((item) => (
+                <GradeRow
+                  key={item.eventId}
+                  evaluation={item}
+                  focused={item.eventId === focusEventId}
+                  guardianName={guardianName}
+                  now={now}
+                />
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </Drawer>
   );
 }
 
@@ -620,8 +909,8 @@ function GradeRow({
       {line ? <p className="notas-g-src">{line}</p> : null}
       {waiting ? (
         <div className="notas-g-wait">
-          <span className="pill st-ag">
-            <Clock className="h-[15px] w-[15px]" aria-hidden />
+          <span className={cx("pill stat", !future && "stat-alt")}>
+            {future ? <CalendarDays aria-hidden /> : <Clock aria-hidden />}
             {future ? "Agendada" : "Aguardando publicação"}
           </span>
         </div>
@@ -727,22 +1016,22 @@ function WhoSeesCard({ state, onOpenProfile }: { state: ReturnType<typeof useMyG
           let pill: ReactNode;
           if (person.status === "pending") {
             pill = (
-              <span className="pill st-alt">
-                <Clock className="h-3.5 w-3.5" aria-hidden />
+              <span className="pill stat stat-alt">
+                <Clock aria-hidden />
                 Aguardando a secretaria
               </span>
             );
           } else if (person.shareGrades) {
             pill = (
-              <span className="pill st-conc">
-                <Eye className="h-3.5 w-3.5" aria-hidden />
+              <span className="pill stat stat-conc">
+                <Eye aria-hidden />
                 Vê as notas publicadas
               </span>
             );
           } else {
             pill = (
-              <span className="pill st-ag">
-                <EyeOff className="h-3.5 w-3.5" aria-hidden />
+              <span className="pill stat">
+                <EyeOff aria-hidden />
                 Não vê as notas
               </span>
             );
@@ -776,12 +1065,116 @@ function WhoSeesCard({ state, onOpenProfile }: { state: ReturnType<typeof useMyG
         }
       />
       <div className="mt-4">{body}</div>
-      <div className="mt-auto pt-4">
+      {/* o rodapé vem logo depois do conteúdo: o card não estica até a altura do vizinho (decisão 5) */}
+      <div className="mt-4">
         <button className={cx(secondaryButton, "w-full")} onClick={onOpenProfile} type="button">
-          <SlidersHorizontal className="h-4 w-4" aria-hidden />
+          {/* o mesmo ícone do perfil no menu e do "Alterar no perfil" de Lembretes */}
+          <Settings2 className="h-4 w-4" aria-hidden />
           Alterar no perfil
         </button>
       </div>
+    </section>
+  );
+}
+
+/**
+ * Aluno: "Próximas avaliações", na coluna da direita embaixo de "Quem vê suas notas". As próximas UPCOMING_SHOWN
+ * provas e trabalhos (as mesmas do indicador "Próxima avaliação"), cada uma abre o evento no cronograma. Põe na
+ * lateral o que o aluno quer saber depois das notas e deixa as duas colunas terminando juntas (decisão 5).
+ */
+const UPCOMING_SHOWN = 3;
+
+function UpcomingCard({
+  lead = null,
+  list,
+  limit = UPCOMING_SHOWN,
+  inlineMore = false,
+  onOpenEvent,
+  onOpenCalendar,
+}: {
+  /** Começo do subtítulo quando a lista vem depois do indicador "Próxima avaliação" ("Depois da próxima, mais 2."). */
+  lead?: string | null;
+  list: Array<{ item: StudentEvaluation; group: GroupView }>;
+  /** Quantas mostrar (o responsável mostra as que cabem na lateral). */
+  limit?: number;
+  /**
+   * Responsável: sem o pé. O caminho para as que não couberam fica no subtítulo ("A mais próxima, de 3 marcadas.
+   * Ver todas"), que ocupa menos altura que o pé e deixa a lateral terminar junto com a lista.
+   */
+  inlineMore?: boolean;
+  onOpenEvent: (eventId: number) => void;
+  /** Sem ele, o card fica sem o caminho para o cronograma. */
+  onOpenCalendar?: () => void;
+}) {
+  const shown = list.slice(0, limit);
+  const more = list.length > shown.length;
+  const foot = Boolean(onOpenCalendar) && !inlineMore;
+  // as que não couberam: o pé leva ao cronograma com o total ("Ver as 4 no cronograma"); sem o pé, o subtítulo diz
+  // quantas são e, no responsável, leva até elas
+  let subtitle: ReactNode = lead;
+  if (more && !foot) {
+    subtitle = onOpenCalendar ? (
+      // numa linha só, na largura da lateral: "A mais próxima de 3. Ver todas"
+      <>
+        {lead ?? (shown.length === 1 ? `A mais próxima de ${list.length}.` : `As ${shown.length} mais próximas de ${list.length}.`)}{" "}
+        <button
+          className="link notas-up-more"
+          aria-label="Ver todas no cronograma"
+          onClick={onOpenCalendar}
+          type="button"
+        >
+          Ver todas
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </button>
+      </>
+    ) : lead ? (
+      lead
+    ) : shown.length === 1 ? (
+      `A mais próxima, de ${list.length} marcadas.`
+    ) : (
+      `As ${shown.length} mais próximas, de ${list.length} marcadas.`
+    );
+  }
+  return (
+    <section className="card pad notas-up-card" aria-labelledby="notas-prox">
+      <SectionTitle id="notas-prox" title="Próximas avaliações" subtitle={subtitle} />
+      {shown.length ? (
+        <ul className="notas-up">
+          {shown.map(({ item, group }) => {
+            const meta = categoryMeta[item.category];
+            const when = whenText(item.startsAt);
+            return (
+              <li key={item.eventId}>
+                <button
+                  className="notas-up-row"
+                  aria-label={`${item.title}, ${group.title}, ${when}. Ver no cronograma`}
+                  onClick={() => onOpenEvent(item.eventId)}
+                  type="button"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="notas-up-t wrap-anywhere">{item.title}</span>
+                    <span className="notas-up-m">
+                      {meta ? <span className={cx("pill", meta.tint)}>{meta.short}</span> : null}
+                      <span className="wrap-anywhere">{when}</span>
+                    </span>
+                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted" aria-hidden />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="notas-up-none">Nenhuma prova ou trabalho marcado por enquanto.</p>
+      )}
+      {foot ? (
+        <div className="notas-up-foot">
+          <button className="link min-h-6" onClick={onOpenCalendar} type="button">
+            {more ? `Ver as ${list.length} no cronograma` : "Ver no cronograma"}
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -799,17 +1192,20 @@ function GuardianSeesCard({
   onOpenData: () => void;
 }) {
   const relation = student.relationship !== "outro" ? ` como ${relationshipText(student.relationship).toLocaleLowerCase("pt-BR")}` : "";
+  // os mesmos rótulos e a mesma ordem do diálogo "O que você vê" e do perfil (guardian-data-dialog.tsx)
+  const labels = guardianSeesLabels(name);
   const rows: Array<{ icon: typeof Bell; label: string; value: string; tone: string }> = [
-    { icon: CalendarDays, label: "Agenda da turma", value: "Sim", tone: "st-conc" },
-    { icon: ShieldCheck, label: "Datas do campus", value: "Sim", tone: "st-conc" },
+    { icon: CalendarDays, label: labels.agenda, value: "Sim", tone: "stat-conc" },
+    { icon: ShieldCheck, label: labels.dates, value: "Sim", tone: "stat-conc" },
     {
       icon: ClipboardCheck,
-      label: "Notas publicadas",
+      label: labels.grades,
       value: shares ? "Sim" : `Se ${name} compartilhar`,
-      tone: shares ? "st-conc" : "st-alt",
+      tone: shares ? "stat-conc" : "stat-alt",
     },
-    { icon: Bell, label: `Lembretes de ${name}`, value: "Não", tone: "st-ag" },
-    { icon: Users, label: "Colegas da turma", value: "Não", tone: "st-ag" },
+    { icon: Bell, label: labels.reminders, value: "Não", tone: "" },
+    { icon: Users, label: labels.classmates, value: "Não", tone: "" },
+    { icon: MessageSquare, label: labels.messages, value: "Não", tone: "" },
   ];
   return (
     <section className="card pad" aria-labelledby="notas-ve">
@@ -821,18 +1217,19 @@ function GuardianSeesCard({
               <row.icon className="h-[15px] w-[15px]" aria-hidden />
               {row.label}
             </span>
-            <span className={cx("pill", row.tone)}>{row.value}</span>
+            <span className={cx("pill stat", row.tone)}>{row.value}</span>
           </li>
         ))}
       </ul>
       <p className="notas-note">
         {shares
-          ? "Você vê só as notas que a docente publica. Média da turma e notas de colegas não aparecem."
+          ? "Média da turma e notas de colegas não aparecem."
           : "Aluno maior de idade decide quem vê as notas e pode mudar isso a qualquer hora no perfil."}
       </p>
       <div className="card-foot">
+        {/* quem lê é o próprio responsável: o card já se chama "O que você vê" (decisão 10) */}
         <button className="link min-h-6" onClick={onOpenData} type="button">
-          Quais dados o responsável vê
+          Ver detalhes do que você vê
           <ArrowRight className="h-4 w-4" aria-hidden />
         </button>
       </div>

@@ -44,6 +44,7 @@ import {
   startOfDay,
   toDateTimeLocal,
   weekdayLabels,
+  yearSuffix,
 } from "@/lib/format";
 import { adminOnlyCategories, allCategories, categoryMeta, gradableCategories, isGradable, statusMeta } from "@/lib/meta";
 import type { AcademicClass, AcademicContext, AcademicEvent, Category, Subject, UserRole } from "@/lib/types";
@@ -147,8 +148,10 @@ export function isSameEventForm(a: EventFormState, b: EventFormState) {
 
 const pad = (value: number) => String(value).padStart(2, "0");
 const hhmm = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-const dayMonth = (date: Date) => `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
-const shortDay = (date: Date) => `${weekdayLabels[date.getDay()]}, ${dayMonth(date)}`;
+const dayMonthBare = (date: Date) => `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+/** "13/02", com o ano só fora do ano corrente ("13/02/2027") */
+const dayMonth = (date: Date) => `${dayMonthBare(date)}${yearSuffix(date)}`;
+const shortDay = (date: Date, year = true) => `${weekdayLabels[date.getDay()]}, ${year ? dayMonth(date) : dayMonthBare(date)}`;
 
 /** Valor de um campo datetime-local como data local (ou null). */
 function parseLocal(value: string) {
@@ -159,36 +162,45 @@ function parseLocal(value: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** Quando o evento acontece, em duas partes: "qui, 05/11" e "19:00 até 21:00" (ou "Dia todo"). */
-export function eventWhen(startsAt: string, endsAt: string | null) {
+/**
+ * Quando o evento acontece, em duas partes: "qui, 05/11" e "19:00 até 21:00" (ou "Dia todo").
+ * Sem `year`, nunca põe o ano: é o formato das listas agrupadas por mês (Gestão), cujo cabeçalho já diz o ano.
+ * Com `year`, o ano entra fora do ano corrente ("sáb, 13/02/2027"); num intervalo, só no fim quando os dois
+ * lados são do mesmo ano ("08/02 a 10/02/2027").
+ */
+export function eventWhen(startsAt: string, endsAt: string | null, { year = false }: { year?: boolean } = {}) {
   const start = new Date(startsAt);
   if (Number.isNaN(start.getTime())) {
     return { day: "", time: "" };
   }
   const endDate = endsAt ? new Date(endsAt) : null;
   const end = endDate && endDate.getTime() > start.getTime() ? endDate : null;
+  const dm = year ? dayMonth : dayMonthBare;
 
   // dia todo só sem horário de término ("00:00 até 10:00" mostra os horários)
   if (isWholeDay(startsAt, end ? endsAt : null)) {
     // dia inteiro: término à meia-noite vale até o dia anterior
     const last = end ? new Date(end.getTime() - (end.getHours() === 0 && end.getMinutes() === 0 ? 1 : 0)) : null;
     if (last && startOfDay(last).getTime() > startOfDay(start).getTime()) {
-      return { day: `${dayMonth(start)} a ${dayMonth(last)}`, time: "Dia todo" };
+      const first = start.getFullYear() === last.getFullYear() ? dayMonthBare(start) : dm(start);
+      return { day: `${first} a ${dm(last)}`, time: "Dia todo" };
     }
-    return { day: shortDay(start), time: "Dia todo" };
+    return { day: shortDay(start, year), time: "Dia todo" };
   }
   if (!end) {
-    return { day: shortDay(start), time: hhmm(start) };
+    return { day: shortDay(start, year), time: hhmm(start) };
   }
   if (isSameDay(start, end)) {
-    return { day: shortDay(start), time: `${hhmm(start)} até ${hhmm(end)}` };
+    return { day: shortDay(start, year), time: `${hhmm(start)} até ${hhmm(end)}` };
   }
-  return { day: shortDay(start), time: `${hhmm(start)} até ${shortDay(end)}, ${hhmm(end)}` };
+  // o fim só repete o ano quando ele muda
+  const endYear = year && end.getFullYear() !== start.getFullYear();
+  return { day: shortDay(start, year), time: `${hhmm(start)} até ${shortDay(end, endYear)}, ${hhmm(end)}` };
 }
 
 /** "qui, 05/11, 19:00 até 21:00" ou "seg, 16/11, dia todo". */
 export function eventWhenLabel(startsAt: string, endsAt: string | null) {
-  const { day, time } = eventWhen(startsAt, endsAt);
+  const { day, time } = eventWhen(startsAt, endsAt, { year: true });
   if (!time) {
     return day;
   }
@@ -791,6 +803,13 @@ function EventPreview({
         <span className="ev-date">
           <span className="dw">{parts?.weekday ?? "Dia"}</span>
           <span className="dn">{parts?.day ?? "--"}</span>
+          {/* fora do ano corrente, o bloco diz também o mês e o ano ("SEG 01 MAR 2027"), como nas listas sem cabeçalho de mês */}
+          {parts?.otherYear ? (
+            <span className="ev-mo">
+              {parts.month}
+              <span className="ev-yr">{parts.year}</span>
+            </span>
+          ) : null}
         </span>
         <div className="min-w-0 flex-1">
           <p
@@ -813,7 +832,7 @@ function EventPreview({
             {status && status !== "scheduled" ? (
               <span className={cx("pill", statusMeta[status].pill)}>{statusMeta[status].label}</span>
             ) : null}
-            {past ? <span className="pill st-alt">Data no passado</span> : null}
+            {past ? <span className="pill stat stat-alt">Data no passado</span> : null}
           </div>
           <ul className="mt-2.5 grid gap-1 text-[13.5px] leading-5 text-ink-3">
             <li className="flex items-start gap-2">
@@ -973,6 +992,7 @@ export function EventEditor({
 }: EventEditorProps) {
   const titleRef = useRef<HTMLInputElement>(null);
   const footRef = useRef<HTMLDivElement>(null);
+  const statusLabelId = useId();
   const noticeRef = useRef<HTMLDivElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -1147,17 +1167,20 @@ export function EventEditor({
   const title = importing
     ? "Importar notas"
     : editingEvent
-      ? "Editar evento"
+      ? activeTab === "grades"
+        ? "Notas da avaliação"
+        : "Editar evento"
       : isAdmin
         ? "Novo evento oficial"
         : "Novo evento";
-  const dirtyPill = changed ? <span className="pill st-alt">Alterações não salvas</span> : null;
+  // situações (etiqueta com fundo, .pill.stat), como na gaveta de notas: nunca ponto + palavra de categoria
+  const dirtyPill = changed ? <span className="pill stat stat-alt">Alterações não salvas</span> : null;
   // situação das notas da prova ou do trabalho, ao lado da situação do evento (amostra: "Concluído", "Notas ocultas")
   const gradesPublished = gradesInfo ? gradesInfo.published : Boolean(editingEvent?.gradesPublishedAt);
   const gradesPill = !gradesTab ? null : gradesPublished ? (
-    <span className="pill st-conc">Notas publicadas</span>
+    <span className="pill stat stat-conc">Notas publicadas</span>
   ) : gradesInfo?.launched ? (
-    <span className="pill st-alt">Notas ocultas</span>
+    <span className="pill stat stat-alt">Notas ocultas</span>
   ) : null;
   // min-w-0: no cabeçalho (uma linha flexível), o título comprido corta com reticência em vez de passar do X
   const subtitle = importing ? (
@@ -1218,17 +1241,22 @@ export function EventEditor({
     );
   }
 
+  // datas da instituição (feriado, recesso, institucional) não se "concluem": passam sozinhas para Passados.
+  // Só Cancelar evento e Excluir; uma data que já esteja concluída continua com o Reativar.
+  const campusDate = editingEvent ? adminOnlyCategories.includes(editingEvent.category) : false;
   const statusActions =
     editingEvent && onSetStatus
       ? eventOpen
         ? [
-            statusButton("completed", "Concluir", <CheckCircle2 className="h-4 w-4 text-brand" aria-hidden />),
+            campusDate
+              ? null
+              : statusButton("completed", "Concluir", <CheckCircle2 className="h-4 w-4 text-brand" aria-hidden />),
             statusButton("cancelled", "Cancelar evento", <X className="h-4 w-4 text-[var(--danger)]" aria-hidden />),
           ]
         : statusButton(reactivatedStatus(editingEvent), "Reativar", <RotateCcw className="h-4 w-4" aria-hidden />)
       : null;
 
-  // situação e exclusão: no rodapé a partir de 640px; no celular, no fim do painel, para o rodapé ficar curto
+  // situação e exclusão: no rodapé a partir de 640px (grupo com rótulo); no celular, no fim do painel, para o rodapé ficar curto
   const eventActions =
     editingEvent && (statusActions || onDelete) ? (
       <>
@@ -1292,11 +1320,35 @@ export function EventEditor({
     <div ref={footRef} className="grid w-full gap-3">
       {notice}
       {eventActions ? (
-        <div className="hidden flex-wrap items-center gap-2 sm:flex" role="group" aria-label="Situação do evento">
+        <div className="ed-status hidden sm:flex" role="group" aria-labelledby={statusLabelId}>
+          <span id={statusLabelId} className="ed-status-l">
+            Situação do evento
+          </span>
           {eventActions}
         </div>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2.5">
+      {/* convenção dos painéis: à direita o secundário e depois o principal; a dica ("Nada mudou ainda") à esquerda,
+          e no celular numa linha própria acima dos dois botões */}
+      <div className="ed-save flex flex-wrap items-center justify-end gap-2.5">
+        {hint ? (
+          <span id={hintId} className="mr-auto text-[13px] text-muted max-sm:basis-full">
+            {hint}
+          </span>
+        ) : null}
+        <button
+          className={cx("btn btn-s max-sm:flex-1", quiet)}
+          aria-disabled={saving || undefined}
+          onClick={() => {
+            if (!saving) {
+              onClose();
+            }
+          }}
+          type="button"
+        >
+          {/* na edição, "Cancelar" ficaria logo abaixo de "Cancelar evento" (a situação): sem mudança é "Fechar",
+              com mudança é "Descartar alterações", que pede confirmação antes. "Cancelar" só no evento novo */}
+          {editingEvent ? (changed ? "Descartar alterações" : "Fechar") : "Cancelar"}
+        </button>
         <button
           className={cx("btn btn-p max-sm:flex-1", quiet)}
           form={formId}
@@ -1314,23 +1366,6 @@ export function EventEditor({
           )}
           {saving ? "Salvando" : editingEvent ? "Salvar alterações" : isAdmin ? "Publicar evento oficial" : "Publicar evento"}
         </button>
-        <button
-          className={cx("btn btn-s max-sm:flex-1", quiet)}
-          aria-disabled={saving || undefined}
-          onClick={() => {
-            if (!saving) {
-              onClose();
-            }
-          }}
-          type="button"
-        >
-          Fechar
-        </button>
-        {hint ? (
-          <span id={hintId} className="text-[13px] text-muted">
-            {hint}
-          </span>
-        ) : null}
       </div>
       <p
         id={saveNoteId}
@@ -2128,7 +2163,7 @@ function EditorForm({
           </FormField>
 
           <section className="grid grid-cols-1 gap-3 border-t border-line-2 pt-5" aria-labelledby={fid("previa")}>
-            <h3 id={fid("previa")} className="text-[15px] font-bold text-ink">
+            <h3 id={fid("previa")} className="drawer-h3">
               {hasClass || !isAdmin ? "Como a turma vai ver" : "Como todos vão ver"}
             </h3>
             <EventPreview
@@ -2146,7 +2181,7 @@ function EditorForm({
 
           {phoneActions ? (
             <section className="grid gap-3 border-t border-line-2 pt-5 sm:hidden" aria-labelledby={fid("situacao")}>
-              <h3 id={fid("situacao")} className="text-[15px] font-bold text-ink">
+              <h3 id={fid("situacao")} className="drawer-h3">
                 Situação do evento
               </h3>
               <div className="flex flex-wrap items-center gap-2">{phoneActions}</div>

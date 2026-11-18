@@ -55,23 +55,25 @@ import {
   printGuardianCode,
   undoEnrollments,
   useRemote,
+  type PanelApi,
 } from "./classes-shared";
 import { EmptyState, ErrorState, Field, primaryButton, secondaryButton } from "./ui";
 
 const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
 
+/** Situação (etiqueta com fundo, .pill.stat): a mesma regra das situações dos eventos. */
 const linkPill: Record<string, string> = {
-  pending: "st-alt",
-  active: "st-conc",
-  revoked: "st-ag",
-  blocked: "st-canc",
+  pending: "stat-alt",
+  active: "stat-conc",
+  revoked: "",
+  blocked: "stat-canc",
 };
 
 const enrollmentPill: Record<string, string> = {
-  pending: "st-alt",
-  active: "st-conc",
-  inactive: "st-ag",
-  completed: "st-ag",
+  pending: "stat-alt",
+  active: "stat-conc",
+  inactive: "",
+  completed: "",
 };
 
 type Run = (key: string, task: () => Promise<void>) => Promise<void>;
@@ -161,6 +163,7 @@ export function StudentPanel({ api, subtitle, view }: PanelProps<"student">) {
       {classId && !missing ? (
         <EnrollmentBlock
           {...common}
+          api={api}
           className={klass.data?.name ?? "turma"}
           enrollment={enrollment}
           error={roster.error}
@@ -203,7 +206,7 @@ export function StudentPanel({ api, subtitle, view }: PanelProps<"student">) {
       <PanelFooter api={api}>
         <span className="admin-foot-gap" />
         <button className={secondaryButton} onClick={() => api.back()} type="button">
-          {api.canGoBack ? "Voltar para a turma" : "Fechar"}
+          {api.canGoBack ? "Voltar" : "Fechar"}
         </button>
       </PanelFooter>
     </>
@@ -215,6 +218,7 @@ export function StudentPanel({ api, subtitle, view }: PanelProps<"student">) {
 /* ------------------------------------------------------------------ */
 
 function EnrollmentBlock({
+  api,
   className,
   enrollment,
   error,
@@ -229,6 +233,8 @@ function EnrollmentBlock({
   onRetry,
   onRun,
 }: BlockProps & {
+  /** Remover da turma e Concluir matrícula vão para o rodapé do painel, à esquerda, longe do Salvar. */
+  api: PanelApi;
   className: string;
   enrollment: ClassStudent | null;
   error: unknown;
@@ -251,7 +257,7 @@ function EnrollmentBlock({
     return (
       <section className="admin-sec" aria-labelledby={headingId}>
         <div className="admin-sec-head">
-          <h3 id={headingId} className="admin-sec-t">
+          <h3 id={headingId} className="admin-sec-t drawer-h3">
             Matrícula na {className}
           </h3>
         </div>
@@ -268,7 +274,7 @@ function EnrollmentBlock({
     return (
       <section className="admin-sec" aria-labelledby={headingId}>
         <div className="admin-sec-head">
-          <h3 id={headingId} className="admin-sec-t">
+          <h3 id={headingId} className="admin-sec-t drawer-h3">
             Matrícula na {className}
           </h3>
         </div>
@@ -376,14 +382,14 @@ function EnrollmentBlock({
     <section className="admin-sec" aria-labelledby={headingId}>
       <div className="admin-sec-head">
         <div className="min-w-0">
-          <h3 id={headingId} className="admin-sec-t">
+          <h3 id={headingId} className="admin-sec-t drawer-h3">
             Matrícula na {className}
           </h3>
           <p className="admin-sec-s">
             {enrollmentSourceText(item.source)}, desde {formatDateBR(item.createdAt)}
           </p>
         </div>
-        <span className={cx("pill", enrollmentPill[item.status] ?? "st-ag")}>{enrollmentStatusText(item.status)}</span>
+        <span className={cx("pill stat", enrollmentPill[item.status])}>{enrollmentStatusText(item.status)}</span>
       </div>
 
       <form className="admin-inline-form" noValidate onSubmit={saveRegistration}>
@@ -431,9 +437,11 @@ function EnrollmentBlock({
             </button>
           </>
         ) : item.status === "active" ? (
-          <>
+          // as ações que tiram o aluno da turma ficam no rodapé, à esquerda (como Arquivar turma), e o Remover
+          // tem o contorno vermelho de perigo; as duas têm Desfazer no aviso
+          <PanelFooter api={api}>
             <button
-              className={cx(secondaryButton, "btn-sm", busyLook)}
+              className={cx("btn btn-danger admin-foot-first", busyLook)}
               aria-disabled={busy}
               onClick={() => decide("inactive", `${first} saiu da ${className}. A matrícula fica no histórico.`, "active")}
               type="button"
@@ -442,7 +450,7 @@ function EnrollmentBlock({
               Remover da turma
             </button>
             <button
-              className={cx(secondaryButton, "btn-sm", busyLook)}
+              className={cx(secondaryButton, "admin-foot-first", busyLook)}
               aria-disabled={busy}
               onClick={() => decide("completed", `Matrícula de ${first} na ${className} concluída.`, "active")}
               type="button"
@@ -450,7 +458,7 @@ function EnrollmentBlock({
               <Check className="h-4 w-4" aria-hidden />
               Concluir matrícula
             </button>
-          </>
+          </PanelFooter>
         ) : (
           <button
             className={cx(secondaryButton, "btn-sm", busyLook)}
@@ -507,7 +515,7 @@ function MinorBlock({
   return (
     <section className="admin-sec" aria-labelledby={headingId}>
       <div className="admin-sec-head">
-        <h3 id={headingId} className="admin-sec-t">
+        <h3 id={headingId} className="admin-sec-t drawer-h3">
           Idade
         </h3>
       </div>
@@ -688,7 +696,7 @@ function GuardiansBlock({
     <section className="admin-sec" aria-labelledby={headingId}>
       <div className="admin-sec-head">
         <div className="min-w-0">
-          <h3 id={headingId} className="admin-sec-t">
+          <h3 id={headingId} className="admin-sec-t drawer-h3">
             Responsáveis
           </h3>
           <p className="admin-sec-s">
@@ -713,7 +721,7 @@ function GuardiansBlock({
                     <p className="admin-s-name">{label}</p>
                     <p className="admin-s-mail wrap-anywhere">{link.email}</p>
                   </div>
-                  <span className={cx("pill", linkPill[link.status] ?? "st-ag")}>{linkStatusText(link.status)}</span>
+                  <span className={cx("pill stat", linkPill[link.status])}>{linkStatusText(link.status)}</span>
                 </div>
                 <p className="admin-guard-meta">
                   {relationshipText(link.relationship)}, {linkOriginText(link.origin).toLowerCase()}
@@ -937,7 +945,7 @@ function LinkByEmailBlock({ first, headingId, studentId, working, onChanged, onR
     <section className="admin-sec" aria-labelledby={headingId}>
       <div className="admin-sec-head">
         <div className="min-w-0">
-          <h3 id={headingId} className="admin-sec-t">
+          <h3 id={headingId} className="admin-sec-t drawer-h3">
             Vincular responsável por e-mail
           </h3>
           <p className="admin-sec-s">A pessoa precisa já ter uma conta de responsável na Agenda.</p>
@@ -1077,7 +1085,7 @@ function GuardianCodeBlock({
     <section className="admin-sec" aria-labelledby={headingId}>
       <div className="admin-sec-head">
         <div className="min-w-0">
-          <h3 id={headingId} className="admin-sec-t">
+          <h3 id={headingId} className="admin-sec-t drawer-h3">
             Código para responsável
           </h3>
           <p className="admin-sec-s">Vale 30 dias e uma vez só. Bom para entregar impresso na secretaria.</p>

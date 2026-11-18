@@ -24,7 +24,6 @@ import { AppShell, type SearchScope, type View } from "@/components/app-shell";
 import { CalendarView, type CalendarMode } from "@/components/calendar-view";
 import { ClassesView } from "@/components/classes-view";
 import { AdminDashboard } from "@/components/dashboard-admin";
-import { AvisosCard } from "@/components/dashboard-bits";
 import { GuardianDashboard } from "@/components/dashboard-guardian";
 import { StudentDashboard } from "@/components/dashboard-student";
 import { TeacherDashboard } from "@/components/dashboard-teacher";
@@ -44,13 +43,14 @@ import { GradesView } from "@/components/grades-view";
 import { GuardianLinkCard } from "@/components/guardian-link-card";
 import { LoginScreen } from "@/components/login-screen";
 import { ManageView } from "@/components/manage-view";
-import { ProfileModal, type ProfileFormState } from "@/components/profile-modal";
+import { ProfileModal, type ProfileFormState, type ProfileTab } from "@/components/profile-modal";
 import { RemindersView } from "@/components/reminders-view";
 import { SyncView } from "@/components/sync-view";
 import {
   ConfirmDialog,
   ErrorState,
   PageSkeleton,
+  type SkeletonVariant,
   RetryButton,
   Spinner,
   ToastStack,
@@ -95,9 +95,10 @@ import {
   formatTime,
   localDateKey,
   matchesSearch,
+  normalizeText,
   startOfDay,
 } from "@/lib/format";
-import { allCategories, gradableCategories, isGradable, knownRoles } from "@/lib/meta";
+import { allCategories, categoryMeta, gradableCategories, isGradable, knownRoles } from "@/lib/meta";
 import type {
   AcademicContext,
   AcademicEvent,
@@ -1142,6 +1143,48 @@ function buildDemoPayload(dayKey: string): CalendarImportInput {
   };
 }
 
+/**
+ * Quantos eventos a lista da Gestão mostra com a busca do menu: o mesmo teste da ManageView (o texto inteiro dentro
+ * de título, descrição, disciplina, turma, docente, local e categoria, sem acento), para o "N eventos encontrados"
+ * do menu bater com a lista ao lado.
+ */
+function countManageSearch(events: AcademicEvent[], search: string) {
+  const term = normalizeText(search);
+  if (!term) {
+    return events.length;
+  }
+  return events.filter((event) => {
+    const meta = categoryMeta[event.category];
+    const text = [
+      event.title,
+      event.description,
+      event.subject?.name,
+      event.academicClass?.name ?? "Toda a instituição",
+      event.teacher?.fullName,
+      event.location,
+      meta.label,
+      meta.short,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return normalizeText(text).includes(term);
+  }).length;
+}
+
+/** Desenho de carregamento de cada tela (PageSkeleton): o formato da tela que vem, para nada pular ao carregar. */
+function skeletonFor(view: View): SkeletonVariant {
+  if (view === "calendar" || view === "manage") {
+    return "lista";
+  }
+  if (view === "classes" || view === "sync") {
+    return "tabela";
+  }
+  if (view === "grades" || view === "reminders") {
+    return "kpis-lista";
+  }
+  return "painel";
+}
+
 export default function Home() {
   /* ---------------------------------------------------------------- */
   /* Estado                                                            */
@@ -1208,6 +1251,11 @@ export default function Home() {
   const [confirm, setConfirmState] = useState<ConfirmState | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  // aba em que o perfil abre ("Abrir" de um aviso de responsável vinculado vai direto para a dos vínculos)
+  const [profileTab, setProfileTab] = useState<ProfileTab>("prefs");
+  // o perfil aberto pelo "Abrir" de um aviso: o aviso sai da lista (fica lido), e ao fechar o foco volta ao card
+  // Avisos (no título dele) em vez de cair no começo do conteúdo
+  const profileFromNotice = useRef(false);
   const [menuOpen, setMenuOpen] = useState(false);
   // painel lateral de uma área (useBackLayer) ou a gaveta de notas aberto, com entrada no histórico
   const [panelLayerOpen, setPanelLayerOpen] = useState(false);
@@ -1223,6 +1271,9 @@ export default function Home() {
   // quantos resultados a busca do menu acha nas telas que filtram no lugar (Turmas, Notas e a aba Minhas turmas
   // da Gestão): a própria tela conta
   const [localSearchCount, setLocalSearchCount] = useState<number | undefined>(undefined);
+  // a Gestão diz quantos itens a busca do menu acha na aba aberta (em Eventos, com o filtro de origem; em Minhas
+  // turmas, as turmas); null sem busca ou enquanto a lista carrega
+  const [manageSearchCount, setManageSearchCount] = useState<number | null>(null);
   // aba aberta na Gestão da docente: em Minhas turmas, a busca do menu procura turmas
   const [managePane, setManagePane] = useState<"events" | "classes">("events");
   // notas de uma avaliação: a aba Notas do painel do evento (editorTab), aberta pela ação "Notas" da Gestão e da
@@ -1387,6 +1438,22 @@ export default function Home() {
     if (current?.view === "classes" && (current.turma || current.membro)) {
       writeHistory("replace", { ...current, turma: undefined, membro: undefined });
     }
+  }, []);
+
+  /**
+   * Limpa a busca do menu pelos botões da própria tela ("Limpar" do aviso da busca, "Limpar busca" da lista
+   * vazia). O botão some com a busca: se o foco cair no body, ele vai para o título da tela (sem rolar).
+   * Estável (useCallback) porque a Gestão também chama isso num efeito, ao mostrar um evento salvo que a busca
+   * esconderia; aí o foco só muda se tiver se perdido.
+   */
+  const clearSearchInPlace = useCallback(() => {
+    setSearch("");
+    window.setTimeout(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body || !active.isConnected) {
+        setFocusHeadingToken((token) => token + 1);
+      }
+    }, 0);
   }, []);
 
   /* ---------------------------------------------------------------- */
@@ -1764,10 +1831,11 @@ export default function Home() {
     setFocusHeadingToken((token) => token + 1);
   }
 
-  // telas em que a busca do menu filtra a própria tela (o resultado já está à vista, sem "Ver eventos")
+  // telas em que a busca do menu filtra a própria tela (o resultado já está à vista, sem "Ver eventos"). Na Gestão
+  // ela é a única busca: filtra a lista de eventos e, na aba Minhas turmas da docente, as turmas
   const myClassesPaneOpen = activeView === "manage" && managePane === "classes";
   const searchStaysInPlace =
-    activeView === "calendar" || activeView === "classes" || activeView === "grades" || myClassesPaneOpen;
+    activeView === "calendar" || activeView === "classes" || activeView === "grades" || activeView === "manage";
 
   /** "Ver eventos" (ou Enter) na busca do menu: fora do Cronograma, leva ao resultado em todas as categorias. */
   function showSearchResults() {
@@ -2064,8 +2132,14 @@ export default function Home() {
   }
 
   function openProfile() {
+    openProfileAt("prefs");
+  }
+
+  function openProfileAt(tab: ProfileTab, fromNotice = false) {
     // aberta pelo menu do celular: as Preferências ocupam a entrada dele
     setMenuOpen(false);
+    profileFromNotice.current = fromNotice;
+    setProfileTab(tab);
     setProfileOpen(true);
     openLayerEntry("perfil");
   }
@@ -2295,7 +2369,35 @@ export default function Home() {
     }
   }
 
-  /** "Abrir" de um aviso do sistema: marca como lido e leva à tela do link (o perfil abre as Preferências). */
+  // perfil aberto pelo "Abrir" de um aviso, já fechado (Fechar, Esc, Salvar ou o Voltar do navegador): o diálogo
+  // devolve o foco a quem abriu, mas o "Abrir" saiu junto com o aviso lido e o foco caiu no começo do conteúdo.
+  // Ele vai para o título do card Avisos (ou, sem nenhum aviso, para o título da tela)
+  useEffect(() => {
+    if (profileOpen || !profileFromNotice.current) {
+      return;
+    }
+    profileFromNotice.current = false;
+    const frame = window.requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.id !== "conteudo" && active.isConnected) {
+        return;
+      }
+      const title = Array.from(document.querySelectorAll<HTMLElement>("[data-avisos-title]")).find(
+        (element) => element.getClientRects().length > 0
+      );
+      if (title) {
+        title.focus();
+      } else {
+        setFocusHeadingToken((token) => token + 1);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [profileOpen]);
+
+  /**
+   * "Abrir" de um aviso do sistema: marca como lido e leva à tela do link. O perfil abre na aba dos vínculos
+   * (Responsáveis ou Alunos) quando o aviso é de vínculo de responsável; os outros, nas Preferências.
+   */
   function openNotice(notice: AppNotification) {
     void readNotice(notice.id);
     const target = notice.link ? noticeTarget(notice.link) : null;
@@ -2303,7 +2405,8 @@ export default function Home() {
       return;
     }
     if (target.view === "perfil") {
-      whenClear(() => openProfile());
+      const tab: ProfileTab = notice.kind.startsWith("guardian_") ? "links" : "prefs";
+      whenClear(() => openProfileAt(tab, true));
       return;
     }
     navigate(target.view, target.params);
@@ -3877,7 +3980,8 @@ export default function Home() {
     // falha não vira aviso solto: a faixa "Sem conexão" (ou a tela de erro) já explica
     const result = await loadAll(active);
     if (result.ok) {
-      pushToast("info", "Dados atualizados.");
+      // sucesso em verde ("deu certo"); a chave troca o aviso anterior em vez de empilhar outro igual
+      pushToast("success", "Dados atualizados.", { keys: ["atualizar"] });
     }
   }
 
@@ -3952,14 +4056,19 @@ export default function Home() {
     );
   }
 
-  // a contagem da busca do menu não depende de filtro escondido: fora do Cronograma vale para todas as categorias;
-  // no Cronograma, segue os filtros que estão à vista; em Turmas, Notas e Minhas turmas, a tela conta o que achou
+  // a contagem da busca do menu conta a busca na tela inteira, sem filtro de categoria nem de origem (decisão 14):
+  // no Cronograma, todos os eventos que a busca acha (se o filtro de categoria esconder algum, a própria tela diz
+  // quantos e oferece mostrar); em Turmas e Notas, a tela conta o que achou; na Gestão, a própria tela conta a aba
+  // aberta (Eventos, em todas as origens, ou Minhas turmas). Até ela contar, vale a conta de todos os eventos que a
+  // pessoa gerencia
   const searchResultCount = search.trim()
     ? activeView === "calendar"
-      ? filteredEvents.length
-      : activeView === "classes" || activeView === "grades" || myClassesPaneOpen
-        ? localSearchCount
-        : searchedEvents.length
+      ? searchedEvents.length
+      : activeView === "manage"
+        ? (manageSearchCount ?? (myClassesPaneOpen ? undefined : countManageSearch(manageableEvents, search)))
+        : activeView === "classes" || activeView === "grades"
+          ? localSearchCount
+          : searchedEvents.length
     : undefined;
   const searchScope =
     activeView === "classes"
@@ -3969,11 +4078,6 @@ export default function Home() {
         : myClassesPaneOpen
           ? myClassesSearch
           : undefined;
-
-  // avisos do sistema: no Painel, o card de avisos dos painéis só aparece com lembrete avisando; com só avisos do
-  // sistema, a página mostra o mesmo card no lugar dele (o responsável sem vínculo vê só o card de vincular)
-  const noticesOnlyCard =
-    activeView === "dashboard" && !avisos.length && notices.length > 0 && !(isGuardian && !guardianStudent);
 
   const actions: AppActions = {
     token: session.token,
@@ -4027,7 +4131,8 @@ export default function Home() {
     openEvent: (eventId: number) => navigate("calendar", { eventId }),
     openClasses: (target = {}) => navigate("classes", { classId: target.classId, memberId: target.memberId }),
     openGrades,
-    openProfile: () => whenClear(openProfile),
+    // a aba pedida (ex.: "links", Responsáveis, no "Alterar no perfil" das Notas) abre pelo mesmo caminho do aviso
+    openProfile: (tab?: ProfileTab) => whenClear(() => openProfileAt(tab ?? "prefs")),
     linkedStudents,
     student: guardianStudent,
     chooseStudent: (studentId: number) => chooseStudent(studentId),
@@ -4043,7 +4148,8 @@ export default function Home() {
     <AppActionsProvider value={actions}>
       <AppShell
         activeView={activeView}
-        badges={{ reminders: avisos.length + unreadCount }}
+        // o mesmo número do card "Avisos N" do Painel: lembretes avisando e avisos do sistema ainda não lidos
+        badges={{ reminders: avisos.length + notices.length }}
         canWrite={canWrite}
         context={context}
         focusHeadingToken={focusHeadingToken}
@@ -4061,7 +4167,14 @@ export default function Home() {
         onChooseStudent={(studentId) => chooseStudent(studentId)}
         onLogout={requestLogout}
         onMenuChange={changeMenu}
-        onNavigate={(view) => goTo(view)}
+        onNavigate={(view) => {
+          // pelo menu, o Cronograma abre no padrão (Próximos, todas as categorias, mês atual): o filtro de um atalho
+          // do Painel (ex.: "Ver todas no cronograma" das datas da instituição) não fica preso para a próxima visita
+          if (view === "calendar" && activeView !== "calendar") {
+            setSelectedCategories(allCategories);
+          }
+          goTo(view);
+        }}
         onNewEvent={openNewEvent}
         onOpenProfile={openProfile}
         onRefresh={() => void refresh()}
@@ -4097,16 +4210,11 @@ export default function Home() {
                 />
               </section>
             ) : (
-              <PageSkeleton />
+              <PageSkeleton variant={skeletonFor(activeView)} />
             )
           ) : (
             <>
-              {noticesOnlyCard ? (
-                <div className="mb-5">
-                  <AvisosCard avisos={[]} events={upcomingEvents} onDismiss={dismissAviso} onOpen={selectEvent} />
-                </div>
-              ) : null}
-
+              {/* os avisos (lembretes avisando e avisos do sistema) ficam no card de avisos de cada Painel */}
               {activeView === "dashboard" && user.role === "guardian" ? (
                 guardianStudent ? (
                   <GuardianDashboard
@@ -4183,6 +4291,7 @@ export default function Home() {
                   onNewEvent={openNewEvent}
                   onOpenCalendar={openCalendar}
                   onOpenSync={() => goTo("sync")}
+                  onOpenClasses={() => goTo("classes")}
                   onSelect={selectEvent}
                 />
               ) : null}
@@ -4193,6 +4302,13 @@ export default function Home() {
                   calendarMode={calendarMode}
                   canManageEvent={canManageEvent}
                   classes={context?.catalog.classes ?? []}
+                  // aluno sem turma: título "Cronograma" e o convite para entrar numa turma (a mesma regra do Painel;
+                  // durante a carga, sem o context, fica o título comum)
+                  noClass={
+                    user.role === "student" &&
+                    Boolean(context) &&
+                    !(context?.enrollments ?? []).some((enrollment) => enrollment.academicClass)
+                  }
                   events={filteredEvents}
                   reminderOffset={reminderOffset}
                   role={user.role}
@@ -4229,13 +4345,14 @@ export default function Home() {
                   savedTick={savedTick}
                   saving={savingEvent || statusBusy !== null}
                   search={search}
+                  onClearSearch={clearSearchInPlace}
                   onDelete={requestDeleteEvent}
                   onEdit={beginEdit}
                   onNewEvent={openNewEvent}
                   onNewEventFor={openNewEventFor}
                   onOpenGrades={openGrades}
                   onPaneChange={setManagePane}
-                  onSearchCount={setLocalSearchCount}
+                  onSearchCount={setManageSearchCount}
                   onSetStatus={requestStatusChange}
                 />
               ) : null}
@@ -4260,6 +4377,8 @@ export default function Home() {
                   context={context}
                   search={search}
                   target={classesTarget}
+                  // a própria tela leva o foco ao título da lista de turmas depois de limpar
+                  onClearSearch={() => setSearch("")}
                   onSearchCount={setLocalSearchCount}
                   onTargetHandled={handleClassesTarget}
                 />
@@ -4346,6 +4465,7 @@ export default function Home() {
 
       {profileOpen ? (
         <ProfileModal
+          initialTab={profileTab}
           saving={savingProfile}
           user={user}
           onClose={closeProfile}

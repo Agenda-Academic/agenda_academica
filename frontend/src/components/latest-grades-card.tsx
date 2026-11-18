@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, ClipboardCheck, Lock, TriangleAlert, Users } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type Ref } from "react";
 import { getMyGrades, getStudentGrades } from "@/lib/api";
 import { countText, cx, errorMessage, firstName, formatGradeMax, formatGradeScore } from "@/lib/format";
 import { gradeStatusLabels } from "@/lib/meta";
@@ -33,6 +33,13 @@ export type LatestGradesCardProps = {
   order?: number;
   /** Classes a mais no card (ex.: "duo-fill" ou "tall", para esticar junto da coluna do Painel). */
   className?: string;
+  /** Card de baixo de uma coluna que termina junto com a outra (useColumnFill): espaçador entre a lista e o rodapé. */
+  fillRef?: Ref<HTMLDivElement>;
+  /**
+   * Avisa quando o que o card mostra muda (carregando, vazio, quantas notas): o Painel refaz a conta das colunas
+   * que terminam juntas (useColumnFill), porque o card carrega sozinho, depois do resto.
+   */
+  onContentChange?: (key: string) => void;
   /** "Ver todas (N)" ou uma nota: abre a tela Notas, com a avaliação destacada quando vier. */
   onSeeAll: (eventId?: number) => void;
 };
@@ -192,28 +199,54 @@ export function GradeValue({
   as: Tag = "p",
   className,
   evaluation,
+  size,
 }: {
   /** "span" dentro de botão (p não pode ficar dentro de button). */
   as?: "p" | "span";
   className: string;
   evaluation: StudentEvaluation;
+  /** "sm": a versão menor, para listas curtas como o card do Painel. */
+  size?: "sm";
 }) {
   const grade = evaluation.grade;
   if (!grade || grade.status !== "graded") {
     const label = grade ? gradeStatusLabels[grade.status] : "Sem nota";
     return (
       <Tag className={cx(className, "is-pill")}>
-        <span className={cx("pill", grade?.status === "absent" ? "st-alt" : "st-ag")}>{label}</span>
+        <span className={cx("pill stat", grade?.status === "absent" && "stat-alt")}>{label}</span>
       </Tag>
     );
   }
   const { max, score } = scoreParts(evaluation);
+  const { tone, percent } = scoreTone(evaluation);
+  // a nota grande na cor do desempenho e, embaixo, a barra de quanto da avaliação ela vale
   return (
-    <Tag className={className}>
-      <b>{score}</b>
-      {max ? ` de ${max}` : null}
+    <Tag className={cx(className, "score", tone, size)}>
+      <span className="score-n">
+        {score}
+        {max ? <small> de {max}</small> : null}
+      </span>
+      {percent !== null ? (
+        <span className="score-bar" aria-hidden>
+          <span style={{ width: `${percent}%` }} />
+        </span>
+      ) : null}
     </Tag>
   );
+}
+
+/**
+ * Quanto da avaliação a nota vale (0 a 100) e o tom: verde de 70% para cima, âmbar de 50% a 69% e vermelho abaixo
+ * de 50% (classes .score, .score.mid e .score.low do ux.css). Sem pontuação na avaliação, sem barra e sem tom.
+ */
+export function scoreTone(evaluation: StudentEvaluation): { tone: "" | "mid" | "low"; percent: number | null } {
+  const score = evaluation.grade?.score;
+  const max = evaluation.maxScore;
+  if (typeof score !== "number" || typeof max !== "number" || max <= 0) {
+    return { tone: "", percent: null };
+  }
+  const percent = Math.max(0, Math.min(100, Math.round((score / max) * 100)));
+  return { tone: percent >= 70 ? "" : percent >= 50 ? "mid" : "low", percent };
 }
 
 const two = (value: number) => String(value).padStart(2, "0");
@@ -235,7 +268,9 @@ export function groupSubjectName(group: StudentGradeGroup) {
 
 export function LatestGradesCard({
   className,
+  fillRef,
   limit = 3,
+  onContentChange,
   order = 0,
   studentId,
   subtitle = "Aparecem depois que a docente publica",
@@ -252,6 +287,10 @@ export function LatestGradesCard({
   const list = data && data.shareGrades ? publishedGrades(data) : [];
   const shown = list.slice(0, Math.max(1, limit));
   const name = firstName(data?.student.fullName ?? student?.fullName ?? "O aluno");
+  const contentKey = `${grades.status}:${data?.shareGrades ? 1 : 0}:${shown.map((item) => item.eventId).join(",")}`;
+  useEffect(() => {
+    onContentChange?.(contentKey);
+  }, [contentKey, onContentChange]);
 
   let body;
   if (grades.status === "idle") {
@@ -331,7 +370,7 @@ export function LatestGradesCard({
                   {groupSubjectName(item.group)}, {dayMonth(item.startsAt)}
                 </span>
               </span>
-              <GradeValue as="span" className="notas-last-v" evaluation={item} />
+              <GradeValue as="span" className="notas-last-v" evaluation={item} size="sm" />
             </button>
           </li>
         ))}
@@ -353,6 +392,7 @@ export function LatestGradesCard({
     <section className={cx("card pad rise flex flex-col", className)} style={delay(order)} aria-labelledby={titleId}>
       <SectionTitle id={titleId} title={title} subtitle={subtitle} />
       {body}
+      {fillRef ? <div ref={fillRef} className="fill-gap" aria-hidden /> : null}
       {footer}
     </section>
   );

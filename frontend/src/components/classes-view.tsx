@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight, BookOpen, ChevronRight, CircleAlert, Plus, School, Search, UserRound, Users } from "lucide-react";
+import { BookOpen, ChevronRight, CircleAlert, Plus, School, Search, SearchX, UserRound, Users } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { getClasses, getCourses, getSubjects, searchUsers } from "@/lib/api";
+import { getClassStudents, getClasses, getCourses, getSubjects, searchUsers } from "@/lib/api";
 import { classTermLabel, countText, cx, errorMessage, latestTermLabel, normalizeText } from "@/lib/format";
 import type { AcademicContext, ClassSummary, Course, Subject, UserSummary } from "@/lib/types";
 import { useAppActions, useBackLayer, type ClassesTarget } from "./app-actions";
@@ -10,8 +10,9 @@ import { ClassPanel, NewClassPanel } from "./classes-class-panel";
 import { AddOfferPanel, AddStudentsPanel, NewSubjectPanel, OfferPanel, SubjectPanel } from "./classes-panels";
 import { plural, refreshRemotes, useDebounced, useRemote, type PanelApi, type PanelView } from "./classes-shared";
 import { StudentPanel } from "./classes-student-panel";
-import { SavedPill, showAllText } from "./dashboard-bits";
-import { Drawer, EmptyState, ErrorState, Segmented, SegmentedButton, SectionTitle, primaryButton } from "./ui";
+import { SavedPill } from "./dashboard-bits";
+import { Pager, usePaged } from "./pager";
+import { Drawer, EmptyState, ErrorState, Segmented, SectionTitle, primaryButton } from "./ui";
 
 /**
  * Tela "Turmas e disciplinas" (só administração; desenho 5.3). Dona: área Admin.
@@ -32,6 +33,8 @@ export type ClassesViewProps = {
   onTargetHandled: () => void;
   /** Quantos resultados a busca encontra aqui (undefined sem busca): o menu diz "3 resultados encontrados". */
   onSearchCount?: (count: number | undefined) => void;
+  /** Limpa a busca do menu ("Limpar busca" quando nada é encontrado). Sem ele, a tela usa o X da busca do menu. */
+  onClearSearch?: () => void;
 };
 
 /** Dados das listas da tela, que os conteúdos do painel também usam (cursos e disciplinas). */
@@ -43,14 +46,58 @@ export type ClassesData = {
   courses: Course[];
 };
 
-const CLASS_LIMIT = 8;
-const SUBJECT_MIN = 4;
-const SUBJECT_MAX = 8;
-const STUDENT_SEARCH_LIMIT = 6;
+/** Turmas por página no card Turmas (com até 2 a mais, a lista mostra todas: não vale uma página para 1 ou 2). */
+const CLASS_PAGE = 8;
+/** O card Disciplinas acompanha a altura do card Turmas: de 3 a 10 disciplinas por página. */
+const SUBJECT_MIN = 3;
+const SUBJECT_MAX = 10;
+/** Alunos achados pela busca: 8 por página. A API devolve no máximo 20 (backend, UsersController). */
+const STUDENT_PAGE = 8;
+const STUDENT_API_LIMIT = 20;
 
-type StackEntry = { id: number; view: PanelView; title?: string; returnKey?: string; scrollTop?: number };
+/** Tamanho da página: a lista inteira quando passa do tamanho por só `slack` itens (nada de página para 1 item). */
+function pageSize(total: number, size: number, slack = 2) {
+  return total <= size + slack ? Math.max(total, 1) : size;
+}
 
-type Swap = { mode: "open" | "push" | "pop"; returnKey?: string; scrollTop?: number };
+/** Botão de aba com a contagem ao lado, menor e cinza: "Ativas 2". */
+function CountTab({
+  active,
+  count,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  count?: number;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button className={cx(active && "on")} aria-pressed={active} onClick={onClick} type="button">
+      {label}
+      {count === undefined ? null : <span className="admin-n">{count}</span>}
+    </button>
+  );
+}
+
+/** Limpa a busca do menu pelo X dele, quando a página não passou onClearSearch. */
+function clearMenuSearch() {
+  document.querySelector<HTMLButtonElement>('button[aria-label="Limpar busca"]')?.click();
+}
+
+type StackEntry = {
+  id: number;
+  view: PanelView;
+  title?: string;
+  returnKey?: string;
+  scrollTop?: number;
+};
+
+type Swap = {
+  mode: "open" | "push" | "pop";
+  returnKey?: string;
+  scrollTop?: number;
+};
 
 /** Linha recém-salva que fica à vista na lista, mesmo fora dos primeiros itens ou dos filtros de agora. */
 type Pin = { kind: "class" | "subject"; id: number; sig: string };
@@ -74,7 +121,14 @@ function classMatches(item: ClassSummary, words: string[]) {
     return true;
   }
   const haystack = normalizeText(
-    [item.name, item.course?.name, item.course?.code, item.period, item.shift, classTermLabel(item, { long: true })].join(" ")
+    [
+      item.name,
+      item.course?.name,
+      item.course?.code,
+      item.period,
+      item.shift,
+      classTermLabel(item, { long: true }),
+    ].join(" "),
   );
   return words.every((word) => haystack.includes(word));
 }
@@ -199,10 +253,16 @@ function useRowReveal() {
       }
       setSavedRow(request.row);
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      element.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
+      element.scrollIntoView({
+        block: "nearest",
+        behavior: reduce ? "auto" : "smooth",
+      });
       element.focus({ preventScroll: true });
       const from = getComputedStyle(document.documentElement).getPropertyValue("--brand-100").trim() || "#d3eddb";
-      element.animate([{ backgroundColor: from }, { backgroundColor: "transparent" }], { duration: 3000, easing: "ease-out" });
+      element.animate([{ backgroundColor: from }, { backgroundColor: "transparent" }], {
+        duration: 3000,
+        easing: "ease-out",
+      });
     };
     frame = window.requestAnimationFrame(check);
     return () => window.cancelAnimationFrame(frame);
@@ -246,7 +306,13 @@ function useToastRoom(open: boolean, contentRef: RefObject<HTMLDivElement | null
       let top = Infinity;
       for (const toast of Array.from(document.querySelectorAll<HTMLElement>(".toast-stack:not(.held) .toast"))) {
         const box = toast.getBoundingClientRect();
-        if (box.height && box.left < area.right && box.right > area.left && box.top < area.bottom && box.bottom > area.top) {
+        if (
+          box.height &&
+          box.left < area.right &&
+          box.right > area.left &&
+          box.top < area.bottom &&
+          box.bottom > area.top
+        ) {
           top = Math.min(top, box.top);
         }
       }
@@ -258,7 +324,9 @@ function useToastRoom(open: boolean, contentRef: RefObject<HTMLDivElement | null
         const below = box.bottom + 12 - top;
         if (below > 0) {
           // sem levar o começo do item para cima do topo da área que rola
-          body.scrollBy({ top: Math.min(below, Math.max(0, box.top - area.top - 12)) });
+          body.scrollBy({
+            top: Math.min(below, Math.max(0, box.top - area.top - 12)),
+          });
         }
       }
     };
@@ -271,7 +339,12 @@ function useToastRoom(open: boolean, contentRef: RefObject<HTMLDivElement | null
     const mutations = new MutationObserver(schedule);
     const sizes = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
     if (stack) {
-      mutations.observe(stack, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class"] });
+      mutations.observe(stack, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["style", "class"],
+      });
       sizes?.observe(stack);
     }
     window.addEventListener("resize", schedule);
@@ -288,7 +361,7 @@ function useToastRoom(open: boolean, contentRef: RefObject<HTMLDivElement | null
   }, [open, contentRef]);
 }
 
-export function ClassesView({ search, target, onTargetHandled, onSearchCount }: ClassesViewProps) {
+export function ClassesView({ search, target, onTargetHandled, onSearchCount, onClearSearch }: ClassesViewProps) {
   const actions = useAppActions();
   const { token, user, confirm, reload: reloadPage } = actions;
   const lists = useRemote(`admin:${user.id}:listas`, () => loadLists(token));
@@ -298,20 +371,21 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
   const [segment, setSegment] = useState<"active" | "archived">("active");
   const [courseFilter, setCourseFilter] = useState("");
   const [termFilter, setTermFilter] = useState("");
-  const [allClasses, setAllClasses] = useState(false);
   // card Disciplinas
   const [subjectSegment, setSubjectSegment] = useState<"active" | "archived">("active");
-  const [allSubjects, setAllSubjects] = useState(false);
-  // linha recém-salva, à vista mesmo fora dos primeiros itens (vale enquanto os filtros forem os mesmos)
+  // linha recém-salva, à vista mesmo fora da página de agora (vale enquanto os filtros forem os mesmos)
   const [pin, setPin] = useState<Pin | null>(null);
   const newClassRef = useRef<HTMLButtonElement>(null);
   const newSubjectRef = useRef<HTMLButtonElement>(null);
+  const classesCardRef = useRef<HTMLElement>(null);
+  const subjectsCardRef = useRef<HTMLElement>(null);
 
   const words = useMemo(() => normalizeText(search).split(/\s+/).filter(Boolean), [search]);
   const term = search.trim();
   const studentTerm = useDebounced(term.length >= 2 ? term : "", 300);
-  const students = useRemote<UserSummary[]>(studentTerm ? `admin:${user.id}:busca-alunos:${normalizeText(studentTerm)}` : null, () =>
-    searchUsers(token, { role: "student", q: studentTerm })
+  const students = useRemote<UserSummary[]>(
+    studentTerm ? `admin:${user.id}:busca-alunos:${normalizeText(studentTerm)}` : null,
+    () => searchUsers(token, { role: "student", q: studentTerm }),
   );
 
   const classSig = `${segment}|${courseFilter}|${termFilter}|${search}`;
@@ -319,7 +393,7 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
 
   const segmentClasses = useMemo(
     () => (segment === "active" ? (data?.classes ?? []) : (data?.archivedClasses ?? [])),
-    [data, segment]
+    [data, segment],
   );
   const courseOptions = useMemo(() => {
     const byId = new Map<number, Course>();
@@ -336,7 +410,10 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
   const termOptions = useMemo(() => {
     const keys = new Map<string, { year: number; semester: number }>();
     for (const item of segmentClasses) {
-      keys.set(termKey(item), { year: item.year, semester: item.semester || 0 });
+      keys.set(termKey(item), {
+        year: item.year,
+        semester: item.semester || 0,
+      });
     }
     return Array.from(keys.entries())
       .sort(([, a], [, b]) => b.year - a.year || (b.semester || 0.5) - (a.semester || 0.5))
@@ -347,39 +424,130 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
   }, [segmentClasses]);
 
   const filtersActive = Boolean(courseFilter || termFilter);
+  const classFilter = (item: ClassSummary) =>
+    (!courseFilter || String(item.courseId) === courseFilter) &&
+    (!termFilter || inTerm(item, termFilter)) &&
+    classMatches(item, words);
   const visibleClasses = useMemo(
     () =>
       segmentClasses.filter(
         (item) =>
           (!courseFilter || String(item.courseId) === courseFilter) &&
           (!termFilter || inTerm(item, termFilter)) &&
-          classMatches(item, words)
+          classMatches(item, words),
       ),
-    [segmentClasses, courseFilter, termFilter, words]
+    [segmentClasses, courseFilter, termFilter, words],
   );
+  // páginas de 8 turmas (com 9 ou 10, todas): nada de "Ver todas" que estica o card até virar uma rolagem sem fim
+  const classPaged = usePaged(visibleClasses, pageSize(visibleClasses.length, CLASS_PAGE), classSig);
   const pinnedClass =
     pin?.kind === "class" && pin.sig === classSig ? (segmentClasses.find((item) => item.id === pin.id) ?? null) : null;
-  const baseClasses = allClasses ? visibleClasses : visibleClasses.slice(0, CLASS_LIMIT);
+  // a linha salva em outra página: a lista vai para a página dela (uma vez por linha salva)
+  const [pinShown, setPinShown] = useState<string | null>(null);
+  if (pinnedClass && pinShown !== `class-${pinnedClass.id}-${pin?.sig}`) {
+    const index = visibleClasses.findIndex((item) => item.id === pinnedClass.id);
+    if (index >= 0) {
+      setPinShown(`class-${pinnedClass.id}-${pin?.sig}`);
+      const size = pageSize(visibleClasses.length, CLASS_PAGE);
+      classPaged.setPage(Math.floor(index / size) + 1);
+    }
+  }
   const shownClasses =
-    pinnedClass && !baseClasses.some((item) => item.id === pinnedClass.id) ? [...baseClasses, pinnedClass] : baseClasses;
+    pinnedClass && !visibleClasses.some((item) => item.id === pinnedClass.id)
+      ? [...classPaged.items, pinnedClass]
+      : classPaged.items;
 
   const segmentSubjects = subjectSegment === "active" ? (data?.subjects ?? []) : (data?.archivedSubjects ?? []);
   const visibleSubjects = segmentSubjects.filter((item) => subjectMatches(item, words));
-  // o card Disciplinas acompanha a altura do card Turmas: uma linha a mais que as turmas mostradas, de 4 a 8
-  const subjectLimit = Math.min(SUBJECT_MAX, Math.max(SUBJECT_MIN, shownClasses.length + 1));
+  // o card Disciplinas acompanha a altura de uma página cheia do card Turmas: cada turma (77 px) vale um pouco mais
+  // que uma disciplina (64 px), e a linha de filtros do card Turmas vale mais uma. Conta o tamanho da página, não as
+  // linhas da página de agora: trocar a página das turmas não mexe no card Disciplinas
+  const classPageRows = Math.min(visibleClasses.length, pageSize(visibleClasses.length, CLASS_PAGE));
+  const subjectLimit = Math.min(
+    SUBJECT_MAX,
+    Math.max(SUBJECT_MIN, classPageRows + 2 + (classPaged.pageCount > 1 ? 1 : 0)),
+  );
+  // com uma turma só na lista (um filtro), a página das disciplinas não leva uma a mais: o card Turmas fica baixo e
+  // os dois cards terminariam a mais de 80 px um do outro
+  const subjectSize = pageSize(visibleSubjects.length, subjectLimit, classPageRows <= 1 ? 0 : 1);
+  const subjectPaged = usePaged(visibleSubjects, subjectSize, subjectSig);
+  // um filtro do card Turmas mudou o tamanho da página das disciplinas: a página continua no mesmo primeiro item
+  const [subjectSizeSeen, setSubjectSizeSeen] = useState({
+    size: subjectSize,
+    sig: subjectSig,
+  });
+  if (subjectSizeSeen.size !== subjectSize || subjectSizeSeen.sig !== subjectSig) {
+    setSubjectSizeSeen({ size: subjectSize, sig: subjectSig });
+    if (subjectSizeSeen.sig === subjectSig && subjectPaged.page > 1) {
+      const firstIndex = (subjectPaged.page - 1) * subjectSizeSeen.size;
+      subjectPaged.setPage(Math.floor(firstIndex / subjectSize) + 1);
+    }
+  }
   const pinnedSubject =
-    pin?.kind === "subject" && pin.sig === subjectSig ? (segmentSubjects.find((item) => item.id === pin.id) ?? null) : null;
-  const baseSubjects = allSubjects ? visibleSubjects : visibleSubjects.slice(0, subjectLimit);
+    pin?.kind === "subject" && pin.sig === subjectSig
+      ? (segmentSubjects.find((item) => item.id === pin.id) ?? null)
+      : null;
+  if (pinnedSubject && pinShown !== `subject-${pinnedSubject.id}-${pin?.sig}`) {
+    const index = visibleSubjects.findIndex((item) => item.id === pinnedSubject.id);
+    if (index >= 0) {
+      setPinShown(`subject-${pinnedSubject.id}-${pin?.sig}`);
+      const size = pageSize(visibleSubjects.length, subjectLimit, 1);
+      subjectPaged.setPage(Math.floor(index / size) + 1);
+    }
+  }
   const shownSubjects =
-    pinnedSubject && !baseSubjects.some((item) => item.id === pinnedSubject.id)
-      ? [...baseSubjects, pinnedSubject]
-      : baseSubjects;
+    pinnedSubject && !visibleSubjects.some((item) => item.id === pinnedSubject.id)
+      ? [...subjectPaged.items, pinnedSubject]
+      : subjectPaged.items;
 
   const foundStudents = studentTerm ? (students.data ?? []) : [];
+  const studentPaged = usePaged(foundStudents, pageSize(foundStudents.length, STUDENT_PAGE, 1), studentTerm);
+  const studentsCardRef = useRef<HTMLElement>(null);
   const searchCount = term ? visibleClasses.length + visibleSubjects.length + foundStudents.length : undefined;
   useEffect(() => {
     onSearchCount?.(data ? searchCount : undefined);
   }, [data, searchCount, onSearchCount]);
+
+  // alunos achados pela busca: a turma de cada um (para separar "Diogo Silva" de "Diogo Queiroz da Silva")
+  const activeClassIds = (data?.classes ?? []).map((item) => item.id).join(",");
+  const rosters = useRemote(
+    foundStudents.length && data ? `admin:${user.id}:busca-turmas-alunos:${activeClassIds}` : null,
+    async () => {
+      const all = data?.classes ?? [];
+      const rosterLists = await Promise.all(
+        all.map((item) => getClassStudents(token, item.id).then((list) => ({ item, list }))),
+      );
+      const byUser: Record<number, string[]> = {};
+      for (const { item, list } of rosterLists) {
+        for (const student of list) {
+          if (student.status === "active" || student.status === "pending") {
+            const label = `${item.name}, ${classTermLabel(item)}${student.status === "pending" ? " (pedido)" : ""}`;
+            (byUser[student.userId] ??= []).push(label);
+          }
+        }
+      }
+      return byUser;
+    },
+  );
+
+  // a busca do menu não achou nada em lugar nenhum: um aviso só, no lugar de três cards vazios
+  const studentsSettled = term.length < 2 || (studentTerm === term && !students.loading && students.data !== null);
+  // vale para as ativas e as arquivadas: com a aba Arquivadas (ou "Ver arquivadas") ligada, a busca sem resultado em
+  // lugar nenhum também vira um aviso só
+  const anyClassFound = [...(data?.classes ?? []), ...(data?.archivedClasses ?? [])].some((item) =>
+    classMatches(item, words),
+  );
+  const anySubjectFound = [...(data?.subjects ?? []), ...(data?.archivedSubjects ?? [])].some((item) =>
+    subjectMatches(item, words),
+  );
+  const nothingFound =
+    Boolean(term) &&
+    Boolean(data) &&
+    !filtersActive &&
+    !anyClassFound &&
+    !anySubjectFound &&
+    studentsSettled &&
+    !foundStudents.length;
 
   // busca do menu: o card com resultado vem primeiro (no celular, "Ver 1 resultado" não deixa o resultado
   // embaixo de dois cards vazios)
@@ -425,12 +593,19 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
     setHandledKey(target.key);
     const entries: StackEntry[] = [];
     if (target.classId) {
-      entries.push({ id: -(target.key * 10 + 1), view: { kind: "class", classId: target.classId } });
+      entries.push({
+        id: -(target.key * 10 + 1),
+        view: { kind: "class", classId: target.classId },
+      });
     }
     if (target.memberId) {
       entries.push({
         id: -(target.key * 10 + 2),
-        view: { kind: "student", classId: target.classId ?? null, userId: target.memberId },
+        view: {
+          kind: "student",
+          classId: target.classId ?? null,
+          userId: target.memberId,
+        },
         returnKey: undefined,
       });
     }
@@ -492,7 +667,11 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
       closeNow();
       return;
     }
-    swapRef.current = { mode: "pop", returnKey: previous.returnKey, scrollTop: previous.scrollTop };
+    swapRef.current = {
+      mode: "pop",
+      returnKey: previous.returnKey,
+      scrollTop: previous.scrollTop,
+    };
     holdFocus();
     setBusy(false);
     setStack((current) => current.slice(0, -1));
@@ -653,7 +832,8 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
     removed: (kind) => {
       refreshWhenClosed.current = true;
       closeNow();
-      const id = top?.view.kind === "class" ? top.view.classId : top?.view.kind === "subject" ? top.view.subjectId : null;
+      const id =
+        top?.view.kind === "class" ? top.view.classId : top?.view.kind === "subject" ? top.view.subjectId : null;
       focusAfterRemoval(`${kind}-${id ?? ""}`);
     },
     replace: (view) => {
@@ -662,12 +842,14 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
       setStack((current) => [...current.slice(0, -1), { id: seq.current++, view }]);
     },
     setView: (view) =>
-      setStack((current) => (current.length ? [...current.slice(0, -1), { ...current[current.length - 1], view }] : current)),
+      setStack((current) =>
+        current.length ? [...current.slice(0, -1), { ...current[current.length - 1], view }] : current,
+      ),
     setTitle: (title) =>
       setStack((current) =>
         current.length && current[current.length - 1].title !== title
           ? [...current.slice(0, -1), { ...current[current.length - 1], title }]
-          : current
+          : current,
       ),
     setBusy,
     // a lista, o painel aberto e o card Pendências recarregam (inclusive depois do Desfazer de um aviso antigo)
@@ -694,7 +876,11 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
         setSegment("active");
         setTermFilter("");
       }
-      setPin({ kind: "class", id, sig: `active|${courseFilter}|${segment === "active" ? termFilter : ""}|${search}` });
+      setPin({
+        kind: "class",
+        id,
+        sig: `active|${courseFilter}|${segment === "active" ? termFilter : ""}|${search}`,
+      });
     } else if (kind === "subject") {
       if (subjectSegment !== "active") {
         setSubjectSegment("active");
@@ -711,13 +897,17 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
     const view = entry.view;
     switch (view.kind) {
       case "class": {
-        const found = [...(data?.classes ?? []), ...(data?.archivedClasses ?? [])].find((item) => item.id === view.classId);
+        const found = [...(data?.classes ?? []), ...(data?.archivedClasses ?? [])].find(
+          (item) => item.id === view.classId,
+        );
         return found?.name ?? "Turma";
       }
       case "newClass":
         return "Nova turma";
       case "subject": {
-        const found = [...(data?.subjects ?? []), ...(data?.archivedSubjects ?? [])].find((item) => item.id === view.subjectId);
+        const found = [...(data?.subjects ?? []), ...(data?.archivedSubjects ?? [])].find(
+          (item) => item.id === view.subjectId,
+        );
         return found?.name ?? "Disciplina";
       }
       case "newSubject":
@@ -762,24 +952,54 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
 
   const activeCount = data?.classes.length ?? 0;
   const pendingCount = (data?.classes ?? []).filter(hasPending).length;
-  const turmasSub = data
-    ? `${countText(activeCount, "ativa", "ativas")}, ${
-        pendingCount ? `${pendingCount} com pendência` : "nenhuma com pendência"
-      }`
-    : "Carregando turmas";
-  const subjectsSub = data
-    ? subjectSegment === "active"
-      ? countText(data.subjects.length, "ativa", "ativas")
-      : countText(data.archivedSubjects.length, "arquivada", "arquivadas")
-    : "Carregando disciplinas";
+  // durante a busca ou com filtro de curso ou período, as contagens das abas e do subtítulo são as do que a lista
+  // mostra (o mesmo predicado de visibleClasses), para a aba não dizer "Ativas 2" com uma turma à vista
+  const narrowed = Boolean(term) || filtersActive;
+  const activeShown = narrowed ? (data?.classes ?? []).filter(classFilter).length : activeCount;
+  const archivedShown = narrowed
+    ? (data?.archivedClasses ?? []).filter(classFilter).length
+    : (data?.archivedClasses.length ?? 0);
+  const turmasSub = !data
+    ? "Carregando turmas"
+    : narrowed
+      ? `${visibleClasses.length} de ${countText(segmentClasses.length, "turma", "turmas")}${term ? ` para "${term}"` : ""}`
+      : `${countText(activeCount, "ativa", "ativas")}, ${pendingCount ? `${pendingCount} com pendência` : "nenhuma com pendência"}`;
+  const subjectsSub = !data
+    ? "Carregando disciplinas"
+    : term
+      ? `${visibleSubjects.length} de ${countText(segmentSubjects.length, "disciplina", "disciplinas")} para "${term}"`
+      : subjectSegment === "active"
+        ? countText(data.subjects.length, "ativa", "ativas")
+        : countText(data.archivedSubjects.length, "arquivada", "arquivadas");
 
   const courseName = courseOptions.find((course) => String(course.id) === courseFilter)?.code;
   const termName = termOptions.find((option) => option.key === termFilter)?.label;
 
+  // "Limpar filtros" e "Limpar busca" somem junto com o que limpam: o foco vai para o título da lista de turmas
+  // (o leitor de tela anuncia onde a pessoa está), e não cai no começo da página
+  function focusTurmasTitle() {
+    window.requestAnimationFrame(() => {
+      const heading = document.getElementById("turmas-titulo");
+      if (heading) {
+        heading.tabIndex = -1;
+        heading.focus();
+      }
+    });
+  }
+
   function clearFilters() {
     setCourseFilter("");
     setTermFilter("");
-    setAllClasses(false);
+    focusTurmasTitle();
+  }
+
+  function clearSearch() {
+    if (onClearSearch) {
+      onClearSearch();
+    } else {
+      clearMenuSearch();
+    }
+    focusTurmasTitle();
   }
 
   function classesEmpty() {
@@ -805,7 +1025,10 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
           icon={School}
           text="Nenhuma turma arquivada"
           hint="Ao arquivar uma turma, ela aparece aqui e pode ser restaurada."
-          action={{ label: "Ver turmas ativas", onClick: () => setSegment("active") }}
+          action={{
+            label: "Ver turmas ativas",
+            onClick: () => setSegment("active"),
+          }}
         />
       );
     }
@@ -822,7 +1045,10 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
         icon={School}
         text={text}
         hint="Crie a turma e depois adicione as disciplinas e os alunos."
-        action={{ label: "Criar turma", onClick: () => openPanel({ kind: "newClass" }) }}
+        action={{
+          label: "Criar turma",
+          onClick: () => openPanel({ kind: "newClass" }),
+        }}
       />
     );
   }
@@ -830,7 +1056,12 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
   function subjectsEmpty() {
     if (term) {
       return (
-        <EmptyState compact icon={Search} text={`Nenhuma disciplina com "${term}"`} hint="Confira o nome ou o código, ou limpe a busca no menu." />
+        <EmptyState
+          compact
+          icon={Search}
+          text={`Nenhuma disciplina com "${term}"`}
+          hint="Confira o nome ou o código, ou limpe a busca no menu."
+        />
       );
     }
     if (subjectSegment === "archived") {
@@ -840,7 +1071,10 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
           icon={BookOpen}
           text="Nenhuma disciplina arquivada"
           hint="Disciplina arquivada sai dos seletores e pode ser restaurada aqui."
-          action={{ label: "Ver ativas", onClick: () => setSubjectSegment("active") }}
+          action={{
+            label: "Ver ativas",
+            onClick: () => setSubjectSegment("active"),
+          }}
         />
       );
     }
@@ -850,7 +1084,10 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
         icon={BookOpen}
         text="Nenhuma disciplina cadastrada"
         hint="Cadastre as disciplinas para ofertar nas turmas."
-        action={{ label: "Criar disciplina", onClick: () => openPanel({ kind: "newSubject" }) }}
+        action={{
+          label: "Criar disciplina",
+          onClick: () => openPanel({ kind: "newSubject" }),
+        }}
       />
     );
   }
@@ -859,10 +1096,20 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
   const loadError = !data && lists.error ? lists.error : null;
 
   const classesCard = (
-    <section className="card duo-main admin-turmas" aria-labelledby="turmas-titulo" aria-busy={firstLoad || undefined}>
+    <section
+      ref={classesCardRef}
+      className={cx("card duo-main admin-turmas", !firstLoad && !shownClasses.length && "is-empty")}
+      aria-labelledby="turmas-titulo"
+      aria-busy={firstLoad || undefined}
+    >
       <div className="admin-card-head admin-head">
         <SectionTitle id="turmas-titulo" title="Turmas" subtitle={turmasSub} />
-        <button ref={newClassRef} className={primaryButton} onClick={() => openPanel({ kind: "newClass" })} type="button">
+        <button
+          ref={newClassRef}
+          className={primaryButton}
+          onClick={() => openPanel({ kind: "newClass" })}
+          type="button"
+        >
           <Plus className="h-4 w-4" aria-hidden />
           Nova turma
         </button>
@@ -871,11 +1118,12 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
         <select
           className="input admin-f-course"
           aria-label="Curso"
+          // o campo corta o nome comprido no fim (admin.css): a dica mostra o curso escolhido inteiro
+          title={courseOptions.find((course) => String(course.id) === courseFilter)?.name ?? "Todos os cursos"}
           disabled={!data}
           value={courseFilter}
           onChange={(event) => {
             setCourseFilter(event.target.value);
-            setAllClasses(false);
           }}
         >
           <option value="">Todos os cursos</option>
@@ -892,7 +1140,6 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
           value={termFilter}
           onChange={(event) => {
             setTermFilter(event.target.value);
-            setAllClasses(false);
           }}
         >
           <option value="">Todos os períodos</option>
@@ -912,23 +1159,23 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
         ) : null}
         <div className="admin-seg">
           <Segmented label="Situação das turmas">
-            {/* sem contagem enquanto a lista carrega: "Ativas (0)" diria que não há nenhuma */}
-            <SegmentedButton
+            {/* sem contagem enquanto a lista carrega: "Ativas 0" diria que não há nenhuma */}
+            <CountTab
               active={segment === "active"}
-              label={data ? `Ativas (${data.classes.length})` : "Ativas"}
+              count={data ? activeShown : undefined}
+              label="Ativas"
               onClick={() => {
                 setSegment("active");
                 setTermFilter("");
-                setAllClasses(false);
               }}
             />
-            <SegmentedButton
+            <CountTab
               active={segment === "archived"}
-              label={data ? `Arquivadas (${data.archivedClasses.length})` : "Arquivadas"}
+              count={data ? archivedShown : undefined}
+              label="Arquivadas"
               onClick={() => {
                 setSegment("archived");
                 setTermFilter("");
-                setAllClasses(false);
               }}
             />
           </Segmented>
@@ -958,38 +1205,77 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
               </li>
             ))}
           </ul>
+          {/* lado a lado (CSS, a partir de 1280 px), com poucas turmas: a lista termina numa linha "Nova turma", e o
+              card Turmas acaba perto do card Disciplinas, sem ser esticado com um vão embaixo da última turma */}
+          {segment === "active" && !term && classPaged.pageCount <= 1 ? (
+            <button className="admin-addrow" onClick={() => openPanel({ kind: "newClass" })} type="button">
+              <Plus className="h-4 w-4" aria-hidden />
+              Nova turma
+            </button>
+          ) : null}
         </>
       ) : (
         <div className="admin-rows-pad">{classesEmpty()}</div>
       )}
 
-      {!firstLoad && visibleClasses.length > CLASS_LIMIT ? (
-        <div className="card-foot admin-card-foot">
-          <button className="link" aria-expanded={allClasses} onClick={() => setAllClasses((value) => !value)} type="button">
-            {allClasses ? "Mostrar menos" : showAllText("Ver todas", visibleClasses.length)}
-            <ArrowRight className={cx("h-[15px] w-[15px]", allClasses && "-rotate-90")} aria-hidden />
-          </button>
+      {!firstLoad && classPaged.pageCount > 1 ? (
+        <div className="admin-card-foot">
+          <Pager paged={classPaged} noun={["turma", "turmas"]} focusRef={classesCardRef} className="admin-pager" />
         </div>
       ) : null}
     </section>
   );
 
   const subjectsCard = (
-    <section className="card pad duo-side admin-disc" aria-labelledby="disciplinas-titulo" aria-busy={firstLoad || undefined}>
+    <section
+      ref={subjectsCardRef}
+      className="card pad duo-side admin-disc"
+      aria-labelledby="disciplinas-titulo"
+      aria-busy={firstLoad || undefined}
+    >
       {/* o título e o botão numa linha, como no card Turmas: a lista começa logo abaixo */}
       <div className="admin-head">
-        <SectionTitle id="disciplinas-titulo" title="Disciplinas" subtitle={subjectsSub} />
-        <button ref={newSubjectRef} className={primaryButton} onClick={() => openPanel({ kind: "newSubject" })} type="button">
+        <SectionTitle
+          id="disciplinas-titulo"
+          title="Disciplinas"
+          subtitle={subjectsSub}
+        />
+        <button
+          ref={newSubjectRef}
+          className={primaryButton}
+          onClick={() => openPanel({ kind: "newSubject" })}
+          type="button"
+        >
           <Plus className="h-4 w-4" aria-hidden />
           Nova disciplina
         </button>
+      </div>
+      {/* ativas e arquivadas no mesmo par de abas do card Turmas ("Nome N"), na largura do card */}
+      <div className="admin-seg admin-disc-seg">
+        <Segmented label="Situação das disciplinas">
+          <CountTab
+            active={subjectSegment === "active"}
+            count={data ? data.subjects.length : undefined}
+            label="Ativas"
+            onClick={() => setSubjectSegment("active")}
+          />
+          <CountTab
+            active={subjectSegment === "archived"}
+            count={data ? data.archivedSubjects.length : undefined}
+            label="Arquivadas"
+            onClick={() => setSubjectSegment("archived")}
+          />
+        </Segmented>
       </div>
       {firstLoad ? (
         <div className="mt-3.5">
           <ClassRowsSkeleton compact />
         </div>
       ) : shownSubjects.length ? (
-        <ul className="admin-dlist" aria-label={subjectSegment === "active" ? "Disciplinas ativas" : "Disciplinas arquivadas"}>
+        <ul
+          className="admin-dlist"
+          aria-label={subjectSegment === "active" ? "Disciplinas ativas" : "Disciplinas arquivadas"}
+        >
           {shownSubjects.map((item) => (
             <li key={item.id}>
               <button
@@ -1022,26 +1308,14 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
       ) : (
         <div className="mt-3.5">{subjectsEmpty()}</div>
       )}
-      {!firstLoad && data ? (
-        <div className="card-foot">
-          {visibleSubjects.length > subjectLimit ? (
-            <button className="link" aria-expanded={allSubjects} onClick={() => setAllSubjects((value) => !value)} type="button">
-              {allSubjects ? "Mostrar menos" : showAllText("Ver todas", visibleSubjects.length)}
-              <ArrowRight className={cx("h-[15px] w-[15px]", allSubjects && "-rotate-90")} aria-hidden />
-            </button>
-          ) : (
-            <span />
-          )}
-          <button
-            className="link admin-link-muted"
-            onClick={() => {
-              setSubjectSegment((value) => (value === "active" ? "archived" : "active"));
-              setAllSubjects(false);
-            }}
-            type="button"
-          >
-            {subjectSegment === "active" ? `Arquivadas (${data.archivedSubjects.length})` : `Ativas (${data.subjects.length})`}
-          </button>
+      {!firstLoad && subjectPaged.pageCount > 1 ? (
+        <div className="admin-disc-foot">
+          <Pager
+            paged={subjectPaged}
+            noun={["disciplina", "disciplinas"]}
+            focusRef={subjectsCardRef}
+            className="admin-pager"
+          />
         </div>
       ) : null}
     </section>
@@ -1049,16 +1323,23 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
 
   const studentsCard =
     studentTerm && data ? (
-      <section className="card pad" aria-labelledby="busca-alunos-titulo" aria-busy={students.loading || undefined}>
+      <section
+        ref={studentsCardRef}
+        className="card pad"
+        aria-labelledby="busca-alunos-titulo"
+        aria-busy={students.loading || undefined}
+      >
         <SectionTitle
           id="busca-alunos-titulo"
           title="Alunos"
           subtitle={
             students.loading
               ? "Buscando alunos"
-              : foundStudents.length
-                ? `${plural(foundStudents.length, "aluno encontrado", "alunos encontrados")} com "${studentTerm}"`
-                : `Nenhum aluno com "${studentTerm}"`
+              : foundStudents.length >= STUDENT_API_LIMIT
+                ? `Os primeiros ${foundStudents.length} alunos com "${studentTerm}". Refine a busca para achar outros`
+                : foundStudents.length
+                  ? `${plural(foundStudents.length, "aluno encontrado", "alunos encontrados")} com "${studentTerm}"`
+                  : `Nenhum aluno com "${studentTerm}"`
           }
         />
         {students.loading ? (
@@ -1071,26 +1352,50 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
             <span>{errorMessage(students.error)}</span>
           </p>
         ) : foundStudents.length ? (
-          <ul className="admin-people mt-3.5">
-            {foundStudents.slice(0, STUDENT_SEARCH_LIMIT * 4).map((person) => (
-              <li key={person.id}>
-                <button
-                  className="admin-srow"
-                  onClick={() => openPanel({ kind: "student", classId: null, userId: person.id, name: person.fullName ?? undefined })}
-                  type="button"
-                >
-                  <span className="admin-av-sm" aria-hidden>
-                    <UserRound className="h-4 w-4" />
-                  </span>
-                  <span className="admin-s-main">
-                    <span className="admin-s-name">{person.fullName ?? person.email}</span>
-                    <span className="admin-s-mail">{person.email}</span>
-                  </span>
-                  <ChevronRight className="admin-go" aria-hidden />
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="admin-people mt-3.5">
+              {studentPaged.items.map((person) => (
+                <li key={person.id}>
+                  <button
+                    className="admin-srow"
+                    onClick={() =>
+                      openPanel({
+                        kind: "student",
+                        classId: null,
+                        userId: person.id,
+                        name: person.fullName ?? undefined,
+                      })
+                    }
+                    type="button"
+                  >
+                    <span className="admin-av-sm" aria-hidden>
+                      <UserRound className="h-4 w-4" />
+                    </span>
+                    <span className="admin-s-main">
+                      <span className="admin-s-name">{person.fullName ?? person.email}</span>
+                      <span className="admin-s-mail">{person.email}</span>
+                      <span className="admin-s-class">
+                        {rosters.data ? (
+                          (rosters.data[person.id]?.join("; ") ?? "Sem turma ativa")
+                        ) : rosters.error ? null : (
+                          <span className="skel inline-block h-3 w-28 align-middle" aria-hidden />
+                        )}
+                      </span>
+                    </span>
+                    <ChevronRight className="admin-go" aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {studentPaged.pageCount > 1 ? (
+              <Pager
+                paged={studentPaged}
+                noun={["aluno", "alunos"]}
+                focusRef={studentsCardRef}
+                className="admin-pager mt-3.5"
+              />
+            ) : null}
+          </>
         ) : (
           <div className="mt-3.5">
             <EmptyState
@@ -1104,27 +1409,48 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount }: 
       </section>
     ) : null;
 
+  const nothingCard = (
+    <section className="card pad" aria-labelledby="busca-vazia-titulo">
+      <h2 id="busca-vazia-titulo" className="sr-only">
+        Resultado da busca
+      </h2>
+      <EmptyState
+        icon={SearchX}
+        text={`Nada encontrado para "${term}"`}
+        hint="Busque pelo nome da turma, do curso, da disciplina ou do aluno, ou pelo e-mail do aluno."
+        action={{ label: "Limpar busca", onClick: clearSearch }}
+      />
+    </section>
+  );
+
   return (
     <div className="grid gap-5">
-      {/* Busca do menu com aluno encontrado e nenhuma turma ou disciplina: o card Alunos vem primeiro */}
-      {studentsFirst ? studentsCard : null}
-
-      {loadError ? (
-        <ErrorState
-          title="Não deu para carregar as turmas"
-          text={errorMessage(loadError)}
-          onRetry={() => void lists.reload()}
-        />
+      {nothingFound ? (
+        nothingCard
       ) : (
-        <div className="duo admin-duo">
-          {(subjectsFirst ? ["disciplinas", "turmas"] : ["turmas", "disciplinas"]).map((card) => (
-            <Fragment key={card}>{card === "turmas" ? classesCard : subjectsCard}</Fragment>
-          ))}
-        </div>
-      )}
+        <>
+          {/* Busca do menu com aluno encontrado e nenhuma turma ou disciplina: o card Alunos vem primeiro */}
+          {studentsFirst ? studentsCard : null}
 
-      {/* Busca do menu: alunos com o nome ou o e-mail */}
-      {studentsFirst ? null : studentsCard}
+          {/* a busca achou só alunos: os cards Turmas e Disciplinas vazios saem (voltam ao limpar a busca) */}
+          {studentsFirst ? null : loadError ? (
+            <ErrorState
+              title="Não deu para carregar as turmas"
+              text={errorMessage(loadError)}
+              onRetry={() => void lists.reload()}
+            />
+          ) : (
+            <div className="duo admin-duo">
+              {(subjectsFirst ? ["disciplinas", "turmas"] : ["turmas", "disciplinas"]).map((card) => (
+                <Fragment key={card}>{card === "turmas" ? classesCard : subjectsCard}</Fragment>
+              ))}
+            </div>
+          )}
+
+          {/* Busca do menu: alunos com o nome ou o e-mail */}
+          {studentsFirst ? null : studentsCard}
+        </>
+      )}
 
       <Drawer
         open={open}
@@ -1160,15 +1486,15 @@ function ClassRow({ item, saved, onOpen }: { item: ClassSummary; saved: boolean;
       <span className="admin-c-main">
         <span className="admin-t-line">
           <span className="admin-t">{item.name}</span>
-          {archived ? <span className="pill st-ag">Arquivada</span> : null}
+          {archived ? <span className="pill stat">Arquivada</span> : null}
           {!archived && item.counts.pendingStudents ? (
-            <span className="pill st-alt">
+            <span className="pill stat stat-alt">
               <Users className="h-3 w-3" aria-hidden />
               {plural(item.counts.pendingStudents, "pedido", "pedidos")}
             </span>
           ) : null}
           {!archived && item.counts.subjectsWithoutTeacher ? (
-            <span className="pill st-alt">
+            <span className="pill stat stat-alt">
               <CircleAlert className="h-3 w-3" aria-hidden />
               {plural(item.counts.subjectsWithoutTeacher, "disciplina sem docente", "disciplinas sem docente")}
             </span>
@@ -1179,7 +1505,9 @@ function ClassRow({ item, saved, onOpen }: { item: ClassSummary; saved: boolean;
       </span>
       <span className="admin-c-term">
         <span className="admin-t">{classTermLabel(item)}</span>
-        <span className="admin-s">{[item.period, item.shift?.toLocaleLowerCase("pt-BR")].filter(Boolean).join(", ")}</span>
+        <span className="admin-s">
+          {[item.period, item.shift?.toLocaleLowerCase("pt-BR")].filter(Boolean).join(", ")}
+        </span>
       </span>
       <span className="admin-c-num">
         <span className="admin-t">{item.counts.activeStudents}</span>

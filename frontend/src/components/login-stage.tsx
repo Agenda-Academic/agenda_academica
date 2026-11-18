@@ -111,10 +111,10 @@ export function LoginStage() {
               <PencilLine className="h-[18px] w-[18px]" />
             </span>
             <span className="ls-k">
-              {DIAS_LONGOS[diaProva.getDay()]}, {diaProva.getDate()} · 19:00
+              {DIAS_LONGOS[diaProva.getDay()]}, {diaProva.getDate()}, 19:00
             </span>
             <b>Prova de Estrutura de Dados</b>
-            <small>Laboratório 3 · faltam 2 dias</small>
+            <small>Laboratório 3, faltam 2 dias</small>
           </div>
           <div className="ls-nota email">
             <span className="ls-ic">

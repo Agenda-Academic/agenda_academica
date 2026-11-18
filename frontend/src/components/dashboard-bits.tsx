@@ -4,9 +4,9 @@ import {
   ArrowRight,
   BellRing,
   BookOpen,
+  CalendarDays,
   CheckCheck,
   CheckCircle2,
-  ChevronUp,
   Clock,
   Loader2,
   MapPin,
@@ -21,6 +21,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
   type Ref,
@@ -32,17 +33,21 @@ import {
   formatShortDate,
   formatShortDateTime,
   formatTime,
+  groupByMonth,
   groupByWeek,
   isSameDay,
   isWholeDay,
+  NBSP,
   relativeDue,
   startOfDay,
+  yearSuffix,
 } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, AppNotification, Category, Reminder } from "@/lib/types";
 import { useOptionalAppActions } from "./app-actions";
 import { EventRow, StatusPill, eventLastDay } from "./event-bits";
-import { EmptyState } from "./ui";
+import { useBackLayer } from "./app-actions";
+import { Drawer, EmptyState, SectionTitle } from "./ui";
 
 /** Filtro com que os painéis abrem o Cronograma (ex.: só Provas). */
 export type CalendarFilter = { categories?: Category[] };
@@ -192,9 +197,12 @@ export function officialWhen(event: AcademicEvent) {
   const start = new Date(event.startsAt);
   const last = eventLastDay(event);
   if (isWholeDay(event.startsAt, event.endsAt)) {
-    return last.getTime() > startOfDay(start).getTime()
-      ? `${formatShortDate(start)} a ${formatShortDate(last)}`
-      : `${formatShortDate(start)}, dia todo`;
+    if (last.getTime() <= startOfDay(start).getTime()) {
+      return `${formatShortDate(start)}, dia todo`;
+    }
+    // o ano (fora do ano corrente) vai só no fim quando os dois dias são do mesmo ano: "seg, 11/01 a sex, 15/01/2027"
+    const from = start.getFullYear() === last.getFullYear() ? formatShortDate(start).replace(/\/\d{4}$/, "") : formatShortDate(start);
+    return `${from} a ${formatShortDate(last)}`;
   }
   return formatShortDateTime(start);
 }
@@ -409,32 +417,69 @@ export function useSavedReveal<T extends HTMLElement>(
 /* Colunas que terminam juntas                                         */
 /* ------------------------------------------------------------------ */
 
-/** Lista que pode mostrar mais itens: quantos tem, quantos mostra no mínimo e no máximo. */
-export type FillList = { total: number; min: number; max: number };
+/**
+ * Lista que pode mostrar mais itens: quantos tem, quantos mostra no mínimo e no máximo. floor (padrão: min) é o
+ * menor número a que ela pode descer, lado a lado, para a outra coluna não ficar com um buraco no fim.
+ */
+export type FillList = { total: number; min: number; max: number; floor?: number };
 
 type FillState = {
   key: string;
   main: number;
   side: number;
-  /** Lista que acabou de ganhar um item, e a sobra que havia antes dele. */
-  tried: "main" | "side" | null;
+  /** Lista que acabou de ganhar (main, side) ou perder (cutMain, cutSide) um item, e a sobra que havia antes. */
+  tried: "main" | "side" | "cutMain" | "cutSide" | null;
   before: number;
+  /** Já tirou item de alguma lista: não volta a pôr (senão a conta não para). */
+  cutting: boolean;
+  /** A última troca foi desfeita: falta só medir a sobra final. */
+  final: boolean;
   done: boolean;
+  /**
+   * Lado a lado, sobrou mais de LOOSE_GAP no fim de uma coluna mesmo assim (as listas acabaram): a mais baixa
+   * fica parada no alto ao rolar.
+   */
+  loose: boolean;
 };
 
 /** Sobra pequena demais para mais um item (px). */
 const FILL_SLACK = 40;
 
+/** Maior diferença aceitável no fim das colunas (px, decisão 5); acima dela, as colunas ficam soltas (loose). */
+const LOOSE_GAP = 80;
+
 /**
- * Duas colunas lado a lado (.duo) que terminam juntas, sem sobra grande e sem rolagem por dentro:
- * o card de baixo de cada coluna (.duo-fill) estica até o fim da coluna mais alta e guarda a sobra
- * no espaçador .fill-gap dele. A lista da coluna (a desse card, como no Painel da docente, ou a de
- * outro card da mesma coluna, como no da administração) mostra mais um item enquanto a coluna for a
- * mais baixa e ainda houver itens. Se o item a mais deixa a outra coluna com mais sobra do que
- * antes, ele sai. Com as colunas uma embaixo da outra, cada lista mostra o mínimo. A conta recomeça
- * quando a largura, as fontes ou os dados (dataKey) mudam; tudo acontece antes da pintura.
+ * Altura do conteúdo de uma coluna (.duo-col): a soma dos cards e dos vãos entre eles, sem transform (a entrada
+ * suave não muda a conta) e sem o espaçador .fill-gap de um card que ainda estique em outra tela.
  */
-export function useColumnFill(main: FillList, side: FillList, dataKey: string) {
+function columnContentHeight(column: HTMLElement) {
+  const kids = (Array.from(column.children) as HTMLElement[]).filter((kid) => kid.offsetHeight > 0);
+  if (!kids.length) {
+    return 0;
+  }
+  const gap = parseFloat(getComputedStyle(column).rowGap) || 0;
+  const spacers = (Array.from(column.querySelectorAll(".fill-gap")) as HTMLElement[]).reduce(
+    (sum, spacer) => sum + spacer.offsetHeight,
+    0
+  );
+  return kids.reduce((sum, kid) => sum + kid.offsetHeight, 0) + gap * (kids.length - 1) - spacers;
+}
+
+/**
+ * Duas colunas lado a lado (.duo) que terminam juntas, sem sobra grande e sem rolagem por dentro.
+ * Nenhum card estica (decisão 5: o card termina no próprio conteúdo, sem buraco dentro nem rodapé puxado;
+ * painel.css): o equilíbrio vem do número de itens. A lista da coluna (a do card de baixo, como no Painel da
+ * docente, ou a de outro card da mesma coluna, como no da administração) mostra mais um item enquanto a coluna for a
+ * mais baixa e ainda houver itens. Se o item a mais deixa a outra coluna com mais sobra do que
+ * antes, ele sai. Quando a lista da coluna mais baixa já mostra tudo e ainda sobra espaço, a lista da outra
+ * coluna perde itens (até o floor dela) enquanto isso diminuir a sobra: as colunas terminam juntas sem um
+ * card esticado com um buraco. Com as colunas uma embaixo da outra, cada lista mostra o mínimo. A conta recomeça
+ * quando a largura, as fontes ou os dados (dataKey) mudam; tudo acontece antes da pintura. looseGap é a maior
+ * diferença aceitável no fim das colunas (padrão LOOSE_GAP); acima dela, a mais baixa fica parada no alto ao rolar
+ * (duo-loose, a exceção do card lateral sticky ao lado de uma lista longa). mainGapRef e sideGapRef continuam
+ * no retorno para os cards que ainda põem o espaçador (.fill-gap, escondido no Painel).
+ */
+export function useColumnFill(main: FillList, side: FillList, dataKey: string, looseGap = LOOSE_GAP) {
   const gridRef = useRef<HTMLDivElement>(null);
   const mainGapRef = useRef<HTMLDivElement>(null);
   const sideGapRef = useRef<HTMLDivElement>(null);
@@ -447,7 +492,10 @@ export function useColumnFill(main: FillList, side: FillList, dataKey: string) {
     side: side.min,
     tried: null,
     before: 0,
+    cutting: false,
+    final: false,
     done: false,
+    loose: false,
   });
   const [fill, setFill] = useState<FillState>(() => fresh(key));
   let current = fill;
@@ -490,22 +538,52 @@ export function useColumnFill(main: FillList, side: FillList, dataKey: string) {
     }
     const columns = Array.from(gridRef.current?.children ?? []) as HTMLElement[];
     const sideBySide = columns.length > 1 && Math.abs(columns[0].offsetTop - columns[1].offsetTop) < 2;
-    const freeMain = sideBySide ? (mainGapRef.current?.offsetHeight ?? 0) : 0;
-    const freeSide = sideBySide ? (sideGapRef.current?.offsetHeight ?? 0) : 0;
-    if (fill.tried === "main" && freeSide > fill.before) {
-      setFill({ ...fill, main: fill.main - 1, tried: null, done: true });
-    } else if (fill.tried === "side" && freeMain > fill.before) {
-      setFill({ ...fill, side: fill.side - 1, tried: null, done: true });
-    } else if (freeMain > FILL_SLACK && fill.main < Math.min(main.total, main.max)) {
-      setFill({ ...fill, main: fill.main + 1, tried: "main", before: freeMain });
-    } else if (freeSide > FILL_SLACK && fill.side < Math.min(side.total, side.max)) {
-      setFill({ ...fill, side: fill.side + 1, tried: "side", before: freeSide });
-    } else if (columns.length) {
-      setFill({ ...fill, tried: null, done: true });
+    // a sobra de cada coluna é a diferença entre as alturas do conteúdo delas (os cards não esticam: painel.css)
+    const heightMain = sideBySide ? columnContentHeight(columns[0]) : 0;
+    const heightSide = sideBySide ? columnContentHeight(columns[1]) : 0;
+    const freeMain = Math.max(0, heightSide - heightMain);
+    const freeSide = Math.max(0, heightMain - heightSide);
+    const loose = sideBySide && Math.max(freeMain, freeSide) > looseGap;
+    if (fill.final) {
+      setFill({ ...fill, final: false, done: true, loose });
+      return;
     }
-  }, [fill, key, main.total, main.max, side.total, side.max]);
+    // quantos cada lista mostra de fato (o limite pode passar do total)
+    const shownMain = Math.min(fill.main, main.total);
+    const shownSide = Math.min(fill.side, side.total);
+    const mainFloor = Math.min(main.floor ?? main.min, main.total);
+    const sideFloor = Math.min(side.floor ?? side.min, side.total);
+    if (fill.tried === "main" && freeSide > fill.before) {
+      setFill({ ...fill, main: fill.main - 1, tried: null, final: true });
+    } else if (fill.tried === "side" && freeMain > fill.before) {
+      setFill({ ...fill, side: fill.side - 1, tried: null, final: true });
+    } else if (fill.tried === "cutSide" && freeSide > fill.before) {
+      // sem o item, a coluna de apoio ficou mais baixa que a outra por mais do que o buraco de antes: ele volta
+      setFill({ ...fill, side: fill.side + 1, tried: null, final: true });
+    } else if (fill.tried === "cutMain" && freeMain > fill.before) {
+      setFill({ ...fill, main: fill.main + 1, tried: null, final: true });
+    } else if (!fill.cutting && freeMain > FILL_SLACK && fill.main < Math.min(main.total, main.max)) {
+      setFill({ ...fill, main: fill.main + 1, tried: "main", before: freeMain });
+    } else if (!fill.cutting && freeSide > FILL_SLACK && fill.side < Math.min(side.total, side.max)) {
+      setFill({ ...fill, side: fill.side + 1, tried: "side", before: freeSide });
+    } else if (freeMain > FILL_SLACK && shownSide > sideFloor) {
+      setFill({ ...fill, side: shownSide - 1, tried: "cutSide", before: freeMain, cutting: true });
+    } else if (freeSide > FILL_SLACK && shownMain > mainFloor) {
+      setFill({ ...fill, main: shownMain - 1, tried: "cutMain", before: freeSide, cutting: true });
+    } else if (columns.length) {
+      setFill({ ...fill, tried: null, done: true, loose });
+    }
+  }, [fill, key, looseGap, main.total, main.max, main.floor, main.min, side.total, side.max, side.floor, side.min]);
 
-  return { gridRef, mainGapRef, sideGapRef, mainCount: current.main, sideCount: current.side };
+  return {
+    gridRef,
+    mainGapRef,
+    sideGapRef,
+    mainCount: current.main,
+    sideCount: current.side,
+    /** Classe da grade (.duo): "duo-loose" quando as colunas ficam soltas (ver FillState.loose). */
+    gridClass: current.loose ? "duo-loose" : undefined,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -528,12 +606,15 @@ export function InsightTile({
   children,
   extra,
   actionLabel,
+  valueClassName,
   onClick,
 }: {
   order?: number;
   icon: LucideIcon;
   label: string;
   value: string;
+  /** Classe a mais no número (ex.: "is-date" quando o valor é uma data, como "01 jan"). */
+  valueClassName?: string;
   unit?: string;
   hint?: ReactNode;
   /**
@@ -571,7 +652,7 @@ export function InsightTile({
           <Icon className="h-[18px] w-[18px]" aria-hidden />
         </span>
       </div>
-      <p className="kpi-val">
+      <p className={cx("kpi-val", valueClassName)}>
         {value}
         {unit ? <small>{unit}</small> : null}
       </p>
@@ -590,7 +671,7 @@ export function InsightTile({
 
 export function CategoryBreakdown({
   counts,
-  emptyText = "Nenhum evento no período.",
+  emptyText = "Nenhum evento no período",
 }: {
   counts: Array<{ category: Category; count: number }>;
   emptyText?: string;
@@ -669,8 +750,12 @@ export function EventList({
   events: AcademicEvent[];
   /** Card que estica para a coluna terminar junto (useColumnFill): espaçador entre a lista e o rodapé. */
   fillRef?: Ref<HTMLDivElement>;
-  /** Separa em "Esta semana", "Próxima semana" e "Mais adiante". */
-  grouped?: boolean;
+  /**
+   * Separa em grupos com cabeçalho: "week" (ou true) dá "Esta semana", "Próxima semana" e um grupo por mês
+   * depois delas; "month" dá um grupo por mês ("Janeiro de 2027"). Sem grupos, a linha mostra o mês no bloco
+   * de data quando a lista atravessa meses.
+   */
+  grouped?: boolean | "week" | "month";
   hideClass?: boolean;
   limit?: number;
   /** Eventos deste docente; nos de colegas, a linha mostra quem publicou. */
@@ -689,23 +774,37 @@ export function EventList({
     const empty = <EmptyState compact={emptyCompact} icon={emptyIcon} text={emptyText} hint={emptyHint} />;
     const block = className ? <div className={className}>{empty}</div> : empty;
     // no card que estica, o vazio fica logo abaixo do título (como nos outros cards) e a sobra vai
-    // para o espaçador, que useColumnFill continua medindo
-    return fillRef ? (
+    // para o espaçador, que useColumnFill continua medindo; o rodapé que é o caminho do card (always) fica
+    return (
       <>
         {block}
-        <div ref={fillRef} className="fill-gap" aria-hidden />
+        {fillRef ? <div ref={fillRef} className="fill-gap" aria-hidden /> : null}
+        {showAll?.always && (showAll.count ?? 0) > 0 ? (
+          <div className="card-foot">
+            <button className="link" onClick={showAll.onClick} type="button">
+              {showAllText(showAll.label, 0, showAll.count)}
+              <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
+            </button>
+          </div>
+        ) : null}
       </>
-    ) : (
-      block
     );
   }
 
+  // numa lista (ou num grupo) que atravessa meses sem cabeçalho de mês, cada data mostra o mês
+  const spansMonths = (items: AcademicEvent[]) =>
+    new Set(items.map((event) => {
+      const date = new Date(event.startsAt);
+      return date.getFullYear() * 12 + date.getMonth();
+    })).size > 1;
+
   // as linhas (EventRow) já dizem qual evento abrem (data-opens-event), para o foco voltar a elas
-  const row = (event: AcademicEvent) => (
+  const row = (event: AcademicEvent, showMonth = false) => (
     <EventRow
       key={event.id}
       event={event}
       hideClass={hideClass}
+      showMonth={showMonth}
       mine={isMine ? isMine(event) : mineId !== undefined && event.teacherId === mineId}
       saved={savedId === event.id}
       showTeacher={isMine ? !isMine(event) : mineId !== undefined ? event.teacherId !== mineId : undefined}
@@ -714,17 +813,23 @@ export function EventList({
     />
   );
 
-  const list = grouped ? (
-    <div className={className}>
-      {groupByWeek(visible).map((group) => (
-        <div key={group.label}>
-          <p className="ev-group">{group.label}</p>
-          <div className="grid gap-0.5">{group.items.map(row)}</div>
-        </div>
-      ))}
+  const groups = grouped ? (grouped === "month" ? groupByMonth(visible) : groupByWeek(visible)) : null;
+  const list = groups ? (
+    <div className={cx("pnl-list", className)}>
+      {groups.map((group) => {
+        const withMonth = spansMonths(group.items);
+        return (
+          <div key={group.label}>
+            <p className="ev-group">{group.label}</p>
+            <div className="grid gap-0.5">{group.items.map((event) => row(event, withMonth))}</div>
+          </div>
+        );
+      })}
     </div>
   ) : (
-    <div className={cx("grid gap-0.5", className)}>{visible.map(row)}</div>
+    <div className={cx("pnl-list grid gap-0.5", className)}>
+      {visible.map((event) => row(event, spansMonths(visible)))}
+    </div>
   );
 
   // fora de uma caixa, o rodapé vira filho direto do card e desce para o pé dele
@@ -741,6 +846,71 @@ export function EventList({
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Card "Datas da instituição" (feriados, recessos e datas institucionais), o mesmo no Painel de todos os
+ * perfis: as próximas datas oficiais com o cabeçalho do mês (e o ano, fora do ano corrente) e o rodapé que
+ * abre o Cronograma filtrado nelas. É o único lugar do Painel em que elas aparecem: não entram nos
+ * compromissos da turma nem no destaque.
+ */
+export function InstitutionDatesCard({
+  className,
+  emptyText = "Nenhuma data da instituição à frente",
+  events,
+  fillRef,
+  limit,
+  listed,
+  order = 0,
+  savedId,
+  subtitle = "Feriados, recessos e eventos oficiais",
+  onOpenAll,
+  onSelect,
+}: {
+  /** Classes a mais no card (ex.: "duo-fill", para esticar junto da coluna). */
+  className?: string;
+  /** O vazio; quando a próxima data já está no destaque, "Nenhuma outra data..." (decisão 13). */
+  emptyText?: string;
+  /** As datas oficiais à frente (upcomingOfficialDates), sem a que já aparece no destaque da tela. */
+  events: AcademicEvent[];
+  /** Espaçador do card que estica (useColumnFill). */
+  fillRef?: Ref<HTMLDivElement>;
+  /** Quantas mostrar. */
+  limit: number;
+  /** Quantas o Cronograma lista com o filtro das datas oficiais (o N do rodapé). */
+  listed?: number;
+  order?: number;
+  savedId?: number | null;
+  subtitle?: string;
+  /** Abre o Cronograma filtrado nas datas oficiais. */
+  onOpenAll?: () => void;
+  onSelect: (id: number) => void;
+}) {
+  const titleId = useId();
+  return (
+    <section className={cx("card pad rise flex flex-col", className)} style={delay(order)} aria-labelledby={titleId}>
+      <SectionTitle id={titleId} title="Datas da instituição" subtitle={subtitle} />
+      <EventList
+        className="mt-2"
+        events={events}
+        grouped="month"
+        hideClass
+        limit={limit}
+        fillRef={fillRef}
+        savedId={savedId}
+        emptyCompact
+        emptyIcon={CalendarDays}
+        emptyText={emptyText}
+        emptyHint="Feriados e semanas acadêmicas aparecem aqui quando a secretaria publica."
+        showAll={
+          onOpenAll
+            ? { label: "Ver todas no cronograma", count: listed, always: (listed ?? events.length) > Math.min(limit, events.length), onClick: onOpenAll }
+            : undefined
+        }
+        onSelect={onSelect}
+      />
+    </section>
   );
 }
 
@@ -775,6 +945,24 @@ function countdownWords(value: string, now: Date) {
   return `${single ? "Falta" : "Faltam"} ${text}`;
 }
 
+/** Dias de calendário entre hoje e a data (a mesma conta do "em 6 dias" das listas, relativeDue). */
+function calendarDays(value: string, now: Date) {
+  return Math.round((startOfDay(new Date(value)).getTime() - startOfDay(now).getTime()) / (24 * 60 * 60 * 1000));
+}
+
+/**
+ * O número grande da contagem do destaque. Com 2 dias ou mais pela frente, os dias de calendário ("6 dias"), a
+ * mesma conta do "em 6 dias" da lista logo abaixo (antes, "5d 18h" ao lado de "em 6 dias" parecia erro); mais
+ * perto, o relógio ("18h 21m"), que corre sozinho (live).
+ */
+export function heroCountdown(value: string, now: Date) {
+  const days = calendarDays(value, now);
+  if (days >= 2) {
+    return { text: `${days}${NBSP}dias`, words: `Faltam ${days} dias`, live: false };
+  }
+  return { text: countdown(value, now), words: countdownWords(value, now), live: true };
+}
+
 /** Contagem regressiva que se atualiza sozinha. note troca o texto miúdo de baixo (ex.: "visível para toda a turma"). */
 function Countdown({ startsAt, until, note }: { startsAt: string; until: string; note?: string }) {
   const [now, setNow] = useState(() => new Date());
@@ -782,24 +970,30 @@ function Countdown({ startsAt, until, note }: { startsAt: string; until: string;
     const timer = window.setInterval(() => setNow(new Date()), 30000);
     return () => window.clearInterval(timer);
   }, []);
+  const count = heroCountdown(startsAt, now);
   return (
     <div className="countdown">
-      <p className="eyebrow" aria-hidden>
-        <span className="live" />
+      <p className="eyebrow hero-label" aria-hidden>
+        {count.live ? <span className="live" /> : null}
         Faltam
       </p>
-      <b aria-hidden>{countdown(startsAt, now)}</b>
+      <b aria-hidden>{count.text}</b>
       <small aria-hidden>{note ?? until}</small>
       <span className="sr-only">
-        {countdownWords(startsAt, now)} {until}.{note ? ` ${capitalize(note)}.` : ""}
+        {count.words} {until}.{note ? ` ${capitalize(note)}.` : ""}
       </span>
     </div>
   );
 }
 
 /** Quando é o evento do destaque: "Amanhã, 19:00", "Amanhã, 19:00 até 21:30" ou "Hoje, dia todo". */
-function heroWhen(event: AcademicEvent) {
-  const day = capitalize(relativeDue(event.startsAt));
+export function heroWhen(event: AcademicEvent) {
+  // a contagem ao lado já diz os dias ("6 dias"): de 2 dias em diante, a linha diz o dia ("seg, 23/11"), como no
+  // destaque do responsável; hoje e amanhã continuam relativos
+  const day =
+    calendarDays(event.startsAt, new Date()) >= 2
+      ? capitalize(formatShortDate(event.startsAt))
+      : capitalize(relativeDue(event.startsAt));
   if (isWholeDay(event.startsAt, event.endsAt)) {
     return `${day}, dia todo`;
   }
@@ -828,6 +1022,7 @@ export type HeroAction = {
  */
 export function NextEventHero({
   event,
+  emptyNote,
   emptyTitle = "Você está em dia com os prazos",
   emptyText = "Quando novos prazos forem publicados, eles aparecem aqui.",
   kicker = "Próximo compromisso",
@@ -843,6 +1038,8 @@ export function NextEventHero({
   onEmptyAction,
 }: {
   event: AcademicEvent | null;
+  /** Linha a mais no vazio (ex.: a próxima data da instituição, que não é compromisso da turma). */
+  emptyNote?: ReactNode;
   emptyTitle?: string;
   emptyText?: string;
   kicker?: string;
@@ -869,9 +1066,10 @@ export function NextEventHero({
     return (
       <section className="hero h-full items-start content-start" aria-label={kicker}>
         <div className="hero-body">
-          <p className="eyebrow text-brand">{kicker}</p>
+          <p className="hero-label">{kicker}</p>
           <h2 className="hero-title">{emptyTitle}</h2>
           <p className="mt-3 text-sm text-ink-3">{emptyText}</p>
+          {emptyNote ? <div className="hero-empty-note">{emptyNote}</div> : null}
           {onEmptyAction ? (
             <div className="hero-actions">
               <button className="btn btn-p" onClick={onEmptyAction.onClick} type="button">
@@ -901,7 +1099,7 @@ export function NextEventHero({
       </div>
       <div className="hero-body">
         <div className="hero-kicker">
-          <span className="eyebrow">{kicker}</span>
+          <span className="hero-label">{kicker}</span>
           <span className={cx("pill", meta.tint)}>{meta.short}</span>
           {showStatus ? <StatusPill event={event} showScheduled /> : null}
           {saved ? <SavedPill /> : null}
@@ -1025,6 +1223,53 @@ type AvisoItem =
   | { type: "reminder"; key: string; at: number; aviso: Reminder }
   | { type: "notice"; key: string; at: number; notice: AppNotification };
 
+/**
+ * Painéis montados que já mostram o card de avisos (prop host). Enquanto houver um, a outra cópia do card (a que
+ * a página, app/page.tsx, põe acima do Painel quando só há avisos do sistema) não aparece: fica uma instância só,
+ * e o painel lateral aberto e o foco não se perdem quando o último lembrete sai e ficam só os avisos do sistema.
+ */
+let avisoHosts = 0;
+const avisoHostListeners = new Set<() => void>();
+
+function subscribeAvisoHosts(listener: () => void) {
+  avisoHostListeners.add(listener);
+  return () => {
+    avisoHostListeners.delete(listener);
+  };
+}
+
+function changeAvisoHosts(delta: number) {
+  avisoHosts += delta;
+  avisoHostListeners.forEach((listener) => listener());
+}
+
+/** Registra o card do painel (host) e diz se algum painel já mostra o card. */
+function useAvisoHost(host: boolean) {
+  useLayoutEffect(() => {
+    if (!host) {
+      return;
+    }
+    changeAvisoHosts(1);
+    return () => changeAvisoHosts(-1);
+  }, [host]);
+  return useSyncExternalStore(
+    subscribeAvisoHosts,
+    () => avisoHosts > 0,
+    () => false
+  );
+}
+
+/**
+ * Evento aberto pelo "Ver evento" do painel lateral de avisos. No computador o detalhe abre no Cronograma e o
+ * Painel desmonta: o card novo, na volta, lê daqui qual evento o "Ver todos os avisos" abre (data-opens-event).
+ */
+let drawerOpened: { eventId: number; at: number } | null = null;
+const DRAWER_RETURN_MS = 30 * 60 * 1000;
+
+function drawerReturnEvent() {
+  return drawerOpened && Date.now() - drawerOpened.at < DRAWER_RETURN_MS ? drawerOpened.eventId : null;
+}
+
 /** Hora para ordenar (data inválida vai para o fim). */
 function arrivedAt(value: string) {
   const time = new Date(value).getTime();
@@ -1039,13 +1284,16 @@ function arrivedAt(value: string) {
  * (ou marcar como lido), o foco vai para o botão que fica no lugar ou, sem mais avisos, para fallbackFocus
  * (padrão: o título da tela).
  *
- * O card some sem nenhum dos dois. Os painéis o mostram quando há lembrete avisando; com só avisos do
- * sistema, a página (app/page.tsx) mostra o card acima do painel, no mesmo lugar.
+ * O card some sem nenhum dos dois. Os painéis o montam sempre com host (ele aparece com lembrete avisando ou com
+ * aviso do sistema); a cópia que a página (app/page.tsx) põe acima do Painel com só avisos do sistema fica
+ * escondida enquanto um painel host está montado, para o card ser um só (o painel lateral aberto não fecha
+ * quando o último lembrete sai).
  */
 export function AvisosCard({
   avisos,
   events = [],
   fallbackFocus,
+  host = false,
   limit = AVISOS_LIMIT,
   note = true,
   order = 0,
@@ -1059,7 +1307,9 @@ export function AvisosCard({
   events?: AcademicEvent[];
   /** Para onde vai o foco depois de dispensar o último aviso (o card some). */
   fallbackFocus?: () => HTMLElement | null;
-  /** Quantos mostrar antes do "Ver todos (N)" (padrão 3). */
+  /** Card do Painel: com ele montado, a cópia da página (sem host) não aparece. */
+  host?: boolean;
+  /** Quantos o card mostra antes do "Ver todos os avisos (N)" (padrão 3). */
   limit?: number;
   /** Mostra a frase sobre onde o aviso aparece. */
   note?: boolean;
@@ -1075,14 +1325,25 @@ export function AvisosCard({
   onReadAll?: () => void | Promise<unknown>;
 }) {
   const titleId = useId();
-  const listId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const dismissButtons = useRef(new Map<string, HTMLButtonElement>());
-  const [showAll, setShowAll] = useState(false);
+  // botões "Dispensar" e "Marcar como lido" do card e do painel lateral (cada lugar com os seus)
+  const cardButtons = useRef(new Map<string, HTMLButtonElement>());
+  const drawerButtons = useRef(new Map<string, HTMLButtonElement>());
+  // "Ver evento" do card (por evento) e "Ver todos os avisos": para onde o foco vai antes de abrir um evento pelo
+  // painel lateral, para o detalhe saber de onde veio e devolver o foco ao card
+  const cardOpeners = useRef(new Map<number, HTMLButtonElement>());
+  const allButtonRef = useRef<HTMLButtonElement>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // evento aberto pelo "Ver evento" do painel lateral: o "Ver todos os avisos" passa a abrir esse evento
+  // (data-opens-event), para o foco voltar ao card quando o detalhe fecha (o botão do painel lateral já saiu)
+  const [returnEvent, setReturnEvent] = useState<number | null>(drawerReturnEvent);
   const actions = useOptionalAppActions();
+  const hosted = useAvisoHost(host);
+  const closeDrawer = () => setDrawerOpen(false);
+  useBackLayer(drawerOpen, closeDrawer);
   const notices: AppNotification[] = systemNotices && actions ? actions.notices : [];
   const total = avisos.length + notices.length;
-  if (!total) {
+  if (!total || (!host && hosted)) {
     return null;
   }
 
@@ -1093,29 +1354,46 @@ export function AvisosCard({
   ].sort((a, b) => b.at - a.at);
   const max = Math.max(1, limit);
   const more = items.length > max;
-  const shown = showAll ? items : items.slice(0, max);
+  const shown = items.slice(0, max);
   const readAll = onReadAll ?? actions?.readAllNotices;
   const canReadAll = Boolean(readAll) && notices.length > 1;
+  // no painel lateral, os lembretes que avisam e os avisos do sistema em seções separadas
+  const reminderItems = items.filter((item) => item.type === "reminder");
+  const noticeItems = items.filter((item) => item.type === "notice");
+  // ordem dos botões na tela de cada lugar: o foco vai para o vizinho de quem saiu
+  const cardKeys = shown.map((item) => item.key);
+  const drawerKeys = [...reminderItems, ...noticeItems].map((item) => item.key);
 
-  // a ordem dos botões "Dispensar" e "Marcar como lido" na tela: o foco vai para o vizinho de quem saiu
-  const keys = items.map((item) => item.key);
+  const fallback = () => fallbackFocus?.() ?? screenHeading();
 
   function focusAfter(key: string) {
+    const inDrawer = drawerOpen;
+    const keys = inDrawer ? drawerKeys : cardKeys;
+    const buttons = inDrawer ? drawerButtons : cardButtons;
     const at = keys.indexOf(key);
     const rest = keys.filter((item) => item !== key);
-    const nextKey = rest[Math.min(at, rest.length - 1)];
-    const fallback = () => fallbackFocus?.() ?? screenHeading();
-    const ready = nextKey !== undefined ? (dismissButtons.current.get(nextKey) ?? null) : null;
-    if (ready || nextKey === undefined) {
-      const target = ready ?? fallback();
-      target?.focus({ preventScroll: !ready });
+    // no card, o item que sobe da lista (o 4º) entra no lugar: ele também vale como vizinho
+    const pool = inDrawer ? rest : items.map((item) => item.key).filter((item) => item !== key).slice(0, max);
+    const nextKey = (inDrawer ? rest : pool)[Math.min(Math.max(at, 0), (inDrawer ? rest : pool).length - 1)];
+    if (nextKey === undefined) {
+      // era o último aviso: o card some (e o painel lateral fecha); o foco vai para o lugar de reserva
+      if (inDrawer) {
+        setDrawerOpen(false);
+        afterDialogs(() => fallback()?.focus({ preventScroll: true }));
+      } else {
+        fallback()?.focus({ preventScroll: true });
+      }
       return;
     }
-    // o vizinho estava escondido pelo "Ver todos": ele entra na lista no próximo quadro
+    const ready = buttons.current.get(nextKey) ?? null;
+    if (ready) {
+      ready.focus({ preventScroll: !inDrawer });
+      return;
+    }
+    // o vizinho ainda não está na tela (subiu para o card agora): ele entra no próximo quadro
     window.requestAnimationFrame(() => {
-      const next = dismissButtons.current.get(nextKey) ?? null;
-      const target = next ?? fallback();
-      target?.focus({ preventScroll: !next });
+      const next = buttons.current.get(nextKey) ?? null;
+      (next ?? fallback())?.focus({ preventScroll: true });
     });
   }
 
@@ -1136,24 +1414,35 @@ export function AvisosCard({
     }
     const count = notices.length;
     void Promise.resolve(readAll());
-    // com lembretes ainda avisando, o card fica e o foco vai para o título dele; sem eles, o card some
-    const target = avisos.length ? titleRef.current : (fallbackFocus?.() ?? screenHeading());
-    target?.focus({ preventScroll: avisos.length > 0 });
-    setShowAll(false);
     actions?.toast(`${count} avisos marcados como lidos.`, { key: "avisos-lidos" });
+    if (drawerOpen) {
+      // ficam só os lembretes: o foco vai para o primeiro "Dispensar"; sem eles, o painel fecha
+      const first = reminderItems[0]?.key;
+      if (first) {
+        window.requestAnimationFrame(() => drawerButtons.current.get(first)?.focus());
+      } else {
+        setDrawerOpen(false);
+        afterDialogs(() => fallback()?.focus({ preventScroll: true }));
+      }
+      return;
+    }
+    // com lembretes ainda avisando, o card fica e o foco vai para o título dele; sem eles, o card some
+    const target = avisos.length ? titleRef.current : fallback();
+    target?.focus({ preventScroll: avisos.length > 0 });
   }
 
-  function keepButton(key: string) {
+  function keepButton(where: "card" | "drawer", key: string) {
+    const map = where === "card" ? cardButtons : drawerButtons;
     return (node: HTMLButtonElement | null) => {
       if (node) {
-        dismissButtons.current.set(key, node);
+        map.current.set(key, node);
       } else {
-        dismissButtons.current.delete(key);
+        map.current.delete(key);
       }
     };
   }
 
-  function renderReminder(aviso: Reminder) {
+  function renderReminder(aviso: Reminder, where: "card" | "drawer") {
     const event = aviso.academicEvent ?? events.find((item) => item.id === aviso.academicEventId);
     const details = event ? [avisoWhen(event), event.location].filter(Boolean).join(", ") : null;
     return (
@@ -1165,18 +1454,46 @@ export function AvisosCard({
         </p>
         <div className="aviso-acts">
           <button
-            className="btn btn-s btn-sm"
+            ref={
+              where === "card"
+                ? (node) => {
+                    if (node) {
+                      cardOpeners.current.set(aviso.academicEventId, node);
+                    } else if (cardOpeners.current.get(aviso.academicEventId)?.isConnected === false) {
+                      cardOpeners.current.delete(aviso.academicEventId);
+                    }
+                  }
+                : undefined
+            }
+            className="btn btn-p btn-sm"
             aria-label={event ? `Ver evento ${event.title}` : undefined}
             data-opens-event={aviso.academicEventId}
-            onClick={() => onOpen(aviso.academicEventId)}
+            onClick={() => {
+              const eventId = aviso.academicEventId;
+              setDrawerOpen(false);
+              if (where === "card") {
+                onOpen(eventId);
+                return;
+              }
+              // pelo painel lateral: ele fecha primeiro (e sai do histórico); o foco vai para o "Ver evento" do
+              // mesmo evento no card ou, sem ele, para o "Ver todos os avisos", que passa a abrir esse evento; só
+              // então o detalhe abre, e ao fechar ele devolve o foco para lá (o botão do painel lateral já saiu)
+              drawerOpened = { eventId, at: Date.now() };
+              setReturnEvent(eventId);
+              afterDialogs(() => {
+                const target = cardOpeners.current.get(eventId) ?? allButtonRef.current;
+                target?.focus({ preventScroll: true });
+                onOpen(eventId);
+              });
+            }}
             type="button"
           >
             Ver evento
           </button>
           {onDismiss ? (
             <button
-              ref={keepButton(`r${aviso.id}`)}
-              className="btn btn-g btn-sm"
+              ref={keepButton(where, `r${aviso.id}`)}
+              className="btn btn-s btn-sm"
               aria-label={`Dispensar o aviso de ${event?.title ?? "evento"}`}
               onClick={() => dismiss(aviso.id)}
               type="button"
@@ -1189,7 +1506,7 @@ export function AvisosCard({
     );
   }
 
-  function renderNotice(notice: AppNotification) {
+  function renderNotice(notice: AppNotification, where: "card" | "drawer") {
     return (
       <li key={`n${notice.id}`} className="aviso">
         <p className="aviso-t wrap-anywhere">
@@ -1200,17 +1517,20 @@ export function AvisosCard({
         <div className="aviso-acts">
           {notice.link ? (
             <button
-              className="btn btn-s btn-sm"
+              className="btn btn-p btn-sm"
               aria-label={`Abrir o aviso: ${notice.title}`}
-              onClick={() => actions?.openNotice(notice)}
+              onClick={() => {
+                setDrawerOpen(false);
+                actions?.openNotice(notice);
+              }}
               type="button"
             >
               Abrir
             </button>
           ) : null}
           <button
-            ref={keepButton(`n${notice.id}`)}
-            className="btn btn-g btn-sm"
+            ref={keepButton(where, `n${notice.id}`)}
+            className="btn btn-s btn-sm"
             aria-label={`Marcar como lido: ${notice.title}`}
             onClick={() => markRead(notice)}
             type="button"
@@ -1222,6 +1542,9 @@ export function AvisosCard({
     );
   }
 
+  const render = (item: AvisoItem, where: "card" | "drawer") =>
+    item.type === "reminder" ? renderReminder(item.aviso, where) : renderNotice(item.notice, where);
+
   return (
     <section className="card pad rise flex flex-col" style={delay(order)} aria-labelledby={titleId}>
       <div className="flex items-start gap-3.5">
@@ -1229,37 +1552,79 @@ export function AvisosCard({
           <BellRing className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <h2 ref={titleRef} className="h2" id={titleId} tabIndex={-1}>
-            Avisos ({total})
+          {/* data-avisos-title: a página devolve o foco aqui quando o perfil aberto pelo "Abrir" de um aviso fecha */}
+          <h2 ref={titleRef} className="h2" id={titleId} tabIndex={-1} data-avisos-title>
+            Avisos <span className="h2-n">{total}</span>
           </h2>
           {note ? <p className="sub">O aviso aparece aqui e também chega no seu e-mail.</p> : null}
         </div>
       </div>
-      <ul className="avisos" id={listId}>
-        {shown.map((item) => (item.type === "reminder" ? renderReminder(item.aviso) : renderNotice(item.notice)))}
-      </ul>
+      <ul className="avisos">{shown.map((item) => render(item, "card"))}</ul>
       {more || canReadAll ? (
-        <div className="card-foot">
+        <div className="card-foot avisos-foot">
           {more ? (
+            // a lista inteira abre no painel lateral, por cima da tela: o Painel não desce
             <button
-              className="link min-h-6"
-              aria-controls={listId}
-              aria-expanded={showAll}
-              onClick={() => setShowAll((value) => !value)}
+              ref={allButtonRef}
+              className="link avisos-all"
+              aria-haspopup="dialog"
+              data-opens-event={returnEvent ?? undefined}
+              onClick={() => {
+                drawerOpened = null;
+                setReturnEvent(null);
+                setDrawerOpen(true);
+              }}
               type="button"
             >
-              {showAll ? "Mostrar menos" : showAllText("Ver todos", items.length)}
-              {showAll ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ArrowRight className="h-4 w-4" aria-hidden />}
+              {showAllText("Ver todos os avisos", items.length)}
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </button>
           ) : null}
           {canReadAll ? (
-            <button className="btn btn-g btn-sm ml-auto" onClick={markAllRead} type="button">
+            <button className="btn btn-s btn-sm avisos-readall" onClick={markAllRead} type="button">
               <CheckCheck className="h-4 w-4" aria-hidden />
               Marcar todos como lidos
             </button>
           ) : null}
         </div>
       ) : null}
+
+      <Drawer
+        open={drawerOpen}
+        title={`Avisos ${total}`}
+        subtitle="O aviso aparece aqui e também chega no seu e-mail."
+        onClose={closeDrawer}
+        footer={
+          <>
+            <button className="btn btn-s" onClick={closeDrawer} type="button">
+              Fechar
+            </button>
+            {canReadAll ? (
+              <button className="btn btn-p" onClick={markAllRead} type="button">
+                <CheckCheck className="h-4 w-4" aria-hidden />
+                Marcar todos como lidos
+              </button>
+            ) : null}
+          </>
+        }
+      >
+        {reminderItems.length ? (
+          <section aria-labelledby={`${titleId}-lemb`}>
+            <h3 id={`${titleId}-lemb`} className="avisos-sec">
+              Lembretes avisando <span className="avisos-n">{reminderItems.length}</span>
+            </h3>
+            <ul className="avisos">{reminderItems.map((item) => render(item, "drawer"))}</ul>
+          </section>
+        ) : null}
+        {noticeItems.length ? (
+          <section className={reminderItems.length ? "mt-6" : undefined} aria-labelledby={`${titleId}-sis`}>
+            <h3 id={`${titleId}-sis`} className="avisos-sec">
+              Do sistema <span className="avisos-n">{noticeItems.length}</span>
+            </h3>
+            <ul className="avisos">{noticeItems.map((item) => render(item, "drawer"))}</ul>
+          </section>
+        ) : null}
+      </Drawer>
     </section>
   );
 }
@@ -1290,7 +1655,28 @@ export function WeekSpark({ events }: { events: AcademicEvent[] }) {
   );
 }
 
-export function dateChip(value: string) {
+/**
+ * Data curta dos chips do indicador: "seg 23" e, quando os chips atravessam meses (withMonth), "qua 02/12"
+ * (com o ano fora do ano corrente: "sex 01/01/2027"), para a data do outro mês não parecer deste (decisão 2).
+ */
+export function dateChip(value: string, withMonth = false) {
   const parts = dateParts(value);
-  return `${parts.weekday.toLowerCase()} ${parts.day}`;
+  const base = `${parts.weekday.toLowerCase()} ${parts.day}`;
+  if (!withMonth) {
+    return base;
+  }
+  const month = String(new Date(value).getMonth() + 1).padStart(2, "0");
+  return `${base}/${month}${yearSuffix(value)}`;
+}
+
+/** Os chips atravessam meses (ou anos): cada um mostra o mês (dateChip com withMonth). */
+export function chipsSpanMonths(values: string[]) {
+  return (
+    new Set(
+      values.map((value) => {
+        const date = new Date(value);
+        return date.getFullYear() * 12 + date.getMonth();
+      })
+    ).size > 1
+  );
 }

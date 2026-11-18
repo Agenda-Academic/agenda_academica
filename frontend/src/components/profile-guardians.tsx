@@ -30,8 +30,8 @@ import { EmptyState, isOnTopLayer } from "./ui";
 /**
  * Seção "Quem acompanha minha agenda" do perfil do aluno (desenho 5.5, amostra aluno-quem-acompanha), dentro do
  * ProfileModal, abaixo de Avisos. GET /me/guardians; "Gerar código para responsável" (código grande, prazo,
- * Copiar, "Entregue só a quem você quer que acompanhe sua agenda"); "Remover" quando canRemove (direto, com
- * toast e Desfazer: revokeGuardianLink e restoreGuardianLink); chave "Compartilhar minhas notas" quando
+ * Copiar, "Entregue só a quem você quer que acompanhe sua agenda"); "Remover" quando canRemove (pede confirmação e
+ * depois traz toast com Desfazer: revokeGuardianLink e restoreGuardianLink); chave "Compartilhar minhas notas" quando
  * canShareGrades; aluno menor: "A secretaria confirma antes de liberar"; vínculo com needsReview (o aluno
  * deixou de ser menor): Confirmar ou Remover. "Quais dados o responsável vê" troca o conteúdo da seção, com
  * Voltar (o perfil já é um diálogo: nunca diálogo sobre diálogo). Dona: área Aluno.
@@ -68,7 +68,7 @@ function generatedAt(code: GuardianCodeInfo, codes: GuardianCodeInfo[]) {
 }
 
 /** Foco no alvo assim que ele estiver na camada de cima (a confirmação fechou), por até uns 3 segundos. */
-function focusWhenOnTop(getTarget: () => HTMLElement | null) {
+export function focusWhenOnTop(getTarget: () => HTMLElement | null) {
   let tries = 0;
   const step = () => {
     const target = getTarget();
@@ -107,6 +107,8 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
   const [announce, setAnnounce] = useState("");
   const [dataOpen, setDataOpen] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  // a vista "Quais dados o responsável vê" rola até o começo da seção (o título fica no topo da área que rola)
+  const sectionRef = useRef<HTMLElement>(null);
   const generateRef = useRef<HTMLButtonElement>(null);
   // "Quais dados o responsável vê": o Voltar devolve o foco a este link
   const dataLinkRef = useRef<HTMLButtonElement>(null);
@@ -220,32 +222,48 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
     limitText = `Você já tem ${limits.maxCodes} códigos válidos. Cancele um para gerar outro.`;
   }
 
-  async function removeLink(link: GuardianLink) {
+  /**
+   * Remover alguém é sério (a pessoa perde o acesso na hora e recebe um aviso): pergunta antes, como no Cancelar
+   * código. Depois, o toast traz o Desfazer.
+   */
+  function removeLink(link: GuardianLink) {
     if (busy) {
       return;
     }
     const name = link.fullName ?? "O responsável";
-    setBusy(`remover-${link.id}`);
-    try {
-      await revokeGuardianLink(token, link.id);
-      setData((current) =>
-        current ? { ...current, guardians: current.guardians.filter((item) => item.id !== link.id) } : current
-      );
-      // um lugar livre no limite de 4: o erro antigo do "Gerar código" deixa de valer
-      setGenerateError(null);
-      // o botão saiu com a linha: o foco fica no título da seção, logo acima da lista
-      headingRef.current?.focus();
-      toast(
-        link.status === "pending" ? `O pedido de ${name} para acompanhar sua agenda foi encerrado.` : `${name} deixou de acompanhar sua agenda.`,
-        { undo: () => restoreLink(link), key: `vinculo-${link.id}` }
-      );
-      // o aviso do sistema sobre o vínculo desfeito e o aviso fixo do Painel
-      void reload();
-    } catch (error) {
-      showError(error, `vinculo-${link.id}`);
-    } finally {
-      setBusy(null);
-    }
+    const first = firstName(name);
+    const isPending = link.status === "pending";
+    confirm({
+      title: isPending ? `Encerrar o pedido de ${first}?` : `Remover ${name}?`,
+      message: isPending
+        ? `${first} não vai acompanhar sua agenda, e a secretaria deixa de analisar o pedido.`
+        : `${first} deixa de ver sua agenda na hora e recebe um aviso. Dá para desfazer logo depois.`,
+      confirmLabel: isPending ? "Encerrar pedido" : "Remover",
+      cancelLabel: "Manter",
+      action: async () => {
+        setBusy(`remover-${link.id}`);
+        try {
+          await revokeGuardianLink(token, link.id);
+          setData((current) =>
+            current ? { ...current, guardians: current.guardians.filter((item) => item.id !== link.id) } : current
+          );
+          // um lugar livre no limite de 4: o erro antigo do "Gerar código" deixa de valer
+          setGenerateError(null);
+          toast(
+            isPending ? `O pedido de ${name} para acompanhar sua agenda foi encerrado.` : `${name} deixou de acompanhar sua agenda.`,
+            { undo: () => restoreLink(link), key: `vinculo-${link.id}` }
+          );
+          // o aviso do sistema sobre o vínculo desfeito e o aviso fixo do Painel
+          void reload();
+        } catch (error) {
+          showError(error, `vinculo-${link.id}`);
+        } finally {
+          setBusy(null);
+          // o botão saiu com a linha: quando a confirmação fechar, o foco fica no título da seção
+          focusWhenOnTop(() => headingRef.current);
+        }
+      },
+    });
   }
 
   /** Desfazer do toast: o vínculo volta ao status de antes (ativo ou pendente), até 10 minutos depois. */
@@ -337,7 +355,7 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
         selection.removeAllRanges();
         selection.addRange(range);
       }
-      toast("Não deu para copiar sozinho. O código ficou selecionado: copie com Ctrl C ou toque e segure.", {
+      toast("Não deu para copiar sozinho. O código ficou selecionado para você copiar.", {
         tone: "info",
         key: "copiar-codigo",
       });
@@ -394,12 +412,12 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
           <span className="aluno-g-av" aria-hidden>
             {link.initials}
           </span>
-          <div className="min-w-0 flex-1">
+          <div className="aluno-g-main">
             <p className="aluno-g-name wrap-anywhere">{name}</p>
             <p className="aluno-g-meta">{meta}</p>
           </div>
           <div className="aluno-g-acts">
-            <span className={cx("pill", link.status === "active" ? "st-conc" : "st-alt")}>{linkStatusText(link.status)}</span>
+            <span className={cx("pill stat", link.status === "active" ? "stat-conc" : "stat-alt")}>{linkStatusText(link.status)}</span>
             {link.needsReview ? (
               <button
                 className={cx("btn btn-p btn-sm", busyLook)}
@@ -414,10 +432,10 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
             ) : null}
             {link.canRemove ? (
               <button
-                className={cx("btn btn-s btn-sm", busyLook)}
+                className={cx("btn btn-danger btn-sm", busyLook)}
                 aria-disabled={Boolean(busy) || undefined}
                 aria-label={`Remover ${name}`}
-                onClick={() => void removeLink(link)}
+                onClick={() => removeLink(link)}
                 type="button"
               >
                 {removing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
@@ -516,17 +534,17 @@ export function ProfileGuardians({ user }: ProfileGuardiansProps) {
   const createdCancelable = created ? (codes.find((code) => code.id === created.id)?.canCancel ?? true) : false;
 
   return (
-    <section className="aluno-sec" aria-labelledby={titleId}>
-      <h3 ref={headingRef} id={titleId} className="aluno-sec-t" tabIndex={-1}>
+    <section ref={sectionRef} className="aluno-sec" aria-labelledby={titleId}>
+      <h3 ref={headingRef} id={titleId} className="aluno-sec-t drawer-h3" tabIndex={-1}>
         Quem acompanha minha agenda
       </h3>
       {dataOpen ? (
         // o perfil já é um diálogo: o texto entra no lugar da seção, com Voltar (o código gerado volta junto)
-        <GuardianDataView className="mt-3.5" level={4} onBack={closeData} />
+        <GuardianDataView className="mt-3.5" level={4} scrollTargetRef={sectionRef} onBack={closeData} />
       ) : (
         <>
           <p className="aluno-sec-s">
-            Quem você autoriza vê a agenda da turma e as datas do campus, nunca os seus lembretes. O que você muda aqui vale
+            Quem você autoriza vê a agenda da turma e as datas da instituição, nunca os seus lembretes. O que você muda aqui vale
             na hora.
             {isMinor ? " Como você é menor de idade, a secretaria confirma cada vínculo antes de liberar." : null}
           </p>

@@ -92,10 +92,11 @@
 }
 
 /* ---------------- destaque: rótulo em frase (amostra) e a frase do lembrete ---------------- */
+/* o mesmo rótulo em frase dos destaques dos outros perfis (.hero-label, painel.css) */
 .hero-kicker .resp-kicker {
   font-size: 13.5px;
   font-weight: 700;
-  color: var(--brand);
+  color: var(--bebe-ink);
 }
 .resp-hero-note {
   display: inline-flex;

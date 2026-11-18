@@ -1,0 +1,272 @@
+/* Painéis (dashboard-*.tsx) e as peças que eles dividem com as outras telas (linha de evento, avisos).
+   Rodadas de UX de 2026-11-17. Os seletores que disputam com o visual-novo.css começam com "html", pelo
+   mesmo motivo de lá; os do Painel ficam dentro de .pnl (a raiz de cada painel). */
+
+/* ---------- rótulo do destaque em frase (sem caixa alta), o mesmo em todos os perfis ---------- */
+html .hero .hero-label,
+html .hero-kicker .hero-label,
+html .hero .countdown .eyebrow.hero-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.4;
+  text-transform: none;
+  color: var(--bebe-ink);
+}
+/* "Faltam" e "Próxima data da instituição": a mesma frase, um pouco mais apagada que o rótulo */
+html .hero .countdown .eyebrow.hero-label {
+  color: color-mix(in srgb, var(--bebe-ink) 72%, transparent);
+}
+/* linha a mais no vazio do destaque (a próxima data da instituição) */
+.hero-empty-note {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 6px 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.hero-empty-note > svg {
+  margin-top: 2px;
+}
+.hero-empty-note b {
+  font-weight: 650;
+  color: var(--ink-2);
+}
+
+/* destaque da administração: a próxima data da instituição com o nome, também no computador */
+@container hero (min-width: 540px) {
+  html .pnl-admin .hero.with-date > .countdown.next b + small {
+    display: block;
+    max-width: 240px;
+    margin: 6px 0 0 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* ---------- linha de evento (event-bits.tsx, EventRow) ---------- */
+/* o trecho que diferencia nomes longos do calendário oficial ("Cursos Técnicos"), junto da categoria */
+.ev-qual {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+/* termo da busca marcado no título */
+.ev-mark {
+  /* o fundo cresce pela sombra, sem padding: a palavra não se parte ("Matr ícula") */
+  padding: 0;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px var(--bebe);
+  background: var(--bebe);
+  color: var(--bebe-ink);
+}
+/* mês (e ano, fora do ano corrente) no bloco de data, nas listas que atravessam meses sem cabeçalho */
+.ev-date .ev-mo {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--brand-ink);
+}
+.ev-date .ev-yr {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+/* chips de antecedência do lembrete: no celular, duas linhas de três iguais (sem uma sobrando sozinha) */
+@media (max-width: 639px) {
+  .chips.ev-offsets {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .chips.ev-offsets > .chip {
+    justify-content: center;
+  }
+}
+
+/* ---------- Avisos (Painel e Lembretes) ---------- */
+.avisos-sec {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.h2-n {
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.avisos-n {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.avisos-sec + .avisos {
+  margin-top: 10px;
+}
+.avisos-foot {
+  gap: 10px 16px;
+}
+.avisos-readall {
+  margin-left: auto;
+}
+/* card estreito (celular): "Ver todos" e "Marcar todos como lidos" um embaixo do outro, alinhados à esquerda */
+@container (max-width: 480px) {
+  .avisos-foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .avisos-foot .avisos-all {
+    align-self: flex-start;
+  }
+  html .avisos-readall {
+    width: 100%;
+    margin-left: 0;
+    justify-content: center;
+  }
+}
+
+/* ---------- colunas do Painel (useColumnFill) ----------
+   Decisão 5, de vez: nenhum card estica. Cada card termina no próprio conteúdo (sem buraco dentro e sem o rodapé
+   puxado para o pé); as colunas terminam juntas pelo número de itens das listas (mais ou menos datas, compromissos,
+   eventos), e a sobra que restar fica fora dos cards, no fim da coluna mais baixa. O Painel sem turma fica de fora:
+   ali o card de entrar é um destaque colorido, com o conteúdo no meio. */
+html .pnl:not(.pnl-noclass) .duo {
+  align-items: flex-start;
+}
+html .pnl:not(.pnl-noclass) .duo > .duo-col > .duo-fill {
+  flex: 0 0 auto;
+}
+html .pnl:not(.pnl-noclass) .duo .fill-gap {
+  display: none;
+}
+
+/* ---------- colunas soltas (useColumnFill, gridClass "duo-loose") ----------
+   Lado a lado, quando as listas acabaram e ainda sobraria um vão grande no fim de um card esticado, as colunas
+   ficam do tamanho do conteúdo (sem card esticado com buraco) e a mais baixa fica parada no alto ao rolar. */
+html .duo.duo-loose {
+  align-items: flex-start;
+}
+html .duo.duo-loose > .duo-col {
+  position: sticky;
+  top: 20px;
+}
+html .duo.duo-loose > .duo-col > .duo-fill {
+  flex: 0 0 auto;
+}
+html .duo.duo-loose .fill-gap {
+  display: none;
+}
+/* listas do Painel: o título vai até três linhas (os nomes do calendário oficial são longos) */
+.pnl .pnl-list .ev-title {
+  -webkit-line-clamp: 3;
+}
+
+/* Coluna de apoio lado a lado (1280 px ou mais, "Datas da instituição"): a linha de dados vira uma frase só
+   ("● Institucional 11 a 15/01, em 55 dias"), que quebra como texto, sem a data cair sozinha numa linha embaixo
+   da categoria; e o selo da data fica no alto, junto do título (não no meio de um bloco de quatro linhas) */
+@media (min-width: 1280px) {
+  @container (max-width: 400px) {
+    .pnl .duo-side .pnl-list .ev {
+      align-items: flex-start;
+    }
+    .pnl .duo-side .pnl-list .ev-meta {
+      display: block;
+      line-height: 24px;
+      /* sem palavra sozinha no fim ("em" numa linha e "55 dias" na outra): a última linha leva "em 55 dias" */
+      text-wrap: pretty;
+    }
+    .pnl .duo-side .pnl-list .ev-meta > span {
+      margin-right: 8px;
+      vertical-align: top;
+    }
+    .pnl .duo-side .pnl-list .ev-meta > span:last-child {
+      margin-right: 0;
+    }
+    /* a data e o prazo andam juntos: ou cabem na linha da categoria, ou descem inteiros ("11 a 15/01, em 54 dias"),
+       sem o "em 54 dias" sobrar sozinho na linha de baixo. Só um texto mais largo que a coluna quebra por dentro */
+    .pnl .duo-side .pnl-list .ev-at {
+      display: inline-block;
+      max-width: 100%;
+      white-space: normal;
+    }
+    .pnl .duo-side .pnl-list .ev-at > span {
+      white-space: nowrap;
+    }
+  }
+}
+
+/* ---------- semana da docente ---------- */
+/* hoje em destaque; os dias que já passaram, apagados */
+.wk-day.wk-today {
+  margin: 0 -10px;
+  padding-left: 10px;
+  padding-right: 10px;
+  border-radius: 12px;
+  border-bottom-color: transparent;
+  background: var(--brand-50);
+}
+.wk-day.wk-today .wk-label {
+  color: var(--brand-ink);
+}
+.wk-today-tag {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--brand);
+}
+.wk-day.wk-past .wk-label,
+.wk-day.wk-past .wk-free {
+  opacity: 0.55;
+}
+.wk-day.wk-past .wk-ev {
+  opacity: 0.7;
+}
+/* semana sem nada: uma linha só, com o próximo evento da docente */
+.wk-empty {
+  margin-top: 14px;
+}
+
+/* ---------- toque: alvos de pelo menos 44 px sem mudar o desenho ---------- */
+@media (pointer: coarse) {
+  /* chips das datas das provas (KPI) e links dos rodapés: a área de toque cresce para cima e para baixo */
+  .pnl .kpi-chip,
+  .pnl .card-foot .link,
+  .pnl .link.min-h-6,
+  .avisos-foot .link {
+    position: relative;
+  }
+  .pnl .kpi-chip::after,
+  .pnl .card-foot .link::after,
+  .pnl .link.min-h-6::after,
+  .avisos-foot .link::after {
+    content: "";
+    position: absolute;
+    left: -3px;
+    right: -3px;
+    top: 50%;
+    height: 44px;
+    translate: 0 -50%;
+  }
+  /* o espaço entre os chips no toque (26 px entre linhas, 10 px entre colunas) vem do ux.css */
+}
+
+/* A página (app/page.tsx) põe o card de avisos numa caixa acima do Painel; com o card do próprio painel na tela,
+   aquela cópia não aparece (AvisosCard host) e a caixa vazia não deixa a margem sobrando */
+.pop > .mb-5:empty {
+  display: none;
+}

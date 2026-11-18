@@ -158,6 +158,30 @@ button.docente-turma-row:hover {
   height: 18px;
   color: var(--faint);
 }
+/* disciplinas da docente em coluna própria: só na tabela larga (abaixo dela, ficam na linha do nome) */
+.docente-turma-subjcol,
+.docente-turma-hsubj {
+  display: none;
+}
+.docente-subj-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.docente-subj-chip svg {
+  color: var(--brand);
+}
+/* número de alunos em destaque (como os indicadores, menor) */
+.docente-turma-row .docente-num {
+  font-family: var(--disp);
+  font-size: 20px;
+  font-weight: 750;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
 
 /* largura de tabela (o card tem container-type): Turma | Período | Alunos | seta, com cabeçalho */
 @container (min-width: 640px) {
@@ -172,11 +196,11 @@ button.docente-turma-row:hover {
     padding: 12px 20px 12px 24px;
     border-top: 1px solid var(--line);
     background: var(--surface-2);
-    font-size: 12px;
+    /* frase normal, como o .tbl th das outras tabelas */
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
+    letter-spacing: 0;
+    color: var(--ink-3);
   }
   /* na tabela, o período e o "alunos ativos" ficam embaixo do valor, como na lista da administração */
   .docente-turma-per,
@@ -184,6 +208,30 @@ button.docente-turma-row:hover {
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
+  }
+}
+/* tabela larga (1440 px ou mais): as disciplinas da docente viram a 2ª coluna, e a linha não fica com um vão de
+   800 px entre o nome da turma e o período */
+@container (min-width: 960px) {
+  .docente-turma-head,
+  .docente-turma-row {
+    grid-template-columns: minmax(240px, 1.1fr) minmax(220px, 1fr) 180px 140px 20px;
+    grid-template-areas: "main subj per num go";
+    gap: 0 24px;
+  }
+  .docente-turma-hsubj {
+    display: block;
+  }
+  .docente-turma-subjcol {
+    grid-area: subj;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+  }
+  .docente-turma-main .docente-turma-subj {
+    display: none;
   }
 }
 
@@ -219,6 +267,7 @@ button.docente-turma-row:hover {
   margin-bottom: 14px;
 }
 .docente-dsec-t {
+  font-family: var(--disp);
   font-size: 16.5px;
   font-weight: 700;
   line-height: 1.3;
@@ -283,10 +332,26 @@ button.docente-turma-row:hover {
   font-weight: 500;
   white-space: nowrap;
 }
-.docente-pill-mine {
+/* "Sua disciplina": etiqueta azul cheia. A regra global html .pill (visual-novo.css) tira o fundo das pílulas e
+   deixava o texto branco sobre o azul-claro do card (1,13:1); com html na frente, esta vale por cima dela.
+   Branco sobre --brand: 4,9:1 */
+html .pill.docente-pill-mine {
   flex-shrink: 0;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
   background: var(--brand);
   color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+html .pill.docente-pill-mine::before {
+  display: none;
+}
+@media (forced-colors: active) {
+  html .pill.docente-pill-mine {
+    border: 1px solid CanvasText;
+  }
 }
 .docente-pill-wt {
   border: 1px solid var(--line);
@@ -329,16 +394,43 @@ button.docente-turma-row:hover {
 }
 
 /* alunos: pedidos de entrada em âmbar, com Aprovar e Recusar; ativos só para leitura */
+/* cabeçalho de grupo (Pedidos de entrada, Alunos ativos): frase normal, sem caixa alta, com o número em cinza */
 .docente-group {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.docente-n {
+  margin-left: -4px;
+  font-size: 12px;
+  font-weight: 650;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.docente-stu-filter {
+  margin-bottom: 10px;
+}
+.docente-pager {
+  margin-top: 10px;
+}
+.docente-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+}
+.docente-note svg {
+  margin-top: 2px;
+}
+/* celular: o cabeçalho do painel fica baixo (o nome do curso sai; o período e o turno ficam) */
+@media (max-width: 767px) {
+  .docente-sub-course {
+    display: none;
+  }
 }
 .docente-group::after {
   content: "";

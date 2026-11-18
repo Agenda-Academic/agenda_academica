@@ -55,7 +55,7 @@ html .side-search .kbd {
   color: var(--muted);
 }
 html .nav-label {
-  color: var(--muted);
+  color: var(--ink-3);
 }
 html .nav {
   height: 46px;
@@ -187,6 +187,13 @@ html .seg button {
 }
 html .seg button:hover {
   color: var(--ink);
+}
+/* toque: as abas sublinhadas ("Agenda / Calendário", "Próximos / Passados / Todos", "Ativas / Arquivadas") com
+   44 px de altura (no toque) */
+@media (pointer: coarse) {
+  html .seg button {
+    height: 44px;
+  }
 }
 html .seg .on {
   background: transparent;
@@ -526,11 +533,9 @@ html .ent-demo-t {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 13.5px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-3);
 }
 html .ent-demo-grid {
   display: grid;
@@ -867,10 +872,8 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
 .ls-nota.email .ls-ic { background: var(--bebe); color: var(--bebe-ink); }
 .ls-nota.nota .ls-ic { background: var(--accent-tint); color: #1b7049; }
 .ls-k {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 650;
   color: var(--muted);
 }
 .ls-nota b {
@@ -992,10 +995,13 @@ html .cal-head {
   border-bottom: 0;
   background: var(--surface);
 }
+/* dias da semana no alto do calendário: cabeçalho de coluna em frase ("Seg", "Ter"), como o .tbl th */
 html .cal-head span {
   padding: 6px 6px 10px;
-  font-size: 11.5px;
-  letter-spacing: 0.07em;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: capitalize;
   color: var(--ink-3);
 }
 html .week {
@@ -1145,7 +1151,7 @@ html .cal-leg .dot {
   }
   html .cal-head span {
     padding: 4px 0 8px;
-    font-size: 10.5px;
+    font-size: 12px;
   }
   html .day {
     min-height: 58px;

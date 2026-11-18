@@ -183,7 +183,7 @@ function PasswordField({
           />
           {onToggle ? (
             <button
-              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink"
+              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink pointer-coarse:right-px pointer-coarse:h-11 pointer-coarse:w-11"
               onClick={onToggle}
               aria-label="Mostrar senha"
               aria-pressed={shown}
@@ -919,10 +919,10 @@ export function LoginScreen({
 
                 {guardian ? (
                   <div className="grid gap-1.5">
-                    <label className="flex min-h-6 cursor-pointer items-start gap-2.5 text-sm leading-5 text-ink-2">
+                    <label className="flex min-h-6 cursor-pointer items-start gap-2.5 text-sm leading-5 text-ink-2 pointer-coarse:min-h-11 pointer-coarse:items-center pointer-coarse:gap-3">
                       <input
                         ref={consentRef}
-                        className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--brand)]"
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--brand)] pointer-coarse:mt-0 pointer-coarse:h-5 pointer-coarse:w-5"
                         type="checkbox"
                         checked={signupForm.consent}
                         onChange={(event) => {

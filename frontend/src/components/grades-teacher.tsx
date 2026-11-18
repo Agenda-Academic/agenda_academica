@@ -2,8 +2,8 @@
 
 import {
   CalendarDays,
-  ChevronDown,
-  ChevronUp,
+  ChevronRight,
+  CircleCheck,
   ClipboardCheck,
   Eye,
   EyeOff,
@@ -13,20 +13,38 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { getEventGrades, getGradeImports } from "@/lib/api";
-import { cx, dateParts, errorMessage, formatShortDateTime, matchesSearch } from "@/lib/format";
+import {
+  countText,
+  cx,
+  dateParts,
+  errorMessage,
+  formatShortDate,
+  formatTime,
+  isAllDay,
+  matchesSearch,
+  monthGroupLabel,
+  relativeDue,
+  startOfDay,
+} from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, UserRole } from "@/lib/types";
 import { useAppActions } from "./app-actions";
+import { eventLastDay } from "./event-bits";
 import { activeAssignments } from "./event-editor";
 import { launchedCount, subscribeGradesChanged } from "./event-grades-drawer";
-import { EmptyState, SectionTitle, Segmented, SegmentedButton, secondaryButton } from "./ui";
+import { Pager, usePaged } from "./pager";
+import { EmptyState, SectionTitle, secondaryButton } from "./ui";
 
 /**
  * Tela Notas da docente e da administração (desenho 5.7): as avaliações (prova e trabalho de turma) que a
  * pessoa gerencia, com a situação de cada uma (gradesPublishedAt: "Notas ocultas" ou publicadas) e a ação
- * "Notas", que abre a gaveta da avaliação (onOpenGrades, a mesma da Gestão). Renderizada por grades-view.tsx.
+ * "Abrir notas", que abre a gaveta da avaliação (onOpenGrades, a mesma da Gestão). Renderizada por grades-view.tsx.
+ *
+ * Rodada de UX de 2026-11-17: a lista não expande mais no lugar ("Ver todas" virava uma rolagem sem fim). Ela
+ * mostra 8 avaliações por página (pager.tsx), agrupadas por mês, com a aba "Pendentes" (as que já aconteceram e
+ * ainda não têm notas publicadas) na frente, e filtros por turma e disciplina quando há mais de uma.
  * Dona: área Notas (docente).
  */
 export type GradesTeacherProps = {
@@ -53,12 +71,14 @@ type Summary =
   | { ok: true; publishedAt: string | null; students: number; launched: number; drafts: number }
   | { ok: false; message: string; forbidden: boolean };
 
-type Tab = "past" | "next" | "all";
+type Tab = "pending" | "past" | "next" | "all";
 
-/** Linhas à vista antes do "Ver todas (N)". */
-const FIRST_ROWS = 8;
-/** Avaliações cuja situação carrega ao mesmo tempo. */
-const PARALLEL = 3;
+/** Avaliações por página. */
+const PAGE_SIZE = 8;
+/** Avaliações cuja situação carrega ao mesmo tempo (só as da página à vista). */
+const PARALLEL = 6;
+/** Acima disso, os filtros de turma e disciplina viram uma lista de escolha em vez de botões. */
+const MAX_CHIPS = 6;
 
 async function loadSummary(token: string, eventId: number): Promise<Summary> {
   try {
@@ -97,6 +117,23 @@ function inMyOffers(event: AcademicEvent, role: UserRole, userId: number, contex
 const byStartAsc = (a: AcademicEvent, b: AcademicEvent) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
 const byStartDesc = (a: AcademicEvent, b: AcademicEvent) => byStartAsc(b, a);
 
+/** Turma e disciplina da avaliação: a chave do filtro e o nome dele ("TADS 5, Matemática"). */
+function offerOf(event: AcademicEvent) {
+  return {
+    key: `${event.academicClassId ?? 0}-${event.subjectId ?? 0}`,
+    className: event.academicClass?.name ?? "Sem turma",
+    subjectName: event.subject?.name ?? "Sem disciplina",
+  };
+}
+
+/** "Novembro" no ano corrente; "Dezembro de 2025" em outro ano (o mesmo cabeçalho de mês da Gestão e do Cronograma). */
+function monthHeading(value: string, now: number) {
+  return monthGroupLabel(value, new Date(now));
+}
+
+/** Aspas curvas em volta do texto da busca. */
+const quoted = (value: string) => `“${value}”`;
+
 export function GradesTeacher({
   context,
   events,
@@ -110,19 +147,28 @@ export function GradesTeacher({
 }: GradesTeacherProps) {
   const { loading, navigate, token, user } = useAppActions();
   const [now] = useState(() => Date.now());
-  // null: a aba escolhida pela tela (a da avaliação destacada ou "Já aconteceram" quando há)
+  // null: a aba escolhida pela tela (a da avaliação destacada, "Pendentes" quando há, ou "Passadas")
   const [chosenTab, setChosenTab] = useState<Tab | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  // turma e disciplina escolhidas no filtro (null: todas)
+  const [offer, setOffer] = useState<string | null>(null);
   const [seenFocus, setSeenFocus] = useState(focusEventId);
+  // a página da avaliação destacada já foi aberta para este pedido e esta aba
+  const [placedFocus, setPlacedFocus] = useState<string | null>(null);
   const [summaries, setSummaries] = useState<Record<number, Summary>>({});
+  // avaliações abertas na gaveta nesta aba e página: continuam na lista de Pendentes mesmo depois de publicadas
+  // (com a etiqueta "Publicadas"), para a linha e o botão de onde a gaveta abriu não sumirem; saem ao trocar de
+  // aba, filtro, busca ou página
+  const [kept, setKept] = useState<{ key: string; ids: number[] }>({ key: "", ids: [] });
   const inflight = useRef(new Set<number>());
   const versions = useRef(new Map<number, number>());
+  const listRef = useRef<HTMLDivElement>(null);
 
-  // avaliação nova pedida pelo endereço (?tela=notas&evento=): a aba e a lista se ajustam a ela
+  // avaliação nova pedida pelo endereço (?tela=notas&evento=): a aba, o filtro e a página se ajustam a ela
   if (seenFocus !== focusEventId) {
     setSeenFocus(focusEventId);
     setChosenTab(null);
-    setExpanded(false);
+    setOffer(null);
+    setPlacedFocus(null);
   }
 
   const mine = useMemo(() => events.filter((event) => inMyOffers(event, role, user.id, context)), [context, events, role, user.id]);
@@ -137,9 +183,51 @@ export function GradesTeacher({
     [focusEventId, matched, mine]
   );
   const found = useMemo(() => (forced ? [...matched, forced] : matched), [forced, matched]);
-  const past = useMemo(() => found.filter((event) => new Date(event.startsAt).getTime() <= now).sort(byStartDesc), [found, now]);
-  const upcoming = useMemo(() => found.filter((event) => new Date(event.startsAt).getTime() > now).sort(byStartAsc), [found, now]);
-  const all = useMemo(() => [...found].sort(byStartDesc), [found]);
+
+  // filtros de turma e disciplina: só quando a pessoa tem mais de uma. As opções vêm de todas; a contagem de cada
+  // uma segue a busca e a aba de situação aberta (como as categorias do Cronograma), e é feita mais abaixo
+  const offerOptions = useMemo(() => {
+    const map = new Map<string, { key: string; label: string }>();
+    const classes = new Set(mine.map((event) => event.academicClassId ?? 0));
+    for (const event of mine) {
+      const item = offerOf(event);
+      if (!map.has(item.key)) {
+        map.set(item.key, { key: item.key, label: classes.size > 1 ? `${item.className}, ${item.subjectName}` : item.subjectName });
+      }
+    }
+    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  }, [mine]);
+  const multiClass = new Set(mine.map((event) => event.academicClassId ?? 0)).size > 1;
+  const activeOffer = offer && offerOptions.some((item) => item.key === offer) ? offer : null;
+  const filtered = useMemo(
+    () => (activeOffer ? found.filter((event) => offerOf(event).key === activeOffer) : found),
+    [activeOffer, found]
+  );
+
+  /** Notas publicadas: a situação carregada vale mais que a lista de eventos (que só atualiza no próximo carregamento). */
+  const isPublished = (event: AcademicEvent) => {
+    const summary = summaries[event.id];
+    return summary?.ok ? Boolean(summary.publishedAt) : Boolean(event.gradesPublishedAt);
+  };
+  // já começou: a situação das notas carrega e a linha deixa de dizer "Agendada" (a prova de hoje à noite já
+  // pode receber nota)
+  const happened = (event: AcademicEvent) => new Date(event.startsAt).getTime() <= now;
+  // Passadas e Próximas com a regra do Cronograma e da Gestão: passou o último dia do evento (a de hoje
+  // continua em Próximas até a meia-noite)
+  const todayStart = startOfDay(new Date(now)).getTime();
+  const isPast = (event: AcademicEvent) => eventLastDay(event).getTime() < todayStart;
+
+  const cancelled = (event: AcademicEvent) => event.status === "cancelled";
+  const past = filtered.filter(isPast).sort(byStartDesc);
+  // Próximas: só o que vai acontecer (a cancelada continua em Todas, com a etiqueta "Cancelada")
+  const upcoming = filtered.filter((event) => !isPast(event) && !cancelled(event)).sort(byStartAsc);
+  const baseKey = `${search.trim()}|${activeOffer ?? ""}`;
+  const keptIds = kept.key.startsWith(`pending|${baseKey}|`) ? kept.ids : [];
+  const pending = past.filter((event) => !cancelled(event) && (!isPublished(event) || keptIds.includes(event.id)));
+  // o número da aba e do subtítulo conta só as que ainda esperam publicação
+  const pendingCount = pending.filter((event) => !isPublished(event)).length;
+  // Todas: em ordem de data, abrindo na página de hoje (as anteriores ficam em "Anterior")
+  const all = [...filtered].sort(byStartAsc);
 
   // a busca do menu conta as avaliações achadas aqui (sem a pedida pelo endereço)
   const searchCount = search.trim() ? matched.length : undefined;
@@ -147,17 +235,56 @@ export function GradesTeacher({
     onSearchCount?.(searchCount);
   }, [onSearchCount, searchCount]);
 
-  let autoTab: Tab = past.length ? "past" : "next";
+  let autoTab: Tab = pending.length ? "pending" : past.length ? "past" : "next";
   if (focusEventId !== null) {
     if (upcoming.some((event) => event.id === focusEventId)) autoTab = "next";
+    else if (pending.some((event) => event.id === focusEventId)) autoTab = "pending";
     else if (past.some((event) => event.id === focusEventId)) autoTab = "past";
+    else if (filtered.some((event) => event.id === focusEventId)) autoTab = "all";
   }
   const tab = chosenTab ?? autoTab;
-  const list = tab === "past" ? past : tab === "next" ? upcoming : all;
-  const focusIndex = focusEventId === null ? -1 : list.findIndex((event) => event.id === focusEventId);
-  const limit = expanded ? list.length : Math.max(FIRST_ROWS, focusIndex + 1);
-  const shown = list.slice(0, limit);
-  const shownKey = shown.map((event) => event.id).join(",");
+  const list = tab === "pending" ? pending : tab === "past" ? past : tab === "next" ? upcoming : all;
+
+  // contagem do filtro de turma e disciplina dentro da aba aberta: "Todas as disciplinas 2" com 2 linhas em
+  // Passadas, e cada disciplina com o que ela teria nessa aba (a regra da aba é a mesma das listas acima)
+  const inTab = (event: AcademicEvent) => {
+    if (tab === "pending") return isPast(event) && !cancelled(event) && (!isPublished(event) || keptIds.includes(event.id));
+    if (tab === "past") return isPast(event);
+    if (tab === "next") return !isPast(event) && !cancelled(event);
+    return true;
+  };
+  const tabFound = found.filter(inTab);
+  const offers = offerOptions.map((item) => ({
+    ...item,
+    count: tabFound.filter((event) => offerOf(event).key === item.key).length,
+  }));
+
+  const listKey = `${tab}|${baseKey}`;
+  const paged = usePaged(list, PAGE_SIZE, listKey);
+  // trocou de aba, filtro, busca ou página: as publicadas nesta visita saem de Pendentes
+  const pageKey = `${listKey}|${paged.page}`;
+  if (kept.ids.length && kept.key !== pageKey) {
+    setKept({ key: "", ids: [] });
+  }
+  // a lista abre na página da avaliação destacada; em Todas, sem destaque, na página da próxima avaliação
+  // (uma vez por pedido, aba, filtro e busca)
+  let anchorIndex = focusEventId === null ? -1 : list.findIndex((event) => event.id === focusEventId);
+  if (anchorIndex < 0 && tab === "all" && list.length) {
+    const nextIndex = list.findIndex((event) => !isPast(event));
+    anchorIndex = nextIndex < 0 ? list.length - 1 : nextIndex;
+  }
+  const anchorKey = `${focusEventId}|${listKey}`;
+  if (anchorIndex >= 0 && placedFocus !== anchorKey) {
+    setPlacedFocus(anchorKey);
+    const target = Math.floor(anchorIndex / PAGE_SIZE) + 1;
+    if (target !== paged.page) paged.setPage(target);
+  }
+  const shown = paged.items;
+  // a situação só carrega para as que já aconteceram (as futuras mostram "Agendada")
+  const loadKey = shown
+    .filter((event) => happened(event) && !cancelled(event))
+    .map((event) => event.id)
+    .join(",");
 
   /** Tira a situação guardada da avaliação: ela carrega de novo (a que está carregando é ignorada). */
   function forget(eventId: number) {
@@ -169,12 +296,12 @@ export function GradesTeacher({
     });
   }
 
-  // a situação de cada avaliação à vista, poucas por vez
+  // a situação de cada avaliação da página, algumas por vez
   useEffect(() => {
-    const ids = shownKey ? shownKey.split(",").map(Number) : [];
-    const pending = ids.filter((id) => !(id in summaries) && !inflight.current.has(id));
+    const ids = loadKey ? loadKey.split(",").map(Number) : [];
+    const waiting = ids.filter((id) => !(id in summaries) && !inflight.current.has(id));
     const room = Math.max(0, PARALLEL - inflight.current.size);
-    for (const id of pending.slice(0, room)) {
+    for (const id of waiting.slice(0, room)) {
       inflight.current.add(id);
       const version = versions.current.get(id) ?? 0;
       void loadSummary(token, id).then((summary) => {
@@ -187,7 +314,7 @@ export function GradesTeacher({
         setSummaries((current) => ({ ...current, [id]: summary }));
       });
     }
-  }, [shownKey, summaries, token]);
+  }, [loadKey, summaries, token]);
 
   // a gaveta mudou notas, importação ou publicação: a situação daquela avaliação carrega de novo
   useEffect(() => {
@@ -220,30 +347,82 @@ export function GradesTeacher({
     document
       .querySelector<HTMLElement>(`[data-grades-event="${focusEventId}"]`)
       ?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [focusEventId, loading, tab]);
+  }, [focusEventId, loading, tab, paged.page]);
 
   const admin = role === "admin";
-  const searching = search.trim().length > 0;
+  const term = search.trim();
+  const searching = term.length > 0;
   // docente sem vínculo em vigor (como a Gestão e o painel do evento contam): não tem para quem criar avaliação
   const noClass = role === "teacher" && context !== null && activeAssignments(context).length === 0;
 
-  /** "Limpar busca": apaga a busca do menu e volta o foco para a avaliação. */
+  /** "Limpar busca": apaga a busca do menu e devolve o foco para a avaliação destacada (ou para o título). */
   function clearMenuSearch() {
     onClearSearch?.();
     const eventId = focusEventId;
     window.requestAnimationFrame(() => {
-      document
-        .querySelector<HTMLElement>(`[data-grades-event="${eventId}"] [data-grades-open]`)
-        ?.focus({ preventScroll: true });
+      const target =
+        document.querySelector<HTMLElement>(`[data-grades-event="${eventId}"] [data-grades-open]`) ??
+        document.getElementById("notas-docente-titulo");
+      if (target && !target.matches("button")) target.setAttribute("tabindex", "-1");
+      target?.focus({ preventScroll: true });
     });
   }
-  const subtitle = mine.length
-    ? `${past.length === 1 ? "1 já aconteceu" : `${past.length} já aconteceram`}, ${upcoming.length === 1 ? "1 próxima" : `${upcoming.length} próximas`}${
-        searching ? `, com a busca "${search.trim()}"` : ""
-      }`
-    : admin
-      ? "Provas e trabalhos de todas as turmas"
-      : "Provas e trabalhos das suas disciplinas";
+
+  /** "Ver todas as disciplinas": tira o filtro; o botão some, então o foco vai para o título do card. */
+  function showAllOffers() {
+    setOffer(null);
+    window.requestAnimationFrame(() => {
+      const title = document.getElementById("notas-docente-titulo");
+      title?.setAttribute("tabindex", "-1");
+      title?.focus({ preventScroll: true });
+    });
+  }
+
+  function pickTab(next: Tab) {
+    setChosenTab(next);
+  }
+
+  /**
+   * Abre a gaveta de notas a partir de uma linha. A aba fica fixa (sem isso, publicar a última pendente trocava
+   * a aba sozinha por trás da gaveta) e a linha continua na lista até trocar de aba ou de página, para o foco
+   * voltar ao botão "Abrir notas" quando a gaveta fecha.
+   */
+  function openRow(eventId: number) {
+    setChosenTab(tab);
+    setKept((current) => ({
+      key: pageKey,
+      ids: current.key === pageKey ? [...current.ids.filter((id) => id !== eventId), eventId] : [eventId],
+    }));
+    onOpenGrades(eventId);
+  }
+
+  let subtitle: string;
+  if (!mine.length || (searching && !matched.length)) {
+    // sem resultado na busca, o vazio logo abaixo já diz o que aconteceu
+    subtitle = admin ? "Provas e trabalhos de todas as turmas" : "Provas e trabalhos das suas disciplinas";
+  } else if (searching) {
+    subtitle = `${countText(matched.length, "avaliação", "avaliações")} com ${quoted(term)}`;
+  } else if (pendingCount) {
+    subtitle = `${countText(pendingCount, "avaliação já aconteceu e espera", "avaliações já aconteceram e esperam")} notas publicadas`;
+  } else {
+    subtitle = past.length ? "As notas de todas as avaliações que já aconteceram estão publicadas" : "Nenhuma avaliação aconteceu ainda";
+  }
+
+  const tabs: Array<{ id: Tab; label: string; count: number }> = [
+    // a ordem das abas de tempo de todas as telas (Próximas, Passadas, Todas), depois da que pede ação
+    { id: "pending", label: "Pendentes", count: pendingCount },
+    { id: "next", label: "Próximas", count: upcoming.length },
+    { id: "past", label: "Passadas", count: past.length },
+    { id: "all", label: "Todas", count: filtered.length },
+  ];
+  const tabName = tabs.find((item) => item.id === tab)?.label ?? "";
+  // o filtro de turma e disciplina esconde parte do que a aba tem (com ou sem busca): a tela diz quantas e oferece
+  // mostrar todas (decisão 14)
+  const hiddenByOffer = activeOffer ? Math.max(0, tabFound.length - list.length) : 0;
+  const offerLabel = offerOptions.find((item) => item.key === activeOffer)?.label ?? "";
+  const offerFilterName = multiClass ? "filtro de turma e disciplina" : "filtro de disciplina";
+  const showAllOffersLabel = multiClass ? "Ver todas as turmas" : "Ver todas as disciplinas";
+  const hiddenText = `${hiddenByOffer} ${hiddenByOffer === 1 ? "escondida" : "escondidas"} pelo ${offerFilterName}`;
 
   let content;
   if (loading && !events.length) {
@@ -274,29 +453,91 @@ export function GradesTeacher({
     content = (
       <div className="px-6 pb-6">
         <EmptyState
-          icon={ClipboardCheck}
-          text={`Nenhuma avaliação com "${search.trim()}"`}
-          hint="Confira o texto ou apague a busca no menu para ver todas as avaliações."
+          icon={Search}
+          text={`Nenhuma avaliação com ${quoted(term)}`}
+          hint="Confira o texto da busca ou limpe a busca para ver todas as avaliações."
+          action={onClearSearch ? { label: "Limpar busca", onClick: clearMenuSearch } : undefined}
         />
+      </div>
+    );
+  } else if (!list.length && hiddenByOffer) {
+    // a aba ficou vazia só por causa do filtro: o vazio diz isso (e a busca, quando há), com o caminho de volta
+    content = (
+      <div className="px-6 pb-6" role="status">
+        <div className="empty-inline compact">
+          <span className="empty-ico">
+            <Search className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-ink wrap-anywhere">
+              {searching
+                ? `Nenhuma avaliação de ${offerLabel} com ${quoted(term)} em ${tabName}`
+                : `Nenhuma avaliação de ${offerLabel} em ${tabName}`}
+            </p>
+            <p className="mt-0.5 text-sm leading-5 text-muted">{`${hiddenText}.`}</p>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <button className={cx(secondaryButton, "btn-sm")} onClick={showAllOffers} type="button">
+                {showAllOffersLabel}
+              </button>
+              {searching && onClearSearch ? (
+                <button className="btn btn-g btn-sm" onClick={clearMenuSearch} type="button">
+                  <X className="h-4 w-4" aria-hidden />
+                  Limpar busca
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
       </div>
     );
   } else if (!list.length) {
+    let empty: { icon: typeof ClipboardCheck; text: string; hint: string; action?: { label: string; onClick: () => void } };
+    if (tab === "pending") {
+      empty = {
+        icon: CircleCheck,
+        text: "Tudo em dia",
+        // o subtítulo do card já diz que tudo está publicado: aqui, o que vem depois (sem repetir a frase)
+        hint: "Depois de cada prova ou entrega de trabalho, a avaliação aparece aqui até as notas serem publicadas.",
+        action: past.length ? { label: `Ver passadas (${past.length})`, onClick: () => pickTab("past") } : undefined,
+      };
+    } else if (tab === "past") {
+      empty = {
+        icon: ClipboardCheck,
+        text: "Nenhuma avaliação aconteceu ainda",
+        hint: "As notas entram depois da prova ou da entrega do trabalho.",
+        action: upcoming.length ? { label: `Ver próximas (${upcoming.length})`, onClick: () => pickTab("next") } : undefined,
+      };
+    } else {
+      empty = {
+        icon: CalendarDays,
+        text: "Nenhuma avaliação pela frente",
+        hint: "As próximas provas e trabalhos aparecem aqui. Crie novas na Gestão.",
+        action: past.length ? { label: `Ver passadas (${past.length})`, onClick: () => pickTab("past") } : undefined,
+      };
+    }
     content = (
       <div className="px-6 pb-6">
-        <EmptyState
-          compact
-          icon={ClipboardCheck}
-          text={tab === "past" ? "Nenhuma avaliação aconteceu ainda" : "Nenhuma avaliação pela frente"}
-          hint={tab === "past" ? "As notas entram depois da prova ou da entrega do trabalho." : "As próximas provas e trabalhos aparecem aqui."}
-          action={
-            tab === "past"
-              ? { label: `Ver próximas (${upcoming.length})`, onClick: () => setChosenTab("next") }
-              : { label: `Ver as que já aconteceram (${past.length})`, onClick: () => setChosenTab("past") }
-          }
-        />
+        <EmptyState compact icon={empty.icon} text={empty.text} hint={empty.hint} action={empty.action} />
       </div>
     );
   } else {
+    // a página agrupada por mês: o cabeçalho aparece no começo da página e a cada mês novo. Como na Gestão, ele diz
+    // quantas avaliações o mês tem na lista toda (não só nesta página)
+    const monthKey = (event: AcademicEvent) => {
+      const date = new Date(event.startsAt);
+      return `${date.getFullYear()}-${date.getMonth()}`;
+    };
+    const monthTotals = new Map<string, number>();
+    for (const event of list) {
+      monthTotals.set(monthKey(event), (monthTotals.get(monthKey(event)) ?? 0) + 1);
+    }
+    const months: Array<{ key: string; title: string; total: number; items: AcademicEvent[] }> = [];
+    for (const event of shown) {
+      const key = monthKey(event);
+      const last = months[months.length - 1];
+      if (last && last.key === key) last.items.push(event);
+      else months.push({ key, title: monthHeading(event.startsAt, now), total: monthTotals.get(key) ?? 1, items: [event] });
+    }
     content = (
       <>
         {forced ? (
@@ -305,7 +546,7 @@ export function GradesTeacher({
               <Search className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <span className="min-w-0">
                 <b>A busca está escondendo outras avaliações.</b>{" "}
-                <span className="wrap-anywhere">{`"${forced.title}" aparece porque o link pediu por ela.`}</span>
+                <span className="wrap-anywhere">{`${quoted(forced.title)} aparece porque o link pediu por ela.`}</span>
               </span>
             </p>
             <button className={cx(secondaryButton, "btn-sm")} onClick={clearMenuSearch} type="button">
@@ -313,71 +554,157 @@ export function GradesTeacher({
               Limpar busca
             </button>
           </div>
-        ) : null}
-        <ul className="notas-docente-evs" aria-label={tab === "past" ? "Avaliações que já aconteceram" : tab === "next" ? "Próximas avaliações" : "Todas as avaliações"}>
-          {shown.map((event) => (
-            <EvaluationRow
-              key={event.id}
-              admin={admin}
-              event={event}
-              focused={event.id === focusEventId}
-              now={now}
-              summary={summaries[event.id] ?? null}
-              onOpenEvent={onOpenEvent}
-              onOpenGrades={onOpenGrades}
-              onRetry={() => forget(event.id)}
-            />
-          ))}
-        </ul>
-        {list.length > shown.length || expanded ? (
-          <div className="notas-docente-more">
-            {list.length > FIRST_ROWS ? (
-              <button className="link min-h-6" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)} type="button">
-                {expanded ? "Mostrar menos" : `Ver todas (${list.length})`}
-                {expanded ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
-              </button>
-            ) : null}
+        ) : searching ? (
+          // a busca do menu filtra a lista: a tela diz isso, quantas estão na aba, quantas o filtro de disciplina
+          // esconde e como voltar (decisão 14, como em Notas do aluno e na Gestão)
+          <div className="notas-docente-searchnote" role="status">
+            <Search className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="min-w-0 wrap-anywhere">
+              Busca: <b>{term}</b>, {`${countText(list.length, "avaliação", "avaliações")} em ${tabName}`}
+              {hiddenByOffer ? `, ${hiddenText}` : ""}
+            </span>
+            <span className="notas-docente-searchnote-acts">
+              {hiddenByOffer ? (
+                <button className="btn btn-g btn-sm shrink-0" onClick={showAllOffers} type="button">
+                  {showAllOffersLabel}
+                </button>
+              ) : null}
+              {onClearSearch ? (
+                <button className="btn btn-g btn-sm shrink-0" onClick={clearMenuSearch} type="button">
+                  <X className="h-4 w-4" aria-hidden />
+                  Limpar busca
+                </button>
+              ) : null}
+            </span>
           </div>
         ) : null}
+        <div
+          ref={listRef}
+          className="notas-docente-list"
+          role="group"
+          aria-label={paged.pageCount > 1 ? `${tabName}, página ${paged.page} de ${paged.pageCount}` : tabName}
+        >
+          {months.map((month) => (
+            <Fragment key={month.key}>
+              <h3 className="notas-docente-month">
+                {month.title}
+                <span className="n">{countText(month.total, "avaliação", "avaliações")}</span>
+                {month.total > month.items.length ? (
+                  <span className="sr-only">, {countText(month.items.length, "aparece", "aparecem")} nesta página</span>
+                ) : null}
+              </h3>
+              <ul className="notas-docente-evs">
+                {month.items.map((event) => (
+                  <EvaluationRow
+                    key={event.id}
+                    admin={admin}
+                    event={event}
+                    focused={event.id === focusEventId}
+                    future={!happened(event)}
+                    summary={summaries[event.id] ?? null}
+                    onOpenEvent={onOpenEvent}
+                    onOpenGrades={openRow}
+                    onRetry={() => forget(event.id)}
+                  />
+                ))}
+              </ul>
+            </Fragment>
+          ))}
+        </div>
+        <Pager className="notas-docente-pager" paged={paged} noun={["avaliação", "avaliações"]} focusRef={listRef} />
       </>
     );
   }
 
+  const showControls = mine.length > 0 && found.length > 0;
   return (
     <section className="card notas-docente-card" aria-labelledby="notas-docente-titulo">
       <div className="notas-docente-card-head">
         <SectionTitle id="notas-docente-titulo" title="Notas das avaliações" subtitle={subtitle} />
-        {mine.length && found.length ? (
-          <Segmented label="Quais avaliações mostrar">
-            <SegmentedButton
-              active={tab === "past"}
-              label={`Já aconteceram (${past.length})`}
-              onClick={() => {
-                setChosenTab("past");
-                setExpanded(false);
-              }}
-            />
-            <SegmentedButton
-              active={tab === "next"}
-              label={`Próximas (${upcoming.length})`}
-              onClick={() => {
-                setChosenTab("next");
-                setExpanded(false);
-              }}
-            />
-            <SegmentedButton
-              active={tab === "all"}
-              label={`Todas (${found.length})`}
-              onClick={() => {
-                setChosenTab("all");
-                setExpanded(false);
-              }}
-            />
-          </Segmented>
+        {showControls ? (
+          <div className="seg notas-docente-tabs-seg" role="group" aria-label="Quais avaliações mostrar">
+            {tabs.map((item) => (
+              <button
+                key={item.id}
+                className={cx(tab === item.id && "on")}
+                aria-pressed={tab === item.id}
+                onClick={() => pickTab(item.id)}
+                type="button"
+              >
+                <span className="t">{item.label}</span>
+                <span className="n">{item.count}</span>
+              </button>
+            ))}
+          </div>
         ) : null}
       </div>
+      {/* aba vazia sem disciplina escolhida: o filtro sairia só com "Todas as disciplinas 0"; quem fala é o vazio */}
+      {showControls && offers.length > 1 && (tabFound.length > 0 || activeOffer) ? (
+        <OfferFilter byClass={multiClass} offers={offers} total={tabFound.length} value={activeOffer} onChange={setOffer} />
+      ) : null}
       {content}
     </section>
+  );
+}
+
+/** Filtro por turma e disciplina: botões quando são poucas; lista de escolha quando são muitas. */
+function OfferFilter({
+  byClass,
+  offers,
+  onChange,
+  total,
+  value,
+}: {
+  /** As opções trazem a turma ("TADS 5, Matemática"): há mais de uma turma. */
+  byClass: boolean;
+  offers: Array<{ key: string; label: string; count: number }>;
+  onChange: (value: string | null) => void;
+  total: number;
+  value: string | null;
+}) {
+  const label = byClass ? "Filtrar por turma e disciplina" : "Filtrar por disciplina";
+  const allLabel = byClass ? "Todas as turmas" : "Todas as disciplinas";
+  // a lista de escolha sempre existe; os botões só quando são poucos (no celular, o CSS mostra só a lista)
+  const select = (
+    <label className="notas-docente-filter-sel">
+      <span>{byClass ? "Turma e disciplina" : "Disciplina"}</span>
+      <select className="input" aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value || null)}>
+        <option value="">{`${allLabel} ${total}`}</option>
+        {offers.map((item) => (
+          <option key={item.key} value={item.key}>
+            {`${item.label} ${item.count}`}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  if (offers.length > MAX_CHIPS) {
+    return <div className="notas-docente-filter">{select}</div>;
+  }
+  return (
+    <div className="notas-docente-filter has-chips">
+      {select}
+      <div className="chips" role="group" aria-label={label}>
+        <button className={cx("chip", value === null && "all")} aria-pressed={value === null} onClick={() => onChange(null)} type="button">
+          {allLabel}
+          <span className="n">{total}</span>
+        </button>
+        {offers.map((item) =>
+          item.count === 0 && value !== item.key ? null : (
+            <button
+              key={item.key}
+              className={cx("chip", value === item.key && "picked")}
+              aria-pressed={value === item.key}
+              onClick={() => onChange(value === item.key ? null : item.key)}
+              type="button"
+            >
+              <span className="wrap-anywhere">{item.label}</span>
+              <span className="n">{item.count}</span>
+            </button>
+          )
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -399,17 +726,55 @@ function ListSkeleton() {
   );
 }
 
+/** "1 de 3 com nota" com a barra do quanto já tem nota (cheia e verde quando todos têm). */
+function Progress({ launched, students }: { launched: number; students: number }) {
+  const pct = students ? Math.min(100, Math.round((launched / students) * 100)) : 0;
+  const full = students > 0 && launched >= students;
+  return (
+    <span className={cx("notas-docente-prog", full && "is-full")}>
+      <span
+        className="notas-docente-prog-bar"
+        role="progressbar"
+        aria-label="Alunos com nota"
+        aria-valuemin={0}
+        aria-valuemax={students}
+        aria-valuenow={Math.min(launched, students)}
+      >
+        <span style={{ width: `${pct}%` }} />
+      </span>
+      <span className="notas-docente-prog-t">{`${launched} de ${students} com nota`}</span>
+    </span>
+  );
+}
+
 function SummaryPills({
   event,
-  now,
+  future,
   onRetry,
   summary,
 }: {
   event: AcademicEvent;
-  now: number;
+  future: boolean;
   onRetry: () => void;
   summary: Summary | null;
 }) {
+  // cancelada: a situação fica num lugar só (sem "Agendada" nem a situação das notas, que nem carrega)
+  if (event.status === "cancelled") {
+    return (
+      <span className="notas-docente-ev-status">
+        <span className="pill stat stat-canc">Cancelada</span>
+      </span>
+    );
+  }
+  // avaliação que ainda não aconteceu: uma etiqueta só, com quanto falta (a situação nem carrega)
+  if (future) {
+    return (
+      <span className="notas-docente-ev-status">
+        <span className="pill stat">Agendada</span>
+        <span className="notas-docente-ev-when">{relativeDue(event.startsAt)}</span>
+      </span>
+    );
+  }
   if (!summary) {
     return (
       <span className="notas-docente-ev-status">
@@ -421,8 +786,8 @@ function SummaryPills({
   if (!summary.ok) {
     return (
       <span className="notas-docente-ev-status">
-        <span className="pill st-ag">
-          {summary.forbidden ? <Lock className="h-3 w-3" aria-hidden /> : null}
+        <span className="pill stat">
+          {summary.forbidden ? <Lock aria-hidden /> : null}
           {summary.forbidden ? "Sem acesso" : "Situação não carregou"}
         </span>
         <span className="notas-docente-ev-line">
@@ -440,50 +805,45 @@ function SummaryPills({
     );
   }
   const publishedAt = summary.publishedAt ?? event.gradesPublishedAt ?? null;
-  const ofTotal = `${summary.launched} de ${summary.students} com nota`;
+  const ofTotal = summary.students ? (
+    <Progress launched={summary.launched} students={summary.students} />
+  ) : (
+    <span className="notas-docente-ev-line">A turma ainda não tem alunos ativos</span>
+  );
   const draftPill = summary.drafts ? (
-    <span className="pill st-alt">
-      <FileClock className="h-3 w-3" aria-hidden />
+    <span className="pill stat stat-alt">
+      <FileClock aria-hidden />
       Rascunho de importação
     </span>
   ) : null;
   if (publishedAt) {
     return (
       <span className="notas-docente-ev-status">
-        <span className="pill st-conc">
-          <Eye className="h-3 w-3" aria-hidden />
+        <span className="pill stat stat-conc">
+          <Eye aria-hidden />
           Publicadas
         </span>
         {draftPill}
-        <span className="notas-docente-ev-line">{ofTotal}</span>
+        {ofTotal}
       </span>
     );
   }
   if (summary.launched) {
     return (
       <span className="notas-docente-ev-status">
-        <span className="pill st-alt">
-          <EyeOff className="h-3 w-3" aria-hidden />
+        <span className="pill stat stat-alt">
+          <EyeOff aria-hidden />
           Notas ocultas
         </span>
         {draftPill}
-        <span className="notas-docente-ev-line">{ofTotal}</span>
+        {ofTotal}
       </span>
     );
   }
-  const future = new Date(event.startsAt).getTime() > now;
   return (
     <span className="notas-docente-ev-status">
-      {draftPill ?? <span className="pill st-ag">Sem notas</span>}
-      <span className="notas-docente-ev-line">
-        {summary.drafts
-          ? "Falta conferir e aplicar a importação"
-          : future
-            ? "Ainda não aconteceu"
-            : summary.students === 1
-              ? "1 aluno sem nota"
-              : `${summary.students} alunos sem nota`}
-      </span>
+      {draftPill ?? <span className="pill stat">Sem notas</span>}
+      {summary.drafts ? <span className="notas-docente-ev-line">Falta conferir e aplicar a importação</span> : ofTotal}
     </span>
   );
 }
@@ -492,7 +852,7 @@ function EvaluationRow({
   admin,
   event,
   focused,
-  now,
+  future,
   onOpenEvent,
   onOpenGrades,
   onRetry,
@@ -501,7 +861,7 @@ function EvaluationRow({
   admin: boolean;
   event: AcademicEvent;
   focused: boolean;
-  now: number;
+  future: boolean;
   onOpenEvent: (eventId: number) => void;
   onOpenGrades: (eventId: number) => void;
   onRetry: () => void;
@@ -509,45 +869,53 @@ function EvaluationRow({
 }) {
   const meta = categoryMeta[event.category];
   const parts = dateParts(event.startsAt);
-  const where = [event.academicClass?.name, event.subject?.name].filter(Boolean).join(", ");
   const points = event.points !== null && event.points > 0 ? `${event.points.toLocaleString("pt-BR")} pts` : "sem pontuação";
+  // os detalhes separados por vírgula, como no Painel e no Cronograma; a data já está no bloco ao lado
+  const details = [
+    isAllDay(event.startsAt) ? "Dia todo" : formatTime(event.startsAt),
+    event.academicClass?.name,
+    event.subject?.name,
+    points,
+    admin ? event.teacher?.fullName : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
   return (
     <li className={cx("notas-docente-ev", focused && "is-focus")} data-grades-event={event.id}>
       <span className="ev-date" aria-hidden>
-        <span className="dw">{parts.month}</span>
+        <span className="dw">{parts.weekday}</span>
         <span className="dn">{parts.day}</span>
       </span>
       <div className="notas-docente-ev-body">
         <p className="ev-title">{event.title}</p>
         <p className="ev-meta">
           <span className={cx("pill", meta.tint)}>{meta.short}</span>
-          <span>{formatShortDateTime(event.startsAt)}</span>
-          {where ? <span className="wrap-anywhere">{where}</span> : null}
-          <span>{points}</span>
-          {admin && event.teacher?.fullName ? <span>{event.teacher.fullName}</span> : null}
+          <span className="sr-only">{formatShortDate(event.startsAt)}, </span>
+          <span className="wrap-anywhere">{details}</span>
         </p>
       </div>
-      <SummaryPills event={event} now={now} summary={summary} onRetry={onRetry} />
+      <SummaryPills event={event} future={future} summary={summary} onRetry={onRetry} />
       <div className="notas-docente-ev-acts">
         <button
           className="ib sm"
-          aria-label={`Ver ${event.title} no Cronograma`}
-          title="Ver no Cronograma"
+          aria-label={`Ver ${event.title} no cronograma`}
+          title="Ver no cronograma"
           onClick={() => onOpenEvent(event.id)}
           type="button"
         >
           <CalendarDays className="h-4 w-4" aria-hidden />
         </button>
         <button
-          className={cx(secondaryButton, "btn-sm")}
+          className={cx(secondaryButton, "btn-sm notas-docente-open")}
           data-grades-open=""
-          aria-label={`Notas de ${event.title}`}
+          aria-label={`Abrir as notas de ${event.title}`}
           aria-haspopup="dialog"
           onClick={() => onOpenGrades(event.id)}
           type="button"
         >
           <ClipboardCheck className="h-4 w-4" aria-hidden />
-          Notas
+          Abrir notas
+          <ChevronRight className="h-4 w-4 opacity-70" aria-hidden />
         </button>
       </div>
     </li>

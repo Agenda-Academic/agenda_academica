@@ -3,7 +3,6 @@
 import {
   ArrowRight,
   BookOpen,
-  CalendarDays,
   CloudDownload,
   FileText,
   History,
@@ -12,16 +11,26 @@ import {
   Target,
   Users,
 } from "lucide-react";
-import { useState } from "react";
-import { cx, formatOnDayAt, formatShortDateTime, formatWeekday, latestTermLabel, shiftLabel, startOfDay } from "@/lib/format";
+import { useId, useRef, useState } from "react";
+import {
+  cx,
+  dayMonthText,
+  formatDateBR,
+  formatOnDayAt,
+  formatWeekday,
+  latestTermLabel,
+  relativeDue,
+  shiftLabel,
+  startOfDay,
+} from "@/lib/format";
 import { allCategories } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, CalendarImport, Reminder } from "@/lib/types";
 import { AdminPendingCard } from "./admin-pending-card";
 import {
   AvisosCard,
   CategoryBreakdown,
-  EventList,
   InsightTile,
+  InstitutionDatesCard,
   calendarNote,
   calendarUpcomingCount,
   delay,
@@ -33,22 +42,19 @@ import {
   useSavedReveal,
   type CalendarFilter,
 } from "./dashboard-bits";
+import { Pager, usePaged } from "./pager";
 import { EmptyState, SectionTitle } from "./ui";
-
-/** "15/11". */
-function shortDate(value: string) {
-  return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-}
 
 function datesLabel(count: number) {
   return count === 1 ? "1 data" : `${count} datas`;
 }
 
 /**
- * Turmas que "Atividade por turma" mostra antes do "Ver todas (N)": duas linhas de duas. Com a lista toda, a
- * coluna larga passava muito da de apoio, e "Distribuição geral" esticava com um buraco grande no fim.
+ * Turmas que "Atividade por turma" mostra por página (decisão 1: de 8 a 10): quatro linhas de duas. Com a lista
+ * toda, a coluna larga passava muito da de apoio; com a página, useColumnFill encurta as datas da instituição ao
+ * lado da lista e mostra mais importações na coluna de apoio, para as duas terminarem juntas.
  */
-const CLASS_LIMIT = 4;
+const CLASS_LIMIT = 8;
 
 export function AdminDashboard({
   avisos,
@@ -63,6 +69,7 @@ export function AdminDashboard({
   onNewEvent,
   onOpenCalendar,
   onOpenSync,
+  onOpenClasses,
   onSelect,
 }: {
   /** Lembretes cuja hora chegou (aviso no sistema). */
@@ -87,14 +94,20 @@ export function AdminDashboard({
   onOpenCalendar?: (filter?: CalendarFilter) => void;
   /** Abre a tela Importar calendário. */
   onOpenSync: () => void;
+  /** Abre a tela Turmas e disciplinas (os indicadores de turmas e de disciplinas levam a ela). */
+  onOpenClasses?: () => void;
   onSelect: (id: number) => void;
 }) {
   // referência de "agora" fixada na montagem (render precisa ser puro)
   const [now] = useState(() => Date.now());
   const { rootRef, savedId } = useSavedReveal<HTMLDivElement>(lastSavedId, savedTick, upcomingEvents);
-  const [allClasses, setAllClasses] = useState(false);
   const classes = context?.catalog.classes ?? [];
-  const shownClasses = allClasses ? classes : classes.slice(0, CLASS_LIMIT);
+  // mais de 8 turmas: uma página por vez (a lista não cresce no lugar)
+  const classPages = usePaged(classes, CLASS_LIMIT, String(classes.length));
+  const shownClasses = classPages.items;
+  // trocar de página leva o foco (e a vista) para o card das turmas
+  const classCardRef = useRef<HTMLElement>(null);
+  const classTitleId = useId();
   const subjects = context?.catalog.subjects ?? [];
   const lastImport = imports[0] ?? null;
   // datas oficiais: a regra única de dashboard-bits (a mesma do card da Gestão e do filtro do Cronograma)
@@ -104,6 +117,8 @@ export function AdminDashboard({
   const today = startOfDay(new Date(now)).getTime();
   const nextOfficial =
     officialDates.find((event) => startOfDay(new Date(event.startsAt)).getTime() >= today) ?? officialDates[0] ?? null;
+  // a próxima já está no destaque: o card "Datas da instituição" começa pela seguinte (decisão 13)
+  const listedDates = nextOfficial ? officialDates.filter((event) => event.id !== nextOfficial.id) : officialDates;
   // eventos à frente (o "Próximos" do Cronograma sem os cancelados e os concluídos, o de hoje e o em
   // andamento inclusive): o indicador, a atividade por turma e a distribuição contam os mesmos
   const ahead = events ? openAhead(events, now) : upcomingEvents;
@@ -113,9 +128,7 @@ export function AdminDashboard({
   const openOfficial = onOpenCalendar ? () => onOpenCalendar({ categories: officialCategories }) : undefined;
   // o Cronograma lista também os cancelados e os concluídos: os rodapés usam o número dele e os
   // indicadores dizem a diferença
-  const calendarEvents = events ?? upcomingEvents;
   const officialListed = calendarUpcomingCount(events ?? officialDates, now, officialCategories);
-  const aheadNote = onOpenCalendar ? calendarNote(calendarEvents, now, ahead.length) : null;
   const officialNote = openOfficial
     ? calendarNote(events ?? officialDates, now, officialCount, { categories: officialCategories, feminine: true })
     : null;
@@ -128,7 +141,10 @@ export function AdminDashboard({
   const isUndone = (item: CalendarImport) => item.status !== "failed" && item.totalEvents > 0 && currentDates(item) === 0;
   function importDates(item: CalendarImport) {
     const current = currentDates(item);
-    return current === item.totalEvents ? datesLabel(item.totalEvents) : `${current} de ${datesLabel(item.totalEvents)}`;
+    // desfeita: o que ela trouxe ("115 datas"), e a etiqueta "Desfeita" ao lado diz a situação (nada de "0 de 115")
+    return current === item.totalEvents || isUndone(item)
+      ? datesLabel(item.totalEvents)
+      : `${current} de ${datesLabel(item.totalEvents)}`;
   }
 
   // dados do destaque (Figma): quando foi a última importação e o que ela trouxe
@@ -149,31 +165,31 @@ export function AdminDashboard({
   }));
 
   // colunas do Figma: datas oficiais e turmas na larga, importações e distribuição na de apoio. As
-  // duas terminam juntas: "Próximas datas oficiais" e "Importações recentes" mostram mais itens
-  // enquanto a coluna delas for a mais baixa, e o card de baixo de cada uma guarda a sobra. O card
+  // duas terminam juntas: "Datas da instituição" e "Importações recentes" mostram mais itens
+  // enquanto a coluna delas for a mais baixa (ou menos, até o floor, quando a outra acabou). O card
   // Pendências fica na largura toda, acima das colunas: a altura dele muda muito (de "Tudo em dia" a
   // "Ver todos") e, numa coluna só, deixava a outra com um buraco grande no fim
-  const { gridRef, mainGapRef, sideGapRef, mainCount, sideCount } = useColumnFill(
-    { total: officialDates.length, min: 3, max: 8 },
+  // Nenhum card estica (decisão 5): com poucas importações a coluna de apoio fica baixa, e as datas da instituição
+  // podem descer até 2 para as colunas terminarem juntas
+  const { gridRef, mainGapRef, sideGapRef, mainCount, sideCount, gridClass } = useColumnFill(
+    { total: listedDates.length, min: 3, max: 8, floor: 2 },
     { total: imports.length, min: 3, max: 6 },
     [
-      heightKey(officialDates.slice(0, 8)),
+      heightKey(listedDates.slice(0, 8)),
       imports
         .slice(0, 6)
         .map((item) => `${item.id}:${item.sourceName}:${item.status}:${currentDates(item)}`)
         .join(","),
       shownClasses.map((academicClass) => `${academicClass.id}:${upcomingByClass(academicClass.id)}`).join(","),
-      classes.length > CLASS_LIMIT ? "ver-todas" : "",
+      classes.length > CLASS_LIMIT ? "paginas" : "",
       categoryCounts.map((item) => item.count).join(","),
       campusEvents,
     ].join("|")
   );
 
   return (
-    <div ref={rootRef} className="admin-dash grid gap-5">
-      {avisos?.length ? (
-        <AvisosCard avisos={avisos} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
-      ) : null}
+    <div ref={rootRef} className="pnl pnl-admin admin-dash grid gap-5">
+      <AvisosCard host avisos={avisos ?? []} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
 
       {/* Destaque institucional (Figma) */}
       <div className="hero-slot rise" style={delay(0)}>
@@ -183,20 +199,16 @@ export function AdminDashboard({
           </div>
           <div className="hero-body">
             <div className="hero-kicker">
-              <span className="eyebrow">Calendário oficial</span>
+              <span className="hero-label">Calendário oficial</span>
+              {/* situação: etiqueta com fundo, como as outras situações (Agendado, Concluído) */}
               {officialCount ? (
-                <span className="pill bg-brand-50 text-brand-ink">
-                  <span className="dot bg-brand" aria-hidden />
-                  Em dia
-                </span>
+                <span className="pill stat stat-conc">Em dia</span>
               ) : (
-                <span className="pill st-alt">
-                  <span className="dot d-extra" aria-hidden />
-                  Pendente
-                </span>
+                <span className="pill stat stat-alt">Pendente</span>
               )}
             </div>
-            <h2 className="hero-title">Visão institucional do semestre {latestTermLabel(classes, now)}</h2>
+            {/* text-wrap: balance (admin.css): o título quebra em duas linhas parecidas, sem "2026/2" sozinho embaixo */}
+            <h2 className="hero-title admin-hero-title">Visão institucional do semestre {latestTermLabel(classes, now)}</h2>
             {/* o nome da fonte vem da importação: palavra ou link longo quebra em qualquer ponto */}
             <div className="hero-meta wrap-anywhere">
               <span>
@@ -224,14 +236,15 @@ export function AdminDashboard({
             </div>
           </div>
           <div className="countdown next">
-            <p className="eyebrow">Próxima data oficial</p>
+            <p className="eyebrow hero-label">Próxima data da instituição</p>
             {nextOfficial ? (
               <>
-                <b>{shortDate(nextOfficial.startsAt)}</b>
+                {/* com o ano fora do ano corrente: "1 de jan de 2027" (o 01/01 de 2027 e o de 2028 não se confundem) */}
+                <b>{dayMonthText(nextOfficial.startsAt)}</b>
                 {/* no computador, uma linha com reticências; no celular, o nome quebra linha, e a
                     palavra ou o link longo quebra em qualquer ponto */}
                 <small className="wrap-anywhere" title={nextOfficial.title}>
-                  {nextOfficial.title}
+                  {nextOfficial.title}, {relativeDue(nextOfficial.startsAt)}
                 </small>
               </>
             ) : (
@@ -242,30 +255,54 @@ export function AdminDashboard({
       </div>
 
       <div className="kpis">
+        {/* dois números que não se repetem: o que é das turmas e as datas da instituição (com o período) */}
         <InsightTile
           icon={Target}
-          label="Eventos futuros"
+          label="Eventos das turmas"
           order={2}
-          value={String(ahead.length)}
-          hint={`${classEvents} das turmas e ${campusEvents} ${campusEvents === 1 ? "oficial" : "oficiais"}`}
-          note={aheadNote}
+          value={String(classEvents)}
+          hint="à frente, nas turmas"
           actionLabel="Ver no cronograma"
           onClick={onOpenCalendar ? () => onOpenCalendar() : undefined}
         />
         <InsightTile
           icon={ShieldCheck}
-          label="Datas oficiais à frente"
+          label="Datas da instituição"
           order={3}
           value={String(officialCount)}
           tone="c-inst"
-          // vale para todas elas, com turma ou sem
-          hint="com prioridade institucional"
+          hint={
+            officialDates.length
+              ? officialDates.length === 1
+                ? `em ${formatDateBR(officialDates[0].startsAt)}`
+                : `de ${formatDateBR(officialDates[0].startsAt)} a ${formatDateBR(officialDates[officialDates.length - 1].startsAt)}`
+              : "nenhuma à frente"
+          }
           note={officialNote}
-          actionLabel="Ver no cronograma"
+          actionLabel="Ver as datas da instituição no cronograma"
           onClick={openOfficial}
         />
-        <InsightTile icon={Users} label="Turmas ativas" order={4} value={String(classes.length)} tone="c-trab" hint="no catálogo" />
-        <InsightTile icon={BookOpen} label="Disciplinas ativas" order={5} value={String(subjects.length)} tone="c-ativ" hint="no catálogo" />
+        {/* os quatro indicadores levam a algum lugar: os de turmas e disciplinas, à tela Turmas e disciplinas */}
+        <InsightTile
+          icon={Users}
+          label="Turmas ativas"
+          order={4}
+          value={String(classes.length)}
+          tone="c-trab"
+          hint="no catálogo"
+          actionLabel="Abrir Turmas e disciplinas"
+          onClick={onOpenClasses}
+        />
+        <InsightTile
+          icon={BookOpen}
+          label="Disciplinas ativas"
+          order={5}
+          value={String(subjects.length)}
+          tone="c-ativ"
+          hint="no catálogo"
+          actionLabel="Abrir Turmas e disciplinas"
+          onClick={onOpenClasses}
+        />
       </div>
 
       {/* Pendências na largura toda, com os itens em duas colunas no computador */}
@@ -274,35 +311,27 @@ export function AdminDashboard({
       </div>
 
       {/* Colunas do Figma (png 13): começam e terminam juntas, sem rolagem por dentro (useColumnFill) */}
-      <div ref={gridRef} className="duo">
+      <div ref={gridRef} className={cx("duo", gridClass)}>
         <div className="duo-col duo-main">
-          <section className="card pad rise" style={delay(6)} aria-label="Próximas datas oficiais">
-            <SectionTitle title="Próximas datas oficiais" />
-            <EventList
-              className="mt-3.5"
-              events={officialDates}
-              limit={mainCount}
-              savedId={savedId}
-              emptyCompact
-              emptyIcon={CalendarDays}
-              emptyText="Nenhuma data oficial à frente."
-              emptyHint="Use Importar calendário para trazer as datas oficiais."
-              showAll={
-                openOfficial
-                  ? {
-                      label: "Ver todas no cronograma",
-                      // o N é o que o Cronograma lista (com as canceladas e as concluídas)
-                      count: officialListed,
-                      onClick: openOfficial,
-                    }
-                  : undefined
-              }
-              onSelect={onSelect}
-            />
-          </section>
+          <InstitutionDatesCard
+            emptyText={nextOfficial ? "Nenhuma outra data da instituição à frente" : undefined}
+            events={listedDates}
+            limit={mainCount}
+            listed={officialListed}
+            order={6}
+            savedId={savedId}
+            subtitle={
+              nextOfficial
+                ? "Depois da próxima, os feriados, recessos e eventos oficiais de todas as turmas"
+                : "Feriados, recessos e eventos oficiais, para todas as turmas"
+            }
+            onOpenAll={openOfficial}
+            onSelect={onSelect}
+          />
 
-          <section className="card pad rise duo-fill" style={delay(8)} aria-label="Atividade por turma">
+          <section ref={classCardRef} className="card pad rise duo-fill" style={delay(8)} aria-labelledby={classTitleId}>
             <SectionTitle
+              id={classTitleId}
               title="Atividade por turma"
               subtitle={
                 campusEvents
@@ -334,18 +363,11 @@ export function AdminDashboard({
               </div>
             ) : (
               <div className="mt-4">
-                <EmptyState compact icon={Users} text="Nenhuma turma cadastrada." />
+                <EmptyState compact icon={Users} text="Nenhuma turma cadastrada" />
               </div>
             )}
             <div ref={mainGapRef} className="fill-gap" aria-hidden />
-            {classes.length > CLASS_LIMIT ? (
-              <div className="card-foot">
-                <button className="link" aria-expanded={allClasses} onClick={() => setAllClasses((value) => !value)} type="button">
-                  {allClasses ? "Mostrar menos" : `Ver todas (${classes.length})`}
-                  <ArrowRight className={cx("h-[15px] w-[15px]", allClasses && "-rotate-90")} aria-hidden />
-                </button>
-              </div>
-            ) : null}
+            <Pager className="mt-4" paged={classPages} noun={["turma", "turmas"]} focusRef={classCardRef} />
           </section>
         </div>
 
@@ -355,40 +377,51 @@ export function AdminDashboard({
               title="Importações recentes"
               subtitle={`${imports.length} registro${imports.length === 1 ? "" : "s"} no histórico`}
             />
+            {/* lista só de leitura, em linhas com divisória (sem fundo nem contorno de cartão): nada aqui abre ao
+                clicar. O rodapé leva ao histórico, na tela Importar calendário, onde cada importação abre as datas */}
             <div className="mt-3.5 flex flex-col gap-2">
-              {imports.slice(0, sideCount).map((item) => {
-                const situation = item.status === "failed" ? "Falhou" : isUndone(item) ? "Desfeita" : null;
-                return (
-                  <div key={item.id} className="mini">
-                    <span className="mini-ico">
-                      <History className="h-[18px] w-[18px]" aria-hidden />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="mini-t block wrap-anywhere">{item.sourceName}</span>
-                      <span className="mini-s block">
-                        {formatShortDateTime(item.importedAt)}, {importDates(item)}
-                      </span>
-                      {situation ? (
-                        <span className="mt-1.5 flex">
-                          <span className="pill stat">{situation}</span>
+              {imports.length ? (
+                <ul className="admin-imp-list">
+                  {imports.slice(0, sideCount).map((item) => {
+                    const situation = item.status === "failed" ? "Falhou" : isUndone(item) ? "Desfeita" : null;
+                    return (
+                      <li key={item.id} className="admin-imp-row">
+                        <History className="admin-imp-ico h-[18px] w-[18px]" aria-hidden />
+                        <span className="min-w-0 flex-1">
+                          <span className="mini-t block wrap-anywhere">{item.sourceName}</span>
+                          <span className="mini-s block">
+                            {/* a data é a da importação; a etiqueta diz a situação de agora. Uma que falhou não
+                                importou nada: a linha diz só quando foi a tentativa */}
+                            {item.status === "failed"
+                              ? `Tentativa ${formatOnDayAt(item.importedAt)}`
+                              : `Importada ${formatOnDayAt(item.importedAt)}, ${importDates(item)}`}
+                          </span>
+                          {situation ? (
+                            <span className="mt-1.5 flex">
+                              <span className={cx("pill stat", item.status === "failed" && "stat-canc")}>
+                                {situation}
+                              </span>
+                            </span>
+                          ) : null}
                         </span>
-                      ) : null}
-                    </span>
-                  </div>
-                );
-              })}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
               {!imports.length ? (
                 <EmptyState
                   compact
                   icon={CloudDownload}
-                  text="Nenhuma importação realizada."
+                  text="Nenhuma importação realizada"
                   hint="Use Importar calendário para trazer as datas oficiais."
                 />
               ) : null}
             </div>
             <div className="card-foot">
               <button className="link" onClick={onOpenSync} type="button">
-                {imports.length > sideCount ? `Ver todas as importações (${imports.length})` : "Importar calendário"}
+                {/* o "Importar calendário" já é a ação do destaque: aqui o caminho é o histórico */}
+                {imports.length > sideCount ? `Ver todas as importações (${imports.length})` : "Ver histórico de importações"}
                 <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
               </button>
             </div>
@@ -404,9 +437,18 @@ export function AdminDashboard({
               }
             />
             <div className="mt-4">
-              <CategoryBreakdown counts={categoryCounts} emptyText="Nenhum evento futuro." />
+              <CategoryBreakdown counts={categoryCounts} emptyText="Nenhum evento futuro" />
             </div>
+            {/* a sobra da coluna fica entre a lista e o link (como nos outros cards), e o link desce para o pé */}
             <div ref={sideGapRef} className="fill-gap" aria-hidden />
+            {onOpenCalendar && ahead.length ? (
+              <div className="card-foot">
+                <button className="link" onClick={() => onOpenCalendar()} type="button">
+                  Ver no cronograma
+                  <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
+                </button>
+              </div>
+            ) : null}
           </section>
         </div>
       </div>

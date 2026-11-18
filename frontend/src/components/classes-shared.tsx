@@ -38,7 +38,18 @@ export type SubjectDraft = {
  * "Nova disciplina" e o aluno trocam o conteúdo e o Voltar volta ao anterior, com o rascunho dele.
  */
 export type PanelView =
-  | { kind: "class"; classId: number; draft?: ClassDraft; dirty?: boolean; showAll?: boolean; showOthers?: boolean }
+  | {
+      kind: "class";
+      classId: number;
+      draft?: ClassDraft;
+      dirty?: boolean;
+      /** O formulário dos dados está aberto ("Editar dados"). */
+      editing?: boolean;
+      showOthers?: boolean;
+      /** Página e filtro da lista de alunos: voltar do painel do aluno devolve a lista como estava. */
+      studentPage?: number;
+      studentFilter?: string;
+    }
   | { kind: "newClass"; draft?: ClassDraft; dirty?: boolean }
   | { kind: "subject"; subjectId: number; draft?: SubjectDraft; dirty?: boolean }
   | { kind: "newSubject"; offerTo?: number; draft?: SubjectDraft; dirty?: boolean }

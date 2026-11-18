@@ -1,5 +1,5 @@
 /* ==================================================================
-   Área Admin: Turmas e disciplinas (classes-view.tsx, classes-*.tsx), card Pendências (admin-pending-card.tsx) e dashboard-admin.tsx.
+   Área Admin: Turmas e disciplinas (classes-view.tsx, classes-*.tsx), card Pendências (admin-pending-card.tsx), dashboard-admin.tsx.
 
    Importado por globals.css dentro de @layer components (depois de @import "tailwindcss"): os
    utilitários do Tailwind continuam valendo por cima destas regras. Use os tokens de :root
@@ -57,6 +57,66 @@
 .admin-duo > .duo-side {
   flex-basis: 360px;
 }
+/* o card Disciplinas (coluna de apoio) fica do tamanho do conteúdo e parado no alto ao rolar: com menos disciplinas
+   que turmas, nada de card esticado com um buraco embaixo da lista (o tamanho da página já acompanha o card Turmas).
+   Só lado a lado (a partir de 1280 px, onde o ux.css fixa a largura do .duo-side): com os cards empilhados, o card
+   parado cobriria o card Turmas quando a busca põe Disciplinas primeiro */
+@media (min-width: 1280px) {
+  /* o card Turmas também fica do tamanho do conteúdo: nada de card esticado com um buraco embaixo da última turma */
+  html .duo.admin-duo {
+    align-items: flex-start;
+  }
+  /* sem turma na lista (nenhuma arquivada, filtro sem resultado): o card Turmas vai até o fim do card Disciplinas e
+     o aviso cresce junto, com o texto no meio (um aviso maior, não um buraco embaixo dele) */
+  html .duo.admin-duo > .admin-turmas.is-empty {
+    align-self: stretch;
+  }
+  .admin-turmas.is-empty > .admin-rows-pad {
+    display: flex;
+    flex: 1 1 auto;
+  }
+  .admin-turmas.is-empty > .admin-rows-pad > .empty-inline {
+    flex: 1 1 auto;
+  }
+  .admin-duo > .admin-disc {
+    align-self: flex-start;
+    position: sticky;
+    top: 20px;
+    z-index: 1;
+  }
+}
+
+/* linha "Nova turma" no fim da lista de turmas, do jeito das linhas da lista, com o texto azul de ação. Só lado a
+   lado e com o card Turmas largo (filtros numa linha só, turmas em uma linha): aí a lista curta deixaria o card Turmas
+   bem mais baixo que o card Disciplinas e a linha completa a coluna. Com os cards empilhados, o botão do cabeçalho
+   fica logo acima e a linha não aparece */
+.admin-addrow {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line-2);
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--brand-600);
+  text-align: left;
+  transition: background-color 0.16s ease;
+}
+/* o anel de foco por dentro: o card corta o que passa da borda (overflow hidden). O !important vence a regra global
+   "button:focus-visible", que fica fora das camadas (@layer) no globals.css */
+html .admin-turmas .admin-addrow:focus-visible {
+  outline-offset: -3px !important;
+  border-radius: 0 0 19px 19px;
+}
+@media (min-width: 1280px) {
+  @container (min-width: 660px) {
+    .admin-addrow {
+      display: flex;
+    }
+  }
+}
 
 .admin-turmas {
   overflow: hidden;
@@ -80,6 +140,10 @@
   min-width: 0;
   flex: 1 1 190px;
   max-width: 240px;
+  /* nome de curso comprido: corta no fim com reticências (o nome inteiro vai na dica do campo) */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .admin-clear {
   min-height: 36px;
@@ -155,6 +219,14 @@
 .admin-c-num .admin-s {
   margin-top: 0;
 }
+/* número de alunos em destaque, como o da tela da docente (.docente-turma-row .docente-num) */
+.admin-c-num .admin-t {
+  font-family: var(--disp);
+  font-size: 20px;
+  font-weight: 750;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
 .admin-row > .admin-go {
   grid-column: 2;
   grid-row: 1 / span 3;
@@ -195,11 +267,11 @@
     padding: 12px 20px 12px 24px;
     border-top: 1px solid var(--line);
     background: var(--surface-2);
-    font-size: 12px;
+    /* frase normal, como o .tbl th das outras tabelas */
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
+    letter-spacing: 0;
+    color: var(--ink-3);
   }
   .admin-thead + .admin-rows {
     border-top: 1px solid var(--line);
@@ -228,13 +300,83 @@
   }
 }
 .admin-card-foot {
-  padding: 14px 24px 20px;
-  border-top: 1px solid var(--line-2);
+  margin-top: auto;
+  padding: 0 24px 20px;
+}
+/* a paginação fica no pé do card: o card não cresce ao trocar de página (rodada de UX de 2026-11-17) */
+.admin-card-foot > .pager {
+  padding-top: 14px;
+}
+
+/* número das abas Ativas e Arquivadas: menor e cinza, ao lado do nome ("Ativas 2") */
+.admin-n {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* pé do card Disciplinas: a paginação (quando há) e "Ver arquivadas" */
+.admin-disc-foot {
+  margin-top: auto;
+  padding-top: 8px;
+}
+/* abas Ativas / Arquivadas do card Disciplinas: as mesmas do card Turmas, na largura do card estreito */
+.admin-disc-seg {
+  margin: 14px 0 0;
+  width: 100%;
+}
+.admin-disc-seg .seg {
+  display: flex;
+  width: 100%;
+}
+.admin-disc-seg .seg button {
+  flex: 1 1 0;
+  justify-content: center;
+}
+/* subtítulo do card Disciplinas: "5 ativas" e o "Ver arquivadas (0)" na mesma linha */
+.admin-sub-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+}
+.admin-sub-link {
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+.admin-dlist .admin-code {
+  height: 20px;
+}
+/* no card estreito (Disciplinas), a paginação cabe numa linha: só as setas e os números, e o "Mostrando" embaixo */
+.admin-disc .pager {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.admin-disc .pager-info {
+  order: 2;
+  font-size: 13px;
+}
+.admin-disc .pager-arrow-t {
+  display: none;
+}
+.admin-disc .pager-btns {
+  gap: 4px;
+}
+
+/* turma de cada aluno achado pela busca do menu */
+.admin-s-class {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
 }
 
 /* disciplinas */
 .admin-dlist {
-  margin-top: 14px;
+  margin-top: 10px;
   display: flex;
   flex-direction: column;
 }
@@ -243,8 +385,8 @@
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 56px;
-  padding: 12px 4px;
+  min-height: 52px;
+  padding: 7px 4px;
   border-bottom: 1px solid var(--line-2);
   border-radius: 10px;
   text-align: left;
@@ -265,7 +407,7 @@
   overflow-wrap: anywhere;
 }
 .admin-d-s {
-  margin-top: 5px;
+  margin-top: 3px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -310,6 +452,9 @@
   .admin-drow:hover,
   .admin-srow:hover {
     background: var(--surface-2);
+  }
+  .admin-addrow:hover {
+    background: var(--brand-50);
   }
   .admin-row:hover .admin-go,
   .admin-drow:hover .admin-go,
@@ -438,11 +583,24 @@
 .admin-foot-gap {
   margin-left: auto;
 }
+/* ação de situação que entra no rodapé por um bloco do corpo (Remover da turma): vai para a esquerda */
+.admin-foot-first {
+  order: -1;
+}
+.admin-code-acts:empty {
+  display: none;
+}
 @media (max-width: 639px) {
   .admin-foot-slot > .btn {
     flex: 1 1 auto;
   }
   .admin-foot-gap {
+    display: none;
+  }
+}
+/* celular: o cabeçalho do painel fica baixo (o nome do curso sai; o período, o turno e a situação ficam) */
+@media (max-width: 767px) {
+  .admin-sub-course {
     display: none;
   }
 }
@@ -466,7 +624,9 @@
   gap: 10px 12px;
   margin-bottom: 14px;
 }
+/* título de seção do painel lateral: o mesmo em todos os painéis (700 16.5px/1.3 na fonte de título) */
 .admin-sec-t {
+  font-family: var(--disp);
   font-size: 16.5px;
   font-weight: 700;
   line-height: 1.3;
@@ -513,10 +673,59 @@
   border-radius: 12px;
   border: 1px dashed var(--line-strong);
   background: var(--surface-2);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.3;
   color: var(--ink-3);
+  white-space: nowrap;
+}
+/* campo com sugestões (Período do curso): a mesma seta dos selects, no lugar do triângulo do navegador */
+.admin-panel input.input[list] {
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+.admin-panel input.input[list]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  cursor: pointer;
+}
+/* resumo dos dados da turma (o formulário abre em "Editar dados") */
+.admin-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.admin-facts dt {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.admin-facts dd {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* filtro da lista de alunos da turma (com muitos alunos) */
+.admin-stu-filter {
+  margin-bottom: 12px;
+}
+.admin-sec .pager {
+  margin-top: 12px;
+}
+/* turmas da disciplina (painel da disciplina) */
+.admin-uses {
+  display: flex;
+  flex-direction: column;
+}
+.admin-uses .admin-srow {
+  min-height: 56px;
 }
 
 /* "Novo curso" dentro do campo Curso */
@@ -616,16 +825,20 @@
 }
 
 /* alunos */
+/* cabeçalho de grupo da lista (Pedidos de entrada, Alunos ativos...): frase normal, sem caixa alta */
 .admin-group {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-3);
+  /* trocar de página traz o rótulo para o alto do painel com um respiro */
+  scroll-margin-top: 12px;
+}
+.admin-group .admin-n {
+  margin-left: -4px;
 }
 .admin-group::after {
   content: "";
@@ -888,11 +1101,12 @@
   flex-direction: column;
   gap: 8px;
 }
-/* no Painel o card fica na largura toda, acima das colunas: com espaço, os itens ficam em duas colunas */
+/* no Painel o card fica na largura toda, acima das colunas: com espaço, os itens dividem a largura em colunas de
+   pelo menos 340 px (um item sozinho ocupa a linha toda, sem deixar meia linha vazia ao lado) */
 @container (min-width: 640px) {
   .admin-pend-wide .admin-pend-list {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   }
 }
 .admin-pend-wide .admin-pend-list > li > .mini {
@@ -910,4 +1124,40 @@
   background: #eaf1fe;
   border-color: #c9d8f5;
   color: var(--night);
+}
+
+/* ------------------------------------------------------------------ */
+/* Importações recentes (Painel da administração)                      */
+/* ------------------------------------------------------------------ */
+
+/* lista só de leitura: linhas com divisória, sem fundo nem contorno de cartão (nada abre ao clicar; o rodapé leva
+   ao histórico em Importar calendário) */
+.admin-imp-list {
+  display: flex;
+  flex-direction: column;
+}
+.admin-imp-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.admin-imp-row:first-child {
+  padding-top: 4px;
+  border-top: 0;
+}
+.admin-imp-row:last-child {
+  padding-bottom: 0;
+}
+.admin-imp-ico {
+  margin-top: 1px;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+/* título do destaque: duas linhas parecidas ("Visão institucional / do semestre 2026/2"), sem o período sozinho */
+.hero .hero-title.admin-hero-title {
+  text-wrap: balance;
 }

@@ -45,34 +45,26 @@
   background: #e0f2fe;
   color: #0369a1;
 }
-/* "Próxima avaliação": card azul do menu, data em verde-claro */
-.kpi.notas-kpi-next {
-  background: var(--night);
-  border-color: var(--night);
-  color: #fff;
-}
-.notas-kpi-next .kpi-label {
-  color: #fff;
-  font-weight: 700;
-}
-.notas-kpi-next .kpi-ico {
-  background: rgb(255 255 255 / 0.12);
-  color: var(--accent);
-}
-.notas-kpi-next .kpi-val {
-  color: var(--accent);
-}
+/* "Próxima avaliação": as cores (azul bebê) vêm do visual-novo.css; aqui só o "Nenhuma" menor e o caminho
+   "Ver no cronograma", que mostra que o card inteiro é clicável */
 .notas-kpi-next .kpi-val.notas-kpi-none {
   font-size: 30px;
-  color: #fff;
 }
-.notas-kpi-next .kpi-hint {
-  color: var(--on-night);
+.notas-kpi-go {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--bebe-ink);
+}
+.notas-kpi-go svg {
+  transition: transform 0.16s ease;
 }
 @media (hover: hover) and (pointer: fine) {
-  .kpi.notas-kpi-next.is-link:hover {
-    border-color: var(--night-2);
-    background: var(--night-2);
+  .kpi.notas-kpi-next.is-link:hover .notas-kpi-go svg {
+    transform: translateX(3px);
   }
 }
 
@@ -97,12 +89,14 @@
   color: var(--brand);
   flex-shrink: 0;
 }
+/* "2 publicadas" e "1 aguardando": etiquetas de situação, à direita do título */
 .notas-disc-count {
   margin-left: auto;
   flex-shrink: 0;
-  font-size: 14px;
-  color: var(--muted);
-  text-align: right;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
 }
 .notas-grade {
   display: grid;
@@ -173,20 +167,12 @@
   flex-shrink: 0;
   color: var(--muted-2);
 }
+/* a nota usa a classe .score do ux.css (número grande na cor do desempenho e a barra embaixo) */
 .notas-g-score {
   grid-area: s;
   align-self: center;
   text-align: right;
   white-space: nowrap;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.notas-g-score b {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--ink);
 }
 .notas-g-score.is-pill .pill {
   height: 30px;
@@ -204,7 +190,7 @@
 }
 .notas-more {
   display: flex;
-  padding: 14px 0 12px;
+  padding: 14px 0 16px;
   border-top: 1px solid var(--line-2);
 }
 /* disciplina em que nada aconteceu ainda: a próxima avaliação e o caminho para o Cronograma */
@@ -220,6 +206,8 @@
   line-height: 1.5;
   color: var(--ink-3);
 }
+/* a avaliação tem o mesmo desenho em todas as larguras: solta, com a linha divisória, como as outras listas
+   (antes, no card largo, cada uma virava um quadro com borda e o desenho mudava entre 1440 e 1920) */
 /* card estreito (celular ou coluna apertada): a nota sobe ao lado do título e o resto desce */
 @container (max-width: 560px) {
   .notas-disc-head {
@@ -239,8 +227,8 @@
     /* a linha inteira menos o recuo do ícone: com 100% e o recuo, passava da borda em 390 px */
     flex-basis: calc(100% - 52px);
     margin-left: 52px;
-    margin-top: -6px;
-    text-align: left;
+    margin-top: -4px;
+    justify-content: flex-start;
   }
   .notas-grade {
     grid-template-areas:
@@ -255,10 +243,9 @@
   }
   .notas-g-score {
     align-self: start;
-    font-size: 14px;
   }
-  .notas-g-score b {
-    font-size: 22px;
+  .notas-g-score .score-n {
+    font-size: 24px;
   }
   .notas-grade.is-wait {
     grid-template-columns: minmax(0, 1fr);
@@ -279,11 +266,132 @@
   }
 }
 
-/* aviso da busca do menu, logo acima das disciplinas */
-.notas-search {
+/* painel "Ver todas" de uma disciplina: as avaliações por mês ("Novembro 3"), na largura do painel */
+.notas-dr {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+/* fonte, tamanho e cor vêm do .drawer-h3 (ux.css), o título de bloco de todos os painéis */
+.notas-dr-h {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+.notas-dr-h .n {
+  font-family: var(--font);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ---------- disciplinas e o card de apoio ----------
+   A partir de 1200 px: as disciplinas na coluna larga e o card de apoio ("Quem vê suas notas" ou "O que você vê")
+   na coluna da direita, parado no alto enquanto a lista rola (como o card lateral da Gestão). Antes disso, uma
+   coluna só, com o card de apoio na largura toda depois das disciplinas. */
+.notas-layout {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.notas-main,
+.notas-side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.notas-side > .card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+@media (min-width: 1200px) {
+  .notas-layout {
+    grid-template-columns: minmax(0, 1fr) var(--side-w);
+  }
+  /* os indicadores seguem as colunas de baixo: "Próxima avaliação" fica em cima do card de apoio */
+  .notas-kpis {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--side-w);
+  }
+  /* o card de apoio termina no próprio conteúdo (decisão 5: nada de card esticado com o pé puxado para baixo) */
+  .notas-side {
+    position: sticky;
+    top: 20px;
+  }
+}
+@media (max-width: 767px) {
+  .notas-layout,
+  .notas-main,
+  .notas-side {
+    gap: 14px;
+  }
+}
+
+/* ---------- "Próximas avaliações" (aluno, embaixo de "Quem vê suas notas") ----------
+   Cada linha é um botão que abre o evento no cronograma; o link "Ver no cronograma" fica no pé do card (e desce
+   junto quando o card estica para terminar com a lista de disciplinas). */
+.notas-up {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+.notas-up-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease;
+}
+.notas-up-row:hover {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+}
+.notas-up-t {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.notas-up-m {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.notas-up-none {
+  margin-top: 14px;
   font-size: 14px;
-  line-height: 1.5;
-  color: var(--ink-3);
+  color: var(--muted);
+}
+.notas-up-foot {
+  padding-top: 14px;
+}
+/* responsável: o caminho para as que não couberam vai no fim do subtítulo, sem o pé */
+.notas-up-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+  font-size: inherit;
+  vertical-align: baseline;
 }
 
 /* ---------- cards de apoio, lado a lado e terminando juntos ---------- */
@@ -311,6 +419,60 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+/* sem nenhuma avaliação: o card de apoio na mesma largura da coluna de apoio das outras telas de Notas (assim
+   o texto dele ocupa a altura do card ao lado, sem um vão no meio) */
+@media (min-width: 1200px) {
+  .notas-pair.notas-empty-pair {
+    grid-template-columns: minmax(0, 1fr) var(--side-w);
+  }
+}
+/* sem nenhuma avaliação: cada card na altura dele, alinhados no alto ("Quem vê suas notas" esticado abria um buraco
+   antes de "Alterar no perfil"); a diferença entre os dois fica bem abaixo de 80px (decisão 5) */
+.notas-pair.notas-empty-pair {
+  align-items: start;
+}
+/* o card do vazio acompanha a coluna ao lado (o de apoio continua na altura dele): a caixa do vazio, com fundo,
+   cresce e centraliza o texto, então não sobra buraco dentro do card e as duas colunas terminam juntas */
+.notas-pair.notas-empty-pair > .notas-empty-card {
+  align-self: stretch;
+}
+/* sem nenhuma avaliação: o vazio fica no meio do card principal */
+.notas-empty-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin-top: 20px;
+}
+.notas-empty-body > .empty-inline {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+/* busca do menu na tela Notas (decisão 14): "Busca: termo", quantas achou e "Limpar busca" */
+.notas-busca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 6px 6px 12px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.notas-busca b {
+  font-weight: 700;
+}
+.notas-busca > span:first-of-type {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.notas-busca .btn {
+  margin-left: auto;
 }
 
 /* quem vê as notas (aluno) */
@@ -401,7 +563,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 12px 0;
+  padding: 10px 0;
   border-top: 1px solid var(--line-2);
   font-size: 14px;
 }
@@ -529,13 +691,6 @@
   flex-shrink: 0;
   text-align: right;
   white-space: nowrap;
-  font-size: 13px;
-  color: var(--muted);
-}
-.notas-last-v b {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ink);
 }
 .notas-last-skel {
   display: flex;

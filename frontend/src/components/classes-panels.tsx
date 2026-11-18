@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, Check, CircleAlert, Info, Plus, Search, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Archive, ArchiveRestore, Check, ChevronRight, CircleAlert, Info, Plus, School, Search, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { useId, useRef, useState, type FormEvent } from "react";
 import {
   addClassStudentsByEmail,
@@ -19,7 +19,7 @@ import {
   updateSubject,
   updateTeachingAssignment,
 } from "@/lib/api";
-import { classLabel, cx, errorMessage, fieldErrors, isIntegratedCourse, normalizeText } from "@/lib/format";
+import { classLabel, classTermLabel, cx, errorMessage, fieldErrors, isIntegratedCourse, normalizeText } from "@/lib/format";
 import { teachingRoleLabels } from "@/lib/meta";
 import type { AddStudentsResult, ClassDetail, ClassOffer, Subject, TeachingRole, UserSummary } from "@/lib/types";
 import { useAppActions } from "./app-actions";
@@ -105,6 +105,7 @@ function subjectInput(draft: SubjectDraft) {
 function SubjectFields({
   disabled,
   draft,
+  focusName = true,
   errors,
   restoreLabel,
   onChange,
@@ -113,6 +114,8 @@ function SubjectFields({
 }: {
   disabled?: boolean;
   draft: SubjectDraft;
+  /** Nova disciplina: o foco vai para o Nome. Disciplina que já existe abre no título Dados (sem teclado no celular). */
+  focusName?: boolean;
   errors: SubjectErrors;
   restoreLabel?: string | null;
   onChange: (draft: SubjectDraft) => void;
@@ -126,7 +129,7 @@ function SubjectFields({
           <input
             className="input"
             autoComplete="off"
-            data-panel-focus={disabled ? undefined : ""}
+            data-panel-focus={disabled || !focusName ? undefined : ""}
             disabled={disabled}
             maxLength={80}
             placeholder="Ex.: Banco de Dados"
@@ -391,6 +394,17 @@ export function SubjectPanel({ api, data, subtitle, view }: PanelProps<"subject"
   const form = useSubjectForm(draft);
   const { busy, run } = useWorking(api);
   const archived = Boolean(subject?.archivedAt);
+  // turmas que ofertam a disciplina: o painel de cada turma ativa com disciplinas traz as ofertas e as docentes
+  const candidates = (data?.classes ?? []).filter((item) => item.counts.subjects > 0);
+  const uses = useRemote(
+    subject && (subject.usedIn ?? 0) > 0 ? `admin:disciplina:${subject.id}:turmas:${candidates.map((item) => item.id).join(",")}` : null,
+    async () => {
+      const details = await Promise.all(candidates.map((item) => getClass(token, item.id)));
+      return details
+        .map((detail) => ({ detail, offer: detail.offers.find((offer) => offer.subjectId === view.subjectId && !offer.archivedAt) }))
+        .filter((entry): entry is { detail: ClassDetail; offer: ClassOffer } => Boolean(entry.offer));
+    }
+  );
 
   if (!subject || !draft || !original) {
     return (
@@ -416,6 +430,8 @@ export function SubjectPanel({ api, data, subtitle, view }: PanelProps<"subject"
   const current = subject;
   const dirty = Boolean(view.dirty) && !archived;
   const used = current.usedIn ?? 0;
+  const without = uses.data?.filter((entry) => entry.offer.withoutTeacher).length ?? 0;
+  const withoutText = !uses.data ? "" : without ? `, ${without} sem docente` : ", todas com docente";
 
   function change(next: SubjectDraft) {
     if (!draft || !original) {
@@ -529,7 +545,7 @@ export function SubjectPanel({ api, data, subtitle, view }: PanelProps<"subject"
     <>
       <PanelSubtitle node={subtitle}>
         <span className="admin-code">{current.code}</span>
-        {archived ? <span className="pill st-canc">Arquivada</span> : <span className="pill st-conc">Ativa</span>}
+        {archived ? <span className="pill stat stat-canc">Arquivada</span> : <span className="pill stat stat-conc">Ativa</span>}
         {!archived ? <span>{used ? `usada em ${plural(used, "turma", "turmas")}` : "ainda sem turma"}</span> : null}
       </PanelSubtitle>
       {archived ? (
@@ -540,7 +556,7 @@ export function SubjectPanel({ api, data, subtitle, view }: PanelProps<"subject"
       ) : null}
       <form ref={setFormEl} id={formId} className="admin-sec" noValidate onSubmit={(event) => void save(event)}>
         <div className="admin-sec-head">
-          <h3 className="admin-sec-t" data-panel-start tabIndex={-1}>
+          <h3 className="admin-sec-t drawer-h3" data-panel-start tabIndex={-1}>
             Dados
           </h3>
         </div>
@@ -552,6 +568,7 @@ export function SubjectPanel({ api, data, subtitle, view }: PanelProps<"subject"
         ) : null}
         <SubjectFields
           disabled={archived}
+          focusName={false}
           draft={archived ? original : draft}
           errors={form.errors}
           restoreLabel={form.archivedId ? "Restaurar disciplina" : null}
@@ -560,27 +577,90 @@ export function SubjectPanel({ api, data, subtitle, view }: PanelProps<"subject"
           onRestore={restoreOther}
         />
       </form>
+
+      {/* Turmas que usam a disciplina, com a docente de cada uma (ou "Sem docente"): cada linha abre a turma */}
+      {archived ? null : (
+        <section className="admin-sec" aria-labelledby={`${formId}-turmas`}>
+          <div className="admin-sec-head">
+            <div className="min-w-0">
+              <h3 id={`${formId}-turmas`} className="admin-sec-t drawer-h3">
+                Turmas
+              </h3>
+              <p className="admin-sec-s">
+                {used ? `Usada em ${plural(used, "turma", "turmas")}${withoutText}` : "Nenhuma turma oferta esta disciplina ainda."}
+              </p>
+            </div>
+          </div>
+          {!used ? (
+            <EmptyState
+              compact
+              icon={School}
+              text="Ainda sem turma"
+              hint="Para ofertar, abra a turma em Turmas e use Adicionar disciplina."
+            />
+          ) : uses.data ? (
+            <ul className="admin-people admin-uses">
+              {uses.data.map(({ detail, offer }) => {
+                const returnKey = `uso-${detail.id}`;
+                return (
+                  <li key={detail.id}>
+                    <button
+                      className="admin-srow"
+                      data-return={returnKey}
+                      onClick={() => api.push({ kind: "class", classId: detail.id }, returnKey)}
+                      type="button"
+                    >
+                      <span className="admin-s-main">
+                        <span className="admin-s-name">{detail.name}</span>
+                        <span className="admin-s-mail">
+                          {classTermLabel(detail)}
+                          {offer.teachers.length ? `, ${offer.teachers.map((teacher) => teacher.fullName).join(" e ")}` : ""}
+                        </span>
+                      </span>
+                      {offer.withoutTeacher ? (
+                        <span className="pill stat stat-alt">
+                          <CircleAlert className="h-3 w-3" aria-hidden />
+                          Sem docente
+                        </span>
+                      ) : null}
+                      <ChevronRight className="admin-go" aria-hidden />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : uses.error ? (
+            <ErrorState title="Não deu para carregar as turmas" text={errorMessage(uses.error)} onRetry={() => void uses.reload()} />
+          ) : (
+            <SkeletonRows rows={Math.min(used, 3)} label="Carregando as turmas" />
+          )}
+        </section>
+      )}
+
       <PanelFooter api={api}>
-        <p className="admin-foot-note">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          {archived
-            ? "Restaurar devolve a disciplina aos seletores."
-            : used
-              ? `Usada em ${plural(used, "turma", "turmas")}. Ao arquivar, as ofertas e os eventos que já existem ficam como estão.`
-              : "Ao arquivar, ela sai dos seletores de oferta e de evento novo. Dá para restaurar depois."}
-        </p>
         {archived ? (
           <button
             className={cx(secondaryButton, busyLook)}
             aria-disabled={busy || undefined}
             onClick={() => void run("restore", restoreNow)}
+            title="Restaurar devolve a disciplina aos seletores."
             type="button"
           >
             <ArchiveRestore className="h-4 w-4" aria-hidden />
             Restaurar disciplina
           </button>
         ) : (
-          <button className={cx(secondaryButton, busyLook)} aria-disabled={busy || undefined} onClick={archive} type="button">
+          <button
+            className={cx(secondaryButton, busyLook)}
+            aria-disabled={busy || undefined}
+            onClick={archive}
+            title={
+              used
+                ? "Ao arquivar, as ofertas e os eventos que já existem ficam como estão. Dá para desfazer."
+                : "Ao arquivar, ela sai dos seletores de oferta e de evento novo. Dá para desfazer."
+            }
+            type="button"
+          >
             <Archive className="h-4 w-4" aria-hidden />
             Arquivar
           </button>
@@ -621,7 +701,8 @@ function ClassSubtitle({ node, item }: { node: HTMLElement | null; item: ClassDe
     <PanelSubtitle node={node}>
       <span>
         {classLabel(item)}
-        {item.course ? `, ${item.course.code}` : ""}
+        {/* "TADS 5, 2026/2" já diz o curso: o código só entra quando o nome da turma não o tem */}
+        {item.course && !normalizeText(item.name).includes(normalizeText(item.course.code)) ? `, ${item.course.code}` : ""}
       </span>
     </PanelSubtitle>
   ) : null;
@@ -688,7 +769,7 @@ export function AddOfferPanel({ api, data, subtitle, view }: PanelProps<"addOffe
       <div className="admin-sec !pt-1">
         <div className="admin-sec-head">
           <div className="min-w-0">
-            <h3 className="admin-sec-t" data-panel-start tabIndex={-1}>
+            <h3 className="admin-sec-t drawer-h3" data-panel-start tabIndex={-1}>
               Disciplinas cadastradas
             </h3>
             <p className="admin-sec-s">Escolha a disciplina que a turma vai ter. A docente você vincula depois.</p>
@@ -764,7 +845,9 @@ export function AddOfferPanel({ api, data, subtitle, view }: PanelProps<"addOffe
 
         {item && inClass.length ? (
           <>
-            <p className="admin-group mt-5">Já na turma ({inClass.length})</p>
+            <p className="admin-group mt-5">
+              Já na turma <span className="admin-n">{inClass.length}</span>
+            </p>
             <p className="text-sm leading-6 text-ink-3">
               {joinPt(inClass.map((subject) => (added.includes(subject.id) ? `${subject.name} (agora)` : subject.name)))}
             </p>
@@ -774,7 +857,7 @@ export function AddOfferPanel({ api, data, subtitle, view }: PanelProps<"addOffe
       <PanelFooter api={api}>
         <span className="admin-foot-gap" />
         <button className={secondaryButton} onClick={() => api.back()} type="button">
-          Voltar para a turma
+          Voltar
         </button>
       </PanelFooter>
     </>
@@ -822,7 +905,7 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
         <PanelFooter api={api}>
           <span className="admin-foot-gap" />
           <button className={secondaryButton} onClick={() => api.back()} type="button">
-            Voltar para a turma
+            Voltar
           </button>
         </PanelFooter>
       </>
@@ -963,7 +1046,7 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
       {current.teachers.length ? (
         <section className="admin-sec !pt-1" aria-labelledby={`${searchId}-atuais`}>
           <div className="admin-sec-head">
-            <h3 id={`${searchId}-atuais`} className="admin-sec-t" data-panel-start tabIndex={-1}>
+            <h3 id={`${searchId}-atuais`} className="admin-sec-t drawer-h3" data-panel-start tabIndex={-1}>
               Docentes desta disciplina
             </h3>
           </div>
@@ -1003,7 +1086,7 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
           </ul>
         </section>
       ) : (
-        <p className="callout amber mt-1">
+        <p className="callout amber mb-4 mt-1">
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           {current.subject.name} está sem docente: ninguém publica eventos dela na {klass.name} ainda.
         </p>
@@ -1014,11 +1097,11 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
           <div className="min-w-0">
             <h3
               id={`${searchId}-novo`}
-              className="admin-sec-t"
+              className="admin-sec-t drawer-h3"
               data-panel-start={current.teachers.length ? undefined : ""}
               tabIndex={-1}
             >
-              Vincular docente
+              {current.teachers.length ? "Outra docente" : "Escolher a docente"}
             </h3>
             <p className="admin-sec-s">Busque pelo nome ou pelo e-mail da conta de docente.</p>
           </div>
@@ -1094,7 +1177,7 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
         </button>
         <span className="admin-foot-gap" />
         <button className={secondaryButton} onClick={() => api.back()} type="button">
-          Voltar para a turma
+          Voltar
         </button>
       </PanelFooter>
     </>
@@ -1304,7 +1387,7 @@ export function AddStudentsPanel({ api, subtitle, view }: PanelProps<"addStudent
       <PanelFooter api={api}>
         <span className="admin-foot-gap" />
         <button className={secondaryButton} onClick={() => api.back()} type="button">
-          Voltar para a turma
+          Voltar
         </button>
         <button className={cx(primaryButton, busyLook)} aria-disabled={busy || undefined} form={formId} type="submit">
           <UserPlus className="h-4 w-4" aria-hidden />

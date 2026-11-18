@@ -1,0 +1,611 @@
+/* Rodada de UX (2026-11-17). Entra por último na camada components, depois do visual-novo.css, e
+   corrige o que valia para todas as telas:
+   - em tela grande (1920), a página usa a largura (antes parava em 1560 e sobrava margem dos lados);
+   - botão parece botão: o principal é azul cheio com texto branco, o secundário é branco com contorno,
+     o de perigo é branco com contorno vermelho (os blocos pastel sem borda não pareciam clicáveis);
+   - os números importantes (indicadores, notas) ficam maiores e mais fortes.
+   Os seletores começam com "html" pelo mesmo motivo do visual-novo.css. */
+
+/* ---------- largura da página e colunas ---------- */
+html .app {
+  max-width: 1880px;
+}
+/* --side-w: a largura da coluna de apoio (à direita). É a mesma em todas as telas, para os indicadores do alto,
+   o destaque e as colunas de baixo ficarem alinhados. Em tela grande ela cresce um pouco, para a coluna
+   principal não virar uma faixa comprida. */
+html {
+  --side-w: 340px;
+}
+@media (min-width: 1600px) {
+  html {
+    --side-w: clamp(340px, 22vw, 400px);
+  }
+}
+@media (min-width: 1200px) {
+  html .board,
+  html .tela-cols,
+  html .cols {
+    grid-template-columns: minmax(0, 1fr) var(--side-w);
+  }
+}
+@media (min-width: 1280px) {
+  /* Painéis da docente e da administração: a coluna de apoio com a mesma largura das outras telas */
+  html .duo-side {
+    flex: 0 0 var(--side-w);
+  }
+  html .duo-main {
+    flex: 1 1 560px;
+  }
+  /* quatro indicadores: os três primeiros dividem a coluna principal e o quarto fica em cima da coluna de apoio */
+  html .kpis:has(> :nth-child(4):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) var(--side-w);
+  }
+}
+@media (min-width: 1200px) {
+  /* Lembretes: três indicadores; o "Próximo aviso" fica em cima da coluna lateral */
+  html .kpis.rem-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) var(--side-w);
+  }
+}
+
+/* ---------- botões ---------- */
+html .btn {
+  border-width: 1px;
+  border-style: solid;
+}
+/* principal: azul cheio, texto branco */
+html .btn-p {
+  border-color: transparent;
+  background: var(--brand);
+  color: #fff;
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-rgb) / 0.12),
+    0 8px 16px -10px rgb(var(--brand-rgb) / 0.75);
+}
+html .btn-p:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--brand-600);
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-rgb) / 0.14),
+    0 10px 20px -10px rgb(var(--brand-rgb) / 0.85);
+}
+/* secundário: branco com contorno, fica azul ao passar o mouse */
+html .btn-s {
+  border-color: var(--line-strong);
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
+}
+html .btn-s:hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+/* perigo: branco com contorno vermelho; o vermelho cheio fica para a confirmação (.btn-d) */
+html .btn-danger {
+  border-color: #efbccb;
+  background: #fff;
+  color: var(--danger);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
+}
+html .btn-danger:hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: #e28aa3;
+  background: #fff1f4;
+}
+html .btn-d {
+  border-color: transparent;
+  box-shadow: 0 8px 16px -10px rgb(var(--danger-rgb) / 0.8);
+}
+/* discreto: sem contorno, ganha fundo ao passar o mouse */
+html .btn-g {
+  border-color: transparent;
+  box-shadow: none;
+}
+/* desabilitado: some a sombra e fica claro que ainda não dá para clicar */
+html .btn:disabled,
+html .btn[aria-disabled="true"] {
+  opacity: 0.45;
+  box-shadow: none;
+}
+/* no destaque azul bebê: um só azul de botão principal no app inteiro (o mesmo do menu e da Gestão); o
+   secundário fica branco com contorno visível, como no resto, e não um rótulo branco sem borda */
+html .hero .btn-p {
+  background: var(--brand);
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-rgb) / 0.12),
+    0 10px 22px -12px rgb(var(--brand-rgb) / 0.85);
+}
+html .hero .btn-p:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--brand-600);
+}
+html .hero .btn-s {
+  border-color: color-mix(in srgb, var(--bebe-ink) 24%, transparent);
+  background: #fff;
+  color: var(--bebe-ink);
+}
+html .hero .btn-s:hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+
+/* botão de ícone (ações das tabelas): branco com contorno, como o secundário */
+html .ib {
+  border-color: var(--line-strong);
+  background: #fff;
+  color: var(--ink-3);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
+}
+html .ib:hover:not(:disabled) {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+
+/* ---------- bloco clicável ----------
+   Regra da rodada: o que se clica é branco com contorno (e fica azul ao passar o mouse); o que só informa é
+   preenchido, sem contorno. Os blocos .mini que são botão ou link (atalhos "Novo evento de ...", pendências,
+   lembretes do Painel) seguem a regra dos botões. */
+html button.mini,
+html a.mini {
+  border-color: var(--line-strong);
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
+}
+html button.mini:hover:not(:disabled),
+html a.mini:hover {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+}
+/* o ícone azul-claro; os blocos com ícone de cor própria (pendências da administração) ficam com a cor deles */
+html button.mini:not(.admin-mini) .mini-ico,
+html a.mini:not(.admin-mini) .mini-ico {
+  border-color: transparent;
+  background: var(--brand-50);
+}
+html button.mini:not(.admin-mini):hover .mini-ico,
+html a.mini:not(.admin-mini):hover .mini-ico {
+  background: #fff;
+}
+
+/* ---------- etiqueta de situação ("Agendado", "Concluído", "Já existe") ----------
+   O visual novo tirou o respiro das pílulas (ponto + palavra); a de situação continua com fundo e virava um
+   marca-texto colado na palavra. Volta a ser uma etiqueta com respiro e cantos redondos. */
+html .pill.stat {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12.5px;
+}
+
+/* ---------- rodapé da edição de evento (event-editor.tsx) ----------
+   Em cima, o grupo "Situação do evento" (Concluir, Cancelar evento ou Reativar, e Excluir na ponta), separado por
+   uma linha; embaixo, Salvar (azul cheio) e Fechar. Assim fica claro o que muda na hora e o que precisa salvar. */
+.ed-status {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-2);
+}
+.ed-status-l {
+  margin-right: 4px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+/* ---------- números em destaque ---------- */
+html .kpi-val {
+  font-size: 44px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+html .kpi-val small {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+/* valor que é data ("01 jan 2027"): numa linha só e um pouco menor, para não virar "01" em cima e "jan 2027"
+   embaixo no celular. Os números dos outros indicadores não mudam. Quem monta o indicador marca o valor com
+   .is-date (InsightTile valueClassName="is-date", como a "Próxima data da instituição" do Painel do docente) */
+html .kpi-val.is-date {
+  font-size: clamp(26px, 7.4vw, 40px);
+  /* a mesma altura de linha dos números (44 px): a dica de baixo fica na mesma altura da do card vizinho */
+  line-height: 44px;
+  white-space: nowrap;
+}
+/* o ano ("2027") pequeno ao lado: line-height 1, senão herda os 44 px com fonte de 13 px e alinhado pela base
+   estica a linha (a dica de baixo descia 9 px em relação à do card vizinho) */
+html .kpi-val.is-date small {
+  margin-left: 4px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* Nota em destaque (Notas do aluno e do responsável, Painel): número grande na cor do desempenho,
+   "de 10" pequeno ao lado e, embaixo, a barra de quanto da avaliação a nota vale.
+   --tom: verde de 70% para cima, âmbar de 50% a 69%, vermelho abaixo de 50%. */
+.score {
+  --tom: #1b7a4c;
+  --tom-bg: #e3f6ec;
+  display: inline-grid;
+  justify-items: end;
+  gap: 6px;
+  min-width: 92px;
+  font-variant-numeric: tabular-nums;
+}
+.score.mid {
+  --tom: #9a6400;
+  --tom-bg: #fff3d1;
+}
+.score.low {
+  --tom: #b4234a;
+  --tom-bg: #ffe6ec;
+}
+.score-n {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 4px 12px 5px;
+  border-radius: 14px;
+  background: var(--tom-bg);
+  color: var(--tom);
+  font-family: var(--disp);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.score-n small {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: color-mix(in srgb, var(--tom) 72%, transparent);
+}
+.score-bar {
+  width: 100%;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+}
+.score-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tom);
+}
+.score.sm .score-n {
+  padding: 3px 9px 4px;
+  border-radius: 11px;
+  font-size: 22px;
+}
+.score.sm {
+  min-width: 70px;
+}
+
+/* ---------- paginação das listas longas (pager.tsx) ----------
+   "Mostrando 11 a 20 de 115 datas" à esquerda e as páginas à direita; no celular, uma embaixo da outra. */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-2);
+}
+.pager-info {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.pager-info b {
+  font-weight: 700;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.pager-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.pager-b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+.pager-b:hover:not(:disabled):not(.on) {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+.pager-b.on {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+.pager-b:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.pager-gap {
+  padding: 0 2px;
+  color: var(--muted);
+}
+@media (max-width: 639px) {
+  .pager {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pager-btns {
+    justify-content: center;
+  }
+  .pager-arrow-t {
+    display: none;
+  }
+}
+@media (pointer: coarse) {
+  .pager-b {
+    min-width: 44px;
+    height: 44px;
+  }
+}
+
+/* ---------- rótulo acima do título do destaque ("Próximo compromisso", "Faltam") ----------
+   Em frase, sem caixa alta e sem espaçamento largo, em todos os perfis (o do responsável já era assim, em
+   .resp-kicker). O .eyebrow do globals.css já segue a mesma regra; .hero-label é o nome para código novo. */
+html .hero-label,
+html .hero-kicker .eyebrow,
+html .hero-kicker .resp-kicker {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--bebe-ink);
+}
+html .countdown .eyebrow {
+  font-size: 13.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: color-mix(in srgb, var(--bebe-ink) 70%, transparent);
+}
+
+/* ---------- título de bloco dentro dos painéis laterais e diálogos ----------
+   Um só estilo para "Como todos vão ver", "Situação do evento", "Dados da turma", os meses das datas
+   importadas...: 16.5 px, 700, fonte de título. */
+.drawer-h3 {
+  font-family: var(--disp);
+  font-size: 16.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+
+/* ---------- toque: alvos de 44 px sem mudar o desenho ----------
+   Links de texto ("Ver todas (2)", "Gerenciar lembretes"), chips de data dos indicadores, chips de filtro e o
+   "Atualizado às" do menu. Uma área invisível (::after) centrada no elemento cresce até 44 px de altura e,
+   nos estreitos, de largura; a linha não muda de altura nem de lugar. */
+@media (pointer: coarse) {
+  /* :where() deixa este "relative" mais fraco que qualquer posição já dada ao elemento (o "Esqueci minha senha"
+     é absolute na linha do rótulo da senha; com relative ele caía para baixo do campo e a área cobria o campo) */
+  :where(html) .link,
+  :where(html) .kpi-chip,
+  :where(html) .chip,
+  :where(html) .sync {
+    position: relative;
+  }
+  html .link::after,
+  html .kpi-chip::after,
+  html .chip::after,
+  html .sync::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc(50% - 22px));
+  }
+  /* datas lado a lado ("seg 23", "qui 26", "qua 02"): a área de 44 px de cada chip não pode cobrir a vizinha.
+     O chip tem 18 px; com 26 px entre as linhas, as áreas de cima e de baixo só se encostam (18 + 26 = 44).
+     A folga entre colunas fica no contêiner (column-gap), e não em margin-left, para o primeiro chip de
+     cada linha começar alinhado. Este arquivo está na camada components e o "gap-1.5" do contêiner é da camada
+     utilities, que ganha de qualquer seletor daqui; por isso o !important (o mesmo vale para o row-gap do
+     ".pnl .kpi-extra .flex" do painel.css, que não chegava a valer). */
+  html :has(> .kpi-chip + .kpi-chip) {
+    row-gap: 26px !important;
+    column-gap: 10px !important;
+  }
+  /* "Esqueci minha senha" no toque: sai da linha do rótulo (lá a área não chegava a 44 px sem cobrir os campos)
+     e ganha linha própria logo abaixo do campo de senha, à direita, com 44 px de altura. No DOM ele já vem
+     depois do campo, então a ordem do Tab não muda. A margem de baixo negativa devolve parte da folga, para o
+     formulário não crescer os 44 px inteiros. */
+  html .ent-forgot {
+    position: relative;
+    top: auto;
+    right: auto;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    margin: 2px 0 -10px auto;
+    line-height: 20px;
+  }
+  html .ent-forgot::after {
+    inset: 0;
+  }
+}
+/* tela de entrada no toque: as abas "Entrar / Criar conta" e as contas de demonstração com 44 px (eram 42). Em
+   celular bem baixo (até 640 px de altura) elas continuam compactas, para o formulário caber sem rolar */
+@media (pointer: coarse) and (min-height: 641px) {
+  html .ent-tabs button,
+  html .ent-demo-btn {
+    height: 44px;
+  }
+}
+
+/* busca do menu no toque: o campo com 44 px (era 42). Um input não tem ::after para crescer a área, então a
+   própria altura cresce; o botão de limpar (44 px) já cabe nele sem passar da borda */
+@media (pointer: coarse) {
+  html .side-search input {
+    height: 44px;
+  }
+}
+
+/* ---------- menu em janela baixa ----------
+   Sem isso o pé do menu (perfil, Sair, Atualizado) saía da tela e o menu rolava por dentro: notebook de
+   1280x720 ou 1366x600 com o menu fixo, e celular baixo (360x740) com a gaveta da administração, que tem 7 itens
+   e o botão "Evento oficial". O visual-novo.css fixa os itens em 46 px com "html .nav", por isso as reduções
+   antigas do globals.css (40 e 36 px) não valiam; aqui elas voltam a valer. No toque os itens ficam com 44 px. */
+@media (min-width: 1024px) and (max-height: 760px) {
+  html .side .brand-sub,
+  html .side .nav-label {
+    display: none;
+  }
+  html .side .navlist .nav {
+    height: 40px;
+  }
+}
+@media (min-width: 1024px) and (max-height: 640px) {
+  html .side {
+    gap: 10px;
+    padding-block: 12px;
+  }
+  html .side .brand {
+    padding-bottom: 10px;
+  }
+}
+/* com mouse, de 761 a 900 px de altura (1366x768, 1280x800, 1180x820, 1440x900): o mesmo aperto de cima, para o menu
+   da administração caber também com a busca preenchida (o botão "Ver N eventos" soma uma linha). Até 860 px sai
+   também o subtítulo da marca e o rótulo "Menu", como no toque: a 1180x820 o menu rolava por dentro e cortava
+   "Sair da conta" */
+@media (min-width: 1024px) and (max-height: 900px) and (pointer: fine) {
+  html .side {
+    gap: 10px;
+    padding-block: 12px;
+  }
+  html .side .brand {
+    padding-bottom: 10px;
+  }
+}
+@media (min-width: 1024px) and (max-height: 860px) and (pointer: fine) {
+  html .side .brand-sub,
+  html .side .nav-label {
+    display: none;
+  }
+}
+/* tablet de toque deitado (1024x768, 1180x820, 1440x900): itens, busca e "Atualizado" com 44 px, e o menu da
+   administração passava da tela (o "Sair da conta" ficava cortado). Sem o subtítulo da marca e os rótulos de grupo
+   e, até 860 px, com o aperto de cima, tudo cabe sem rolar por dentro, com a busca vazia ou preenchida. Os itens
+   continuam com 44 px */
+@media (min-width: 1024px) and (max-height: 900px) and (pointer: coarse) {
+  html .side .brand-sub,
+  html .side .nav-label {
+    display: none;
+  }
+  html .side .navlist .nav {
+    height: 44px;
+  }
+}
+@media (min-width: 1024px) and (max-height: 860px) and (pointer: coarse) {
+  html .side {
+    gap: 8px;
+    padding-block: 12px;
+  }
+  html .side .brand {
+    padding-bottom: 8px;
+  }
+  html .side .ucard {
+    padding-block: 6px;
+  }
+  html .side .side-foot .nav-sm {
+    height: 44px;
+  }
+  html .side .navlist {
+    gap: 2px;
+  }
+}
+@media (min-width: 1024px) and (max-height: 640px) and (pointer: fine) {
+  html .side .navlist .nav {
+    height: 36px;
+  }
+  html .side .side-foot .nav-sm {
+    height: 36px;
+  }
+  html .side .ucard {
+    padding-block: 6px;
+  }
+}
+/* 1366x600 e menos: marca e cartão do usuário menores, itens de 34 px */
+@media (min-width: 1024px) and (max-height: 620px) and (pointer: fine) {
+  html .side {
+    padding-block: 8px;
+  }
+  html .side .brand {
+    padding-bottom: 8px;
+  }
+  html .side .brand .mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+  }
+  html .side .navlist .nav {
+    height: 34px;
+  }
+  html .side .ucard {
+    padding-block: 4px;
+  }
+  html .side .ucard .avatar {
+    width: 34px;
+    height: 34px;
+  }
+}
+/* gaveta (celular e tablet) em tela baixa */
+@media (max-width: 1023px) and (max-height: 860px) {
+  html #menu-gaveta {
+    gap: 12px;
+    padding-block: 14px;
+  }
+  html #menu-gaveta .brand {
+    padding-bottom: 12px;
+  }
+  html #menu-gaveta .nav-label {
+    display: none;
+  }
+  html #menu-gaveta .navlist .nav {
+    height: 44px;
+  }
+  html #menu-gaveta .side-foot {
+    gap: 2px;
+  }
+  html #menu-gaveta .ucard {
+    padding-block: 8px;
+  }
+}
+
+/* ---------- menu: ponto de novidade (Lembretes) ----------
+   Em Lembretes o número contava avisos, e um "1" ao lado de "Lembretes" parecia um lembrete. Vira um
+   ponto verde; o "1 aviso novo" fica no title e no texto do leitor de tela (app-shell.tsx, badgeAsDot). */
+html .nav .count.dot {
+  min-width: 10px;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  padding: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
