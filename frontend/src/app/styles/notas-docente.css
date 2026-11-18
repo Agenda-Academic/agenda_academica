@@ -9,13 +9,11 @@
    ================================================================== */
 
 /* ---------- títulos e seções da gaveta (amostra docente-notas-evento) ---------- */
-.notas-docente-h3 {
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.35;
-  color: var(--ink);
-}
+/* fonte, tamanho e cor vêm do .drawer-h3 (ux.css), o título de bloco de todos os painéis */
 .notas-docente-h3 .n {
+  margin-left: 4px;
+  font-family: var(--font);
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted);
 }
@@ -332,18 +330,71 @@
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+/* ---------- Enviar: as duas etapas (baixar a planilha da turma e enviar a preenchida) ---------- */
+.notas-docente-stage {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.notas-docente-stage-n {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+  font-size: 13.5px;
+  font-weight: 800;
+}
+.notas-docente-stage-main {
+  flex: 1;
+  min-width: 0;
+}
+.notas-docente-stage-t {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 28px;
+  color: var(--ink);
+}
+.notas-docente-stage-s {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+@media (max-width: 479px) {
+  .notas-docente-stage {
+    gap: 10px;
+    padding: 14px;
+  }
+}
+
+/* área grande de soltar a planilha: a área toda escolhe o arquivo, e o botão é a ação principal */
 .notas-docente-drop {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: 10px 12px;
-  padding: 14px;
-  border-radius: 14px;
-  border: 1.5px dashed var(--line-strong);
+  justify-content: center;
+  gap: 10px;
+  min-height: 210px;
+  padding: 26px 18px;
+  border-radius: 16px;
+  border: 2px dashed var(--line-strong);
   background: var(--surface-2);
+  text-align: center;
+  cursor: pointer;
   transition:
     border-color 0.16s ease,
     background-color 0.16s ease;
+}
+.notas-docente-drop:hover {
+  border-color: var(--brand-200);
 }
 .notas-docente-drop.is-over {
   border-color: var(--brand);
@@ -353,41 +404,340 @@
   border-color: #f3c6d0;
   background: #fff8f9;
 }
-
-/* ---------- prévia: totais, pergunta e linhas ---------- */
-.notas-docente-tot {
+.notas-docente-drop-ico {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.notas-docente-tot li {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
   border-radius: 999px;
+  background: #fff;
+  color: var(--brand);
+  box-shadow: 0 2px 10px rgb(var(--shadow-rgb) / 0.08);
+}
+.notas-docente-drop-t {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.notas-docente-drop-s {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.notas-docente-touch {
+  display: none;
+}
+/* tela de toque ou estreita (celular): não dá para arrastar, a frase muda */
+@media (pointer: coarse), (max-width: 639px) {
+  .notas-docente-drag {
+    display: none;
+  }
+  .notas-docente-touch {
+    display: inline;
+  }
+}
+
+/* andamento no lugar da área de soltar: o anel girando e as duas etapas */
+.notas-docente-proc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 210px;
+  padding: 26px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--brand-100);
+  background: var(--brand-50);
+  text-align: center;
+}
+.notas-docente-ring {
+  width: 52px;
+  height: 52px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  border: 4px solid var(--brand-100);
+  border-top-color: var(--brand);
+  animation: notas-docente-spin 0.85s linear infinite;
+}
+@keyframes notas-docente-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notas-docente-ring {
+    animation-duration: 2.4s;
+  }
+}
+.notas-docente-proc-t {
+  font-family: var(--disp);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.notas-docente-proc-s {
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.notas-docente-proc-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  text-align: left;
+}
+.notas-docente-proc-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   font-weight: 600;
+  color: var(--muted);
 }
-.notas-docente-tot b {
+.notas-docente-proc-list .dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-strong);
+  background: #fff;
+  color: #fff;
+}
+.notas-docente-proc-list .is-done {
+  color: var(--ink-3);
+}
+.notas-docente-proc-list .is-done .dot {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.notas-docente-proc-list .is-cur {
+  color: var(--ink);
+}
+/* a etapa em andamento gira (um anel pequeno), para não parecer uma opção de marcar */
+.notas-docente-proc-list .is-cur .dot {
+  border: 2px solid var(--brand-100);
+  border-top-color: var(--brand);
+  animation: notas-docente-spin 0.85s linear infinite;
+}
+
+/* ---------- Conferir: os números, a planilha usada, a pergunta e as linhas ---------- */
+.notas-docente-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.notas-docente-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.notas-docente-stat b {
+  font-family: var(--disp);
+  font-size: 32px;
   font-weight: 800;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
-.notas-docente-tot .is-new {
+.notas-docente-stat span {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ink-3);
+}
+.notas-docente-stat small {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.notas-docente-stat.is-go {
+  border-color: var(--brand-100);
   background: var(--brand-50);
+}
+.notas-docente-stat.is-go b {
+  color: var(--brand);
+}
+.notas-docente-stat.is-go span {
   color: var(--brand-ink);
 }
-.notas-docente-tot .is-chg {
-  background: #fef3c7;
-  color: #92400e;
+.notas-docente-stat.is-bad {
+  border-color: #f6cbd5;
+  background: #fff1f3;
 }
-.notas-docente-tot .is-same {
+.notas-docente-stat.is-bad b,
+.notas-docente-stat.is-bad span {
+  color: #be123c;
+}
+@media (max-width: 479px) {
+  .notas-docente-stats {
+    gap: 8px;
+  }
+  .notas-docente-stat {
+    padding: 12px;
+  }
+  .notas-docente-stat b {
+    font-size: 26px;
+  }
+  .notas-docente-stat span {
+    font-size: 12.5px;
+  }
+}
+.notas-docente-src {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.notas-docente-src .link {
+  display: inline-flex;
+  vertical-align: baseline;
+}
+.notas-docente-ck-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.notas-docente-cks {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.notas-docente-ck {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 4px 12px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line-2);
+}
+.notas-docente-ck:first-child {
+  border-top: 0;
+}
+.notas-docente-ck.is-bad {
+  background: #fff8f9;
+}
+.notas-docente-ck-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
   background: var(--neutral-tint);
   color: var(--ink-3);
 }
-.notas-docente-tot .is-bad {
+.notas-docente-ck-ico.is-new {
+  background: var(--brand-50);
+  color: var(--brand);
+}
+.notas-docente-ck-ico.is-chg,
+.notas-docente-ck-ico.is-keep {
+  background: #fef3c7;
+  color: #b45309;
+}
+.notas-docente-ck-ico.is-bad {
   background: #ffe4e8;
+  color: #be123c;
+}
+.notas-docente-ck-ico.is-ok {
+  background: var(--accent-tint);
+  color: #1f7a52;
+}
+.notas-docente-ck-body {
+  min-width: 0;
+  padding-top: 1px;
+}
+.notas-docente-ck-name {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.notas-docente-ck-why {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.45;
   color: #9f1239;
+}
+.notas-docente-ck-why.is-keep {
+  color: #92400e;
+}
+.notas-docente-ck-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.notas-docente-ck-end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.notas-docente-ck-val {
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.notas-docente-ck-val s {
+  font-weight: 500;
+  color: var(--muted-2);
+}
+.notas-docente-ck-val.is-same {
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.notas-docente-ck-val.is-off {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.notas-docente-tag.is-new {
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+.notas-docente-tag.is-chg,
+.notas-docente-tag.is-keep {
+  background: #fef3c7;
+  color: #92400e;
+}
+.notas-docente-tag.is-same {
+  background: var(--neutral-tint);
+  color: var(--ink-3);
+}
+.notas-docente-ck-none {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
 }
 .notas-docente-ask {
   display: grid;
@@ -428,24 +778,6 @@
 .notas-docente-rows > li:first-child {
   border-top: 0;
 }
-.notas-docente-rows.is-bad {
-  border-color: #f3c6d0;
-}
-.notas-docente-rows.is-bad > li {
-  align-items: flex-start;
-  background: #fff8f9;
-}
-.notas-docente-r-ico {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  border-radius: 9px;
-  background: #ffe4e8;
-  color: #be123c;
-}
 .notas-docente-r-body {
   flex: 1;
   min-width: 0;
@@ -459,12 +791,6 @@
 .notas-docente-r-t .mat {
   font-weight: 500;
   color: var(--muted);
-}
-.notas-docente-r-msg {
-  margin-top: 2px;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--ink-3);
 }
 .notas-docente-r-s {
   margin-top: 3px;
@@ -494,6 +820,145 @@
   color: var(--muted);
 }
 
+/* ---------- Pronto: o resumo grande, se os alunos já veem e as próximas ações ---------- */
+.notas-docente-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 18px 22px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgb(var(--accent-rgb) / 0.1), rgb(var(--accent-rgb) / 0.02));
+  text-align: center;
+}
+.notas-docente-done-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 8px rgb(var(--accent-rgb) / 0.16);
+  animation: notas-docente-pop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+@keyframes notas-docente-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notas-docente-done-ico {
+    animation: none;
+  }
+}
+.notas-docente-done.is-undone {
+  background: var(--surface-2);
+}
+.notas-docente-done.is-undone .notas-docente-done-ico {
+  background: var(--neutral-tint);
+  color: var(--ink-3);
+  box-shadow: none;
+}
+.notas-docente-done-t {
+  font-family: var(--disp);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.notas-docente-done-n {
+  display: block;
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #1f7a52;
+}
+.notas-docente-done-s {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.notas-docente-done-parts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.notas-docente-done-parts li {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 650;
+  background: #fff;
+  color: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.notas-docente-done-parts .is-new {
+  color: var(--brand-ink);
+  box-shadow: inset 0 0 0 1px var(--brand-100);
+}
+.notas-docente-done-parts .is-chg {
+  color: #92400e;
+  box-shadow: inset 0 0 0 1px #fde68a;
+}
+.notas-docente-done-parts .is-bad {
+  color: #9f1239;
+  box-shadow: inset 0 0 0 1px #f6cbd5;
+}
+.notas-docente-vis {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #fde68a;
+  background: #fff9e6;
+}
+.notas-docente-vis.is-on {
+  border-color: rgb(var(--accent-rgb) / 0.3);
+  background: var(--accent-tint);
+}
+.notas-docente-vis-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: #fff;
+  color: #b45309;
+}
+.notas-docente-vis.is-on .notas-docente-vis-ico {
+  color: #1f7a52;
+}
+.notas-docente-vis-t {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.notas-docente-vis-s {
+  margin-top: 2px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
 /* ---------- tela Notas da docente e da administração ---------- */
 .notas-docente-card-head {
   display: flex;
@@ -505,6 +970,50 @@
 }
 .notas-docente-card-head > .min-w-0 {
   flex: 1 1 260px;
+}
+/* abas Pendentes, Passadas, Próximas e Todas: o nome e a contagem menor e cinza ao lado ("Pendentes 2") */
+.notas-docente-tabs-seg button {
+  gap: 6px;
+}
+.notas-docente-tabs-seg .n {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.notas-docente-tabs-seg .on .n {
+  color: var(--ink-3);
+}
+/* filtro por turma e disciplina (quando a pessoa tem mais de uma) */
+.notas-docente-filter {
+  padding: 0 24px 14px;
+}
+.notas-docente-filter .chips {
+  gap: 4px 6px;
+}
+.notas-docente-filter .chip {
+  max-width: 100%;
+  text-align: left;
+}
+.notas-docente-filter-sel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink-3);
+}
+.notas-docente-filter-sel .input {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 360px;
+  min-height: 40px;
+}
+/* poucas opções: botões no computador; a lista de escolha fica para o celular */
+.notas-docente-filter.has-chips .notas-docente-filter-sel {
+  display: none;
 }
 /* a avaliação pedida pelo link aparece mesmo escondida pela busca do menu: o aviso e "Limpar busca" */
 .notas-docente-busca {
@@ -518,8 +1027,70 @@
   flex: 1 1 260px;
   min-width: 0;
 }
-.notas-docente-evs {
+/* "Busca: prova, 1 avaliação em Próximas, 2 escondidas pelo filtro de disciplina" (a faixa de Notas e da Gestão) */
+.notas-docente-searchnote {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 24px 16px;
+  padding: 6px 6px 6px 12px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.notas-docente-searchnote b {
+  font-weight: 700;
+}
+.notas-docente-searchnote-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
+}
+@media (max-width: 639px) {
+  .notas-docente-searchnote {
+    flex-wrap: wrap;
+    margin: 0 16px 14px;
+  }
+  .notas-docente-searchnote > span:first-of-type {
+    flex: 1 1 0;
+  }
+  .notas-docente-searchnote-acts {
+    flex-basis: 100%;
+  }
+}
+@media (pointer: coarse) {
+  .notas-docente-searchnote .btn-sm {
+    min-height: 44px;
+  }
+}
+/* a página da lista: recebe o foco quando a pessoa troca de página (sem contorno, o leitor de tela anuncia) */
+.notas-docente-list:focus {
+  outline: none;
+}
+/* cabeçalho do mês ("Novembro 2 avaliações", "Dezembro de 2025"), igual ao da Gestão (.gestao-month-row):
+   o nome do mês na fonte de título e, ao lado, quantas avaliações ele tem */
+.notas-docente-month {
+  padding: 18px 24px 8px;
   border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-2);
+  background: #fff;
+  font-family: var(--disp);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.notas-docente-month .n {
+  margin-left: 10px;
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
 }
 .notas-docente-ev {
   display: grid;
@@ -552,6 +1123,10 @@
   grid-area: body;
   min-width: 0;
 }
+.notas-docente-ev-body .ev-meta {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
 .notas-docente-ev-status {
   grid-area: status;
   display: flex;
@@ -566,15 +1141,69 @@
   line-height: 1.45;
   color: var(--muted);
 }
+/* "em 6 dias", ao lado da etiqueta Agendada */
+.notas-docente-ev-when {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
 .notas-docente-ev-acts {
   grid-area: acts;
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.notas-docente-more {
-  padding: 12px 24px 18px;
-  border-top: 1px solid var(--line-2);
+/* "1 de 3 com nota" com a barra do quanto já tem nota */
+.notas-docente-prog {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.notas-docente-prog-bar {
+  flex: 1 1 auto;
+  max-width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--fill);
+  overflow: hidden;
+}
+.notas-docente-prog-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
+}
+.notas-docente-prog.is-full .notas-docente-prog-bar > span {
+  background: var(--accent);
+}
+.notas-docente-prog-t {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+.notas-docente-open {
+  padding-right: 10px;
+}
+/* paginação embaixo da lista: "Mostrando 1 a 8 de 43 avaliações" e as páginas */
+.notas-docente-pager {
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--line);
+}
+/* card médio (1024 px, tablet): a situação e os botões dividem a segunda linha, em vez de três andares */
+@container (min-width: 520px) and (max-width: 759px) {
+  .notas-docente-ev {
+    grid-template-columns: 54px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "date body body"
+      "date status acts";
+    row-gap: 8px;
+  }
+  .notas-docente-ev-acts {
+    justify-content: flex-end;
+  }
 }
 /* card largo: uma linha por avaliação (data, avaliação, situação e ações), como a tabela da Gestão */
 @container (min-width: 760px) {
@@ -589,19 +1218,88 @@
     justify-content: flex-end;
   }
 }
-/* celular: menos respiro nas bordas */
-@container (max-width: 420px) {
+/* celular: menos respiro nas bordas, e as quatro abas dividem a largura (o nome em cima e a contagem embaixo),
+   em vez de uma aba sozinha na segunda linha */
+@container (max-width: 520px) {
   .notas-docente-card-head {
-    padding: 20px 16px 16px;
+    padding: 20px 16px 14px;
+  }
+  .notas-docente-card-head > .min-w-0 {
+    flex-basis: 100%;
+  }
+  /* duas classes: vence o .seg do globals.css (que vem depois na mesma camada) */
+  .seg.notas-docente-tabs-seg {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+    gap: 0;
+    overflow: visible;
+  }
+  .seg.notas-docente-tabs-seg button {
+    flex-direction: column;
+    gap: 0;
+    height: auto;
+    min-height: 50px;
+    padding: 6px 2px;
+    line-height: 1.2;
+  }
+  .notas-docente-tabs-seg .t {
+    font-size: 13px;
+  }
+  .notas-docente-tabs-seg .n {
+    font-size: 13px;
+  }
+  .notas-docente-filter {
+    padding: 0 16px 12px;
+  }
+  .notas-docente-filter.has-chips .notas-docente-filter-sel {
+    display: flex;
+  }
+  .notas-docente-filter.has-chips .chips {
+    display: none;
+  }
+  /* o nome em cima e a lista de escolha na largura toda: "Todas as turmas (25)" cabe sem cortar */
+  .notas-docente-filter-sel {
+    gap: 6px;
+  }
+  .notas-docente-filter-sel > span {
+    flex-basis: 100%;
+  }
+  .notas-docente-filter-sel .input {
+    flex: 1 1 100%;
+  }
+  .notas-docente-month {
+    padding: 14px 16px 8px;
   }
   .notas-docente-ev {
     gap: 8px 12px;
     padding: 14px 16px;
   }
-  .notas-docente-more {
+  .notas-docente-pager {
     padding: 12px 16px 16px;
   }
   .notas-docente-busca {
     padding: 0 16px 14px;
   }
+}
+/* tela de toque: "Abrir notas" (a ação principal de cada linha) e a lista de escolha do filtro com 44 px, a altura
+   do botão do cronograma ao lado */
+@media (pointer: coarse) {
+  .btn.notas-docente-open,
+  .notas-docente-filter-sel .input,
+  .input.notas-docente-score,
+  .input.notas-docente-status {
+    min-height: 44px;
+  }
+}
+/* um só jeito de dizer "escolhido" no filtro de disciplina (como nas categorias do Cronograma): "Todas" e a
+   disciplina escolhida com o mesmo fundo, sem sublinhado de aba nem contorno */
+html .notas-docente-filter .chip.all,
+html .notas-docente-filter .chip.picked {
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: none;
+  color: var(--ink);
+  font-weight: 700;
 }

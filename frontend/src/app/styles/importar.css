@@ -1,0 +1,1124 @@
+/* Importar calendário (tela da administração). Dono: sync-view.tsx.
+   Camada components, antes do ux.css: onde a regra disputa com uma do visual-novo.css ou do ux.css
+   (que começam com "html"), o seletor aqui também começa com "html" e tem uma classe a mais. */
+
+/* ---------- indicadores do alto ---------- */
+/* valor em palavra ("Hoje", "Em dia"): menor que o número, para caber numa linha */
+html .kpi-val.imp-kpi-txt {
+  font-size: 32px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+html .imp-kpi-ok .kpi-val {
+  color: var(--brand);
+}
+html .imp-kpi-ok .kpi-ico {
+  background: #fff;
+  color: var(--brand);
+}
+html .imp-kpi-warn .kpi-val {
+  color: #7a3b06;
+}
+html .imp-kpi-warn .kpi-ico {
+  background: #fff;
+  color: #b45309;
+}
+@media (max-width: 639px) {
+  html .kpi-val.imp-kpi-txt {
+    font-size: 24px;
+  }
+  /* "115 futuros" numa linha só no indicador estreito do celular */
+  html .kpi-val.imp-kpi-num {
+    font-size: 36px;
+  }
+}
+
+/* ---------- resultado da importação (logo abaixo dos indicadores) ---------- */
+.imp-done {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px 24px;
+  padding: 24px 64px 24px 24px;
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: linear-gradient(100deg, color-mix(in srgb, var(--accent-tint) 70%, #fff) 0, #fff 420px);
+}
+.imp-done.is-undone {
+  border-color: var(--line);
+  background: #fff;
+}
+.imp-done-ico {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: #fff;
+  color: #1d7f55;
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-rgb) / 0.06),
+    0 10px 22px -14px rgb(var(--accent-rgb) / 0.9);
+}
+.is-undone .imp-done-ico {
+  background: var(--surface-2);
+  color: var(--ink-3);
+  box-shadow: none;
+}
+.imp-done-body {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+.imp-done-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
+  font-family: var(--disp);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.imp-done-n {
+  font-size: 46px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.imp-done-sub {
+  margin-top: 6px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.imp-done-cats {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+.imp-done-cats li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.imp-done-cats b {
+  font-weight: 750;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.imp-done-past {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: #fff7e0;
+  color: #7a3b06;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.imp-done-acts {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+/* .imp-done > : o .ib do globals.css (relative) vem depois desta folha na camada */
+.imp-done > .imp-done-x {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+@media (max-width: 639px) {
+  .imp-done {
+    padding: 20px 56px 20px 18px;
+    gap: 14px 16px;
+  }
+  .imp-done-ico {
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+  }
+  .imp-done-n {
+    font-size: 38px;
+  }
+  .imp-done-title {
+    font-size: 19px;
+  }
+  .imp-done-acts {
+    flex-basis: 100%;
+    margin-right: -38px;
+  }
+  .imp-done-acts > .btn {
+    flex: 1 1 100%;
+  }
+}
+
+/* ---------- ordem no celular: a ação da tela (importar) vem antes dos indicadores ---------- */
+@media (max-width: 639px) {
+  .imp-page > .imp-done {
+    order: -2;
+  }
+  .imp-page > .imp-card {
+    order: -1;
+  }
+}
+
+/* ---------- card de importar: área de soltar (larga) e exemplo (estreito), os passos numa faixa embaixo ---------- */
+.imp-card-head {
+  margin-bottom: 18px;
+}
+/* leitura feita e painel fechado: dá para voltar a conferir sem ler o PDF de novo */
+.imp-pending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--brand-200);
+  background: var(--brand-50);
+}
+.imp-pending-ico {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--brand);
+}
+.imp-pending-text {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+.imp-pending-text b {
+  font-weight: 700;
+  color: var(--ink);
+}
+.imp-pending-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* lado a lado quando o card é largo; a coluna de apoio termina na mesma linha do 4º indicador (--side-w do ux.css) */
+.imp-grid {
+  display: grid;
+  gap: 16px;
+}
+@container (min-width: 860px) {
+  .imp-grid {
+    grid-template-columns: minmax(0, 1fr) calc(var(--side-w, 340px) - 24px);
+  }
+}
+
+.imp-drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 200px;
+  padding: 22px 24px;
+  border-radius: 18px;
+  border: 2px dashed var(--line-strong);
+  background: #fbfcff;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.imp-drop:hover {
+  border-color: var(--line-hover);
+  background: var(--surface-2);
+}
+.imp-drop.is-over {
+  border-color: var(--brand);
+  background: var(--brand-50);
+  box-shadow: 0 0 0 4px rgb(var(--brand-rgb) / 0.12);
+}
+.imp-drop.is-busy {
+  border-style: solid;
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  cursor: progress;
+}
+.imp-drop.is-bad {
+  border-color: #e9a3b4;
+  background: #fff6f8;
+}
+.imp-drop-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 6px;
+  border-radius: 18px;
+  background: #fff;
+  color: var(--brand);
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-rgb) / 0.06),
+    0 12px 26px -16px rgb(var(--brand-rgb) / 0.6);
+  transition: transform 0.16s ease;
+}
+.imp-drop.is-over .imp-drop-ico {
+  transform: translateY(-3px) scale(1.04);
+}
+.imp-drop.is-bad .imp-drop-ico {
+  color: var(--danger);
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-rgb) / 0.06),
+    0 12px 26px -16px rgb(var(--danger-rgb) / 0.6);
+}
+.imp-drop-title {
+  font-family: var(--disp);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.imp-drop.is-bad .imp-drop-title {
+  color: var(--danger);
+}
+.imp-drop-text {
+  font-size: 14px;
+  color: var(--muted);
+}
+.imp-drop-err {
+  max-width: 520px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+.imp-drop-acts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.imp-drop-acts > .btn {
+  min-width: 200px;
+}
+.imp-drop-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.imp-drop-or::before,
+.imp-drop-or::after {
+  content: "";
+  width: 40px;
+  height: 1px;
+  background: var(--line-strong);
+}
+.imp-drop-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+/* no celular não há o que arrastar: a área vira um bloco baixo com o botão na largura toda e o "ou" sai */
+@media (max-width: 639px) {
+  .imp-drop {
+    min-height: 0;
+    padding: 18px 16px;
+    gap: 4px;
+  }
+  .imp-drop-ico {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 4px;
+    border-radius: 14px;
+  }
+  .imp-drop-ico svg {
+    width: 22px;
+    height: 22px;
+  }
+  .imp-drop-title {
+    font-size: 17px;
+  }
+  .imp-drop-hint {
+    margin-top: 4px;
+  }
+  .imp-drop-acts,
+  .imp-drop-acts > .btn {
+    width: 100%;
+  }
+}
+.imp-drop-coarse {
+  display: none;
+}
+@media (max-width: 639px), (pointer: coarse) {
+  .imp-drop-or,
+  .imp-drop-fine {
+    display: none;
+  }
+  .imp-drop-coarse {
+    display: inline;
+  }
+}
+
+.imp-aside {
+  display: grid;
+  align-content: center;
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--surface-2);
+}
+.imp-sample {
+  display: grid;
+  gap: 10px;
+}
+.imp-aside-title {
+  font-family: var(--disp);
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.imp-aside-text {
+  margin-top: -4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.imp-sample-btn {
+  width: 100%;
+}
+.imp-sample-link {
+  justify-self: start;
+  font-size: 13.5px;
+}
+/* passos: faixa embaixo do card; no card largo, o título à esquerda e os três passos lado a lado */
+.imp-steps {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-2);
+}
+.imp-steps ol {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+@container (min-width: 700px) {
+  .imp-steps {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+  }
+  .imp-steps .imp-aside-title {
+    padding-top: 3px;
+  }
+  .imp-steps ol {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px;
+    margin-top: 0;
+  }
+}
+.imp-steps li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.imp-steps li b {
+  font-weight: 700;
+  color: var(--ink);
+}
+.imp-step-n {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 750;
+  color: var(--brand-ink);
+}
+/* card estreito (exemplo embaixo da área de soltar): o texto à esquerda e o botão à direita */
+@container (min-width: 560px) and (max-width: 859px) {
+  .imp-sample {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px 24px;
+  }
+  .imp-sample > .imp-aside-title,
+  .imp-sample > .imp-aside-text {
+    grid-column: 1;
+  }
+  .imp-sample > .imp-aside-text {
+    margin-top: 0;
+  }
+  .imp-sample-btn {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: auto;
+  }
+  .imp-sample-link {
+    grid-column: 1;
+  }
+}
+
+/* histórico: as páginas embaixo da tabela */
+.imp-hist-pager {
+  padding: 0 24px 18px;
+}
+
+/* ---------- histórico: a linha inteira abre o painel ---------- */
+.imp-hist-row {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.imp-hist-row:hover,
+.imp-hist-row.is-open {
+  background: var(--surface-2);
+}
+.imp-hist-open {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  text-align: left;
+}
+.imp-hist-row:hover .imp-hist-open .t {
+  color: var(--brand-ink);
+}
+.imp-hist-chev {
+  color: var(--faint);
+  transition:
+    color 0.12s ease,
+    transform 0.12s ease;
+}
+.imp-hist-row:hover .imp-hist-chev {
+  color: var(--brand);
+  transform: translateX(2px);
+}
+
+/* ---------- painel Conferir datas e Datas importadas ---------- */
+/* Drawer size="wide" (ui.tsx): mais largo no computador; no celular segue em tela cheia */
+.drawer.drawer-wide {
+  width: min(880px, 100vw);
+}
+/* o corpo do painel vira coluna: filtros parados no alto, a lista (um mês por vez) rola no meio e o erro fica
+   acima do rodapé. No celular tudo rola junto (embaixo), para sobrar altura para as datas. */
+.drawer-body:has(> .imp-review) {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.imp-review {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+/* faixa do alto: filtros e busca; embaixo, os meses; e quantas datas a lista tem, com Marcar e Desmarcar */
+.imp-review-bar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 24px 10px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+.imp-bar-top {
+  display: flex;
+  align-items: center;
+  gap: 8px 16px;
+}
+.imp-chips {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 4px;
+}
+/* no computador os filtros são abas; no celular, uma lista de escolha (as abas não cabem) */
+.imp-filter-select {
+  display: none;
+}
+.imp-search {
+  position: relative;
+  flex: 0 0 220px;
+}
+.imp-search-ico {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+html .imp-search .input {
+  min-height: 38px;
+  padding-left: 36px;
+  font-size: 14px;
+}
+/* meses: uma linha só, que rola de lado quando não cabe (o mês escolhido vai para o meio) */
+.imp-months {
+  min-width: 0;
+}
+.imp-review-bar .crono-strip {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  scroll-padding-inline: 24px;
+  margin: -4px -24px;
+  padding: 4px 24px;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent);
+}
+.imp-review-bar .crono-strip::-webkit-scrollbar {
+  display: none;
+}
+.imp-review-bar .crono-strip > * {
+  flex-shrink: 0;
+}
+/* mais justos que no cronograma: os 12 meses de um calendário letivo cabem numa linha do painel */
+.imp-review-bar .crono-strip,
+.imp-review-bar .crono-ystart {
+  gap: 4px;
+}
+.imp-review-bar .crono-mchip {
+  gap: 5px;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 13.5px;
+}
+.imp-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+}
+.imp-bulk-n {
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--muted);
+}
+.imp-review-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 24px 24px;
+  container-type: inline-size;
+}
+/* aviso único do alto (importação anterior, repetidas, assuntos de servidores) */
+.imp-review-list > .imp-note {
+  margin-top: 16px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+}
+/* o calendário já está no sistema: diz isso com clareza e mostra a saída */
+.imp-uptodate {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent-tint) 55%, #fff);
+}
+.imp-uptodate-ico {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #fff;
+  color: #1d7f55;
+}
+.imp-uptodate-body {
+  min-width: 0;
+}
+.imp-uptodate-title {
+  font-family: var(--disp);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.imp-uptodate-text {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+.imp-uptodate-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+/* "Ver as que já existem": link com seta, ao lado do botão da importação anterior */
+.imp-uptodate-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  font-size: 14px;
+}
+.imp-uptodate-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+/* "Ver detalhes" só existe no celular (no computador o texto e as ações ficam sempre à vista) */
+html .imp-uptodate-more {
+  display: none;
+}
+.imp-review-empty {
+  padding: 24px 0;
+}
+.imp-review-error {
+  flex: none;
+  padding: 12px 24px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+}
+/* pé da lista: o mês vizinho (MonthPagerFooter) */
+.imp-review-list > .crono-pager {
+  margin-top: 16px;
+}
+
+/* cabeçalho do mês: fica no alto da lista enquanto as datas dele rolam */
+.imp-month-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 10px 8px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+.imp-month-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -6px;
+  padding: 6px;
+  cursor: pointer;
+}
+.imp-month-check:has(.imp-check:disabled) {
+  cursor: default;
+}
+/* fonte, tamanho e cor vêm do .drawer-h3 (ux.css), o título de bloco de todos os painéis */
+.imp-month-name {
+  border-radius: 6px;
+  outline-offset: 3px;
+}
+.imp-month-n {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.imp-rows {
+  display: grid;
+  gap: 2px;
+  padding-top: 6px;
+}
+.imp-row {
+  display: grid;
+  grid-template-columns: 18px 104px minmax(0, 1fr) auto;
+  grid-template-areas: "chk date title meta";
+  align-items: center;
+  gap: 4px 14px;
+  min-height: 48px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.imp-row:hover {
+  background: var(--surface-2);
+}
+.imp-row:has(.imp-check:focus-visible) {
+  background: var(--surface-2);
+}
+.imp-row.is-view {
+  grid-template-columns: 104px minmax(0, 1fr) auto;
+  grid-template-areas: "date title meta";
+  cursor: default;
+}
+.imp-row.is-view:hover {
+  background: transparent;
+}
+/* já está no calendário: não dá para marcar (a API descartaria), a linha fica apagada e sem mãozinha */
+.imp-row.is-locked {
+  cursor: default;
+}
+.imp-row.is-locked:hover {
+  background: transparent;
+}
+.imp-check {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+.imp-row > .imp-check {
+  grid-area: chk;
+}
+.imp-check:disabled {
+  cursor: not-allowed;
+}
+.imp-row.is-locked .imp-check:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.imp-date {
+  grid-area: date;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+/* o período que cruza o mês quebra só entre "31/05 a" e "05/06" */
+.imp-date b {
+  font-size: 14px;
+  font-weight: 750;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.imp-date b > span {
+  white-space: nowrap;
+}
+.imp-date small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+/* o título inteiro, sem corte: é por ele que se decide o que importar */
+.imp-row-title {
+  grid-area: title;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.imp-row.is-off .imp-row-title {
+  font-weight: 500;
+  color: var(--muted);
+}
+.imp-row.is-off .imp-date b {
+  color: var(--muted);
+}
+.imp-row-meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 8px;
+}
+/* a categoria fecha a linha com largura fixa: fica na mesma coluna em todas as linhas */
+html .pill.imp-row-cat {
+  min-width: 104px;
+  font-size: 13px;
+}
+.imp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.imp-tag.staff {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+.imp-tag.warn {
+  background: #fff3d1;
+  color: #7a3b06;
+}
+/* painel estreito (celular): título em cima, categoria e etiquetas embaixo dele */
+@container (max-width: 600px) {
+  .imp-row {
+    grid-template-columns: 18px 82px minmax(0, 1fr);
+    grid-template-areas:
+      "chk date title"
+      "chk date meta";
+    align-items: start;
+    gap: 6px 12px;
+    padding: 10px 6px;
+  }
+  .imp-row.is-view {
+    grid-template-columns: 82px minmax(0, 1fr);
+    grid-template-areas:
+      "date title"
+      "date meta";
+  }
+  .imp-row > .imp-check {
+    margin-top: 1px;
+  }
+  .imp-row-meta {
+    justify-content: flex-start;
+  }
+  html .pill.imp-row-cat {
+    order: -1;
+    min-width: 0;
+  }
+  .imp-month-head {
+    padding: 16px 6px 8px;
+  }
+}
+
+/* subtítulo do painel: a fonte e, ao lado, a contagem numa etiqueta (sem ponto médio entre eles) */
+.imp-sub-count {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+/* rodapé: o total à esquerda, os botões à direita */
+.imp-foot-count {
+  display: flex;
+  flex-direction: column;
+  margin-right: auto;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--ink-3);
+}
+.imp-foot-count b {
+  font-size: 18px;
+  font-weight: 750;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.imp-foot-count small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* celular: só o título e o rodapé ficam presos; filtros, aviso e datas rolam juntos no corpo do painel */
+@media (max-width: 639px) {
+  .drawer-body:has(> .imp-review) {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .imp-review {
+    flex: none;
+    min-height: auto;
+  }
+  .imp-review-list {
+    flex: none;
+    overflow: visible;
+    padding: 0 12px 20px;
+  }
+  .imp-review-bar,
+  .imp-review-error {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .imp-review-bar {
+    border-bottom: 0;
+    padding-top: 12px;
+    padding-bottom: 4px;
+  }
+  /* a lista de escolha e a busca numa linha só: as datas começam mais acima */
+  .imp-bar-top {
+    gap: 8px;
+  }
+  /* "html" e duas classes: vence o .chips.chips-row do celular (globals.css) */
+  html .imp-review-bar .imp-chips {
+    display: none;
+  }
+  html .imp-filter-select {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    font-weight: 600;
+  }
+  /* a busca com a largura de "Buscar" e a lista de escolha (com o número) com o resto */
+  .imp-search {
+    flex: 0 1 120px;
+    min-width: 0;
+  }
+  html .imp-search .input {
+    min-height: 44px;
+  }
+  .imp-review-bar .crono-strip {
+    margin: -4px -16px;
+    padding: 4px 16px;
+    scroll-padding-inline: 20px;
+  }
+  /* "Marcar todas" e "Desmarcar todas" são botões com contorno: alinhados à borda dos filtros */
+  .imp-bulk {
+    gap: 8px;
+  }
+  /* a contagem já está na lista de escolha ("Novas (22)"); fica só o resultado da busca */
+  .imp-bulk > .imp-bulk-n:not(.is-found) {
+    display: none;
+  }
+  .drawer:has(.imp-review) .drawer-foot {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .imp-review-list > .imp-note,
+  .imp-uptodate {
+    margin-top: 8px;
+  }
+  /* o aviso de que o calendário já está no sistema numa linha: título e "Ver detalhes" (o resto abre no lugar) */
+  .imp-uptodate {
+    align-items: center;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .imp-uptodate.is-open {
+    align-items: flex-start;
+  }
+  .imp-uptodate-ico {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+  .imp-uptodate-title {
+    font-size: 15px;
+  }
+  html .imp-uptodate-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 32px;
+    font-size: 13.5px;
+  }
+  .imp-uptodate-more svg {
+    transition: transform 0.15s ease;
+  }
+  .imp-uptodate.is-open .imp-uptodate-more svg {
+    transform: rotate(180deg);
+  }
+  .imp-uptodate:not(.is-open) .imp-uptodate-more-body {
+    display: none;
+  }
+  /* o nome do calendário quebra a linha em vez de cortar com reticências; o total já está na lista de escolha */
+  .drawer-head .imp-sub-src {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .drawer-head .imp-sub-count.is-total {
+    display: none;
+  }
+  /* rodapé: a contagem numa linha só, em cima dos botões */
+  .imp-foot-count {
+    flex-basis: 100%;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .imp-foot-count b {
+    font-size: 16px;
+  }
+  .imp-foot-count small {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+/* 360 px: o ícone do botão principal sai para Fechar e "Nada novo para importar" caberem lado a lado */
+@media (max-width: 399px) {
+  .imp-foot-go > svg {
+    display: none;
+  }
+}
+
+/* indicadores do alto: a dica curta no celular estreito (a longa ocupava 3 a 5 linhas no indicador de 2
+   colunas), e o número um pouco menor, para "115 futuras" caber numa linha */
+.imp-hint-short {
+  display: none;
+}
+@media (max-width: 419px) {
+  .imp-hint-long {
+    display: none;
+  }
+  .imp-hint-short {
+    display: inline;
+  }
+  html .kpi-val.imp-kpi-num {
+    font-size: 30px;
+  }
+  html .kpi-val.imp-kpi-num small {
+    white-space: nowrap;
+  }
+}
+
+/* toque: alvos de pelo menos 44 px (decisão 9 da rodada de UX) */
+@media (pointer: coarse) {
+  .imp-review-bar .crono-mchip {
+    height: 44px;
+  }
+  .imp-bulk > .btn,
+  .imp-uptodate-acts > .btn,
+  .imp-uptodate-link,
+  .imp-uptodate-more,
+  .imp-pending-acts > .btn {
+    min-height: 44px;
+  }
+  .imp-month-check {
+    margin: -13px;
+    padding: 13px;
+  }
+  .imp-sample-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin: -10px 0;
+  }
+}

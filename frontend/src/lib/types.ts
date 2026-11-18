@@ -634,7 +634,8 @@ export type GradeImportRowKind =
 
 /** Colunas do arquivo escolhidas pela docente. */
 export type GradeImportMapping = {
-  identifierType: "email" | "registration";
+  /** Como a linha acha o aluno: e-mail da conta, matrícula escolar ou nome completo (sem acento nem maiúscula). */
+  identifierType: "email" | "registration" | "name";
   identifierColumn: string;
   scoreColumn: string;
   nameColumn?: string | null;
@@ -655,7 +656,7 @@ export type GradeImportRow = {
   rowNumber: number | null;
   kind: GradeImportRowKind;
   message: string | null;
-  /** Normalizado (minúsculo, sem espaços; matrícula sem zeros à esquerda). */
+  /** E-mail e matrícula normalizados (minúsculo, sem espaços, sem zeros à esquerda); o nome como veio no arquivo. */
   identifier: string | null;
   /** O nome que veio no arquivo, só para conferir. */
   nameHint: string | null;

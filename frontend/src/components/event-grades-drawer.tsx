@@ -2,8 +2,6 @@
 
 import {
   Check,
-  ChevronDown,
-  ChevronUp,
   CircleAlert,
   Eye,
   EyeOff,
@@ -52,7 +50,8 @@ import type {
   GradeStatus,
 } from "@/lib/types";
 import { useAppActions, useBackLayer } from "./app-actions";
-import { GradeImportBody, GradeImportFooter, useGradeImport } from "./grade-import";
+import { GradeImportBody, GradeImportFooter, useGradeImport, type GradeImportFlow } from "./grade-import";
+import { Pager, usePaged } from "./pager";
 import { Drawer, EmptyState, ErrorState, Segmented, SegmentedButton, primaryButton, secondaryButton } from "./ui";
 
 /**
@@ -65,7 +64,7 @@ import { Drawer, EmptyState, ErrorState, Segmented, SegmentedButton, primaryButt
  * Conteúdo: GET /events/:id/grades (lista com e sem nota, lançar com saveGrade, salva na hora), "Publicar para
  * alunos e responsáveis" (publishGrades, toast com Desfazer = unpublishGrades), "Importações feitas"
  * (getGradeImports, "Desfazer importação" quando canUndo) e "Importar notas", que troca o conteúdo do painel
- * pelos 4 passos (arquivo, colunas, prévia, aplicar; grade-import*.tsx e lib/grades-file.ts), com Voltar.
+ * pelos passos Enviar, Conferir e Pronto (grade-import*.tsx e lib/grades-file.ts), com Voltar.
  * Nunca abre outro painel por cima. Dona: área Notas (docente).
  */
 export type EventGradesDrawerProps = {
@@ -121,10 +120,11 @@ export function importTotalsText(item: Pick<GradeImport, "totals">) {
 }
 
 const importStatus: Record<GradeImport["status"], { label: string; pill: string }> = {
-  draft: { label: "Rascunho", pill: "st-alt" },
-  applied: { label: "Aplicada", pill: "st-conc" },
-  undone: { label: "Desfeita", pill: "st-ag" },
-  discarded: { label: "Descartada", pill: "st-ag" },
+  // situação: etiqueta com fundo (.pill.stat), como Agendado, Concluído e Cancelado
+  draft: { label: "Rascunho", pill: "stat stat-alt" },
+  applied: { label: "Aplicada", pill: "stat stat-conc" },
+  undone: { label: "Desfeita", pill: "stat" },
+  discarded: { label: "Descartada", pill: "stat" },
 };
 
 /**
@@ -468,7 +468,13 @@ function useGradesPanel({
     info,
     students: data?.students ?? [],
     published,
+    imports,
+    publishing,
+    onPublish: () => void publish(),
+    undoingId: undoing,
+    onUndoApplied: askUndoApplied,
     onExit: () => goOverview("import"),
+    onFinish: () => goOverview("students"),
     onApplied: handleApplied,
     onDraftsChanged: () => {
       void refresh();
@@ -565,8 +571,10 @@ function useGradesPanel({
     }
   }
 
+  /** Desfaz a importação aplicada; true se deu certo. */
   async function undoImport(importId: number) {
     setUndoing(importId);
+    let ok = false;
     try {
       const { message } = await deleteGradeImport(token, importId);
       setBlockedUndo((current) => {
@@ -576,6 +584,7 @@ function useGradesPanel({
       });
       toast(message, { key: `notas-importacao-${importId}` });
       changed(true);
+      ok = true;
     } catch (error) {
       const blocked = conflictOf(error, "EDITED_AFTER_IMPORT");
       if (blocked) {
@@ -587,6 +596,7 @@ function useGradesPanel({
       setUndoing(null);
       void refresh();
     }
+    return ok;
   }
 
   // a API não refaz uma importação desfeita: por isso a confirmação (e não um toast com Desfazer)
@@ -602,6 +612,26 @@ function useGradesPanel({
       confirmLabel: "Desfazer importação",
       cancelLabel: "Manter notas",
       action: () => undoImport(item.id),
+    });
+  }
+
+  /** "Desfazer importação" da tela Pronto: confirma, desfaz e volta para a gaveta, com a lista de volta como era. */
+  function askUndoApplied(item: GradeImportApplied) {
+    const total = item.applied.created + item.applied.updated;
+    confirm({
+      title: "Desfazer esta importação?",
+      message: `${
+        total === 1 ? "A nota volta" : "As notas voltam"
+      } ao valor de antes da importação. Não dá para voltar atrás: para trazer ${
+        total === 1 ? "esta nota" : "estas notas"
+      } de novo, envie a planilha outra vez.`,
+      confirmLabel: "Desfazer importação",
+      cancelLabel: "Manter notas",
+      action: async () => {
+        if (await undoImport(item.id)) {
+          goOverview("import");
+        }
+      },
     });
   }
 
@@ -648,9 +678,11 @@ function useGradesPanel({
     setView("import");
   }
 
-  function handleApplied(applied: GradeImportApplied, message: string) {
-    toast(message, { key: `notas-importacao-${applied.id}`, undo: () => undoImport(applied.id) });
-    goOverview("publish");
+  /**
+   * Aplicou: a importação mostra a tela Pronto, que já diz quantas notas entraram e tem o "Desfazer importação" no
+   * pé. Sem aviso (toast) por cima: no celular ele cobria o "Publicar notas agora". A lista recarrega por trás.
+   */
+  function handleApplied() {
     void refresh();
     changed(true);
   }
@@ -661,8 +693,8 @@ function useGradesPanel({
     confirm({
       title: "Sair da importação?",
       message: flow.draft
-        ? "As colunas mudadas ainda não foram enviadas. O rascunho da última prévia continua na lista de importações."
-        : "O arquivo escolhido ainda não foi enviado. Para importar depois, escolha o arquivo de novo.",
+        ? "As colunas mudadas ainda não foram conferidas. O rascunho da última conferência continua na lista de importações."
+        : "A planilha escolhida ainda não foi conferida. Para importar depois, envie a planilha de novo.",
       confirmLabel: "Sair da importação",
       cancelLabel: "Continuar importando",
       action: then,
@@ -709,7 +741,8 @@ function useGradesPanel({
   const max = info?.maxScoreText ? `nota de 0 a ${info.maxScoreText}` : "ainda sem pontuação";
   const importSubtitle = [title, className, max].filter(Boolean).join(", ");
 
-  let drawerTitle = isAssignment ? "Notas do trabalho" : "Notas da prova";
+  // o mesmo título do painel do evento aberto na aba Notas; o nome do evento vem logo abaixo, no subtítulo
+  let drawerTitle = "Notas da avaliação";
   let subtitle = (
     <>
       <span className="w-full font-semibold text-ink-2">{title}</span>
@@ -719,9 +752,9 @@ function useGradesPanel({
         <span className={cx("pill", statusMeta[eventStatus].pill)}>{statusMeta[eventStatus].label}</span>
       ) : null}
       {published ? (
-        <span className="pill st-conc">Notas publicadas</span>
+        <span className="pill stat stat-conc">Notas publicadas</span>
       ) : launched ? (
-        <span className="pill st-alt">Notas ocultas</span>
+        <span className="pill stat stat-alt">Notas ocultas</span>
       ) : null}
     </>
   );
@@ -760,7 +793,7 @@ function useGradesPanel({
   } else if (!data || !imports) {
     body = <PanelSkeleton />;
   } else if (view === "import") {
-    body = <GradeImportBody flow={flow} headingRef={headingRef} />;
+    body = <ImportPane flow={flow} headingRef={headingRef} />;
   } else if (view === "students") {
     body = (
       <StudentsView
@@ -814,6 +847,18 @@ function useGradesPanel({
     inSubView,
     back,
   };
+}
+
+/** Os passos da importação, com o espaço dos avisos no fim (no celular eles ficam sobre o fim do painel). */
+function ImportPane({ flow, headingRef }: { flow: GradeImportFlow; headingRef: RefObject<HTMLHeadingElement | null> }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const toastRoom = useToastClearance(rootRef);
+  return (
+    <div ref={rootRef}>
+      <GradeImportBody flow={flow} headingRef={headingRef} />
+      {toastRoom ? <div aria-hidden style={{ height: toastRoom }} /> : null}
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -884,18 +929,21 @@ function Overview({
   undoing: number | null;
   userId: number;
 }) {
-  const [allImports, setAllImports] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const importsTitleRef = useRef<HTMLHeadingElement>(null);
   const toastRoom = useToastClearance(rootRef);
   const { counts, event: info, students } = data;
   const launched = launchedCount(counts);
   const published = Boolean(info.gradesPublishedAt);
   const noPoints = info.maxScore === null;
-  // o rascunho em andamento fica no alto da lista e o aviso do topo traz o botão para continuar ali mesmo
-  const ordered = sortImports(imports);
+  // o rascunho em andamento fica no alto da lista e o aviso do topo traz o botão para continuar ali mesmo.
+  // O rascunho descartado não entra: nenhuma nota mudou com ele, então não é uma importação feita
+  const done = imports.filter((item) => item.status !== "discarded");
+  const ordered = sortImports(done);
   const drafts = ordered.filter((item) => item.status === "draft");
   const nextDraft = archived ? null : (drafts.find((item) => item.canApply) ?? null);
-  const shownImports = allImports ? ordered : ordered.slice(0, FIRST_IMPORTS);
+  // a lista cresce a cada importação: uma página de FIRST_IMPORTS por vez (nunca expande no lugar)
+  const importsPaged = usePaged(ordered, FIRST_IMPORTS, String(info.id));
   const kind = isAssignment ? "deste trabalho" : "desta prova";
 
   let callout;
@@ -950,7 +998,7 @@ function Overview({
       <p className="callout past">
         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         <span>
-          <b>Nenhuma nota lançada ainda.</b> {`Importe o arquivo com as notas ${kind} ou lance à mão em Ver notas.`}
+          <b>Nenhuma nota lançada ainda.</b> {`Importe a planilha com as notas ${kind} ou lance à mão em Ver notas.`}
         </span>
       </p>
     );
@@ -968,7 +1016,7 @@ function Overview({
 
   return (
     <div ref={rootRef} className="grid gap-4">
-      <h3 ref={headingRef} className="sr-only" tabIndex={-1}>
+      <h3 ref={headingRef} className="drawer-h3 sr-only" tabIndex={-1}>
         Situação das notas
       </h3>
       {archived ? (
@@ -994,7 +1042,7 @@ function Overview({
         <div>
           <button
             ref={publishRef}
-            className={cx(secondaryButton, "aria-disabled:opacity-55")}
+            className={cx("btn btn-g", "aria-disabled:opacity-55")}
             aria-busy={publishing || undefined}
             aria-disabled={publishing || undefined}
             onClick={onUnpublish}
@@ -1043,16 +1091,18 @@ function Overview({
               : "A turma ainda não tem alunos ativos."}
           </p>
         </div>
-        <button ref={studentsButtonRef} className="link min-h-6 shrink-0 text-[13.5px]" onClick={onSeeStudents} type="button">
-          {`Ver notas (${students.length})`}
+        <button ref={studentsButtonRef} className={cx(secondaryButton, "btn-sm shrink-0")} onClick={onSeeStudents} type="button">
+          {/* sem número: a linha ao lado já diz quantos têm nota ("0 com nota, 1 sem nota"), e "Ver notas 1" ao lado
+              da aba "Notas 0" parecia dizer que havia uma nota */}
+          Ver notas
         </button>
       </div>
 
       <section className="notas-docente-sec" aria-labelledby="notas-docente-importacoes">
         <div className="notas-docente-sec-h">
-          <h3 className="notas-docente-h3" id="notas-docente-importacoes">
-            {/* o número é o da lista toda (o mesmo do "Ver todas"), nunca "(0)" sobre itens na tela */}
-            Importações feitas {imports.length ? <span className="n">({imports.length})</span> : null}
+          <h3 ref={importsTitleRef} className="notas-docente-h3 drawer-h3 outline-none" id="notas-docente-importacoes" tabIndex={-1}>
+            {/* o número é o da lista toda (o mesmo do "Mostrando 1 a 3 de N"), nunca "0" sobre itens na tela */}
+            Importações feitas {done.length ? <span className="n">{done.length}</span> : null}
           </h3>
           {!archived ? (
             <button ref={importButtonRef} className={cx(secondaryButton, "btn-sm")} onClick={onImport} type="button">
@@ -1061,9 +1111,9 @@ function Overview({
             </button>
           ) : null}
         </div>
-        {imports.length ? (
+        {done.length ? (
           <ul className="grid gap-2.5">
-            {shownImports.map((item) => (
+            {importsPaged.items.map((item) => (
               <ImportItem
                 key={item.id}
                 archived={archived}
@@ -1090,12 +1140,7 @@ function Overview({
             }
           />
         )}
-        {imports.length > FIRST_IMPORTS ? (
-          <button className="link min-h-6 self-start" aria-expanded={allImports} onClick={() => setAllImports((value) => !value)} type="button">
-            {allImports ? "Mostrar menos" : `Ver todas (${imports.length})`}
-            {allImports ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
-          </button>
-        ) : null}
+        <Pager paged={importsPaged} noun={["importação", "importações"]} focusRef={importsTitleRef} />
       </section>
       {toastRoom ? <div aria-hidden style={{ height: toastRoom }} /> : null}
     </div>
@@ -1148,7 +1193,9 @@ function ImportItem({
           <span>{`${formatShortDateTime(when)}, ${gradeImportSourceLabels[item.source] ?? item.source}${by}`}</span>
           <span className={cx("pill", status.pill)}>{status.label}</span>
         </p>
-        <p className="notas-docente-imp-s wrap-anywhere">{`${item.fileName}: ${importTotalsText(item)}`}</p>
+        <p className="notas-docente-imp-s wrap-anywhere">
+          {`${item.fileName}: ${item.status === "discarded" ? "nenhuma nota mudou" : importTotalsText(item)}`}
+        </p>
         {item.status === "undone" && item.undoneAt ? (
           <p className="notas-docente-imp-s">{`Desfeita em ${formatShortDateTime(item.undoneAt)}. As notas voltaram ao valor de antes.`}</p>
         ) : null}
@@ -1251,14 +1298,14 @@ function StudentsView({
   return (
     <div ref={rootRef} className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 ref={headingRef} className="notas-docente-h3 outline-none" tabIndex={-1}>
-          Alunos <span className="n">({students.length})</span>
+        <h3 ref={headingRef} className="notas-docente-h3 drawer-h3 outline-none" tabIndex={-1}>
+          Alunos <span className="n">{students.length}</span>
         </h3>
         <Segmented label="Mostrar alunos">
-          <SegmentedButton active={filter === "all"} label={`Todos (${students.length})`} onClick={() => setFilter("all")} />
+          <SegmentedButton active={filter === "all"} label={`Todos ${students.length}`} onClick={() => setFilter("all")} />
           <SegmentedButton
             active={filter === "missing"}
-            label={`Sem nota (${missingNow.length})`}
+            label={`Sem nota ${missingNow.length}`}
             onClick={() => {
               setMissingIds(missingNow.map((item) => item.studentId));
               setFilter("missing");

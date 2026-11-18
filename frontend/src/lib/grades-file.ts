@@ -219,7 +219,7 @@ function sheetFromRecords(records: string[][]): Pick<ParsedSheet, "headers" | "r
   const headers = uniqueHeaders(records[headerIndex], width);
   if (headers.length < 2) {
     throw new GradesFileError(
-      "A planilha tem uma coluna só. Ela precisa de uma coluna para o aluno (e-mail ou matrícula) e outra para a nota."
+      "A planilha tem uma coluna só. Ela precisa de uma coluna para o aluno (nome, e-mail ou matrícula) e outra para a nota."
     );
   }
   return { headers, rows: dataRecords };
@@ -308,9 +308,12 @@ export async function readGradesFile(file: File): Promise<GradesFile> {
 /* Colunas                                                             */
 /* ------------------------------------------------------------------ */
 
-/** Colunas escolhidas na tela (nameColumn vazio: sem coluna de nome). */
+/** Como a importação acha o aluno: pelo e-mail da conta, pela matrícula ou pelo nome completo. */
+export type IdentifierType = GradeImportMapping["identifierType"];
+
+/** Colunas escolhidas na tela (nameColumn vazio: sem coluna de nome; no tipo "name" o nome já é o aluno). */
 export type ColumnChoice = {
-  identifierType: "email" | "registration";
+  identifierType: IdentifierType;
   identifierColumn: string;
   scoreColumn: string;
   nameColumn: string;
@@ -330,7 +333,7 @@ function headerKey(value: string) {
 const emailWords = ["email", "e mail", "correio"];
 const registrationWords = ["matricula", "prontuario", "registro academico", "ra", "codigo do aluno", "id do aluno"];
 const scoreWords = ["nota", "media", "pontuacao", "pontos", "score", "grade", "resultado", "total"];
-const nameWords = ["nome", "aluno", "estudante", "name", "discente"];
+const nameWords = ["nome completo", "nome do aluno", "nome", "aluno", "estudante", "discente", "name"];
 
 function findHeader(headers: string[], words: string[], exclude: string[] = []) {
   const keys = headers.map(headerKey);
@@ -389,6 +392,25 @@ function looksLikeScores(sheet: ParsedSheet, header: string) {
   return values.length > 0 && values.filter(looksLikeScore).length >= values.length / 2;
 }
 
+/** A palavra aparece no nome da coluna (as curtas, como "ra", só como palavra inteira). */
+const hasWord = (key: string, word: string) => (word.length > 2 ? key.includes(word) : key.split(" ").includes(word));
+
+/**
+ * Coluna com o nome dos alunos ("Aluno", "Nome", "Estudante", "Nome completo"), com dados neste arquivo. Fica de
+ * fora a coluna de e-mail ou de matrícula ("E-mail do aluno", "Código do aluno"), o "Sobrenome" do Moodle e a que
+ * tem e-mails ou notas.
+ */
+function findNameColumn(sheet: ParsedSheet, exclude: string[] = []) {
+  const candidates = sheet.headers.filter((header) => {
+    if (exclude.includes(header)) return false;
+    const key = headerKey(header);
+    if (key.includes("sobrenome")) return false;
+    if (emailWords.some((word) => hasWord(key, word)) || registrationWords.some((word) => hasWord(key, word))) return false;
+    return columnHasData(sheet, header) && !looksLikeEmails(sheet, header) && !looksLikeScores(sheet, header);
+  });
+  return findHeader(candidates, nameWords);
+}
+
 /**
  * A coluna da nota, nesta ordem:
  * 1. a que tem o nome da avaliação ("Tarefa:Prova 1 (Real)" para a "Prova 1 de Matemática");
@@ -426,29 +448,59 @@ function guessScoreColumn(sheet: ParsedSheet, identifierColumn: string, titleHin
 
 /**
  * Palpite das colunas pelo nome do cabeçalho e pelo conteúdo (coluna com @ é e-mail; a nota pela regra de
- * guessScoreColumn). Sem `preferredType`, o aluno é achado pela coluna que tem dados no arquivo (o e-mail primeiro).
+ * guessScoreColumn). Sem `preferredType`, o aluno é achado pela coluna que tem dados no arquivo, nesta ordem: o
+ * e-mail, a matrícula e, por último, o nome (a planilha de outro sistema que só traz o nome e a nota). Sem
+ * nenhuma delas, o palpite é o nome (a planilha sem e-mail nem matrícula).
  * `titleHint` é o título da avaliação, para achar a coluna dela num arquivo com várias.
  */
-export function guessColumns(
-  sheet: ParsedSheet,
-  preferredType?: "email" | "registration",
-  titleHint?: string
-): ColumnChoice {
+export function guessColumns(sheet: ParsedSheet, preferredType?: IdentifierType, titleHint?: string): ColumnChoice {
   const { headers } = sheet;
   let email = findHeader(headers, emailWords);
   if (!email || !columnHasData(sheet, email)) {
     email = headers.find((header) => looksLikeEmails(sheet, header)) ?? email;
   }
   const registration = findHeader(headers, registrationWords, email ? [email] : []);
+  const ids = [email, registration].filter(Boolean);
+  const name = findNameColumn(sheet, ids) || findHeader(headers, nameWords, ids);
   const emailFilled = columnHasData(sheet, email);
   const registrationFilled = columnHasData(sheet, registration);
-  const identifierType =
+  const nameFilled = columnHasData(sheet, name);
+  const identifierType: IdentifierType =
     preferredType ??
-    (emailFilled ? "email" : registrationFilled ? "registration" : email ? "email" : registration ? "registration" : "email");
-  const identifierColumn = identifierType === "email" ? email || registration : registration || email;
+    (emailFilled
+      ? "email"
+      : registrationFilled
+        ? "registration"
+        : nameFilled
+          ? "name"
+          : email
+            ? "email"
+            : registration
+              ? "registration"
+              : "name");
+  const identifierColumn =
+    identifierType === "name" ? name : identifierType === "email" ? email || registration : registration || email;
   const scoreColumn = guessScoreColumn(sheet, identifierColumn, titleHint);
-  const nameColumn = findHeader(headers, nameWords, [identifierColumn, scoreColumn]);
+  // pelo nome, a coluna do nome já é a do aluno; nos outros, ela fica só para conferir
+  const nameColumn = identifierType === "name" || name === scoreColumn ? "" : name;
   return { identifierType, identifierColumn, scoreColumn, nameColumn };
+}
+
+/**
+ * O que falta para conferir as notas sem perguntar as colunas: "ok" (a coluna do aluno e a da nota têm dados),
+ * "student" (não achou a coluna do aluno), "score" (não achou a da nota) ou "empty-score" (a coluna da nota está
+ * vazia e nenhuma outra tem notas: a planilha da turma baixada e ainda não preenchida).
+ */
+export function columnsVerdict(sheet: ParsedSheet, choice: ColumnChoice): "ok" | "student" | "score" | "empty-score" {
+  if (!columnHasData(sheet, choice.identifierColumn)) return "student";
+  if (!choice.scoreColumn || choice.scoreColumn === choice.identifierColumn) return "score";
+  if (!columnHasData(sheet, choice.scoreColumn)) {
+    const other = sheet.headers.some(
+      (header) => header !== choice.identifierColumn && header !== choice.scoreColumn && looksLikeScores(sheet, header)
+    );
+    return other ? "score" : "empty-score";
+  }
+  return "ok";
 }
 
 /**
@@ -460,13 +512,17 @@ export function fitColumns(sheet: ParsedSheet, saved: GradeImportMapping | null,
   if (!saved) return auto;
   const has = (column?: string | null) => Boolean(column) && sheet.headers.includes(column as string);
   const filled = (column?: string | null) => columnHasData(sheet, column);
-  // a coluna serve para o tipo: a do e-mail tem @; a da matrícula, não
-  const fitsType = (column: string, type: ColumnChoice["identifierType"]) =>
+  // a coluna serve para o tipo: a do e-mail tem @; a da matrícula e a do nome, não
+  const fitsType = (column: string, type: IdentifierType) =>
     filled(column) && looksLikeEmails(sheet, column) === (type === "email");
 
   let identifierType = saved.identifierType;
   let identifierColumn = saved.identifierColumn;
-  if (!filled(identifierColumn)) {
+  if (saved.identifierType === "name" && auto.identifierType !== "name") {
+    // o nome foi a saída da última planilha; esta tem e-mail ou matrícula, que acham o aluno com mais certeza
+    identifierType = auto.identifierType;
+    identifierColumn = auto.identifierColumn;
+  } else if (!filled(identifierColumn)) {
     const sameType = guessColumns(sheet, saved.identifierType).identifierColumn;
     if (sameType && fitsType(sameType, saved.identifierType)) {
       identifierColumn = sameType;
@@ -484,9 +540,12 @@ export function fitColumns(sheet: ParsedSheet, saved: GradeImportMapping | null,
   const scoreColumn =
     scoreOptions.find((column) => filled(column)) ?? scoreOptions.find((column) => has(column)) ?? "";
 
-  const nameColumn = [saved.nameColumn, auto.nameColumn].find(
-    (column): column is string => Boolean(column) && filled(column) && column !== identifierColumn && column !== scoreColumn
-  );
+  const nameColumn =
+    identifierType === "name"
+      ? undefined
+      : [saved.nameColumn, auto.nameColumn, findNameColumn(sheet, [identifierColumn, scoreColumn])].find(
+          (column): column is string => Boolean(column) && filled(column) && column !== identifierColumn && column !== scoreColumn
+        );
   return { identifierType, identifierColumn, scoreColumn, nameColumn: nameColumn ?? "" };
 }
 
@@ -496,7 +555,7 @@ export function toMapping(choice: ColumnChoice): GradeImportMapping {
     identifierType: choice.identifierType,
     identifierColumn: choice.identifierColumn,
     scoreColumn: choice.scoreColumn,
-    nameColumn: choice.nameColumn || null,
+    nameColumn: choice.identifierType === "name" ? null : choice.nameColumn || null,
   };
 }
 
@@ -507,7 +566,11 @@ export function toMapping(choice: ColumnChoice): GradeImportMapping {
 export function buildImportRows(sheet: ParsedSheet, choice: ColumnChoice): GradeImportRowInput[] {
   const idIndex = sheet.headers.indexOf(choice.identifierColumn);
   const scoreIndex = sheet.headers.indexOf(choice.scoreColumn);
-  const nameIndex = choice.nameColumn ? sheet.headers.indexOf(choice.nameColumn) : -1;
+  // pelo nome, a coluna do aluno já é o nome: não vai de novo como "name"
+  const nameIndex =
+    choice.nameColumn && choice.identifierType !== "name" && choice.nameColumn !== choice.identifierColumn
+      ? sheet.headers.indexOf(choice.nameColumn)
+      : -1;
   const rows: GradeImportRowInput[] = [];
   for (const row of sheet.rows) {
     const identifier = row.cells[idIndex] ?? "";
@@ -544,7 +607,7 @@ export function loadSavedMapping(): GradeImportMapping | null {
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<GradeImportMapping>;
     if (
-      (value.identifierType === "email" || value.identifierType === "registration") &&
+      (value.identifierType === "email" || value.identifierType === "registration" || value.identifierType === "name") &&
       typeof value.identifierColumn === "string" &&
       typeof value.scoreColumn === "string"
     ) {
@@ -632,9 +695,9 @@ export function templateHeaders(students: TemplateStudent[], maxScoreText?: stri
 }
 
 /**
- * Planilha modelo da avaliação: na primeira aba, a turma e os alunos ativos (em ordem alfabética) com a nota em
- * branco para preencher; na segunda, a avaliação e como preencher. O aluno é achado pelo e-mail da conta, e a
- * matrícula só entra quando a lista traz alguma (a administração).
+ * Planilha da turma: na primeira aba, a turma e os alunos ativos (em ordem alfabética) com a nota em branco para
+ * preencher; na segunda, a avaliação e como preencher. A Agenda acha o aluno sozinha pelo e-mail que já vem
+ * preenchido (a docente nunca digita e-mail), e a matrícula só entra quando a lista traz alguma (a administração).
  */
 export async function downloadTemplate(info: GradeEventInfo, students: TemplateStudent[]) {
   const headers = templateHeaders(students, info.maxScoreText);
@@ -665,8 +728,8 @@ export async function downloadTemplate(info: GradeEventInfo, students: TemplateS
     [{ value: "Como preencher", fontWeight: "bold" as const, fontSize: 13 }],
     ["1. Na aba Notas, escreva a nota de cada aluno na coluna amarela. Vale vírgula ou ponto: 7,5."],
     ["2. Quem não fez a avaliação fica com a nota em branco."],
-    ["3. Não mude a coluna E-mail: é por ela que a Agenda acha cada aluno."],
-    ["4. Salve a planilha e importe em Notas, na avaliação, com Importar notas."],
+    ["3. Você só escreve as notas: a Agenda acha cada aluno sozinha, pelos dados que já vêm na planilha."],
+    ["4. Salve a planilha e envie em Notas, na avaliação, com Importar notas. Antes de gravar, você confere tudo."],
   ];
   await downloadXlsx(`notas-${fileSlug(className || "turma")}-${fileSlug(info.title)}.xlsx`, [
     {
@@ -689,7 +752,7 @@ export async function downloadRejected(
   kindLabel: (row: GradeImportRow) => string,
   reason: (row: GradeImportRow) => string = (row) => row.message ?? ""
 ) {
-  const headers = ["Linha", "Situação", "E-mail ou matrícula", "Nome na planilha", "Nota na planilha", "Aluno encontrado", "Motivo"];
+  const headers = ["Linha", "Situação", "Aluno na planilha", "Nome na planilha", "Nota na planilha", "Aluno encontrado", "Motivo"];
   await downloadXlsx(fileName, [
     {
       sheet: "Rejeitadas",

@@ -2,28 +2,48 @@
 
 import {
   AlertTriangle,
+  ArrowRight,
+  CalendarCheck,
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   CircleCheckBig,
   Clock,
   CloudDownload,
+  ExternalLink,
   FileText,
   FileUp,
   History,
+  Info,
+  Landmark,
+  ListChecks,
   Loader2,
   Lock,
-  ShieldCheck,
+  Search,
   Undo2,
+  X,
   type LucideIcon,
 } from "lucide-react";
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ApiError, type CalendarImportEventInput, type CalendarImportInput, type CalendarPdfResult } from "@/lib/api";
-import { cx, errorMessage, formatOnDayAt, formatShortDate, formatShortDateTime, formatTime, startOfDay } from "@/lib/format";
+import { cx, errorMessage, formatOnDayAt, formatShortDate, formatShortDateTime, formatTime, monthGroupLabel, startOfDay } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, CalendarImport, Category } from "@/lib/types";
+import { useAppActions } from "./app-actions";
 import { delay, isOfficialDate, officialCategories } from "./dashboard-bits";
-import { useSideFit } from "./reminders-view";
-import { ConfirmDialog, EmptyState, type ConfirmState } from "./ui";
+import { MonthPagerFooter, MonthStrip, type MonthChip } from "./month-pager";
+import { Pager, usePaged } from "./pager";
+import {
+  ConfirmDialog,
+  Drawer,
+  EmptyState,
+  dangerButton,
+  iconButton,
+  primaryButton,
+  secondaryButton,
+  type ConfirmState,
+} from "./ui";
 
 /** O que a importação devolve: os eventos criados e o registro da importação. */
 export type ImportResult = { import?: CalendarImport | null; events: AcademicEvent[] };
@@ -118,24 +138,6 @@ function isOfficial(event: AcademicEvent) {
 
 function sameDayKey(title: string, date: Date) {
   return `${normalize(title)}|${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-
-/** "qui, 20/11" ou "qui, 20/11, 19:00" (meia-noite e 23:59 contam como dia todo). */
-function shortWhen(date: Date) {
-  const day = `${weekdays[date.getDay()]}, ${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
-  const minutes = date.getHours() * 60 + date.getMinutes();
-  return minutes === 0 || minutes === 23 * 60 + 59 ? day : `${day}, ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function rangeLabel(start: Date, end: Date | null) {
-  if (!end || end.getTime() === start.getTime()) {
-    return shortWhen(start);
-  }
-  const sameDay = startOfDay(start).getTime() === startOfDay(end).getTime();
-  if (sameDay) {
-    return `${shortWhen(start)} até ${pad(end.getHours())}:${pad(end.getMinutes())}`;
-  }
-  return `${shortWhen(start)} até ${shortWhen(end)}`;
 }
 
 function datesLabel(count: number) {
@@ -501,69 +503,336 @@ function originOf(item: CalendarImport) {
   return { text: "PDF", mono: false };
 }
 
-/** Situação da importação: desfeita quando trouxe datas e nenhuma está mais no calendário. */
+/** Situação da importação (etiqueta com fundo): desfeita quando trouxe datas e nenhuma está mais no calendário. */
 function importState(item: CalendarImport, current: number) {
   if (item.status === "failed") {
-    return { label: "Falhou", pill: "st-canc" };
+    return { label: "Falhou", pill: "stat stat-canc" };
   }
   if (!current && item.totalEvents > 0) {
-    return { label: "Desfeita", pill: "st-ag" };
+    return { label: "Desfeita", pill: "stat" };
   }
-  return { label: "Concluída", pill: "st-conc" };
+  return { label: "Concluída", pill: "stat stat-conc" };
 }
 
-/** Indicador do alto, como no Figma: rótulo, valor curto e dica. */
+/** "Novembro" no ano corrente, "Janeiro de 2027" fora dele (decisão 2, igual às outras telas). */
+function monthLabel(date: Date) {
+  return monthGroupLabel(date);
+}
+
+type Dated = { start: Date; end: Date | null };
+type MonthGroup<T> = { key: string; label: string; items: T[] };
+
+/** Agrupa por mês do início, em ordem de data (a ordem do arquivo vale no empate). */
+function groupByMonth<T extends Dated>(items: T[]): MonthGroup<T>[] {
+  const groups: MonthGroup<T>[] = [];
+  for (const item of [...items].sort((a, b) => a.start.getTime() - b.start.getTime())) {
+    const key = `${item.start.getFullYear()}-${pad(item.start.getMonth() + 1)}`;
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) {
+      last.items.push(item);
+    } else {
+      groups.push({ key, label: monthLabel(item.start), items: [item] });
+    }
+  }
+  return groups;
+}
+
+const dayMonth = (date: Date) => `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+
+/** Horário que vale mostrar: meia-noite e 23:59 contam como dia todo. */
+function clockOf(date: Date) {
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  return minutes === 0 || minutes === 23 * 60 + 59 ? null : `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * Bloco de data das linhas: "01/01" em cima e "sex" embaixo; período no mesmo mês vira "11 a 15/01" e
+ * "seg a sex"; com horário, "qui, 19:00". Término à meia-noite não conta o dia (como no cronograma).
+ */
+function dateBlock(start: Date, end: Date | null) {
+  const weekday = weekdays[start.getDay()];
+  const last = end && end.getTime() > start.getTime() && end.getHours() === 0 && end.getMinutes() === 0 ? new Date(end.getTime() - 1) : end;
+  if (!last || startOfDay(last).getTime() === startOfDay(start).getTime()) {
+    const from = clockOf(start);
+    const to = last && last.getTime() !== start.getTime() ? clockOf(last) : null;
+    const time = from ? (to ? `${from} a ${to}` : from) : null;
+    return { main: dayMonth(start), sub: time ? `${weekday}, ${time}` : weekday };
+  }
+  const sameMonth = start.getMonth() === last.getMonth() && start.getFullYear() === last.getFullYear();
+  // período que cruza o mês: "31/05 a" e "05/06" em dois pedaços, para quebrar só entre eles na coluna estreita
+  return sameMonth
+    ? { main: `${pad(start.getDate())} a ${dayMonth(last)}`, sub: `${weekday} a ${weekdays[last.getDay()]}` }
+    : { main: `${dayMonth(start)} a`, mainTo: dayMonth(last), sub: `${weekday} a ${weekdays[last.getDay()]}` };
+}
+
+const monthShort = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+/** Chave "2027-02" a partir do índice da faixa de meses (ano * 12 + mês). */
+function monthKeyOf(index: number) {
+  return `${Math.floor(index / 12)}-${pad((index % 12) + 1)}`;
+}
+
+/** Faixa de meses ("jan 2", "fev 10") a partir dos grupos da lista. */
+function monthChips<T>(groups: MonthGroup<T>[], active: string | null, now: number): MonthChip[] {
+  const today = new Date(now);
+  return groups.map((group) => {
+    const [year, month] = group.key.split("-").map(Number);
+    return {
+      index: year * 12 + month - 1,
+      year,
+      short: monthShort[month - 1],
+      count: group.items.length,
+      label: `${group.label}, ${datesLabel(group.items.length)}`,
+      dots: [],
+      active: group.key === active,
+      now: year === today.getFullYear() && month - 1 === today.getMonth(),
+    };
+  });
+}
+
+/** O primeiro dos dois que está à vista (a aba no computador, a lista de escolha no celular). */
+function visibleOf(first: RefObject<HTMLElement | null>, second: RefObject<HTMLElement | null>): RefObject<HTMLElement | null> {
+  return {
+    get current() {
+      const element = first.current;
+      return element && element.getClientRects().length ? element : second.current;
+    },
+  };
+}
+
+/** Mês vizinho no pé da lista: "Próximo mês, Fevereiro de 2027, 10 datas". */
+function pagerTarget<T>(group: MonthGroup<T>, go: (key: string) => void) {
+  return { title: group.label, count: datesLabel(group.items.length), onGo: () => go(group.key) };
+}
+
+/** Área que rola acima do elemento (a lista no computador; o corpo do painel no celular). */
+function scrollerOf(element: HTMLElement) {
+  let node = element.parentElement;
+  while (node) {
+    if (/(auto|scroll)/.test(getComputedStyle(node).overflowY) && node.scrollHeight > node.clientHeight + 1) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Troca de mês: o começo do mês novo vai para o alto da área que rola quando ficou acima da vista (ou sempre,
+ * com `force`, quando a troca veio do pé da lista) e, com `focus`, o título do mês recebe o foco.
+ */
+function useMonthReveal(key: string | null, sectionRef: RefObject<HTMLElement | null>, headRef: RefObject<HTMLElement | null>) {
+  const pending = useRef<{ force: boolean; focus: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const ask = pending.current;
+    const section = sectionRef.current;
+    pending.current = null;
+    if (!ask || !section) {
+      return;
+    }
+    const scroller = scrollerOf(section);
+    if (scroller) {
+      const delta = section.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      if (ask.force ? Math.abs(delta) > 1 : delta < 0) {
+        scroller.scrollTop += delta;
+      }
+    }
+    if (ask.focus) {
+      headRef.current?.focus({ preventScroll: true });
+    }
+  }, [key, sectionRef, headRef]);
+  return (ask: { force: boolean; focus: boolean }) => {
+    pending.current = ask;
+  };
+}
+
+/** "hoje, às 21:11", "ontem, às 21:11" ou "na terça, 17/11, às 17:00" (o mesmo texto do Painel). */
+function atLabel(value: string, now: number) {
+  return formatOnDayAt(value, now);
+}
+
+/** Quantas datas de cada categoria, da mais comum para a menos comum. */
+function countByCategory(list: Array<{ category: Category }>) {
+  const counts = new Map<Category, number>();
+  for (const item of list) {
+    counts.set(item.category, (counts.get(item.category) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+/** Indicador do alto: rótulo e ícone, número (ou palavra curta) forte e dica. */
 function ImportTile({
   hint,
+  hintShort,
   icon: Icon,
   label,
   order,
+  text,
   tone,
+  unit,
   value,
 }: {
   hint: string;
-  icon?: LucideIcon;
+  /** Dica curta do celular estreito (abaixo de 420px), onde a longa ocupava 3 a 5 linhas no indicador. */
+  hintShort?: string;
+  icon: LucideIcon;
   label: string;
   order: number;
+  /** Valor em palavra ("Hoje", "Em dia"): um pouco menor que o número, para caber numa linha. */
+  text?: boolean;
   tone?: "ok" | "warn";
+  unit?: string;
   value: string;
 }) {
   return (
     <div className={cx("card kpi rise", tone && `imp-kpi-${tone}`)} style={delay(order)}>
-      <p className="kpi-label">{label}</p>
-      <p className="imp-kpi-val">
-        {Icon ? <Icon className="h-[22px] w-[22px] shrink-0" aria-hidden /> : null}
+      <div className="kpi-top">
+        <p className="kpi-label">{label}</p>
+        <span className="kpi-ico" aria-hidden>
+          <Icon className="h-[18px] w-[18px]" />
+        </span>
+      </div>
+      <p className={cx("kpi-val", text ? "imp-kpi-txt" : "imp-kpi-num")}>
         {value}
+        {unit ? <small> {unit}</small> : null}
       </p>
-      <p className="kpi-hint wrap-anywhere">{hint}</p>
+      {hintShort ? (
+        <p className="kpi-hint wrap-anywhere">
+          <span className="imp-hint-long">{hint}</span>
+          <span className="imp-hint-short">{hintShort}</span>
+        </p>
+      ) : (
+        <p className="kpi-hint wrap-anywhere">{hint}</p>
+      )}
     </div>
   );
 }
 
-function DateList({ items }: { items: Array<{ key: string | number; title: string; category: Category; start: Date; end: Date | null }> }) {
+/** Caixa do mês: marca ou desmarca o mês inteiro; com parte marcada, mostra o traço de "algumas". */
+function MonthCheck({
+  disabled,
+  label,
+  onChange,
+  state,
+}: {
+  disabled?: boolean;
+  label: string;
+  onChange: (value: boolean) => void;
+  state: "all" | "some" | "none";
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.indeterminate = state === "some";
+    }
+  }, [state]);
   return (
-    <ul className="grid grid-cols-1 gap-1.5">
-      {items.map((item) => {
-        const meta = categoryMeta[item.category];
-        return (
-          <li key={item.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-surface-2 px-3 py-2 text-sm">
-            <span className="min-w-0 flex-1 basis-40 font-bold text-ink wrap-anywhere">{item.title}</span>
-            <span className="text-ink-3">{rangeLabel(item.start, item.end)}</span>
-            {meta ? <span className={cx("pill", meta.tint)}>{meta.short}</span> : null}
-          </li>
-        );
-      })}
-    </ul>
+    <input
+      ref={ref}
+      type="checkbox"
+      className="imp-check"
+      aria-label={label}
+      checked={state === "all"}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.checked)}
+    />
+  );
+}
+
+function DateCell({ start, end }: Dated) {
+  const block = dateBlock(start, end);
+  return (
+    <span className="imp-date">
+      <b>
+        <span>{block.main}</span>
+        {block.mainTo ? (
+          <>
+            {" "}
+            <span>{block.mainTo}</span>
+          </>
+        ) : null}
+      </b>
+      <small>{block.sub}</small>
+    </span>
+  );
+}
+
+/** Busca dos painéis: filtra pelo título; Esc com texto limpa a busca (e não fecha o painel). */
+function DateSearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="imp-search">
+      <Search className="imp-search-ico" aria-hidden />
+      <input
+        className="input"
+        aria-label="Buscar data pelo nome"
+        autoComplete="off"
+        placeholder="Buscar"
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && value) {
+            event.preventDefault();
+            onChange("");
+          }
+        }}
+      />
+    </label>
   );
 }
 
 const byStart = (a: AcademicEvent, b: AcademicEvent) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
 
-/** Quantas importações a tabela mostra antes do "Ver todas (N)". */
-const IMPORTS_PREVIEW = 5;
+/** Importações por página no histórico. */
+const IMPORTS_PAGE = 8;
 
 /** PDF de exemplo (Calendário Acadêmico 2027, Campus Três Lagoas), para ver a importação na demonstração. */
 const SAMPLE_PDF_URL = "/exemplos/calendario-academico-2027.pdf";
+
+/**
+ * Filtros do painel Conferir datas. Nenhum depende do que está marcado: a faixa não muda de tamanho enquanto a
+ * pessoa marca, e a linha não some da lista ao ser desmarcada.
+ */
+type ReviewFilter = "new" | "all" | "staff" | "existing" | "file" | "past";
+
+const reviewFilters: Array<{ id: ReviewFilter; label: string }> = [
+  { id: "new", label: "Novas" },
+  { id: "existing", label: "Já existem" },
+  { id: "staff", label: "Só de servidores" },
+  { id: "file", label: "Repetidas no arquivo" },
+  { id: "past", label: "Passadas" },
+  { id: "all", label: "Todas" },
+];
+
+/**
+ * Filtro com que a conferência abre: sem repetidas, todas; com repetidas, as novas; se só sobraram as de
+ * servidores, essas (são as únicas que ainda dá para marcar); se tudo já existe, todas (a aba "Já existem" seria a
+ * mesma lista).
+ */
+function firstFilter(rows: PreviewRow[], staff: ReadonlySet<number>): ReviewFilter {
+  if (!rows.some((row) => row.duplicate === "existing")) {
+    return "all";
+  }
+  if (rows.some((row) => row.duplicate === null && !staff.has(row.index))) {
+    return "new";
+  }
+  if (rows.some((row) => staff.has(row.index) && row.duplicate !== "existing")) {
+    return "staff";
+  }
+  return rows.every((row) => row.duplicate === "existing") ? "all" : "existing";
+}
+
+/** Filtro do painel só de leitura: todas, uma categoria ou as que já passaram. */
+type ViewFilter = "all" | "past" | Category;
+
+/** Importação aberta no painel só de leitura (do histórico ou do card de sucesso). */
+type ViewTarget = {
+  importId: number | null;
+  sourceName: string;
+  importedAt: string;
+  /** Datas de reserva, quando a importação não tem id (resposta antiga da API). */
+  fallback: AcademicEvent[];
+};
 
 export function SyncView({
   events,
@@ -587,9 +856,8 @@ export function SyncView({
   incomingPdf?: { file: File; id: number } | null;
   /** Não é mais usado: a demonstração agora lê o PDF de exemplo. Fica para a página não precisar mudar. */
   demoPayload?: CalendarImportInput;
-  /** Importa e devolve o resultado; o texto colado só é limpo quando der certo. */
+  /** Importa e devolve o resultado; a leitura só é descartada quando der certo. */
   onImport?: (payload: CalendarImportInput) => Promise<ImportOutcome>;
-  /** Apaga os eventos criados por uma importação. */
   /** Desfaz a importação `importId` (as `ids` servem de reserva quando a importação não tem id). */
   onUndoImport?: (importId: number | null, ids: number[]) => Promise<boolean | void>;
   onOpenCalendar?: (filter?: { categories?: Category[] }) => void;
@@ -597,62 +865,134 @@ export function SyncView({
   onImportJson?: (payload: CalendarImportInput) => void;
 }) {
   const baseId = useId();
-  const demoTitleId = `${baseId}-demo`;
-  const pdfTitleId = `${baseId}-pdf`;
-  const pdfHintId = `${baseId}-pdf-dica`;
+  const cardTitleId = `${baseId}-importar`;
+  const dropTitleId = `${baseId}-soltar`;
+  const dropHintId = `${baseId}-soltar-dica`;
+  const sampleTitleId = `${baseId}-exemplo`;
+  const stepsTitleId = `${baseId}-passos`;
   const resultTitleId = `${baseId}-resultado`;
-  const accessId = `${baseId}-acesso`;
-  const prioId = `${baseId}-prioridade`;
-  const fieldsId = `${baseId}-campos`;
   const histId = `${baseId}-historico`;
   const restrictedId = `${baseId}-restrito`;
 
+  // leitura do PDF: o JSON fica só por dentro e passa pela mesma validação de sempre
   const [text, setText] = useState("");
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  // aviso "Este calendário já está no sistema" aberto no celular (no computador o texto fica sempre à vista)
+  const [upToDateOpen, setUpToDateOpen] = useState(false);
   const [picked, setPicked] = useState<Record<string, boolean>>({});
+  // posições (no arquivo) dos assuntos só de servidores (PIT, RAD, diários): vêm desmarcados
+  const [staffRows, setStaffRows] = useState<ReadonlySet<number>>(() => new Set());
+  const [readFile, setReadFile] = useState<string | null>(null);
+  // filtro, busca e mês à vista no painel Conferir datas (null: o primeiro mês da lista)
+  const [filter, setFilter] = useState<ReviewFilter>("all");
+  const [reviewQuery, setReviewQuery] = useState("");
+  const [reviewMonth, setReviewMonth] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<LastResult | null>(null);
-  const [openImportId, setOpenImportId] = useState<number | null>(null);
+  const [viewing, setViewing] = useState<ViewTarget | null>(null);
+  const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
+  const [viewQuery, setViewQuery] = useState("");
+  // mês à vista no painel só de leitura (null: o primeiro mês com data à frente)
+  const [viewMonth, setViewMonth] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [resultFocus, setResultFocus] = useState(0);
-  const [previewFocus, setPreviewFocus] = useState(0);
   // horário de referência fixado na montagem (render precisa ser puro)
   const [now] = useState(() => Date.now());
-  // "Ver todas (N)": a tabela mostra as últimas importações e abre o resto ali mesmo
-  const [showAllImports, setShowAllImports] = useState(false);
+  const { toast } = useAppActions();
 
   const [pdfReading, setPdfReading] = useState(false);
   // baixando o PDF de exemplo (depois a leitura segue como a de qualquer PDF)
   const [sampleLoading, setSampleLoading] = useState(false);
   const [pdfDragging, setPdfDragging] = useState(false);
-  const [pdfNote, setPdfNote] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
   const handledPdf = useRef<number | null>(null);
 
+  const cardRef = useRef<HTMLElement>(null);
   const resultRef = useRef<HTMLElement>(null);
-  const previewRef = useRef<HTMLHeadingElement>(null);
+  const filterChipRef = useRef<HTMLButtonElement>(null);
+  const viewChipRef = useRef<HTMLButtonElement>(null);
+  const filterSelectRef = useRef<HTMLSelectElement>(null);
+  const viewSelectRef = useRef<HTMLSelectElement>(null);
+  // foco de quando o painel abre: a aba escolhida; no celular as abas viram a lista de escolha
+  const [reviewEntryRef] = useState(() => visibleOf(filterChipRef, filterSelectRef));
+  const [viewEntryRef] = useState(() => visibleOf(viewChipRef, viewSelectRef));
   const rowButtons = useRef(new Map<number, HTMLButtonElement>());
   const focusAfterConfirm = useRef<HTMLElement | null>(null);
-  const moreImportsRef = useRef<HTMLButtonElement>(null);
-  // tabela que acabou de abrir (com a primeira importação que apareceu) ou de fechar
-  const importsToggled = useRef<{ firstNew: number | null } | null>(null);
-  // a coluna lateral termina junto da principal (ou fica parada no alto, se ela for bem mais alta)
-  const mainColRef = useRef<HTMLDivElement>(null);
-  const { sideRef, gapRef, stuck } = useSideFit(mainColRef, isAdmin);
+  const histHeadRef = useRef<HTMLHeadingElement>(null);
+  const reviewSectionRef = useRef<HTMLElement>(null);
+  const reviewHeadRef = useRef<HTMLHeadingElement>(null);
+  const viewSectionRef = useRef<HTMLElement>(null);
+  const viewHeadRef = useRef<HTMLHeadingElement>(null);
+  const markAllRef = useRef<HTMLButtonElement>(null);
+  const unmarkAllRef = useRef<HTMLButtonElement>(null);
+  // "Marcar todas" ou "Desmarcar todas" que acabou de sumir: o foco vai para o outro botão (ou para o filtro)
+  const bulkFocus = useRef<boolean | null>(null);
 
   const busy = importing || saving;
   const check = useMemo(() => validateImport(text, events, now), [text, events, now]);
   const rows = check.status === "ok" ? check.rows : [];
-  const isPicked = (row: PreviewRow) => picked[row.key] ?? row.duplicate === null;
+  // a data que já está no calendário não entra de novo (a API descarta): a caixa dela fica travada
+  const pickable = (row: PreviewRow) => row.duplicate !== "existing";
+  const isPicked = (row: PreviewRow) =>
+    pickable(row) && (picked[row.key] ?? (row.duplicate === null && !staffRows.has(row.index)));
   const chosen = rows.filter(isPicked);
-  const duplicates = rows.filter((row) => row.duplicate !== null).length;
+  const pickableCount = rows.filter(pickable).length;
   const pastChosen = chosen.filter((row) => row.past).length;
   const canImport = check.status === "ok" && chosen.length > 0;
 
+  const matches = (id: ReviewFilter, row: PreviewRow) => {
+    switch (id) {
+      // novas de verdade: as que vêm marcadas (as de servidores ficam na aba delas)
+      case "new":
+        return row.duplicate === null && !staffRows.has(row.index);
+      case "staff":
+        return staffRows.has(row.index);
+      case "existing":
+        return row.duplicate === "existing";
+      case "file":
+        return row.duplicate === "file";
+      case "past":
+        return row.past;
+      default:
+        return true;
+    }
+  };
+  // Conferir datas: o filtro e a busca valem para o ano todo; a lista mostra um mês por vez (na busca, os meses com resultado)
+  const reviewQ = normalize(reviewQuery);
+  const filteredRows = rows.filter((row) => matches(filter, row));
+  const visibleRows = reviewQ ? filteredRows.filter((row) => normalize(row.title).includes(reviewQ)) : filteredRows;
+  // busca sem nada neste filtro: quantas ela acha nas outras datas (o vazio oferece "Ver em Todas")
+  const foundElsewhere =
+    reviewQ && !visibleRows.length && filter !== "all" ? rows.filter((row) => normalize(row.title).includes(reviewQ)).length : 0;
+  const filterLabel = reviewFilters.find((item) => item.id === filter)?.label ?? "Todas";
+  const bulkRows = visibleRows.filter(pickable);
+  const visiblePicked = bulkRows.filter(isPicked).length;
+  useLayoutEffect(() => {
+    const value = bulkFocus.current;
+    if (value === null) {
+      return;
+    }
+    bulkFocus.current = null;
+    const active = document.activeElement;
+    // o botão clicado continua lá (nem tudo mudou): o foco fica nele
+    if (active instanceof HTMLElement && active.isConnected && active !== document.body) {
+      return;
+    }
+    (value ? unmarkAllRef.current : markAllRef.current)?.focus();
+  });
+  const reviewAllGroups = groupByMonth(visibleRows);
+  const reviewMonthKey = reviewAllGroups.some((group) => group.key === reviewMonth)
+    ? reviewMonth
+    : (reviewAllGroups[0]?.key ?? null);
+  const reviewGroups = reviewAllGroups.filter((group) => group.key === reviewMonthKey);
+  const reviewPos = reviewAllGroups.findIndex((group) => group.key === reviewMonthKey);
+  const askReviewReveal = useMonthReveal(reviewMonthKey, reviewSectionRef, reviewHeadRef);
+
   // datas que a importação ainda tem no calendário
-  const datesOf = (item: CalendarImport) => events.filter((event) => event.calendarImportId === item.id).sort(byStart);
+  const datesOf = (importId: number) => events.filter((event) => event.calendarImportId === importId).sort(byStart);
   // mesmo calendário já importado: só é repetido se ainda tem datas no calendário;
   // se todas as datas saíram, a importação foi desfeita e o aviso diz isso
   const sameSource =
@@ -663,8 +1003,11 @@ export function SyncView({
             (check.namedSource && normalize(item.sourceName) === normalize(check.sourceName))
         )
       : [];
-  const previous = sameSource.find((item) => datesOf(item).length > 0) ?? null;
+  const previous = sameSource.find((item) => datesOf(item.id).length > 0) ?? null;
   const undonePrevious = previous ? null : (sameSource.find((item) => item.totalEvents > 0) ?? null);
+  const existingCount = rows.filter((row) => row.duplicate === "existing").length;
+  // o calendário já está no sistema: fora as que já existem, só sobraram assuntos de servidores
+  const nothingNew = existingCount > 0 && rows.every((row) => row.duplicate === "existing" || staffRows.has(row.index));
 
   // mesma regra do Painel e do Cronograma (datas oficiais à frente)
   const officialAhead = events.filter(
@@ -679,7 +1022,7 @@ export function SyncView({
   const resultPast = lastResult
     ? lastResult.events.filter((event) => new Date(event.endsAt ?? event.startsAt).getTime() < now).length
     : 0;
-  // desfeita por outro caminho (aviso com Desfazer ou tabela): a importação já está na lista e não tem mais datas
+  // desfeita por outro caminho (aviso com Desfazer ou histórico): a importação já está na lista e não tem mais datas
   const resultUndone = lastResult
     ? lastResult.undone ||
       (lastResult.importId !== null &&
@@ -687,18 +1030,85 @@ export function SyncView({
         !events.some((event) => event.calendarImportId === lastResult.importId))
     : false;
   const resultCount = lastResult ? lastResult.events.length || lastResult.sent : 0;
+  const resultCategories = lastResult ? countByCategory(lastResult.events) : [];
+
+  // painel só de leitura: as datas da importação que seguem no calendário
+  const viewEvents = viewing
+    ? viewing.importId !== null
+      ? datesOf(viewing.importId)
+      : viewing.fallback.filter((item) => events.some((event) => event.id === item.id)).sort(byStart)
+    : [];
+  const viewItems = viewEvents.map((event) => {
+    const start = new Date(event.startsAt);
+    const end = event.endsAt ? new Date(event.endsAt) : null;
+    return { event, start, end, past: (end ?? start).getTime() < now };
+  });
+  const viewImport = viewing && viewing.importId !== null ? (imports.find((item) => item.id === viewing.importId) ?? null) : null;
+  const viewTotal = viewImport ? viewImport.totalEvents : viewing ? viewing.fallback.length : 0;
+  // importação desfeita: trouxe datas e nenhuma ficou. Se o mesmo calendário foi importado de novo, o painel leva
+  // até essa importação (as datas que estão no calendário hoje)
+  const viewUndone = Boolean(viewImport) && viewTotal > 0 && !viewEvents.length;
+  const viewRedone = viewUndone
+    ? (imports.find((item) => item.id !== viewImport?.id && item.sourceName === viewImport?.sourceName && datesOf(item.id).length > 0) ??
+      null)
+    : null;
+  const viewPast = viewItems.filter((item) => item.past).length;
+  const viewCategories = countByCategory(viewEvents);
+  const viewQ = normalize(viewQuery);
+  const viewVisible = viewItems.filter(
+    (item) =>
+      (viewFilter === "all" ? true : viewFilter === "past" ? item.past : item.event.category === viewFilter) &&
+      (!viewQ || normalize(item.event.title).includes(viewQ))
+  );
+  const viewAllGroups = groupByMonth(viewVisible);
+  // abre no mês da próxima data (as que já passaram ficam para trás); na busca, os meses com resultado
+  const viewMonthKey = viewAllGroups.some((group) => group.key === viewMonth)
+    ? viewMonth
+    : (viewAllGroups.find((group) => group.items.some((item) => !item.past))?.key ?? viewAllGroups[0]?.key ?? null);
+  const viewGroups = viewAllGroups.filter((group) => group.key === viewMonthKey);
+  const viewPos = viewAllGroups.findIndex((group) => group.key === viewMonthKey);
+  const askViewReveal = useMonthReveal(viewMonthKey, viewSectionRef, viewHeadRef);
+  const importsPaged = usePaged(imports, IMPORTS_PAGE);
+
+  // filtros com contagem; um filtro que pega todas as datas some (seria a mesma lista de "Todas")
+  const reviewFilterList = reviewFilters
+    .map((item) => ({ ...item, count: item.id === "all" ? rows.length : rows.filter((row) => matches(item.id, row)).length }))
+    .filter(
+      (item) => item.id === "all" || item.id === filter || (item.count > 0 && item.count < rows.length)
+    );
+  const viewFilterList: Array<{ id: ViewFilter; label: string; count: number; dot?: string }> = [
+    { id: "all", label: "Todas", count: viewEvents.length },
+    ...viewCategories.map(([category, count]) => ({
+      id: category,
+      label: categoryMeta[category].label,
+      count,
+      dot: categoryMeta[category].accent,
+    })),
+    ...(viewPast ? [{ id: "past" as const, label: "Passadas", count: viewPast }] : []),
+  ];
+  // um aviso só no alto da conferência: importação anterior, repetidas e assuntos de servidores
+  const noteParts: string[] = [];
+  if (previous) {
+    noteParts.push(`Esse calendário já foi importado ${formatOnDayAt(previous.importedAt)}.`);
+  } else if (undonePrevious) {
+    noteParts.push(`Esse calendário foi importado ${formatOnDayAt(undonePrevious.importedAt)} e depois desfeito.`);
+  }
+  if (existingCount) {
+    noteParts.push(existingCount === 1 ? "A data que já existe não entra de novo." : `As ${existingCount} datas que já existem não entram de novo.`);
+  }
+  if (staffRows.size) {
+    noteParts.push(
+      staffRows.size === 1
+        ? "1 assunto só de servidores (PIT, RAD, diários) veio desmarcado."
+        : `${staffRows.size} assuntos só de servidores (PIT, RAD, diários) vieram desmarcados.`
+    );
+  }
 
   useEffect(() => {
     if (resultFocus) {
       resultRef.current?.focus();
     }
   }, [resultFocus]);
-
-  useEffect(() => {
-    if (previewFocus) {
-      previewRef.current?.focus();
-    }
-  }, [previewFocus]);
 
   // PDF solto em outra tela: o app abre esta e entrega o arquivo; cada arquivo é lido uma vez
   useEffect(() => {
@@ -720,36 +1130,110 @@ export function SyncView({
     }
   }, [confirm]);
 
-  // "Ver todas": o foco vai para a primeira importação que apareceu; "Mostrar menos": o botão continua à vista
-  useEffect(() => {
-    const target = importsToggled.current;
-    if (!target) {
-      return;
-    }
-    importsToggled.current = null;
-    const first = target.firstNew !== null ? rowButtons.current.get(target.firstNew) : null;
-    if (first) {
-      first.focus();
-    } else {
-      moreImportsRef.current?.scrollIntoView({ block: "nearest" });
-    }
-  }, [showAllImports]);
-
-  function toggleImports() {
-    const open = !showAllImports;
-    importsToggled.current = { firstNew: open ? (imports[IMPORTS_PREVIEW]?.id ?? null) : null };
-    setShowAllImports(open);
-  }
-
   function changeText(value: string) {
     setText(value);
     setSubmitError(null);
-    // texto novo: o resultado da importação anterior sai de baixo do campo
+    // leitura nova: o resultado da importação anterior sai da tela
     setLastResult(null);
   }
 
+  /** Tira a leitura da tela (depois de importar ou quando a pessoa descarta). */
+  function clearReading() {
+    setText("");
+    setPicked({});
+    setStaffRows(new Set());
+    setReadFile(null);
+    setSubmitError(null);
+    setFilter("all");
+    setReviewQuery("");
+    setReviewMonth(null);
+  }
+
+  /** "Descartar": a leitura sai da tela, o foco volta para o card e o aviso oferece Desfazer. */
+  function discardReading() {
+    const snapshot = { text, picked, staffRows, readFile, filter, reviewQuery, reviewMonth };
+    clearReading();
+    queueMicrotask(() => cardRef.current?.focus());
+    toast("Leitura descartada. Nada foi gravado.", {
+      tone: "info",
+      key: "imp-leitura",
+      undo: () => {
+        setText(snapshot.text);
+        setPicked(snapshot.picked);
+        setStaffRows(snapshot.staffRows);
+        setReadFile(snapshot.readFile);
+        setFilter(snapshot.filter);
+        setReviewQuery(snapshot.reviewQuery);
+        setReviewMonth(snapshot.reviewMonth);
+      },
+    });
+  }
+
+  function chooseFilter(id: ReviewFilter) {
+    setFilter(id);
+    askReviewReveal({ force: false, focus: false });
+  }
+
+  function changeReviewQuery(value: string) {
+    setReviewQuery(value);
+    askReviewReveal({ force: false, focus: false });
+  }
+
+  /** Mês da faixa (o foco fica no chip) ou do pé da lista (o foco vai para o título do mês novo). */
+  function goReviewMonth(key: string, fromFooter: boolean) {
+    setReviewMonth(key);
+    askReviewReveal({ force: fromFooter, focus: fromFooter });
+  }
+
+  function goViewMonth(key: string, fromFooter: boolean) {
+    setViewMonth(key);
+    askViewReveal({ force: fromFooter, focus: fromFooter });
+  }
+
+  function chooseViewFilter(id: ViewFilter) {
+    setViewFilter(id);
+    askViewReveal({ force: false, focus: false });
+  }
+
+  function changeViewQuery(value: string) {
+    setViewQuery(value);
+    askViewReveal({ force: false, focus: false });
+  }
+
+  function setMany(list: PreviewRow[], value: boolean) {
+    setPicked((current) => {
+      const next = { ...current };
+      for (const row of list) {
+        if (pickable(row)) {
+          next[row.key] = value;
+        }
+      }
+      return next;
+    });
+  }
+
+  /** "Marcar todas" e "Desmarcar todas": o botão clicado some, e o foco passa para o outro. */
+  function bulkPick(value: boolean) {
+    bulkFocus.current = value;
+    setMany(bulkRows, value);
+  }
+
+  function closeReview() {
+    if (importing) {
+      return;
+    }
+    setReviewOpen(false);
+    setSubmitError(null);
+  }
+
+  function openPicker() {
+    if (!pdfReading) {
+      pdfRef.current?.click();
+    }
+  }
+
   /**
-   * PDF do Calendário Acadêmico: a API lê as datas e a prévia abre para conferir (por dentro, as datas seguem a
+   * PDF do Calendário Acadêmico: a API lê as datas e o painel Conferir datas abre (por dentro, as datas seguem a
    * mesma validação de sempre). Assuntos só de servidores (PIT, RAD, diários) vêm desmarcados.
    */
   async function readPdf(file: File | undefined) {
@@ -758,15 +1242,15 @@ export function SyncView({
     }
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
     if (!isPdf) {
-      setPdfNote({ tone: "err", text: "O arquivo precisa ser um PDF. Use o PDF do Calendário Acadêmico publicado pela instituição." });
+      setPdfError(`"${file.name}" não é um PDF. Use o PDF do Calendário Acadêmico publicado pela instituição.`);
       return;
     }
     if (file.size > 10_000_000) {
-      setPdfNote({ tone: "err", text: "O PDF passa de 10 MB." });
+      setPdfError(`"${file.name}" passa de 10 MB. Use o PDF do Calendário Acadêmico publicado pela instituição.`);
       return;
     }
     setPdfReading(true);
-    setPdfNote(null);
+    setPdfError(null);
     try {
       const result = await onReadPdf(file);
       const payload: CalendarImportInput = {
@@ -783,38 +1267,36 @@ export function SyncView({
         })),
       };
       const json = JSON.stringify(payload, null, 2);
-      const staff = new Set(result.events.flatMap((event, index) => (event.audience === "staff" ? [index] : [])));
       const checked = validateImport(json, events, now);
-      const nextPicked: Record<string, boolean> = {};
-      if (checked.status === "ok") {
-        for (const row of checked.rows) {
-          if (staff.has(row.index)) nextPicked[row.key] = false;
-        }
+      if (checked.status !== "ok") {
+        setPdfError("Não deu para conferir as datas deste PDF. Escolha o arquivo de novo.");
+        return;
       }
+      const staff = new Set(result.events.flatMap((event, index) => (event.audience === "staff" ? [index] : [])));
       changeText(json);
-      setPicked(nextPicked);
-      const unchecked = staff.size
-        ? ` ${staff.size === 1 ? "1 assunto só de servidores ficou desmarcado" : `${staff.size} assuntos só de servidores ficaram desmarcados`} (PIT, RAD, diários).`
-        : "";
-      setPdfNote({ tone: "ok", text: `${datesLabel(result.events.length)} lidas de ${file.name}.${unchecked} Confira em Conferir datas.` });
-      setPreviewOpen(true);
-      setPreviewFocus((value) => value + 1);
+      setPicked({});
+      setStaffRows(staff);
+      setReadFile(file.name);
+      setFilter(firstFilter(checked.rows, staff));
+      setReviewQuery("");
+      setReviewMonth(null);
+      setReviewOpen(true);
     } catch (err) {
       // a API explica o que houve com o arquivo (422) em português; o resto usa a frase padrão
       const message = err instanceof ApiError && err.status === 422 && err.message ? err.message : errorMessage(err);
-      setPdfNote({ tone: "err", text: message });
+      setPdfError(message);
     } finally {
       setPdfReading(false);
     }
   }
 
-  /** "Ler o PDF de exemplo": baixa o PDF que vem com o sistema e lê como se ele tivesse sido arrastado. */
+  /** "Ler o calendário de exemplo": baixa o PDF que vem com o sistema e lê como se ele tivesse sido arrastado. */
   async function readSamplePdf() {
     if (busy || pdfReading || sampleLoading) {
       return;
     }
     setSampleLoading(true);
-    setPdfNote(null);
+    setPdfError(null);
     let file: File;
     try {
       const response = await fetch(SAMPLE_PDF_URL);
@@ -823,7 +1305,7 @@ export function SyncView({
       }
       file = new File([await response.blob()], "calendario-academico-2027.pdf", { type: "application/pdf" });
     } catch {
-      setPdfNote({ tone: "err", text: "Não deu para abrir o PDF de exemplo. Tente de novo." });
+      setPdfError("Não deu para abrir o PDF de exemplo. Tente de novo.");
       return;
     } finally {
       setSampleLoading(false);
@@ -845,7 +1327,7 @@ export function SyncView({
 
     if (!onImport) {
       onImportJson?.(payload);
-      setPreviewOpen(false);
+      setReviewOpen(false);
       return;
     }
 
@@ -853,10 +1335,8 @@ export function SyncView({
     try {
       const outcome = await onImport(payload);
       if (outcome.ok) {
-        setText("");
-        setPicked({});
-        setPreviewOpen(false);
-        setPdfNote(null);
+        clearReading();
+        setReviewOpen(false);
         setLastResult({
           importId: outcome.result?.import?.id ?? null,
           sourceName: check.sourceName,
@@ -898,14 +1378,48 @@ export function SyncView({
     if (!lastResult) {
       return;
     }
+    const current = lastResult.importId !== null ? datesOf(lastResult.importId) : lastResult.events;
     askUndo(
       lastResult.importId,
-      lastResult.events.map((event) => event.id),
-      lastResult.events.map((event) => event.title),
+      current.map((event) => event.id),
+      current.map((event) => event.title),
       lastResult.sourceName,
       () => {
-        setLastResult((current) => (current ? { ...current, undone: true } : current));
+        setLastResult((value) => (value ? { ...value, undone: true } : value));
         focusAfterConfirm.current = resultRef.current;
+      }
+    );
+  }
+
+  function openImport(target: ViewTarget) {
+    setViewFilter("all");
+    setViewQuery("");
+    setViewMonth(null);
+    setViewing(target);
+  }
+
+  /** Do resumo "já está no sistema": fecha a conferência e abre as datas da importação anterior. */
+  function openPreviousImport(item: CalendarImport) {
+    setReviewOpen(false);
+    setSubmitError(null);
+    openImport({ importId: item.id, sourceName: item.sourceName, importedAt: item.importedAt, fallback: [] });
+  }
+
+  function undoViewing() {
+    if (!viewing) {
+      return;
+    }
+    const target = viewing;
+    askUndo(
+      target.importId,
+      viewEvents.map((event) => event.id),
+      viewEvents.map((event) => event.title),
+      target.sourceName,
+      () => {
+        setViewing(null);
+        if (lastResult && lastResult.importId === target.importId) {
+          setLastResult({ ...lastResult, undone: true });
+        }
       }
     );
   }
@@ -932,371 +1446,324 @@ export function SyncView({
     );
   }
 
+  const reviewReady = reviewOpen && check.status === "ok";
+  const pendingReading = check.status === "ok" && !reviewOpen;
+  const dropTitle = pdfReading ? (
+    "Lendo o calendário"
+  ) : pdfDragging ? (
+    "Solte o PDF para ler as datas"
+  ) : pdfError ? (
+    "Não deu para ler este arquivo"
+  ) : (
+    // no celular não há o que arrastar: o título fala do botão
+    <>
+      <span className="imp-drop-fine">Arraste o PDF do calendário para cá</span>
+      <span className="imp-drop-coarse">Escolha o PDF do calendário</span>
+    </>
+  );
+  const DropIcon = pdfReading ? Loader2 : pdfError && !pdfDragging ? AlertTriangle : FileUp;
+
   return (
-    <div className="grid gap-5">
-      <div className="kpis">
-        <ImportTile label="Fonte" value="Reitoria" hint="calendário letivo oficial" order={0} />
+    <div className="imp-page grid gap-5">
+      <div className="kpis imp-kpis">
+        <ImportTile icon={Landmark} label="Fonte" value="Reitoria" text hint="calendário letivo oficial" hintShort="calendário oficial" order={0} />
         <ImportTile
+          icon={History}
           label="Última importação"
           value={lastImport ? dayLabel(lastImport.importedAt, now) : "Nunca"}
+          text
           hint={lastImport ? `às ${formatTime(lastImport.importedAt)}, ${lastImport.sourceName}` : "nenhuma importação ainda"}
+          hintShort={lastImport ? `às ${formatTime(lastImport.importedAt)}` : "nenhuma ainda"}
           order={1}
         />
         <ImportTile
-          label="Eventos oficiais"
-          value={`${officialAhead} ${officialAhead === 1 ? "futuro" : "futuros"}`}
+          icon={CalendarCheck}
+          label="Datas da instituição"
+          value={String(officialAhead)}
+          unit={officialAhead === 1 ? "futura" : "futuras"}
           hint="visíveis para todas as turmas"
+          hintShort="para todas as turmas"
           order={2}
         />
         <ImportTile
+          icon={upToDate ? CircleCheckBig : AlertTriangle}
           label="Situação"
           value={upToDate ? "Em dia" : "Falta importar"}
+          text
           hint={upToDate ? "nenhuma pendência de importação" : "nenhum evento oficial à frente"}
-          icon={upToDate ? CircleCheckBig : AlertTriangle}
+          hintShort={upToDate ? "sem pendências" : "nada oficial à frente"}
           tone={upToDate ? "ok" : "warn"}
           order={3}
         />
       </div>
 
-      {/* a coluna principal e a lateral terminam juntas: a sobra fica no pé de Como funciona */}
-      <div className={cx("tela-cols", stuck && "is-stuck")}>
-        <div ref={mainColRef} className="tela-main">
-          {onReadPdf ? (
-            <section className="card pad rise imp-pdf-card min-w-0" style={delay(4)} aria-labelledby={pdfTitleId}>
-              <div className="flex min-w-0 items-start gap-[18px]">
-                <span className="imp-ico pdf" aria-hidden>
-                  <FileText className="h-6 w-6" />
-                </span>
-                <div className="min-w-0">
-                  <h2 className="h2" id={pdfTitleId}>
-                    Calendário acadêmico em PDF
-                  </h2>
-                  <p className="sub">Arraste o PDF do calendário publicado pela instituição. As datas aparecem para conferir antes de gravar.</p>
-                </div>
-              </div>
-              <div
-                className={cx("imp-pdf-drop mt-[18px]", pdfDragging && "is-over", pdfNote?.tone === "err" && "is-bad")}
-                onDragLeave={() => setPdfDragging(false)}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setPdfDragging(true);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  setPdfDragging(false);
-                  void readPdf(event.dataTransfer.files?.[0]);
-                }}
-              >
-                <span className="mini-ico">
-                  {pdfReading ? <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden /> : <FileUp className="h-[18px] w-[18px]" aria-hidden />}
-                </span>
-                <div className="imp-pdf-main">
-                  <p className="text-sm font-semibold text-ink">
-                    {pdfReading ? "Lendo o calendário" : "Arraste o PDF para cá ou use o botão Escolher PDF"}
-                  </p>
-                  <p className="mt-0.5 text-[13px] leading-5 text-muted" id={pdfHintId}>
-                    O PDF oficial, com os meses e as datas listadas, como o de 2027. Até 10 MB.
-                  </p>
-                </div>
+      {lastResult ? (
+        <section
+          ref={resultRef}
+          tabIndex={-1}
+          className={cx("card rise imp-done", resultUndone && "is-undone")}
+          style={delay(4)}
+          aria-labelledby={resultTitleId}
+        >
+          <span className="imp-done-ico" aria-hidden>
+            {resultUndone ? <Undo2 className="h-6 w-6" /> : <CheckCircle2 className="h-7 w-7" />}
+          </span>
+          <div className="imp-done-body">
+            <h2 id={resultTitleId} className="imp-done-title">
+              {resultUndone ? (
+                "Importação desfeita"
+              ) : (
+                <>
+                  <span className="imp-done-n">{resultCount}</span> {resultCount === 1 ? "data importada" : "datas importadas"}
+                </>
+              )}
+            </h2>
+            <p className="imp-done-sub wrap-anywhere">
+              {resultUndone
+                ? `As datas de ${lastResult.sourceName} saíram do calendário de todas as turmas.`
+                : `De ${lastResult.sourceName}, ${atLabel(lastResult.importedAt, now)}`}
+            </p>
+            {!resultUndone && resultCategories.length ? (
+              <ul className="imp-done-cats" aria-label="Datas por categoria">
+                {resultCategories.map(([category, count]) => (
+                  <li key={category}>
+                    <span className={cx("dot", categoryMeta[category].accent)} aria-hidden />
+                    {categoryMeta[category].label}
+                    <b>{count}</b>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {!resultUndone && resultPast ? (
+              <p className="imp-done-past">
+                <Clock className="h-4 w-4 shrink-0" aria-hidden />
+                {resultPast === 1 ? "1 data já passou e aparece só em Passados." : `${resultPast} datas já passaram e aparecem só em Passados.`}
+              </p>
+            ) : null}
+          </div>
+          {!resultUndone ? (
+            <div className="imp-done-acts">
+              {onOpenCalendar ? (
                 <button
-                  className="btn btn-s btn-sm shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
-                  aria-busy={pdfReading || undefined}
-                  aria-disabled={pdfReading || undefined}
-                  aria-describedby={pdfHintId}
-                  onClick={() => {
-                    if (!pdfReading) pdfRef.current?.click();
-                  }}
+                  className={primaryButton}
+                  onClick={() => onOpenCalendar({ categories: [...new Set(lastResult.events.map((event) => event.category))] })}
                   type="button"
                 >
-                  Escolher PDF
+                  <CalendarDays className="h-4 w-4" aria-hidden />
+                  Ver no cronograma
                 </button>
-                <input
-                  ref={pdfRef}
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  className="hidden"
-                  tabIndex={-1}
-                  aria-hidden
-                  onChange={(event) => {
-                    const selected = event.target.files?.[0];
-                    event.target.value = "";
-                    void readPdf(selected);
-                  }}
-                />
-              </div>
-              {pdfNote ? (
-                <p
-                  role={pdfNote.tone === "err" ? "alert" : "status"}
-                  className={cx("mt-2 text-sm wrap-anywhere", pdfNote.tone === "err" ? "font-semibold text-[var(--danger)]" : "text-ink-3")}
-                >
-                  {pdfNote.text}
-                </p>
               ) : null}
-            </section>
-          ) : null}
-
-          {onReadPdf ? (
-            <section className="card pad rise imp-demo" style={delay(4)} aria-labelledby={demoTitleId}>
-              <span className="imp-ico" aria-hidden>
-                <FileText className="h-6 w-6" />
-              </span>
-              <div className="imp-demo-text">
-                <h2 className="h2" id={demoTitleId}>
-                  Calendário de exemplo
-                </h2>
-                <p className="sub">
-                  Lê o Calendário Acadêmico 2027 do Campus Três Lagoas, para ver como a importação funciona. Nada é gravado antes
-                  de você conferir.
-                </p>
-              </div>
               <button
-                className="btn btn-p aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
-                aria-busy={sampleLoading || undefined}
-                aria-disabled={busy || pdfReading || sampleLoading || undefined}
-                onClick={() => void readSamplePdf()}
+                className={secondaryButton}
+                aria-haspopup="dialog"
+                onClick={() =>
+                  openImport({
+                    importId: lastResult.importId,
+                    sourceName: lastResult.sourceName,
+                    importedAt: lastResult.importedAt,
+                    fallback: lastResult.events,
+                  })
+                }
                 type="button"
               >
-                {sampleLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <FileUp className="h-4 w-4" aria-hidden />}
-                Ler o PDF de exemplo
+                <ListChecks className="h-4 w-4" aria-hidden />
+                Ver as datas
               </button>
-              <a className="btn btn-s" href={SAMPLE_PDF_URL} target="_blank" rel="noopener">
-                <FileText className="h-4 w-4" aria-hidden />
-                Abrir o PDF
-              </a>
-            </section>
-          ) : null}
-
-          {previewOpen || lastResult ? (
-            <section className="card pad rise min-w-0" style={delay(5)} aria-label="Conferir e importar datas">
-              {previewOpen ? (
-                <div className="grid grid-cols-1 gap-3 rounded-2xl bg-surface-2 p-4">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                    <h3 ref={previewRef} tabIndex={-1} className="text-[16px] font-bold outline-none">
-                      Conferir datas
-                    </h3>
-                    {check.status === "ok" ? <p className="min-w-0 text-sm text-ink-3 wrap-anywhere">Fonte: {check.sourceName}</p> : null}
-                  </div>
-
-                  {check.status === "ok" ? (
-                    <>
-                      {previous ? (
-                        <p className="callout amber">
-                          <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                          <span>
-                            Esse calendário já foi importado {formatOnDayAt(previous.importedAt)}.
-                            {duplicates ? " As datas que já existem ficaram desmarcadas." : ""}
-                          </span>
-                        </p>
-                      ) : undonePrevious ? (
-                        // as datas daquela importação saíram do calendário: não há repetida a evitar
-                        <p className="callout blue">
-                          <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                          <span>Esse calendário foi importado {formatOnDayAt(undonePrevious.importedAt)} e depois desfeito.</span>
-                        </p>
-                      ) : null}
-                      <ul className="grid grid-cols-1 gap-2">
-                        {rows.map((row) => {
-                          const meta = categoryMeta[row.category];
-                          const inputId = `${baseId}-linha-${row.index}`;
-                          return (
-                            <li
-                              key={row.key}
-                              className={cx("flex items-start gap-3 rounded-xl border bg-white p-3", isPicked(row) ? "border-line" : "border-line-2")}
-                            >
-                              <input
-                                id={inputId}
-                                type="checkbox"
-                                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
-                                checked={isPicked(row)}
-                                disabled={busy}
-                                onChange={(event) => setPicked((current) => ({ ...current, [row.key]: event.target.checked }))}
-                              />
-                              <label htmlFor={inputId} className="min-w-0 flex-1 cursor-pointer">
-                                <span className={cx("block text-[15px] font-bold leading-snug wrap-anywhere", !isPicked(row) && "text-ink-3")}>{row.title}</span>
-                                <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-ink-3">
-                                  <span className={cx("pill", meta.tint)}>{meta.short}</span>
-                                  <span>{rangeLabel(row.start, row.end)}</span>
-                                  {row.duplicate === "existing" ? <span className="pill stat">Já existe</span> : null}
-                                  {row.duplicate === "file" ? <span className="pill stat">Repetida no arquivo</span> : null}
-                                  {row.past ? (
-                                    <span className="inline-flex items-center gap-1">
-                                      <Clock className="h-3.5 w-3.5" aria-hidden />
-                                      Já passou
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </label>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      <p className="text-sm text-ink-3">
-                        {chosen.length === rows.length
-                          ? `${datesLabel(rows.length)} para importar.`
-                          : `${chosen.length} de ${datesLabel(rows.length)} marcadas para importar.`}
-                        {duplicates && !chosen.length ? " Todas já existem. Marque alguma se quiser importar mesmo assim." : ""}
-                        {pastChosen
-                          ? ` ${pastChosen === 1 ? "1 data já passou e aparece" : `${pastChosen} datas já passaram e aparecem`} só em Passados.`
-                          : ""}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="callout rose">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                      Não deu para conferir as datas deste PDF. Escolha o arquivo de novo.
-                    </p>
-                  )}
-
-                  {submitError ? (
-                    <div role="alert" className="callout rose">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                      <span className="min-w-0 wrap-anywhere">
-                        <b className="block">A importação não foi feita. As datas continuam aqui para tentar de novo.</b>
-                        {submitError}
-                      </span>
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
-                    <button
-                      className="btn btn-p w-full sm:w-auto"
-                      disabled={!canImport}
-                      aria-disabled={busy || undefined}
-                      onClick={() => void runImport()}
-                      type="button"
-                    >
-                      {importing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" aria-hidden />}
-                      {importing
-                        ? "Importando"
-                        : check.status !== "ok"
-                          ? "Importar datas"
-                          : chosen.length
-                            ? `Importar ${datesLabel(chosen.length)}`
-                            : "Nenhuma data marcada"}
-                    </button>
-                    <button className="btn btn-s w-full sm:w-auto" disabled={importing} onClick={() => setPreviewOpen(false)} type="button">
-                      Fechar prévia
-                    </button>
-                  </div>
-                </div>
+              {onUndoImport ? (
+                <button className={dangerButton} aria-disabled={busy || undefined} onClick={() => !busy && undoLastResult()} type="button">
+                  <Undo2 className="h-4 w-4" aria-hidden />
+                  Desfazer importação
+                </button>
               ) : null}
-              {lastResult ? (
-                <section
-                  ref={resultRef}
-                  tabIndex={-1}
-                  className={cx(
-                    "rounded-2xl border p-4 outline-none",
-                    resultUndone ? "border-line-2 bg-surface-2" : "border-brand-200 bg-brand-50"
-                  )}
-                  aria-labelledby={resultTitleId}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className={cx("kpi-ico shrink-0", resultUndone ? "c-ativ" : "bg-white")}>
-                      {resultUndone ? <Undo2 className="h-[18px] w-[18px]" aria-hidden /> : <CheckCircle2 className="h-[18px] w-[18px]" aria-hidden />}
-                    </span>
-                    <div className="min-w-0">
-                      <h3 id={resultTitleId} className="text-[16px] font-bold">
-                        {resultUndone ? "Importação desfeita" : `${datesLabel(resultCount)} ${resultCount === 1 ? "importada" : "importadas"}`}
-                      </h3>
-                      <p className="sub !mt-0.5 wrap-anywhere">
-                        {resultUndone
-                          ? `As datas de "${lastResult.sourceName}" saíram do calendário.`
-                          : `De "${lastResult.sourceName}", ${formatOnDayAt(lastResult.importedAt)}.`}
-                      </p>
-                    </div>
-                  </div>
-
-                  {!resultUndone && lastResult.events.length ? (
-                    <>
-                      <div className="mt-4">
-                        <DateList
-                          items={[...lastResult.events].sort(byStart).map((event) => ({
-                            key: event.id,
-                            title: event.title,
-                            category: event.category,
-                            start: new Date(event.startsAt),
-                            end: event.endsAt ? new Date(event.endsAt) : null,
-                          }))}
-                        />
-                      </div>
-                      {resultPast ? (
-                        <p className="callout amber mt-3">
-                          <Clock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                          {resultPast === 1 ? "1 data já passou e aparece só em Passados." : `${resultPast} datas já passaram e aparecem só em Passados.`}
-                        </p>
-                      ) : null}
-                      <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
-                        {onOpenCalendar ? (
-                          <button
-                            className="btn btn-s w-full sm:w-auto"
-                            onClick={() => onOpenCalendar({ categories: [...new Set(lastResult.events.map((event) => event.category))] })}
-                            type="button"
-                          >
-                            Ver no cronograma
-                          </button>
-                        ) : null}
-                        {onUndoImport ? (
-                          <button className="btn btn-danger w-full sm:w-auto" disabled={busy} onClick={undoLastResult} type="button">
-                            <Undo2 className="h-4 w-4" aria-hidden />
-                            Desfazer importação
-                          </button>
-                        ) : null}
-                      </div>
-                    </>
-                  ) : null}
-                </section>
-              ) : null}
-            </section>
+            </div>
           ) : null}
-          {/* a sobra de altura fica aqui, embaixo dos cartões: nenhum deles estica até a altura da lateral */}
-          <div className="tela-gap" aria-hidden />
-        </div>
+          <button
+            className={cx(iconButton, "imp-done-x")}
+            aria-label="Fechar o resumo da importação"
+            title="Fechar"
+            onClick={() => {
+              setLastResult(null);
+              cardRef.current?.focus();
+            }}
+            type="button"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </section>
+      ) : null}
 
-        <div ref={sideRef} className="tela-side">
-          <section className="card pad rise" style={delay(6)} aria-labelledby={accessId}>
-            <div className="flex items-start gap-3.5">
-              <span className="kpi-ico imp-night shrink-0" aria-hidden>
-                <ShieldCheck className="h-[18px] w-[18px]" />
+      {onReadPdf ? (
+        <section ref={cardRef} tabIndex={-1} className="card pad rise imp-card" style={delay(5)} aria-labelledby={cardTitleId}>
+          <div className="imp-card-head">
+            <h2 className="h2" id={cardTitleId}>
+              Importar o calendário acadêmico
+            </h2>
+            <p className="sub">As datas do PDF abrem para você conferir antes de gravar.</p>
+          </div>
+
+          {pendingReading ? (
+            <div className="imp-pending">
+              <span className="imp-pending-ico" aria-hidden>
+                <FileText className="h-5 w-5" />
               </span>
-              <div className="min-w-0">
-                <h2 className="h2" id={accessId}>
-                  Acesso liberado
-                </h2>
-                <p className="sub">Somente a administração pode importar datas oficiais.</p>
+              <p className="imp-pending-text wrap-anywhere">
+                <b>{datesLabel(rows.length)} esperando conferência</b>
+                <span>
+                  {readFile ? `Lidas de ${readFile}. ` : ""}
+                  Nada foi gravado ainda.
+                </span>
+              </p>
+              <div className="imp-pending-acts">
+                <button className={cx(primaryButton, "btn-sm")} aria-haspopup="dialog" onClick={() => setReviewOpen(true)} type="button">
+                  Conferir datas
+                </button>
+                <button className={cx(secondaryButton, "btn-sm")} onClick={discardReading} type="button">
+                  Descartar
+                </button>
               </div>
             </div>
-          </section>
+          ) : null}
 
-          <section className="card pad rise" style={delay(7)} aria-labelledby={prioId}>
-            <h2 className="kpi-label" id={prioId}>
-              Regra de prioridade
-            </h2>
-            <p className="imp-prio-n">{officialAhead}</p>
-            <p className="imp-prio-t">{officialAhead === 1 ? "evento oficial atual" : "eventos oficiais atuais"}</p>
-            <p className="sub">Datas oficiais aparecem para todas as turmas. Quem marca um evento no mesmo dia vê um aviso de conflito.</p>
-          </section>
+          <div className="imp-grid">
+            <div
+              className={cx("imp-drop", pdfDragging && "is-over", pdfReading && "is-busy", pdfError && !pdfDragging && "is-bad")}
+              role="group"
+              aria-labelledby={dropTitleId}
+              aria-describedby={dropHintId}
+              aria-busy={pdfReading || undefined}
+              onClick={(event) => {
+                // a área inteira abre a escolha do arquivo; o botão e o link cuidam do próprio clique
+                if (!(event.target as HTMLElement).closest("button, a, input")) {
+                  openPicker();
+                }
+              }}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                setPdfDragging(true);
+              }}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  setPdfDragging(false);
+                }
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (!pdfDragging) setPdfDragging(true);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setPdfDragging(false);
+                void readPdf(event.dataTransfer.files?.[0]);
+              }}
+            >
+              <span className="imp-drop-ico" aria-hidden>
+                <DropIcon className={cx("h-8 w-8", pdfReading && "animate-spin")} />
+              </span>
+              <p className="imp-drop-title" id={dropTitleId}>
+                {dropTitle}
+              </p>
+              {pdfReading ? (
+                <p className="imp-drop-text">As datas abrem para conferir em instantes.</p>
+              ) : pdfError && !pdfDragging ? (
+                <p className="imp-drop-err" role="alert">
+                  {pdfError}
+                </p>
+              ) : null}
+              {!pdfReading ? (
+                <div className="imp-drop-acts">
+                  <span className="imp-drop-or">ou</span>
+                  <button className={primaryButton} aria-describedby={dropHintId} onClick={openPicker} type="button">
+                    <FileUp className="h-4 w-4" aria-hidden />
+                    {pdfError ? "Escolher outro PDF" : "Escolher PDF"}
+                  </button>
+                </div>
+              ) : null}
+              <p className="imp-drop-hint" id={dropHintId}>
+                PDF publicado pela instituição, até 10 MB
+              </p>
+              <p className="sr-only" role="status">
+                {pdfReading ? "Lendo o calendário" : ""}
+              </p>
+              <input
+                ref={pdfRef}
+                type="file"
+                accept=".pdf,application/pdf"
+                className="hidden"
+                tabIndex={-1}
+                aria-hidden
+                onChange={(event) => {
+                  const selected = event.target.files?.[0];
+                  event.target.value = "";
+                  void readPdf(selected);
+                }}
+              />
+            </div>
 
-          <section className="card pad rise" style={delay(8)} aria-labelledby={fieldsId}>
-            <h2 className="h2" id={fieldsId}>
+            <div className="imp-aside">
+              <section className="imp-sample" aria-labelledby={sampleTitleId}>
+                <h3 className="imp-aside-title" id={sampleTitleId}>
+                  Não tem o PDF à mão?
+                </h3>
+                <p className="imp-aside-text">Use o Calendário Acadêmico 2027 do Campus Três Lagoas para ver como funciona.</p>
+                <button
+                  className={cx(secondaryButton, "imp-sample-btn")}
+                  aria-busy={sampleLoading || undefined}
+                  aria-disabled={busy || pdfReading || sampleLoading || undefined}
+                  onClick={() => void readSamplePdf()}
+                  type="button"
+                >
+                  {sampleLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <FileText className="h-4 w-4" aria-hidden />}
+                  Ler o calendário de exemplo
+                </button>
+                <a className="link imp-sample-link" href={SAMPLE_PDF_URL} target="_blank" rel="noopener">
+                  Abrir o PDF de exemplo
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                </a>
+              </section>
+            </div>
+          </div>
+
+          {/* os três passos numa faixa embaixo: a área de soltar e o exemplo ficam da mesma altura, sem sobra */}
+          <section className="imp-steps" aria-labelledby={stepsTitleId}>
+            <h3 className="imp-aside-title" id={stepsTitleId}>
               Como funciona
-            </h2>
-            <ol className="mt-3 grid list-decimal gap-2 pl-5 text-sm leading-6 text-ink-2">
-              <li>Arraste o PDF do Calendário Acadêmico, ou use o calendário de exemplo.</li>
-              <li>Confira as datas. Os assuntos só de servidores, como PIT e RAD, vêm desmarcados.</li>
-              <li>Importe. As datas aparecem para todas as turmas, e dá para desfazer.</li>
+            </h3>
+            <ol>
+              <li>
+                <span className="imp-step-n" aria-hidden>
+                  1
+                </span>
+                <span>
+                  <b>Envie o PDF.</b> As datas são lidas na hora.
+                </span>
+              </li>
+              <li>
+                <span className="imp-step-n" aria-hidden>
+                  2
+                </span>
+                <span>
+                  <b>Confira.</b> Assuntos só de servidores, como PIT e RAD, vêm desmarcados.
+                </span>
+              </li>
+              <li>
+                <span className="imp-step-n" aria-hidden>
+                  3
+                </span>
+                <span>
+                  <b>Importe.</b> As datas aparecem para todas as turmas; quem marcar evento no mesmo dia vê um aviso de conflito.
+                </span>
+              </li>
             </ol>
-            {/* fica com a sobra quando a coluna estica para terminar junto da coluna principal */}
-            <div ref={gapRef} className="tela-gap" aria-hidden />
           </section>
-        </div>
-      </div>
+        </section>
+      ) : null}
 
-      <section className="card rise imp-hist" style={delay(9)} aria-labelledby={histId}>
+      <section className="card rise imp-hist" style={delay(6)} aria-labelledby={histId}>
         <div className="imp-hist-head">
-          <h2 className="h2" id={histId}>
+          <h2 ref={histHeadRef} className="h2" id={histId}>
             Importações realizadas
           </h2>
-          {imports.length ? <p className="sub">Abra uma importação para ver as datas que ela trouxe.</p> : null}
+          {imports.length ? <p className="sub">Abra uma importação para ver as datas que ela trouxe ou desfazer.</p> : null}
         </div>
         {imports.length ? (
           <table className="tbl">
@@ -1317,131 +1784,642 @@ export function SyncView({
                 <th scope="col" className="hidden @min-[440px]:table-cell">
                   Situação
                 </th>
+                <th scope="col" className="w-10 px-3">
+                  <span className="sr-only">Abrir</span>
+                </th>
               </tr>
             </thead>
             <tbody id={`${histId}-linhas`}>
-              {(showAllImports ? imports : imports.slice(0, IMPORTS_PREVIEW)).map((item) => {
-                const current = datesOf(item);
-                const open = openImportId === item.id;
-                const detailsId = `${baseId}-importacao-${item.id}`;
+              {importsPaged.items.map((item) => {
+                const current = datesOf(item.id);
                 const state = importState(item, current.length);
                 const origin = originOf(item);
-                // "2" quando todas as datas seguem no calendário; "1 de 2" quando alguma saiu
-                const count = current.length === item.totalEvents ? String(item.totalEvents) : `${current.length} de ${item.totalEvents}`;
+                const target: ViewTarget = { importId: item.id, sourceName: item.sourceName, importedAt: item.importedAt, fallback: [] };
+                // "2" quando todas as datas seguem no calendário; "1 de 2" quando alguma saiu. Desfeita (nenhuma
+                // ficou): quantas ela trouxe, apagado, ao lado da etiqueta "Desfeita" (o "0 de 115" não dizia nada)
+                const undone = state.label === "Desfeita";
+                const count = current.length === item.totalEvents || undone ? String(item.totalEvents) : `${current.length} de ${item.totalEvents}`;
                 return (
-                  <Fragment key={item.id}>
-                    <tr className={cx(open && "bg-surface-2")}>
-                      <td className="px-3 @min-[400px]:px-4">
-                        <button
-                          ref={(node) => {
-                            if (node) {
-                              rowButtons.current.set(item.id, node);
-                            } else {
-                              rowButtons.current.delete(item.id);
-                            }
-                          }}
-                          className="flex w-full items-start gap-2 rounded-lg text-left"
-                          aria-expanded={open}
-                          aria-controls={open ? detailsId : undefined}
-                          onClick={() => setOpenImportId(open ? null : item.id)}
-                          type="button"
-                        >
-                          <ChevronDown className={cx("mt-0.5 h-4 w-4 shrink-0 text-muted transition", open && "rotate-180")} aria-hidden />
-                          <span className="min-w-0">
-                            <span className="t block wrap-anywhere">{item.sourceName}</span>
-                            <span className="s block @min-[600px]:hidden">{formatShortDateTime(item.importedAt)}</span>
-                            <span className="mt-1.5 flex @min-[440px]:hidden">
-                              <span className={cx("pill", state.pill)}>{state.label}</span>
-                            </span>
-                          </span>
-                        </button>
-                      </td>
-                      <td className="hidden whitespace-nowrap @min-[600px]:table-cell">{formatShortDateTime(item.importedAt)}</td>
-                      <td className="whitespace-nowrap px-3 @min-[400px]:px-4">{count}</td>
-                      <td className={cx("hidden @min-[820px]:table-cell", origin.mono && "break-all font-mono text-[13px]")}>{origin.text}</td>
-                      <td className="hidden @min-[440px]:table-cell">
-                        <span className={cx("pill", state.pill)}>{state.label}</span>
-                      </td>
-                    </tr>
-                    {open ? (
-                      <tr id={detailsId} className="bg-surface-2">
-                        <td colSpan={5} className="px-3 pt-0 @min-[400px]:px-4">
-                          <div className="grid gap-3 pb-1">
-                            <p className="text-sm text-ink-3 @min-[820px]:hidden">
-                              Origem: <span className={cx(origin.mono && "break-all font-mono text-[13px]")}>{origin.text}</span>
-                            </p>
-                            {current.length ? (
-                              <>
-                                <DateList
-                                  items={current.map((event) => ({
-                                    key: event.id,
-                                    title: event.title,
-                                    category: event.category,
-                                    start: new Date(event.startsAt),
-                                    end: event.endsAt ? new Date(event.endsAt) : null,
-                                  }))}
-                                />
-                                {onUndoImport ? (
-                                  <div>
-                                    <button
-                                      className="btn btn-danger btn-sm"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        askUndo(
-                                          item.id,
-                                          current.map((event) => event.id),
-                                          current.map((event) => event.title),
-                                          item.sourceName,
-                                          () => {
-                                            focusAfterConfirm.current = rowButtons.current.get(item.id) ?? null;
-                                          }
-                                        )
-                                      }
-                                      type="button"
-                                    >
-                                      <Undo2 className="h-3.5 w-3.5" aria-hidden />
-                                      Desfazer importação
-                                    </button>
-                                  </div>
-                                ) : null}
-                              </>
-                            ) : (
-                              <p className="text-sm text-ink-3">
-                                {item.totalEvents
-                                  ? "As datas desta importação não estão mais no calendário."
-                                  : "Esta importação não trouxe datas."}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
+                  <tr
+                    key={item.id}
+                    className={cx("imp-hist-row", viewing?.importId === item.id && "is-open")}
+                    onClick={(event) => {
+                      // a linha inteira abre (atalho do mouse); pelo teclado, o botão da fonte
+                      if (!(event.target as HTMLElement).closest("button, a")) {
+                        rowButtons.current.get(item.id)?.focus();
+                        openImport(target);
+                      }
+                    }}
+                  >
+                    <td className="px-3 @min-[400px]:px-4">
+                      <button
+                        ref={(node) => {
+                          if (node) {
+                            rowButtons.current.set(item.id, node);
+                          } else {
+                            rowButtons.current.delete(item.id);
+                          }
+                        }}
+                        className="imp-hist-open"
+                        aria-haspopup="dialog"
+                        onClick={() => openImport(target)}
+                        type="button"
+                      >
+                        <span className="t block wrap-anywhere">{item.sourceName}</span>
+                        <span className="s block @min-[600px]:hidden">{formatShortDateTime(item.importedAt)}</span>
+                        <span className="mt-1.5 flex @min-[440px]:hidden">
+                          <span className={cx("pill", state.pill)}>{state.label}</span>
+                        </span>
+                      </button>
+                    </td>
+                    <td className="hidden whitespace-nowrap @min-[600px]:table-cell">{formatShortDateTime(item.importedAt)}</td>
+                    <td className={cx("whitespace-nowrap px-3 @min-[400px]:px-4", undone && "text-muted")}>
+                      {count}
+                      {undone ? <span className="sr-only">{item.totalEvents === 1 ? " data, desfeita" : " datas, desfeita"}</span> : null}
+                    </td>
+                    <td className={cx("hidden @min-[820px]:table-cell", origin.mono && "break-all font-mono text-[13px]")}>{origin.text}</td>
+                    <td className="hidden @min-[440px]:table-cell">
+                      <span className={cx("pill", state.pill)}>{state.label}</span>
+                    </td>
+                    <td className="px-3 text-right">
+                      <ChevronRight className="imp-hist-chev ml-auto h-4 w-4" aria-hidden />
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
           </table>
         ) : (
           <div className="px-6 pb-6">
-            <EmptyState icon={History} text="Nenhuma importação ainda." hint="Use a importação de demonstração para testar." />
+            <EmptyState icon={History} text="Nenhuma importação ainda" hint="Leia o calendário de exemplo para testar." />
           </div>
         )}
-        {imports.length > IMPORTS_PREVIEW ? (
-          <div className="card-foot border-t border-line-2 px-6 pb-4">
-            <button
-              ref={moreImportsRef}
-              className="link"
-              aria-controls={`${histId}-linhas`}
-              aria-expanded={showAllImports}
-              onClick={toggleImports}
-              type="button"
-            >
-              {showAllImports ? "Mostrar menos" : `Ver todas (${imports.length})`}
-              <ChevronDown className={cx("h-[15px] w-[15px] transition", showAllImports && "rotate-180")} aria-hidden />
-            </button>
+        {importsPaged.pageCount > 1 ? (
+          <div className="imp-hist-pager">
+            <Pager paged={importsPaged} noun={["importação", "importações"]} focusRef={histHeadRef} />
           </div>
         ) : null}
       </section>
+
+      {/* Conferir datas: filtros, busca e a faixa dos meses no alto; a lista mostra um mês por vez, com o
+          vizinho no pé (a busca mostra tudo o que achou); o total marcado fica no rodapé */}
+      <Drawer
+        open={reviewReady}
+        size="wide"
+        busy={importing}
+        title="Conferir datas"
+        initialFocusRef={reviewEntryRef}
+        onClose={closeReview}
+        subtitle={
+          check.status === "ok" ? (
+            <>
+              <span className="imp-sub-src">{check.sourceName}</span>
+              <span className="imp-sub-count is-total">{datesLabel(rows.length)}</span>
+            </>
+          ) : null
+        }
+        footer={
+          <>
+            <p className="imp-foot-count" aria-live="polite">
+              {pickableCount ? (
+                <span>
+                  <b>{chosen.length}</b> de {pickableCount} {chosen.length === 1 ? "marcada" : "marcadas"}
+                </span>
+              ) : (
+                <span>Nada a marcar</span>
+              )}
+              {pastChosen ? (
+                <small>
+                  {pastChosen === 1 ? "1 já passou e aparece só em Passados" : `${pastChosen} já passaram e aparecem só em Passados`}
+                </small>
+              ) : existingCount ? (
+                <small>{existingCount === 1 ? "1 já está no calendário" : `${existingCount} já estão no calendário`}</small>
+              ) : null}
+            </p>
+            <button className={secondaryButton} disabled={importing} onClick={closeReview} type="button">
+              {nothingNew && !chosen.length ? "Fechar" : "Cancelar"}
+            </button>
+            <button
+              className={cx(primaryButton, "imp-foot-go")}
+              disabled={!canImport}
+              aria-disabled={busy || undefined}
+              aria-busy={importing || undefined}
+              onClick={() => void runImport()}
+              type="button"
+            >
+              {importing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" aria-hidden />}
+              {importing
+                ? "Importando"
+                : chosen.length
+                  ? `Importar ${datesLabel(chosen.length)}`
+                  : nothingNew
+                    ? "Nada novo para importar"
+                    : "Nenhuma data marcada"}
+            </button>
+          </>
+        }
+      >
+        <div className="imp-review">
+          <div className="imp-review-bar">
+            <div className="imp-bar-top">
+              <div className="chips chips-row imp-chips" role="group" aria-label="Filtrar as datas">
+                {reviewFilterList.map(({ id, label, count }) => {
+                  const active = filter === id;
+                  return (
+                    <button
+                      key={id}
+                      ref={active ? filterChipRef : undefined}
+                      className={cx("chip", active && "all")}
+                      aria-pressed={active}
+                      onClick={() => chooseFilter(id)}
+                      type="button"
+                    >
+                      {label}
+                      <span className="n">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <select
+                ref={filterSelectRef}
+                className="input imp-filter-select"
+                aria-label="Mostrar"
+                value={filter}
+                onChange={(event) => chooseFilter(event.target.value as ReviewFilter)}
+              >
+                {reviewFilterList.map(({ id, label, count }) => (
+                  <option key={id} value={id}>
+                    {`${label} ${count}`}
+                  </option>
+                ))}
+              </select>
+              <DateSearch value={reviewQuery} onChange={changeReviewQuery} />
+            </div>
+            {reviewAllGroups.length > 1 ? (
+              <div className="imp-months">
+                <MonthStrip
+                  chips={monthChips(reviewAllGroups, reviewMonthKey, now)}
+                  onPick={(index) => goReviewMonth(monthKeyOf(index), false)}
+                />
+              </div>
+            ) : null}
+            <div className="imp-bulk">
+              {/* busca sem resultado: quem diz é o vazio da lista (com as saídas); aqui a linha não repete */}
+              {reviewQ && !visibleRows.length ? null : (
+                <p className={cx("imp-bulk-n", reviewQ && "is-found")} aria-live="polite">
+                  {reviewQ
+                    ? `${datesLabel(visibleRows.length)} com "${reviewQuery.trim()}"${reviewAllGroups.length > 1 ? ` em ${reviewAllGroups.length} meses` : ""}`
+                    : `${datesLabel(visibleRows.length)} em ${reviewAllGroups.length} ${reviewAllGroups.length === 1 ? "mês" : "meses"}`}
+                </p>
+              )}
+              {/* cada botão só aparece quando tem o que fazer; o que some passa o foco para o outro */}
+              {bulkRows.length && visiblePicked < bulkRows.length ? (
+                <button
+                  ref={markAllRef}
+                  className={cx(secondaryButton, "btn-sm")}
+                  disabled={busy}
+                  aria-label={`Marcar todas, as ${datesLabel(bulkRows.length)} da lista`}
+                  onClick={() => bulkPick(true)}
+                  type="button"
+                >
+                  Marcar todas
+                </button>
+              ) : null}
+              {visiblePicked > 0 ? (
+                <button
+                  ref={unmarkAllRef}
+                  className={cx(secondaryButton, "btn-sm")}
+                  disabled={busy}
+                  aria-label={`Desmarcar todas, as ${datesLabel(bulkRows.length)} da lista`}
+                  onClick={() => bulkPick(false)}
+                  type="button"
+                >
+                  Desmarcar todas
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="imp-review-list">
+            {/* o aviso fica no começo da lista (o primeiro mês), e não se repete a cada mês */}
+            {reviewQ || reviewPos > 0 ? null : nothingNew ? (
+              // demonstração com o calendário já importado: diz que deu certo antes e mostra a saída
+              // no celular, só o título e "Ver detalhes" (o texto e as ações abrem no lugar): a lista de datas,
+              // que é o que se confere aqui, começa logo abaixo em vez de no fim da tela
+              <div className={cx("imp-uptodate", upToDateOpen && "is-open")}>
+                <span className="imp-uptodate-ico" aria-hidden>
+                  <CircleCheckBig className="h-5 w-5" />
+                </span>
+                <div className="imp-uptodate-body">
+                  <div className="imp-uptodate-head">
+                    <p className="imp-uptodate-title">Este calendário já está no sistema</p>
+                    <button
+                      className="link imp-uptodate-more"
+                      aria-expanded={upToDateOpen}
+                      aria-controls={`${baseId}-em-dia`}
+                      onClick={() => setUpToDateOpen((value) => !value)}
+                      type="button"
+                    >
+                      {upToDateOpen ? "Ocultar detalhes" : "Ver detalhes"}
+                      <ChevronDown className="h-4 w-4" aria-hidden />
+                    </button>
+                  </div>
+                  <div id={`${baseId}-em-dia`} className="imp-uptodate-more-body">
+                  <p className="imp-uptodate-text">
+                    {existingCount === rows.length
+                      ? existingCount === 1
+                        ? "A data já existe"
+                        : `As ${datesLabel(existingCount)} já existem`
+                      : `${existingCount} de ${datesLabel(rows.length)} já existem`}
+                    {previous ? `, importadas ${formatOnDayAt(previous.importedAt)}` : ""}.
+                    {rows.length > existingCount
+                      ? ` ${rows.length - existingCount === 1 ? "A outra é só de servidores (PIT, RAD, diários) e fica de fora, a não ser que você marque." : `As outras ${rows.length - existingCount} são só de servidores (PIT, RAD, diários) e ficam de fora, a não ser que você marque.`}`
+                      : ""}
+                  </p>
+                  <div className="imp-uptodate-acts">
+                    {previous ? (
+                      <button
+                        className={cx(secondaryButton, "btn-sm")}
+                        aria-haspopup="dialog"
+                        onClick={() => openPreviousImport(previous)}
+                        type="button"
+                      >
+                        <ListChecks className="h-4 w-4" aria-hidden />
+                        Ver a importação de {dayMonth(new Date(previous.importedAt))}
+                      </button>
+                    ) : null}
+                    {filter !== "existing" && existingCount < rows.length ? (
+                      <button className="link imp-uptodate-link" onClick={() => chooseFilter("existing")} type="button">
+                        Ver as que já existem
+                        <ArrowRight className="h-4 w-4" aria-hidden />
+                      </button>
+                    ) : null}
+                  </div>
+                  </div>
+                </div>
+              </div>
+            ) : noteParts.length ? (
+              <p className={cx("callout imp-note", previous ? "amber" : "blue")}>
+                {previous || undonePrevious ? (
+                  <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                ) : (
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                )}
+                <span>{noteParts.join(" ")}</span>
+              </p>
+            ) : null}
+
+            {reviewGroups.length ? (
+              reviewGroups.map((group) => {
+                const pickRows = group.items.filter(pickable);
+                const on = pickRows.filter(isPicked).length;
+                const locked = group.items.length - pickRows.length;
+                const lockedText = locked === 1 ? "1 já existe" : `${locked} já existem`;
+                const headId = `${baseId}-mes-${group.key}`;
+                return (
+                  <section
+                    key={group.key}
+                    ref={reviewSectionRef}
+                    className="imp-month"
+                    aria-labelledby={headId}
+                  >
+                    <div className="imp-month-head">
+                      <label className="imp-month-check">
+                        <MonthCheck
+                          state={pickRows.length && on === pickRows.length ? "all" : on ? "some" : "none"}
+                          label={`Todas as datas de ${group.label.toLowerCase()}`}
+                          disabled={busy || !pickRows.length}
+                          onChange={(value) => setMany(group.items, value)}
+                        />
+                      </label>
+                      <h3 ref={reviewHeadRef} className="imp-month-name drawer-h3" id={headId} tabIndex={-1}>
+                        {group.label}
+                      </h3>
+                      <span className="imp-month-n">
+                        {pickRows.length
+                          ? `${on} de ${pickRows.length} ${pickRows.length === 1 ? "marcada" : "marcadas"}${locked ? `, ${lockedText}` : ""}`
+                          : lockedText}
+                      </span>
+                    </div>
+                    <ul className="imp-rows">
+                      {group.items.map((row) => {
+                        const rowOn = isPicked(row);
+                        const rowLocked = !pickable(row);
+                        const meta = categoryMeta[row.category];
+                        return (
+                          <li key={row.key}>
+                            <label
+                              className={cx("imp-row", !rowOn && "is-off", rowLocked && "is-locked")}
+                              title={rowLocked ? "Já está no calendário" : undefined}
+                            >
+                              <input
+                                type="checkbox"
+                                className="imp-check"
+                                checked={rowOn}
+                                disabled={busy || rowLocked}
+                                onChange={(event) => setPicked((value) => ({ ...value, [row.key]: event.target.checked }))}
+                              />
+                              <DateCell start={row.start} end={row.end} />
+                              <span className="imp-row-title">{row.title}</span>
+                              <span className="imp-row-meta">
+                                {staffRows.has(row.index) ? <span className="imp-tag staff">Só de servidores</span> : null}
+                                {row.duplicate === "existing" ? <span className="imp-tag">Já existe</span> : null}
+                                {row.duplicate === "file" ? <span className="imp-tag warn">Repetida no arquivo</span> : null}
+                                {row.past ? (
+                                  <span className="imp-tag">
+                                    <Clock className="h-3 w-3" aria-hidden />
+                                    Já passou
+                                  </span>
+                                ) : null}
+                                <span className={cx("pill imp-row-cat", meta.tint)}>{meta.short}</span>
+                              </span>
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                );
+              })
+            ) : nothingNew && !reviewQ ? null : (
+              <div className="imp-review-empty">
+                {reviewQ && foundElsewhere ? (
+                  // a busca acha datas em outro filtro: diz quantas e leva até elas, sem perder a busca
+                  <div className="empty-inline compact" role="status">
+                    <span className="empty-ico">
+                      <Search className="h-5 w-5" aria-hidden />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-ink wrap-anywhere">
+                        {`Nenhuma data de "${filterLabel}" com "${reviewQuery.trim()}"`}
+                      </p>
+                      <p className="mt-0.5 text-sm leading-5 text-muted wrap-anywhere">
+                        {`Em Todas, ${foundElsewhere === 1 ? "1 data tem" : `${foundElsewhere} datas têm`} esse texto.`}
+                      </p>
+                      <div className="mt-2.5 flex flex-wrap gap-2">
+                        <button
+                          className={cx(secondaryButton, "btn-sm")}
+                          onClick={() => {
+                            // o botão some com o vazio: o foco vai para o filtro, que agora diz "Todas"
+                            chooseFilter("all");
+                            window.requestAnimationFrame(() => reviewEntryRef.current?.focus());
+                          }}
+                          type="button"
+                        >
+                          Ver em Todas
+                        </button>
+                        <button className="btn btn-g btn-sm" onClick={() => changeReviewQuery("")} type="button">
+                          Limpar busca
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : reviewQ ? (
+                  <div role="status">
+                    <EmptyState
+                      compact
+                      icon={Search}
+                      text={`Nenhuma data com "${reviewQuery.trim()}"`}
+                      action={{ label: "Limpar busca", onClick: () => changeReviewQuery("") }}
+                    />
+                  </div>
+                ) : (
+                  <EmptyState
+                    compact
+                    icon={ListChecks}
+                    text="Nenhuma data neste filtro"
+                    action={{ label: "Ver todas", onClick: () => chooseFilter("all") }}
+                  />
+                )}
+              </div>
+            )}
+
+            {reviewAllGroups.length > 1 ? (
+              <MonthPagerFooter
+                main="next"
+                prev={reviewPos > 0 ? pagerTarget(reviewAllGroups[reviewPos - 1], (key) => goReviewMonth(key, true)) : null}
+                next={
+                  reviewPos >= 0 && reviewPos < reviewAllGroups.length - 1
+                    ? pagerTarget(reviewAllGroups[reviewPos + 1], (key) => goReviewMonth(key, true))
+                    : null
+                }
+              />
+            ) : null}
+          </div>
+
+          {submitError ? (
+            <div role="alert" className="imp-review-error">
+              <div className="callout rose">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <span className="min-w-0 wrap-anywhere">
+                  <b className="block">A importação não foi feita. As datas continuam aqui para tentar de novo.</b>
+                  {submitError}
+                </span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Drawer>
+
+      {/* Datas de uma importação feita: só leitura, um mês por vez (abre no da próxima data), com Desfazer no pé */}
+      <Drawer
+        open={Boolean(viewing)}
+        size="wide"
+        busy={saving}
+        title="Datas importadas"
+        initialFocusRef={viewEntryRef}
+        onClose={() => setViewing(null)}
+        subtitle={
+          viewing ? (
+            <>
+              <span className="imp-sub-src">{viewing.sourceName}</span>
+              <span className="imp-sub-count">
+                importado {atLabel(viewing.importedAt, now)}
+                {viewUndone ? ", depois desfeito" : ""}
+              </span>
+            </>
+          ) : null
+        }
+        footer={
+          <>
+            <p className="imp-foot-count">
+              <span>
+                {viewUndone ? (
+                  <>
+                    <b>{viewTotal}</b> {viewTotal === 1 ? "data trazida, nenhuma no calendário" : "datas trazidas, nenhuma no calendário"}
+                  </>
+                ) : viewEvents.length === viewTotal || !viewTotal ? (
+                  <>
+                    <b>{viewEvents.length}</b> {viewEvents.length === 1 ? "data no calendário" : "datas no calendário"}
+                  </>
+                ) : (
+                  <>
+                    <b>{viewEvents.length}</b> de {datesLabel(viewTotal)} no calendário
+                  </>
+                )}
+              </span>
+            </p>
+            <button className={secondaryButton} onClick={() => setViewing(null)} type="button">
+              Fechar
+            </button>
+            {onUndoImport && viewEvents.length ? (
+              <button className={dangerButton} aria-disabled={busy || undefined} onClick={() => !busy && undoViewing()} type="button">
+                <Undo2 className="h-4 w-4" aria-hidden />
+                Desfazer importação
+              </button>
+            ) : null}
+          </>
+        }
+      >
+        <div className="imp-review">
+          {viewEvents.length ? (
+            <div className="imp-review-bar">
+              <div className="imp-bar-top">
+                <div className="chips chips-row imp-chips" role="group" aria-label="Filtrar as datas">
+                  {viewFilterList.map(({ id, label, count, dot }) => {
+                    const active = viewFilter === id;
+                    return (
+                      <button
+                        key={id}
+                        ref={active ? viewChipRef : undefined}
+                        className={cx("chip", active && "all")}
+                        aria-pressed={active}
+                        onClick={() => chooseViewFilter(id)}
+                        type="button"
+                      >
+                        {dot ? <span className={cx("dot", dot)} aria-hidden /> : null}
+                        {label}
+                        <span className="n">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <select
+                  ref={viewSelectRef}
+                  className="input imp-filter-select"
+                  aria-label="Mostrar"
+                  value={viewFilter}
+                  onChange={(event) => chooseViewFilter(event.target.value as ViewFilter)}
+                >
+                  {viewFilterList.map(({ id, label, count }) => (
+                    <option key={id} value={id}>
+                      {`${label} ${count}`}
+                    </option>
+                  ))}
+                </select>
+                <DateSearch value={viewQuery} onChange={changeViewQuery} />
+              </div>
+              {viewAllGroups.length > 1 ? (
+                <div className="imp-months">
+                  <MonthStrip
+                    chips={monthChips(viewAllGroups, viewMonthKey, now)}
+                    onPick={(index) => goViewMonth(monthKeyOf(index), false)}
+                  />
+                </div>
+              ) : null}
+              {/* busca sem resultado: quem diz é o vazio da lista; aqui a linha não repete "Nenhuma data" */}
+              {viewQ && viewVisible.length ? (
+                <p className="imp-bulk-n imp-found" aria-live="polite">
+                  {`${datesLabel(viewVisible.length)} com "${viewQuery.trim()}"${viewAllGroups.length > 1 ? ` em ${viewAllGroups.length} meses` : ""}`}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="imp-review-list">
+            {viewGroups.length ? (
+              viewGroups.map((group) => {
+                const headId = `${baseId}-ver-${group.key}`;
+                return (
+                  <section key={group.key} ref={viewSectionRef} className="imp-month" aria-labelledby={headId}>
+                    <div className="imp-month-head">
+                      <h3 ref={viewHeadRef} className="imp-month-name drawer-h3" id={headId} tabIndex={-1}>
+                        {group.label}
+                      </h3>
+                      <span className="imp-month-n">{datesLabel(group.items.length)}</span>
+                    </div>
+                    <ul className="imp-rows">
+                      {group.items.map(({ event, start, end, past }) => {
+                        const meta = categoryMeta[event.category];
+                        return (
+                          <li key={event.id} className="imp-row is-view">
+                            <DateCell start={start} end={end} />
+                            <span className="imp-row-title">{event.title}</span>
+                            <span className="imp-row-meta">
+                              {past ? (
+                                <span className="imp-tag">
+                                  <Clock className="h-3 w-3" aria-hidden />
+                                  Já passou
+                                </span>
+                              ) : null}
+                              <span className={cx("pill imp-row-cat", meta.tint)}>{meta.short}</span>
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                );
+              })
+            ) : (
+              <div className="imp-review-empty">
+                {viewQ ? (
+                  <div role="status">
+                    <EmptyState
+                      compact
+                      icon={Search}
+                      text={`Nenhuma data com "${viewQuery.trim()}"`}
+                      action={{ label: "Limpar busca", onClick: () => changeViewQuery("") }}
+                    />
+                  </div>
+                ) : viewUndone ? (
+                  // desfeita: o que aconteceu, quantas datas ela trouxe e o caminho para as que estão no calendário
+                  <EmptyState
+                    icon={Undo2}
+                    text="Importação desfeita"
+                    hint={`${viewTotal === 1 ? "A data que ela trouxe saiu" : `As ${viewTotal} datas que ela trouxe saíram`} do calendário de todas as turmas. ${
+                      viewRedone
+                        ? `O mesmo calendário foi importado de novo ${formatOnDayAt(viewRedone.importedAt)}.`
+                        : "Para tê-las de novo, importe o calendário outra vez."
+                    }`}
+                    action={
+                      viewRedone
+                        ? {
+                            label: "Ver a importação nova",
+                            onClick: () =>
+                              openImport({
+                                importId: viewRedone.id,
+                                sourceName: viewRedone.sourceName,
+                                importedAt: viewRedone.importedAt,
+                                fallback: [],
+                              }),
+                          }
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <EmptyState
+                    compact
+                    icon={History}
+                    text={viewTotal ? "As datas desta importação não estão mais no calendário" : "Esta importação não trouxe datas"}
+                  />
+                )}
+              </div>
+            )}
+
+            {viewAllGroups.length > 1 ? (
+              <MonthPagerFooter
+                main="next"
+                prev={viewPos > 0 ? pagerTarget(viewAllGroups[viewPos - 1], (key) => goViewMonth(key, true)) : null}
+                next={
+                  viewPos >= 0 && viewPos < viewAllGroups.length - 1
+                    ? pagerTarget(viewAllGroups[viewPos + 1], (key) => goViewMonth(key, true))
+                    : null
+                }
+              />
+            ) : null}
+          </div>
+        </div>
+      </Drawer>
 
       {confirm ? (
         <ConfirmDialog

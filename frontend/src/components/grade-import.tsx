@@ -1,15 +1,29 @@
 "use client";
 
-import { Check, CircleAlert, Download, FileSpreadsheet, FileUp, Loader2, Trash2 } from "lucide-react";
+import {
+  Check,
+  CircleAlert,
+  Download,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
+  FileUp,
+  Loader2,
+  RotateCcw,
+  Send,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode, type RefObject } from "react";
 import { ApiError, applyGradeImport, conflictOf, createGradeImport, deleteGradeImport } from "@/lib/api";
-import { cx, errorMessage, fieldErrors, formatShortDateTime, parseScore } from "@/lib/format";
+import { countText, cx, errorMessage, fieldErrors, formatShortDateTime, parseScore } from "@/lib/format";
 import {
   GradesFileError,
   MAX_BODY_BYTES,
   buildImportRows,
   columnHasData,
   columnSamples,
+  columnsVerdict,
   downloadRejected as downloadRejectedSheet,
   downloadTemplate as downloadTemplateSheet,
   fileSlug,
@@ -19,10 +33,10 @@ import {
   loadSavedMapping,
   readGradesFile,
   saveMapping,
-  templateHeaders,
   toMapping,
   type ColumnChoice,
   type GradesFile,
+  type IdentifierType,
 } from "@/lib/grades-file";
 import type {
   EventGradeRow,
@@ -44,28 +58,48 @@ import {
 import { Field, Segmented, SegmentedButton, primaryButton, secondaryButton } from "./ui";
 
 /**
- * Importar notas (desenho 5.7): os 4 passos (Arquivo, Colunas, Prévia, Aplicar) dentro da mesma gaveta da
- * avaliação (EventGradesDrawer), que troca o conteúdo e mostra Voltar. O estado fica no hook useGradeImport
- * (a gaveta guarda o hook e desenha GradeImportBody no corpo e GradeImportFooter no rodapé).
+ * Importar notas, dentro da gaveta da avaliação (EventGradesDrawer), em três passos à vista:
+ * 1. Enviar: baixar a planilha da turma e soltar a planilha preenchida. Ao escolher, a tela lê a planilha, acha
+ *    sozinha a coluna do aluno (e-mail, matrícula ou nome) e a da nota e já cria o rascunho, mostrando o
+ *    andamento ("Lendo a planilha", "Conferindo os alunos da turma"). Só pergunta as colunas quando não dá para
+ *    adivinhar, ou quando a docente pede ("Ajustar colunas").
+ * 2. Conferir: os números (para importar, iguais, com problema) e cada linha com a situação.
+ * 3. Pronto: quantas notas entraram, se os alunos já veem e as próximas ações (publicar, ver a lista, desfazer).
+ * O estado fica no hook useGradeImport; a gaveta desenha GradeImportBody no corpo e GradeImportFooter no rodapé.
  * Dona: área Notas (docente).
  */
 
-export type ImportStep = "file" | "columns" | "preview";
+export type ImportStep = "send" | "columns" | "check" | "done";
 
 type FocusField = "file" | "points" | "identifier" | "score";
 
 type ColumnErrors = { identifierColumn?: string; scoreColumn?: string; general?: string };
+
+/** Por que as colunas apareceram: a tela não achou a do aluno ou a da nota, ou a docente pediu para ajustar. */
+type ColumnsReason = "student" | "score" | "asked";
 
 export type GradeImportOptions = {
   /** A avaliação (GET /events/:id/grades). */
   info: GradeEventInfo | null;
   /** Alunos da lista de notas (para a planilha da turma). */
   students: EventGradeRow[];
-  /** As notas da avaliação já estão publicadas (o rodapé avisa que aparecem na hora). */
+  /** As notas da avaliação já estão publicadas (o Pronto diz se os alunos já veem). */
   published: boolean;
+  /** Importações da avaliação (o Pronto percebe a importação desfeita pelo aviso). */
+  imports: GradeImport[] | null;
+  /** Publicando as notas (o botão "Publicar notas agora" do Pronto). */
+  publishing: boolean;
+  /** Publica as notas da avaliação (a mesma ação do resumo da gaveta). */
+  onPublish: () => void;
+  /** Importação sendo desfeita (id), para o botão do Pronto girar. */
+  undoingId: number | null;
+  /** "Desfazer importação" do Pronto: confirma e desfaz. */
+  onUndoApplied: (applied: GradeImportApplied) => void;
   /** Sai da importação (volta para a gaveta da avaliação). */
   onExit: () => void;
-  /** Aplicou: a gaveta mostra o toast com Desfazer e volta. */
+  /** "Ver a lista de notas" do Pronto: volta para a gaveta, com a lista atualizada. */
+  onFinish: () => void;
+  /** Aplicou: a gaveta recarrega a lista (a importação segue no Pronto, que tem o Desfazer). */
   onApplied: (result: GradeImportApplied, message: string) => void;
   /** Um rascunho foi criado ou descartado (a lista de importações muda). */
   onDraftsChanged: () => void;
@@ -75,28 +109,52 @@ export type GradeImportOptions = {
 
 export type GradeImportFlow = ReturnType<typeof useGradeImport>;
 
+/** Espera o andamento ficar à vista por um instante (a planilha pequena é lida num piscar). */
+function atLeast(started: number, ms: number) {
+  const left = ms - (Date.now() - started);
+  return left > 0 ? new Promise<void>((resolve) => window.setTimeout(resolve, left)) : Promise.resolve();
+}
+
+const idWords: Record<IdentifierType, { article: string; name: string; label: string }> = {
+  name: { article: "o nome", name: "nome", label: "Coluna do nome" },
+  email: { article: "o e-mail", name: "e-mail", label: "Coluna do e-mail" },
+  registration: { article: "a matrícula", name: "matrícula", label: "Coluna da matrícula" },
+};
+
 export function useGradeImport({
+  imports,
   info,
   onApplied,
   onDraftsChanged,
   onExit,
+  onFinish,
   onPointsSet,
+  onPublish,
+  onUndoApplied,
   published,
+  publishing,
   students,
+  undoingId,
 }: GradeImportOptions) {
   const { token, toast, showError, confirm } = useAppActions();
-  const [step, setStep] = useState<ImportStep>("file");
+  const [step, setStep] = useState<ImportStep>("send");
   const [file, setFile] = useState<GradesFile | null>(null);
   const [fileError, setFileError] = useState("");
   const [reading, setReading] = useState(false);
+  /** Nome da planilha que está sendo lida (o andamento mostra antes de ela ser lida). */
+  const [readingName, setReadingName] = useState("");
   const [pointsText, setPointsTextState] = useState("");
   const [pointsError, setPointsError] = useState("");
   const [columns, setColumnsState] = useState<ColumnChoice | null>(null);
+  const [columnsReason, setColumnsReason] = useState<ColumnsReason>("asked");
   const [columnErrors, setColumnErrors] = useState<ColumnErrors>({});
   const [sending, setSending] = useState(false);
   const [draft, setDraft] = useState<GradeImport | null>(null);
   const [keepAgenda, setKeepAgenda] = useState(true);
   const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState<GradeImportApplied | null>(null);
+  /** As notas já estavam publicadas quando a importação foi aplicada (o Pronto diz se acabou de publicar). */
+  const [publishedBefore, setPublishedBefore] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [blocked, setBlocked] = useState("");
 
@@ -113,38 +171,38 @@ export function useGradeImport({
   const needsPoints = info !== null && info.maxScore === null;
   const counts = draft ? importKindCounts(draft) : null;
   const importCount = counts ? importableCount(counts, keepAgenda) : 0;
-  const busy = sending || applying || discarding;
-  // alunos ativos da planilha da turma e as colunas dela (com a matrícula só se a lista traz)
+  const busy = reading || sending || applying || discarding;
+  // alunos ativos da planilha da turma
   const templateStudents = students.filter((student) => student.enrollmentStatus === "active");
-  // sem a pontuação no nome ("nota"): o texto da tela diz "de 0 a 10" logo depois
-  const templateNames = templateHeaders(templateStudents).map((name) => name.toLowerCase());
-  const templateColumns = `${templateNames.slice(0, -1).join(", ")} e ${templateNames[templateNames.length - 1]}`;
 
   function reset() {
     setFile(null);
     setFileError("");
     setReading(false);
+    setReadingName("");
     setPointsTextState("");
     setPointsError("");
     setColumnsState(null);
+    setColumnsReason("asked");
     setColumnErrors({});
     setDraft(null);
     setKeepAgenda(true);
+    setApplied(null);
     setBlocked("");
     setFocusAsk(null);
   }
 
-  /** Começa uma importação nova, no passo Arquivo. */
+  /** Começa uma importação nova, no passo Enviar. */
   function start() {
     reset();
-    goStep("file");
+    goStep("send");
   }
 
-  /** Abre um rascunho da lista ("Continuar") direto na Prévia. */
+  /** Abre um rascunho da lista ("Continuar") direto em Conferir. */
   function openDraft(value: GradeImport) {
     reset();
     setDraft(value);
-    goStep("preview");
+    goStep("check");
   }
 
   function setPointsText(value: string) {
@@ -157,38 +215,17 @@ export function useGradeImport({
     setColumnsState((current) => {
       const base = current ?? guessColumns(file.sheet, undefined, info?.title);
       const next = { ...base, ...patch };
-      // trocou e-mail por matrícula: a coluna do aluno acompanha, se a escolhida não serve
+      // trocou o jeito de achar o aluno: a coluna do aluno acompanha, se a escolhida não serve
       if (patch.identifierType && patch.identifierType !== base.identifierType && !patch.identifierColumn) {
         const guess = guessColumns(file.sheet, patch.identifierType, info?.title);
         if (guess.identifierColumn && guess.identifierColumn !== next.scoreColumn) {
           next.identifierColumn = guess.identifierColumn;
         }
+        next.nameColumn = patch.identifierType === "name" ? "" : guess.nameColumn !== next.identifierColumn ? guess.nameColumn : "";
       }
       return next;
     });
     setColumnErrors({});
-  }
-
-  async function chooseFile(selected: File | null | undefined) {
-    if (!selected || reading) return;
-    setReading(true);
-    setFileError("");
-    try {
-      const read = await readGradesFile(selected);
-      setFile(read);
-      setColumnsState(fitColumns(read.sheet, loadSavedMapping(), info?.title));
-      setColumnErrors({});
-    } catch (error) {
-      setFile(null);
-      setColumnsState(null);
-      setFileError(
-        error instanceof GradesFileError
-          ? error.message
-          : "Não deu para ler a planilha. Confira se ela é do Excel (.xlsx) e escolha de novo."
-      );
-    } finally {
-      setReading(false);
-    }
   }
 
   /** Pontuação digitada em número (10, 7,5) ou null se inválida. */
@@ -200,85 +237,146 @@ export function useGradeImport({
     return cents / 100;
   }
 
-  function goColumns() {
-    let firstInvalid: FocusField | null = null;
-    if (!file) {
-      setFileError(fileError || "Escolha a planilha com as notas.");
-      firstInvalid = "file";
-    }
-    if (needsPoints && pointsValue() === null) {
-      setPointsError("Informe quanto vale a avaliação, de 0,01 a 999,99. Exemplo: 10.");
-      firstInvalid ??= "points";
-    }
-    if (firstInvalid) {
-      askFocus(firstInvalid);
+  /** Escolheu a planilha: lê, acha as colunas e, se der, confere na hora (sem perguntar nada). */
+  async function chooseFile(selected: File | null | undefined) {
+    if (!selected || busy) return;
+    const started = Date.now();
+    setReadingName(selected.name);
+    setReading(true);
+    setFileError("");
+    setColumnErrors({});
+    let read: GradesFile;
+    try {
+      read = await readGradesFile(selected);
+    } catch (error) {
+      await atLeast(started, 350);
+      setFile(null);
+      setColumnsState(null);
+      setReading(false);
+      setFileError(
+        error instanceof GradesFileError
+          ? error.message
+          : "Não deu para ler a planilha. Confira se ela é do Excel (.xlsx) e escolha de novo."
+      );
+      askFocus("file");
       return;
     }
-    goStep("columns");
+    const guess = fitColumns(read.sheet, loadSavedMapping(), info?.title);
+    setFile(read);
+    setColumnsState(guess);
+    await atLeast(started, 450);
+    setReading(false);
+    await proceed(read, guess, started);
   }
 
-  async function sendPreview() {
-    if (!file || !columns || !info) return;
-    const errors: ColumnErrors = {};
-    const idText = columns.identifierType === "email" ? "o e-mail" : "a matrícula";
-    if (!columns.identifierColumn) {
-      errors.identifierColumn = `Escolha a coluna com ${idText} do aluno.`;
-    } else if (!columnHasData(file.sheet, columns.identifierColumn)) {
-      // coluna vazia: nenhuma linha acharia o aluno ("sem identificação" e "Importar 0 notas")
-      errors.identifierColumn = `A coluna ${columns.identifierColumn} está vazia neste arquivo. Escolha a coluna com ${idText} dos alunos.`;
+  /**
+   * Depois de ler: a planilha da turma ainda sem notas volta com o aviso; sem a pontuação, pede a pontuação; sem
+   * a coluna do aluno ou da nota, mostra as colunas; com tudo, cria o rascunho e vai para Conferir.
+   */
+  async function proceed(read: GradesFile, choice: ColumnChoice, started = Date.now()) {
+    const verdict = columnsVerdict(read.sheet, choice);
+    if (verdict === "empty-score") {
+      setFile(null);
+      setColumnsState(null);
+      setFileError(
+        `A coluna ${choice.scoreColumn} está vazia nesta planilha. Escreva a nota de cada aluno, salve a planilha e envie de novo.`
+      );
+      askFocus("file");
+      return;
     }
-    if (!columns.scoreColumn) {
+    if (needsPoints && pointsValue() === null) {
+      setPointsError("Informe quanto vale a avaliação para conferir as notas, de 0,01 a 999,99. Exemplo: 10.");
+      askFocus("points");
+      return;
+    }
+    if (verdict !== "ok") {
+      setColumnsReason(verdict);
+      goStep("columns");
+      return;
+    }
+    await send(read, choice, "send", started);
+  }
+
+  /** Cria o rascunho (POST /grade-imports) e vai para Conferir. */
+  async function send(read: GradesFile, choice: ColumnChoice, from: "send" | "columns", started = Date.now()) {
+    if (!info || busy) return;
+    const fail = (message: string) => {
+      if (from === "columns") {
+        setColumnErrors({ general: message });
+      } else {
+        setFileError(message);
+        askFocus("file");
+      }
+    };
+    const errors: ColumnErrors = {};
+    const idText = idWords[choice.identifierType].article;
+    if (!choice.identifierColumn) {
+      errors.identifierColumn = `Escolha a coluna com ${idText} do aluno.`;
+    } else if (!columnHasData(read.sheet, choice.identifierColumn)) {
+      // coluna vazia: nenhuma linha acharia o aluno
+      errors.identifierColumn = `A coluna ${choice.identifierColumn} está vazia nesta planilha. Escolha a coluna com ${idText} dos alunos.`;
+    }
+    if (!choice.scoreColumn) {
       errors.scoreColumn = "Escolha a coluna com a nota.";
-    } else if (columns.scoreColumn === columns.identifierColumn) {
+    } else if (choice.scoreColumn === choice.identifierColumn) {
       errors.scoreColumn = "A nota precisa vir de outra coluna, diferente da coluna do aluno.";
     }
     if (errors.identifierColumn || errors.scoreColumn) {
       setColumnErrors(errors);
+      if (from === "send") setColumnsReason(errors.identifierColumn ? "student" : "score");
+      goStep("columns");
       askFocus(errors.identifierColumn ? "identifier" : "score");
       return;
     }
-    const rows = buildImportRows(file.sheet, columns);
+    const rows = buildImportRows(read.sheet, choice);
     if (!rows.length) {
-      setColumnErrors({ general: "Nenhuma linha com dados nessas colunas. Confira se escolheu as colunas certas." });
+      fail("Nenhuma linha com dados nessas colunas. Confira se escolheu as colunas certas.");
       return;
     }
     const points = needsPoints ? pointsValue() : null;
+    if (needsPoints && points === null) {
+      setPointsError("Informe quanto vale a avaliação para conferir as notas, de 0,01 a 999,99. Exemplo: 10.");
+      goStep("send");
+      askFocus("points");
+      return;
+    }
     const input: GradeImportInput = {
       academicEventId: info.id,
-      // a origem não é mais escolhida na tela: a planilha é lida igual, venha de onde vier
+      // a origem não é escolhida na tela: a planilha é lida igual, venha de onde vier
       source: "modelo",
-      fileName: file.name.slice(0, 200),
-      checksum: file.checksum.slice(0, 128),
-      fileModifiedAt: file.modifiedAt,
-      mapping: toMapping(columns),
+      fileName: read.name.slice(0, 200),
+      checksum: read.checksum.slice(0, 128),
+      fileModifiedAt: read.modifiedAt,
+      mapping: toMapping(choice),
       rows,
       ...(points !== null ? { points } : {}),
     };
     if (jsonSize(input) > MAX_BODY_BYTES) {
-      setColumnErrors({
-        general: "As linhas deste arquivo passam de 1 MB para enviar. Divida o arquivo em duas importações.",
-      });
+      fail("As linhas desta planilha passam de 1 MB para enviar. Divida a planilha em duas importações.");
       return;
     }
 
     setSending(true);
     setColumnErrors({});
-    // voltou da Prévia e mandou de novo: o rascunho anterior sai, para a lista não juntar rascunhos iguais
+    // mandou de novo (outra planilha ou outras colunas): o rascunho anterior sai, para a lista não juntar rascunhos
     const previous = draft && draft.status === "draft" ? draft : null;
     try {
       if (previous) {
         await deleteGradeImport(token, previous.id).catch(() => undefined);
       }
       const created = await createGradeImport(token, input);
-      saveMapping(toMapping(columns));
+      saveMapping(toMapping(choice));
+      await atLeast(started, from === "send" ? 1000 : 550);
       setDraft(created);
       setKeepAgenda(true);
-      goStep("preview");
+      setSending(false);
+      goStep("check");
       onDraftsChanged();
       if (points !== null) {
         onPointsSet();
       }
     } catch (error) {
+      setSending(false);
       if (previous) {
         setDraft(null);
         onDraftsChanged();
@@ -286,29 +384,27 @@ export function useGradeImport({
       const fields = fieldErrors(error);
       if (fields.points) {
         setPointsError(fields.points);
-        goStep("file");
+        goStep("send");
         askFocus("points");
         return;
       }
       if (error instanceof ApiError && error.status === 413) {
-        setColumnErrors({
-          general: "As linhas deste arquivo passam de 1 MB para enviar. Divida o arquivo em duas importações.",
-        });
+        fail("As linhas desta planilha passam de 1 MB para enviar. Divida a planilha em duas importações.");
         return;
       }
       if (conflictOf(error, "ARCHIVED")) {
         setBlocked(errorMessage(error));
+        return;
       }
       if (fields["mapping.identifierColumn"] || fields["mapping.scoreColumn"]) {
         setColumnErrors({
           identifierColumn: fields["mapping.identifierColumn"],
           scoreColumn: fields["mapping.scoreColumn"],
         });
+        goStep("columns");
         return;
       }
-      setColumnErrors({ general: errorMessage(error) });
-    } finally {
-      setSending(false);
+      fail(errorMessage(error));
     }
   }
 
@@ -318,8 +414,12 @@ export function useGradeImport({
     try {
       const newer = counts?.newer_in_agenda ?? 0;
       const { data, message } = await applyGradeImport(token, draft.id, newer > 0 ? keepAgenda : undefined);
+      setApplied(data);
+      setPublishedBefore(published);
       setDraft(null);
       setFile(null);
+      setColumnsState(null);
+      goStep("done");
       onApplied(data, message);
     } catch (error) {
       showError(error, `notas-importacao-${draft.id}`);
@@ -339,7 +439,7 @@ export function useGradeImport({
     const target = draft;
     confirm({
       title: "Descartar o rascunho?",
-      message: "Nenhuma nota muda. Para importar este arquivo depois, escolha ele de novo.",
+      message: "Nenhuma nota muda. Para importar esta planilha depois, envie ela de novo.",
       confirmLabel: "Descartar rascunho",
       cancelLabel: "Manter rascunho",
       action: async () => {
@@ -370,7 +470,7 @@ export function useGradeImport({
       await downloadTemplateSheet(info, active);
       toast(
         active.length
-          ? `Planilha baixada com ${active.length === 1 ? "1 aluno" : `${active.length} alunos`}. Preencha a coluna da nota e importe a planilha.`
+          ? `Planilha baixada com ${countText(active.length, "aluno", "alunos")}. Escreva as notas e envie a planilha aqui.`
           : "Planilha baixada. A turma ainda não tem alunos ativos: preencha nome, e-mail e nota de cada um.",
         { tone: "info", key: "notas-modelo" }
       );
@@ -383,36 +483,54 @@ export function useGradeImport({
     if (!draft?.rows || !info) return;
     const rows = draft.rows.filter((row) => rejectedKinds.includes(row.kind));
     try {
-      await downloadRejectedSheet(`rejeitadas-${fileSlug(info.title)}.xlsx`, rows, rowKindLabel, rowReason);
+      await downloadRejectedSheet(`linhas-com-problema-${fileSlug(info.title)}.xlsx`, rows, rowKindLabel, rowReason);
     } catch {
       toast("Não deu para gerar a planilha. Tente de novo.", { tone: "danger", key: "notas-rejeitadas" });
     }
   }
 
-  /** Botão principal do rodapé: Continuar, Ver prévia, Importar N notas ou, sem nada para importar, Escolher outro arquivo. */
-  function next() {
-    if (busy || blocked) return;
-    if (step === "file") goColumns();
-    else if (step === "columns") void sendPreview();
-    else if (importCount === 0) chooseAnotherFile();
-    else void apply();
+  /** Abre as colunas a partir da conferência ("Ajustar colunas"). */
+  function adjustColumns() {
+    if (!file || busy) return;
+    setColumnsReason("asked");
+    setColumnErrors({});
+    goStep("columns");
   }
 
-  /** Prévia sem nada para importar: volta ao passo Arquivo para trocar o arquivo (o rascunho sai ao mandar o novo). */
-  function chooseAnotherFile() {
-    if (busy) return;
-    goStep("file");
-    // no passo Arquivo, o foco já fica em "Trocar arquivo"
-    askFocus("file");
+  /** Volta para Enviar sem a planilha (para escolher outra; o rascunho sai quando a nova for conferida). */
+  function backToSend() {
+    setFile(null);
+    setColumnsState(null);
+    setColumnErrors({});
+    goStep("send");
+  }
+
+  /** Botão principal do rodapé, conforme o passo. */
+  function next() {
+    if (busy || blocked) return;
+    if (step === "send") {
+      if (file && columns) void proceed(file, columns);
+    } else if (step === "columns") {
+      if (file && columns) void send(file, columns, "columns");
+    } else if (step === "check") {
+      if (importCount === 0) {
+        backToSend();
+        askFocus("file");
+      } else {
+        void apply();
+      }
+    }
   }
 
   /** Voltar do rodapé: um passo para trás; no primeiro, sai da importação. */
   function back() {
     if (busy) return;
-    if (step === "preview") {
-      goStep(file ? "columns" : "file");
+    if (step === "check" || (step === "send" && file) || (step === "columns" && !(draft && columnsReason === "asked"))) {
+      backToSend();
     } else if (step === "columns") {
-      goStep("file");
+      goStep("check");
+    } else if (step === "done") {
+      onFinish();
     } else {
       onExit();
     }
@@ -423,25 +541,34 @@ export function useGradeImport({
     file,
     fileError,
     reading,
+    readingName,
     needsPoints,
     pointsText,
     pointsError,
     columns,
+    columnsReason,
     columnErrors,
     sending,
     draft,
     keepAgenda,
     applying,
+    applied,
     discarding,
     blocked,
     info,
     published,
+    publishedBefore,
+    publishing,
+    imports,
+    undoingId,
     counts,
     importCount,
     busy,
-    templateColumns,
-    /** Arquivo lido e ainda não enviado: fechar a gaveta pergunta antes. */
-    hasUnsentFile: Boolean(file) && step !== "preview",
+    templateCount: templateStudents.length,
+    /** Planilha lida e ainda não conferida (ou colunas mudadas): fechar a gaveta pergunta antes. */
+    hasUnsentFile: Boolean(file) && (step === "send" || step === "columns"),
+    /** Planilha lida que espera a pontuação (o rodapé mostra "Conferir notas"). */
+    pendingFile: Boolean(file) && step === "send",
     focusAsk,
     start,
     openDraft,
@@ -449,40 +576,42 @@ export function useGradeImport({
     setColumns,
     setKeepAgenda,
     chooseFile,
+    adjustColumns,
     next,
     back,
     discardDraft,
     downloadTemplate,
     downloadRejected,
+    publish: onPublish,
+    undoApplied: () => {
+      if (applied) onUndoApplied(applied);
+    },
+    finish: onFinish,
   };
 }
 
 /* ------------------------------------------------------------------ */
-/* Passos                                                              */
+/* Passos à vista                                                      */
 /* ------------------------------------------------------------------ */
 
-const stepNames: Array<{ key: ImportStep | "apply"; label: string }> = [
-  { key: "file", label: "Arquivo" },
-  { key: "columns", label: "Colunas" },
-  { key: "preview", label: "Prévia" },
-  { key: "apply", label: "Aplicar" },
-];
+const stepNames = ["Enviar", "Conferir", "Pronto"];
 
-function Stepper({ applying, step }: { applying: boolean; step: ImportStep }) {
-  const current = applying ? 3 : stepNames.findIndex((item) => item.key === step);
+function Stepper({ step }: { step: ImportStep }) {
+  const current = step === "done" ? 2 : step === "check" ? 1 : 0;
+  const finished = step === "done";
   return (
-    <ol className="notas-docente-steps" aria-label={`Passo ${current + 1} de 4: ${stepNames[current].label}`}>
-      {stepNames.map((item, index) => {
-        const done = index < current;
+    <ol className="notas-docente-steps" aria-label={`Passo ${current + 1} de 3: ${stepNames[current]}`}>
+      {stepNames.map((label, index) => {
+        const done = index < current || finished;
         const isCurrent = index === current;
         return (
-          <li key={item.key} className={cx("notas-docente-step", done && "is-done", isCurrent && "is-cur")} aria-current={isCurrent ? "step" : undefined}>
+          <li key={label} className={cx("notas-docente-step", done && "is-done", isCurrent && "is-cur")} aria-current={isCurrent ? "step" : undefined}>
             <span className="notas-docente-step-n" aria-hidden>
               {done ? <Check className="h-3.5 w-3.5" strokeWidth={2.6} /> : index + 1}
             </span>
             <span className="notas-docente-step-t">
-              {item.label}
-              {done ? <span className="sr-only">, feito</span> : null}
+              {label}
+              {done && !isCurrent ? <span className="sr-only">, feito</span> : null}
             </span>
           </li>
         );
@@ -491,30 +620,16 @@ function Stepper({ applying, step }: { applying: boolean; step: ImportStep }) {
   );
 }
 
-/** Cartão do arquivo escolhido (nome e como foi lido). */
-function FileCard({ action, flow }: { action?: ReactNode; flow: GradeImportFlow }) {
-  const { columns, draft, file } = flow;
-  let detail: string;
-  if (file) {
-    const lines = file.sheet.rows.length;
-    const kind = file.sheet.format === "xlsx" ? "Planilha do Excel" : "Planilha em CSV";
-    detail = `${kind}, ${lines === 1 ? "1 linha" : `${lines} linhas`}`;
-    if (flow.step === "preview" && columns) {
-      detail = `${detail}, aluno pela coluna ${columns.identifierColumn} e nota pela coluna ${columns.scoreColumn}`;
-    }
-  } else if (draft) {
-    detail = `Rascunho de ${formatShortDateTime(draft.createdAt)}, aluno pela coluna ${draft.mapping.identifierColumn} e nota pela coluna ${draft.mapping.scoreColumn}`;
-  } else {
-    return null;
-  }
-  // sem espaço ao lado (celular), o botão desce para a linha de baixo e o nome do arquivo fica com a largura toda
+/** Cartão da planilha escolhida (nome, como foi lida e uma ação ao lado). */
+function FileCard({ action, detail, name }: { action?: ReactNode; detail: string; name: string }) {
+  // sem espaço ao lado (celular), o botão desce para a linha de baixo e o nome fica com a largura toda
   return (
     <div className="notas-docente-file">
       <span className="mini-ico">
         <FileSpreadsheet className="h-[18px] w-[18px]" aria-hidden />
       </span>
       <div className="notas-docente-file-main">
-        <p className="notas-docente-file-t">{file?.name ?? draft?.fileName}</p>
+        <p className="notas-docente-file-t">{name}</p>
         <p className="notas-docente-file-s">{detail}</p>
       </div>
       {action ? <div className="notas-docente-file-act">{action}</div> : null}
@@ -522,12 +637,67 @@ function FileCard({ action, flow }: { action?: ReactNode; flow: GradeImportFlow 
   );
 }
 
-function FileStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: RefObject<HTMLHeadingElement | null> }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+function fileDetail(file: GradesFile) {
+  const lines = file.sheet.rows.length;
+  const kind = file.sheet.format === "xlsx" ? "Planilha do Excel" : "Planilha em CSV";
+  return `${kind}, ${countText(lines, "linha", "linhas")}`;
+}
+
+/** Andamento no lugar da área de soltar: lendo a planilha e depois conferindo os alunos da turma. */
+function Processing({ flow }: { flow: GradeImportFlow }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const reading = flow.reading;
+  const lines = flow.file?.sheet.rows.length ?? 0;
+  // o botão que abriu a escolha some: o foco fica no andamento (e volta ao título do passo seguinte)
+  useEffect(() => {
+    ref.current?.focus({ preventScroll: true });
+  }, []);
+  const name = flow.file?.name ?? flow.readingName;
+  const stages = [
+    { label: "Lendo a planilha", done: !reading, current: reading },
+    {
+      label:
+        flow.templateCount === 1
+          ? "Conferindo com o aluno da turma"
+          : flow.templateCount
+            ? `Conferindo com os ${flow.templateCount} alunos da turma`
+            : "Conferindo os alunos da turma",
+      done: false,
+      current: !reading,
+    },
+  ];
+  return (
+    <div ref={ref} className="notas-docente-proc outline-none" role="status" aria-live="polite" tabIndex={-1}>
+      <span className="notas-docente-ring" aria-hidden />
+      <p className="notas-docente-proc-t">{reading ? "Lendo a planilha" : "Conferindo os alunos da turma"}</p>
+      <p className="notas-docente-proc-s wrap-anywhere">
+        {reading || !lines ? name : `${countText(lines, "linha", "linhas")} de ${name}`}
+      </p>
+      <ol className="notas-docente-proc-list" aria-hidden>
+        {stages.map((stage) => (
+          <li key={stage.label} className={cx(stage.done && "is-done", stage.current && "is-cur")}>
+            <span className="dot">{stage.done ? <Check className="h-3 w-3" strokeWidth={3} /> : null}</span>
+            {stage.label}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function SendStep({
+  flow,
+  headingRef,
+  onPick,
+}: {
+  flow: GradeImportFlow;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+  onPick: () => void;
+}) {
   const fileButtonRef = useRef<HTMLButtonElement>(null);
   const pointsRef = useRef<HTMLInputElement>(null);
   const { focusAsk } = flow;
-  // validação do Continuar: o foco vai para o primeiro campo com erro
+  // validação: o foco vai para o campo com erro
   useEffect(() => {
     // depois da gaveta (que leva o foco ao título quando o passo muda)
     const timer = window.setTimeout(() => {
@@ -539,7 +709,9 @@ function FileStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: Ref
   const hintId = useId();
   const errorId = useId();
   const [dragging, setDragging] = useState(false);
-  const { file, fileError, info, reading } = flow;
+  const { file, fileError, info, reading, sending } = flow;
+  const processing = reading || sending;
+  const count = flow.templateCount;
   const maxText = info?.maxScoreText;
 
   function onDrop(event: DragEvent<HTMLDivElement>) {
@@ -548,107 +720,121 @@ function FileStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: Ref
     void flow.chooseFile(event.dataTransfer.files?.[0]);
   }
 
+  let area: ReactNode;
+  if (processing) {
+    area = <Processing flow={flow} />;
+  } else if (file && flow.pendingFile) {
+    area = (
+      <FileCard
+        name={file.name}
+        detail={fileDetail(file)}
+        action={
+          <button ref={fileButtonRef} className={cx(secondaryButton, "btn-sm shrink-0")} onClick={onPick} type="button">
+            Trocar planilha
+          </button>
+        }
+      />
+    );
+  } else {
+    area = (
+      <div
+        className={cx("notas-docente-drop", dragging && "is-over", fileError && "is-bad")}
+        onClick={(event) => {
+          // a área toda escolhe a planilha (o botão de dentro já faz isso sozinho)
+          if (!(event.target as HTMLElement).closest("button")) onPick();
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDrop={onDrop}
+      >
+        <span className="notas-docente-drop-ico" aria-hidden>
+          <FileUp className="h-6 w-6" />
+        </span>
+        <p className="notas-docente-drop-t">
+          <span className="notas-docente-drag">Arraste a planilha para cá ou</span>
+          <span className="notas-docente-touch">Escolha a planilha com as notas</span>
+        </p>
+        <button
+          ref={fileButtonRef}
+          className={primaryButton}
+          aria-describedby={cx(hintId, fileError && errorId) || undefined}
+          onClick={onPick}
+          type="button"
+        >
+          <FileUp className="h-4 w-4" aria-hidden />
+          Escolher planilha
+        </button>
+        <p className="notas-docente-drop-s">Planilha do Excel (.xlsx) ou CSV, até 2.000 linhas</p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-4">
-      <h3 ref={headingRef} className="notas-docente-h3 outline-none" tabIndex={-1}>
-        Escolha a planilha
+      <h3 ref={headingRef} className="sr-only" tabIndex={-1}>
+        Enviar a planilha
       </h3>
 
-      <div>
-        <p className="lbl mb-2">Planilha com as notas</p>
-        {file ? (
-          <FileCard
-            flow={flow}
-            action={
-              <button
-                ref={fileButtonRef}
-                className={cx(secondaryButton, "btn-sm shrink-0")}
-                aria-describedby={hintId}
-                onClick={() => inputRef.current?.click()}
-                type="button"
-              >
-                Trocar arquivo
-              </button>
-            }
-          />
-        ) : (
-          <div
-            className={cx("notas-docente-drop", dragging && "is-over", fileError && "is-bad")}
-            onDragLeave={() => setDragging(false)}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragging(true);
-            }}
-            onDrop={onDrop}
-          >
-            <span className="mini-ico">
-              {reading ? <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden /> : <FileUp className="h-[18px] w-[18px]" aria-hidden />}
-            </span>
-            <div className="notas-docente-file-main">
-              <p className="text-sm font-semibold text-ink">{reading ? "Lendo a planilha" : "Arraste a planilha para cá ou use o botão Escolher planilha"}</p>
-              <p className="mt-0.5 text-[13px] leading-5 text-muted" id={hintId}>
-                Planilha do Excel (.xlsx). A planilha exportada de outro sistema também serve.
-              </p>
-            </div>
-            <button
-              ref={fileButtonRef}
-              className={cx(secondaryButton, "btn-sm shrink-0")}
-              aria-busy={reading || undefined}
-              aria-describedby={cx(hintId, fileError && errorId) || undefined}
-              onClick={() => inputRef.current?.click()}
-              type="button"
-            >
-              Escolher planilha
-            </button>
-          </div>
-        )}
-        <input
-          ref={inputRef}
-          accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-          className="hidden"
-          aria-hidden
-          tabIndex={-1}
-          type="file"
-          onChange={(event) => {
-            const selected = event.target.files?.[0];
-            event.target.value = "";
-            void flow.chooseFile(selected);
-          }}
-        />
-        {fileError ? (
-          <p className="field-error" id={errorId} role="alert">
-            <span>{fileError}</span>
-          </p>
-        ) : null}
-      </div>
-
-      {flow.needsPoints ? (
-        <Field label="Quanto vale a avaliação" hint="Ela ainda não tem pontuação" error={flow.pointsError}>
-          <input
-            ref={pointsRef}
-            className="input max-w-[12rem]"
-            inputMode="decimal"
-            placeholder="Exemplo: 10"
-            value={flow.pointsText}
-            onChange={(event) => flow.setPointsText(event.target.value)}
-          />
-        </Field>
-      ) : null}
-
-      <div className="mini items-center">
-        <span className="mini-ico">
-          <Download className="h-[18px] w-[18px]" aria-hidden />
+      <section className="notas-docente-stage" aria-labelledby="notas-docente-etapa-1">
+        <span className="notas-docente-stage-n" aria-hidden>
+          1
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="mini-t">Planilha da turma</p>
-          <p className="mini-s">
-            {`Já vem com a turma e os alunos, nas colunas ${flow.templateColumns}${maxText ? ` (de 0 a ${maxText})` : ""}. Preencha as notas e importe a mesma planilha.`}
+        <div className="notas-docente-stage-main">
+          <h4 className="notas-docente-stage-t" id="notas-docente-etapa-1">
+            Baixe a planilha da turma
+          </h4>
+          <p className="notas-docente-stage-s">
+            {count
+              ? `Já vem com ${count === 1 ? "o aluno" : `os ${count} alunos`} da turma. Você só escreve a nota${maxText ? `, de 0 a ${maxText}` : ""}.`
+              : "A turma ainda não tem alunos ativos: a planilha vem com as colunas para preencher."}
+          </p>
+          <button className={cx(secondaryButton, "btn-sm mt-3")} onClick={() => void flow.downloadTemplate()} type="button">
+            <Download className="h-4 w-4" aria-hidden />
+            Baixar planilha da turma
+          </button>
+        </div>
+      </section>
+
+      <section className="notas-docente-stage" aria-labelledby="notas-docente-etapa-2">
+        <span className="notas-docente-stage-n" aria-hidden>
+          2
+        </span>
+        <div className="notas-docente-stage-main grid gap-3">
+          <h4 className="notas-docente-stage-t" id="notas-docente-etapa-2">
+            Envie a planilha preenchida
+          </h4>
+          {flow.needsPoints ? (
+            <Field label="Quanto vale a avaliação" hint="Ela ainda não tem pontuação" error={flow.pointsError}>
+              <input
+                ref={pointsRef}
+                className="input max-w-[12rem]"
+                inputMode="decimal"
+                placeholder="Exemplo: 10"
+                value={flow.pointsText}
+                onChange={(event) => flow.setPointsText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && flow.pendingFile) {
+                    event.preventDefault();
+                    flow.next();
+                  }
+                }}
+              />
+            </Field>
+          ) : null}
+          {area}
+          {fileError ? (
+            <p className="field-error" id={errorId} role="alert">
+              <span>{fileError}</span>
+            </p>
+          ) : null}
+          <p className="notas-docente-help !mt-0" id={hintId}>
+            Também serve a planilha de outro sistema, com o nome ou o e-mail do aluno e a nota.
           </p>
         </div>
-        <button className={cx(secondaryButton, "btn-sm shrink-0")} onClick={() => void flow.downloadTemplate()} type="button">
-          Baixar planilha da turma
-        </button>
-      </div>
+      </section>
     </div>
   );
 }
@@ -691,7 +877,13 @@ function ColumnSelect({
   );
 }
 
-function ColumnsStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: RefObject<HTMLHeadingElement | null> }) {
+const typeHelp: Record<IdentifierType, string> = {
+  name: "O nome completo, como está na Agenda. Acento, maiúsculas e espaços a mais não importam. Dois alunos da turma com o mesmo nome ficam de fora.",
+  email: "O e-mail da conta do aluno na Agenda. Maiúsculas e espaços não importam.",
+  registration: "A matrícula que a secretaria gravou na turma. Zeros à esquerda não importam: 000123 é o mesmo que 123.",
+};
+
+function ColumnsStep({ flow, headingRef, onPick }: { flow: GradeImportFlow; headingRef: RefObject<HTMLHeadingElement | null>; onPick: () => void }) {
   const { columnErrors, columns, file, focusAsk } = flow;
   const identifierRef = useRef<HTMLSelectElement>(null);
   const scoreRef = useRef<HTMLSelectElement>(null);
@@ -705,45 +897,91 @@ function ColumnsStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: 
   if (!file || !columns) {
     return null;
   }
-  const byEmail = columns.identifierType === "email";
+  if (flow.sending) {
+    return (
+      <div className="grid gap-4">
+        <h3 ref={headingRef} className="sr-only" tabIndex={-1}>
+          Conferindo as notas
+        </h3>
+        <Processing flow={flow} />
+      </div>
+    );
+  }
+  const type = columns.identifierType;
+  const words = idWords[type];
   const sample = buildImportRows(file.sheet, columns).slice(0, 3);
-  // coluna escolhida vazia neste arquivo (a matrícula do Modelo, por exemplo): avisa e diz o próximo passo
+  // coluna escolhida vazia neste arquivo: avisa e sugere outro jeito de achar o aluno, se a planilha tiver
   const idEmpty = Boolean(columns.identifierColumn) && !columnHasData(file.sheet, columns.identifierColumn);
-  const otherType = byEmail ? "registration" : "email";
-  const otherColumn = idEmpty ? guessColumns(file.sheet, otherType).identifierColumn : "";
-  const otherWorks =
-    Boolean(otherColumn) &&
-    otherColumn !== columns.identifierColumn &&
-    otherColumn !== columns.scoreColumn &&
-    columnHasData(file.sheet, otherColumn);
+  const other = idEmpty
+    ? (["email", "registration", "name"] as IdentifierType[])
+        .filter((option) => option !== type)
+        .map((option) => ({ type: option, column: guessColumns(file.sheet, option).identifierColumn }))
+        .find(
+          (option) =>
+            option.column &&
+            option.column !== columns.identifierColumn &&
+            option.column !== columns.scoreColumn &&
+            columnHasData(file.sheet, option.column)
+        )
+    : undefined;
   const scoreEmpty = Boolean(columns.scoreColumn) && !columnHasData(file.sheet, columns.scoreColumn);
+  const reason = flow.columnsReason;
   return (
     <div className="grid gap-4">
-      <FileCard flow={flow} />
-      <h3 ref={headingRef} className="notas-docente-h3 outline-none" tabIndex={-1}>
-        Quais colunas usar
-      </h3>
+      <FileCard
+        name={file.name}
+        detail={fileDetail(file)}
+        action={
+          <button className={cx(secondaryButton, "btn-sm shrink-0")} onClick={onPick} type="button">
+            Trocar planilha
+          </button>
+        }
+      />
+      <div className="grid gap-1.5">
+        <h3 ref={headingRef} className="notas-docente-h3 drawer-h3 outline-none" tabIndex={-1}>
+          Quais colunas usar
+        </h3>
+        {reason === "asked" ? (
+          <p className="text-[13.5px] leading-5 text-muted">Diga de onde vêm o aluno e a nota. A conferência é refeita com as colunas novas.</p>
+        ) : null}
+      </div>
+      {reason !== "asked" ? (
+        <p className="callout amber">
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            {reason === "student" ? (
+              <>
+                <b>A Agenda não achou a coluna do aluno nesta planilha.</b> Escolha abaixo a coluna com o nome, o e-mail ou a
+                matrícula de cada aluno.
+              </>
+            ) : (
+              <>
+                <b>A Agenda não achou a coluna da nota nesta planilha.</b> Escolha abaixo a coluna com as notas.
+              </>
+            )}
+          </span>
+        </p>
+      ) : null}
 
       <div className="grid gap-2">
-        <p className="lbl" id="notas-docente-tipo">
-          Como achar o aluno
-        </p>
+        <p className="lbl">Como achar o aluno</p>
         <Segmented label="Como achar o aluno">
-          <SegmentedButton active={byEmail} label="Pelo e-mail" onClick={() => flow.setColumns({ identifierType: "email" })} />
-          <SegmentedButton active={!byEmail} label="Pela matrícula" onClick={() => flow.setColumns({ identifierType: "registration" })} />
+          <SegmentedButton active={type === "name"} label="Pelo nome" onClick={() => flow.setColumns({ identifierType: "name" })} />
+          <SegmentedButton active={type === "email"} label="Pelo e-mail" onClick={() => flow.setColumns({ identifierType: "email" })} />
+          <SegmentedButton
+            active={type === "registration"}
+            label="Pela matrícula"
+            onClick={() => flow.setColumns({ identifierType: "registration" })}
+          />
         </Segmented>
-        <p className="text-[13px] leading-5 text-muted">
-          {byEmail
-            ? "O e-mail da conta do aluno na Agenda. Maiúsculas e espaços não importam."
-            : "A matrícula que a secretaria gravou na turma. Zeros à esquerda não importam: 000123 é o mesmo que 123."}
-        </p>
+        <p className="text-[13px] leading-5 text-muted">{typeHelp[type]}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <ColumnSelect
           flow={flow}
           error={columnErrors.identifierColumn}
-          label={byEmail ? "Coluna do e-mail" : "Coluna da matrícula"}
+          label={words.label}
           selectRef={identifierRef}
           value={columns.identifierColumn}
           onChange={(value) => flow.setColumns({ identifierColumn: value })}
@@ -763,18 +1001,18 @@ function ColumnsStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: 
             <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <div className="grid min-w-0 gap-2">
               <p className="wrap-anywhere">
-                <b>{`A coluna ${columns.identifierColumn} está vazia neste arquivo.`}</b>{" "}
-                {otherWorks
-                  ? `Nenhum aluno seria achado por ela. A coluna ${otherColumn} tem ${otherType === "email" ? "os e-mails" : "as matrículas"}: use ela.`
-                  : `Nenhum aluno seria achado por ela. Escolha a coluna com ${byEmail ? "o e-mail" : "a matrícula"} dos alunos.`}
+                <b>{`A coluna ${columns.identifierColumn} está vazia nesta planilha.`}</b>{" "}
+                {other
+                  ? `Nenhum aluno seria achado por ela. A coluna ${other.column} tem ${idWords[other.type].article} dos alunos: use ela.`
+                  : `Nenhum aluno seria achado por ela. Escolha a coluna com ${words.article} dos alunos.`}
               </p>
-              {otherWorks ? (
+              {other ? (
                 <button
                   className={cx(secondaryButton, "btn-sm justify-self-start")}
-                  onClick={() => flow.setColumns({ identifierType: otherType, identifierColumn: otherColumn })}
+                  onClick={() => flow.setColumns({ identifierType: other.type, identifierColumn: other.column })}
                   type="button"
                 >
-                  {otherType === "email" ? "Achar o aluno pelo e-mail" : "Achar o aluno pela matrícula"}
+                  {`Achar o aluno pel${other.type === "registration" ? "a" : "o"} ${idWords[other.type].name}`}
                 </button>
               ) : null}
             </div>
@@ -784,21 +1022,23 @@ function ColumnsStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: 
           <p className="callout amber">
             <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span className="min-w-0 wrap-anywhere">
-              <b>{`A coluna ${columns.scoreColumn} está vazia neste arquivo.`}</b> Nenhuma nota entraria. Preencha as notas no
-              arquivo e escolha ele de novo, ou escolha outra coluna da nota.
+              <b>{`A coluna ${columns.scoreColumn} está vazia nesta planilha.`}</b> Nenhuma nota entraria. Escreva as notas na
+              planilha e envie de novo, ou escolha outra coluna da nota.
             </span>
           </p>
         ) : null}
       </div>
 
-      <ColumnSelect
-        allowEmpty="Sem coluna de nome"
-        flow={flow}
-        hint="Opcional, só para conferir"
-        label="Coluna do nome"
-        value={columns.nameColumn}
-        onChange={(value) => flow.setColumns({ nameColumn: value })}
-      />
+      {type !== "name" ? (
+        <ColumnSelect
+          allowEmpty="Sem coluna de nome"
+          flow={flow}
+          hint="Opcional, só para conferir"
+          label="Coluna do nome"
+          value={columns.nameColumn}
+          onChange={(value) => flow.setColumns({ nameColumn: value })}
+        />
+      ) : null}
 
       {sample.length && columns.identifierColumn && columns.scoreColumn ? (
         <section className="grid gap-2" aria-labelledby="notas-docente-amostra">
@@ -810,10 +1050,10 @@ function ColumnsStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: 
               <li key={row.rowNumber}>
                 <div className="notas-docente-r-body">
                   <p className="notas-docente-r-t wrap-anywhere">
-                    {row.identifier ? String(row.identifier) : "sem identificação"}
+                    {row.identifier ? String(row.identifier) : `sem ${words.name}`}
                     {row.name ? <span className="mat"> {row.name}</span> : null}
                   </p>
-                  <p className="notas-docente-r-s">{`linha ${row.rowNumber} do arquivo`}</p>
+                  <p className="notas-docente-r-s">{`linha ${row.rowNumber} da planilha`}</p>
                 </div>
                 <p className="notas-docente-r-v">{row.score ? String(row.score) : <span className="font-medium text-muted">sem nota</span>}</p>
               </li>
@@ -831,30 +1071,43 @@ function ColumnsStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: 
   );
 }
 
-function PreviewStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: RefObject<HTMLHeadingElement | null> }) {
-  const { draft } = flow;
+function CheckStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: RefObject<HTMLHeadingElement | null> }) {
+  const { draft, file } = flow;
   if (!draft) {
     return null;
   }
+  const { identifierColumn, scoreColumn } = draft.mapping;
+  const columnsText = `Aluno pela coluna ${identifierColumn} e nota pela coluna ${scoreColumn}.`;
+  const source = (
+    <div className="notas-docente-src">
+      <span className="mini-ico">
+        <FileSpreadsheet className="h-[18px] w-[18px]" aria-hidden />
+      </span>
+      <div className="notas-docente-file-main">
+        <p className="notas-docente-file-t">{draft.fileName}</p>
+        <p className="notas-docente-file-s">
+          {file ? columnsText : `Rascunho de ${formatShortDateTime(draft.createdAt)}. ${columnsText}`}{" "}
+          {file ? (
+            <button className="link min-h-6 text-[12.5px]" aria-disabled={flow.busy || undefined} onClick={flow.adjustColumns} type="button">
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+              Ajustar colunas
+            </button>
+          ) : null}
+        </p>
+      </div>
+      {draft.canDiscard ? (
+        <div className="notas-docente-file-act">
+          <button className="btn btn-g btn-sm shrink-0" aria-busy={flow.discarding || undefined} onClick={flow.discardDraft} type="button">
+            <Trash2 className="h-4 w-4" aria-hidden />
+            Descartar rascunho
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
   return (
     <div className="grid gap-4">
-      <FileCard
-        flow={flow}
-        action={
-          draft.canDiscard ? (
-            <button
-              className="btn btn-g btn-sm shrink-0"
-              aria-busy={flow.discarding || undefined}
-              onClick={flow.discardDraft}
-              type="button"
-            >
-              <Trash2 className="h-4 w-4" aria-hidden />
-              Descartar
-            </button>
-          ) : null
-        }
-      />
-      <h3 ref={headingRef} className="notas-docente-h3 outline-none" tabIndex={-1}>
+      <h3 ref={headingRef} className="notas-docente-h3 drawer-h3 outline-none" tabIndex={-1}>
         Confira antes de importar
       </h3>
       <GradeImportPreview
@@ -865,77 +1118,238 @@ function PreviewStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: 
         maxScoreText={flow.info?.maxScoreText ?? null}
         onDownloadRejected={flow.downloadRejected}
         onKeepAgenda={flow.setKeepAgenda}
+        source={source}
       />
+    </div>
+  );
+}
+
+function DoneStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: RefObject<HTMLHeadingElement | null> }) {
+  const { applied, info, published } = flow;
+  if (!applied) {
+    return null;
+  }
+  const undone = flow.imports?.find((item) => item.id === applied.id)?.status === "undone";
+  const { created, keptAgenda, skipped, unchanged, updated } = applied.applied;
+  const total = created + updated;
+  const same = applied.totals.same + unchanged;
+  const left = applied.totals.rejected + skipped;
+  const where = [info?.title, info?.academicClass?.name].filter(Boolean).join(", ");
+  const parts = [
+    created ? { text: countText(created, "nova", "novas"), tone: "new" } : null,
+    updated ? { text: countText(updated, "alterada", "alteradas"), tone: "chg" } : null,
+    same ? { text: countText(same, "igual, ficou como estava", "iguais, ficaram como estavam"), tone: "same" } : null,
+    keptAgenda ? { text: countText(keptAgenda, "mantida da Agenda", "mantidas da Agenda"), tone: "same" } : null,
+    left ? { text: countText(left, "ficou de fora", "ficaram de fora"), tone: "bad" } : null,
+  ].filter((part): part is { text: string; tone: string } => part !== null);
+
+  if (undone) {
+    return (
+      <div className="grid gap-4">
+        <div className="notas-docente-done is-undone">
+          <span className="notas-docente-done-ico" aria-hidden>
+            <RotateCcw className="h-8 w-8" />
+          </span>
+          <h3 ref={headingRef} className="notas-docente-done-t outline-none" tabIndex={-1}>
+            Importação desfeita
+          </h3>
+          <p className="notas-docente-done-s">{where}</p>
+          <p className="notas-docente-done-s">As notas voltaram ao valor de antes da importação.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      <div className="notas-docente-done">
+        <span className="notas-docente-done-ico" aria-hidden>
+          <Check className="h-9 w-9" strokeWidth={2.6} />
+        </span>
+        <h3 ref={headingRef} className="notas-docente-done-t outline-none" tabIndex={-1}>
+          {total ? (
+            <>
+              <span className="notas-docente-done-n">{total}</span> {total === 1 ? "nota importada" : "notas importadas"}
+            </>
+          ) : (
+            "Importação aplicada"
+          )}
+        </h3>
+        <p className="notas-docente-done-s">{total ? where : `${where}. Nenhuma nota mudou.`}</p>
+        {parts.length ? (
+          <ul className="notas-docente-done-parts" aria-label="Como ficou cada linha">
+            {parts.map((part) => (
+              <li key={part.text} className={`is-${part.tone}`}>
+                {part.text}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
+      {published ? (
+        <div className="notas-docente-vis is-on" role="status">
+          <span className="notas-docente-vis-ico" aria-hidden>
+            <Eye className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="notas-docente-vis-t">
+              {flow.publishedBefore ? "Os alunos já veem as notas." : "Notas publicadas. Os alunos já veem as notas."}
+            </p>
+            <p className="notas-docente-vis-s">
+              {flow.publishedBefore
+                ? "Alunos e responsáveis veem a nota nova na hora, na tela de notas."
+                : "Alunos e responsáveis receberam um aviso. Para ocultar de novo, use a lista de notas."}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="notas-docente-vis">
+          <span className="notas-docente-vis-ico" aria-hidden>
+            <EyeOff className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="notas-docente-vis-t">Os alunos ainda não veem estas notas.</p>
+            <p className="notas-docente-vis-s">Ao publicar, alunos e responsáveis recebem um aviso. Dá para ocultar de novo depois.</p>
+            <button
+              className={cx(primaryButton, "mt-3 aria-disabled:cursor-not-allowed aria-disabled:opacity-55")}
+              aria-busy={flow.publishing || undefined}
+              aria-disabled={flow.publishing || undefined}
+              onClick={() => {
+                if (!flow.publishing) flow.publish();
+              }}
+              type="button"
+            >
+              {flow.publishing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
+              Publicar notas agora
+            </button>
+          </div>
+        </div>
+      )}
+
+      {left ? (
+        <p className="callout past">
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            {left === 1
+              ? "1 linha ficou de fora. Lance a nota dela direto na lista ou corrija a planilha e envie de novo."
+              : `${left} linhas ficaram de fora. Lance as notas direto na lista ou corrija a planilha e envie de novo.`}
+          </span>
+        </p>
+      ) : null}
     </div>
   );
 }
 
 /** Corpo da gaveta durante a importação: os passos e o conteúdo do passo atual. */
 export function GradeImportBody({ flow, headingRef }: { flow: GradeImportFlow; headingRef: RefObject<HTMLHeadingElement | null> }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pick = () => {
+    if (!flow.busy) inputRef.current?.click();
+  };
   return (
     <div className="grid gap-5">
-      <Stepper applying={flow.applying} step={flow.step} />
+      <Stepper step={flow.step} />
       {flow.blocked ? (
         <p className="callout rose" role="alert">
           <span>{flow.blocked}</span>
         </p>
       ) : null}
-      {flow.step === "file" ? <FileStep flow={flow} headingRef={headingRef} /> : null}
-      {flow.step === "columns" ? <ColumnsStep flow={flow} headingRef={headingRef} /> : null}
-      {flow.step === "preview" ? <PreviewStep flow={flow} headingRef={headingRef} /> : null}
+      {flow.step === "send" ? <SendStep flow={flow} headingRef={headingRef} onPick={pick} /> : null}
+      {flow.step === "columns" ? <ColumnsStep flow={flow} headingRef={headingRef} onPick={pick} /> : null}
+      {flow.step === "check" ? <CheckStep flow={flow} headingRef={headingRef} /> : null}
+      {flow.step === "done" ? <DoneStep flow={flow} headingRef={headingRef} /> : null}
+      <input
+        ref={inputRef}
+        accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+        className="hidden"
+        aria-hidden
+        tabIndex={-1}
+        type="file"
+        onChange={(event) => {
+          const selected = event.target.files?.[0];
+          event.target.value = "";
+          void flow.chooseFile(selected);
+        }}
+      />
     </div>
   );
 }
 
-/** Por que a prévia não tem nada para importar (fica acima do botão "Escolher outro arquivo"). */
+/** Por que a conferência não tem nada para importar (fica acima do botão "Enviar outra planilha"). */
 function nothingToImportText(flow: GradeImportFlow) {
   const counts = flow.counts;
-  if (!counts) return "Nada para importar. Escolha outro arquivo.";
+  if (!counts) return "Nada para importar. Envie outra planilha.";
   const rejected = rejectedCount(counts);
   if (counts.newer_in_agenda && flow.keepAgenda) {
-    return "Nada para importar: você manteve as notas da Agenda. Para trocar por estas, escolha Substituir pelas do arquivo.";
+    return "Nada para importar: você manteve as notas da Agenda. Para trocar por estas, escolha Trocar pelas da planilha.";
   }
-  if (rejected && counts.same) return "Nada para importar: as linhas ficam de fora ou já estão na Agenda. Corrija o arquivo e escolha de novo.";
-  if (rejected) return "Nada para importar: todas as linhas ficam de fora. Corrija o arquivo e escolha de novo.";
-  if (counts.same) return "Nada para importar: as notas do arquivo já estão na Agenda.";
-  return "Nada para importar: o arquivo não tem linhas com dados. Escolha outro arquivo.";
+  if (rejected && counts.same) return "Nada para importar: as linhas ficam de fora ou já estão na Agenda. Corrija a planilha e envie de novo.";
+  if (rejected) return "Nada para importar: todas as linhas ficam de fora. Corrija a planilha e envie de novo.";
+  if (counts.same) return "Nada para importar: as notas da planilha já estão na Agenda.";
+  return "Nada para importar: a planilha não tem linhas com dados. Envie outra planilha.";
 }
 
 /** Rodapé da gaveta durante a importação: dica, Voltar e o botão do passo. */
 export function GradeImportFooter({ flow }: { flow: GradeImportFlow }) {
   const { applying, busy, importCount, sending, step } = flow;
   const hintId = useId();
-  // prévia sem nada para importar: o botão diz o que fazer, e a razão fica acima dele
-  const nothing = step === "preview" && Boolean(flow.draft) && importCount === 0;
-  let label = "Continuar";
-  let hint = "Planilha do Excel (.xlsx)";
-  if (step === "columns") {
-    label = "Ver prévia";
-    hint = "Nada muda até você confirmar na prévia";
+
+  if (step === "done") {
+    const undone = flow.applied ? flow.imports?.find((item) => item.id === flow.applied?.id)?.status === "undone" : false;
+    const canUndo = Boolean(flow.applied?.canUndo) && !undone;
+    const undoing = flow.applied !== null && flow.undoingId === flow.applied.id;
+    return (
+      <>
+        {canUndo ? (
+          <button
+            className="btn btn-g mr-auto aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
+            aria-busy={undoing || undefined}
+            aria-disabled={undoing || undefined}
+            onClick={() => {
+              if (!undoing) flow.undoApplied();
+            }}
+            type="button"
+          >
+            {undoing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" aria-hidden />}
+            Desfazer importação
+          </button>
+        ) : (
+          <span className="mr-auto" />
+        )}
+        <button className={flow.published || undone ? primaryButton : secondaryButton} onClick={flow.finish} type="button">
+          Ver a lista de notas
+        </button>
+      </>
+    );
+  }
+
+  // conferência sem nada para importar: o botão diz o que fazer, e a razão fica acima dele
+  const nothing = step === "check" && Boolean(flow.draft) && importCount === 0;
+  let label: string | null = null;
+  let hint = "Nada muda nas notas até você conferir e confirmar";
+  if (step === "send") {
+    label = flow.pendingFile && !busy ? "Conferir notas" : null;
+  } else if (step === "columns") {
+    label = "Conferir notas";
+    hint = "Nada muda até você confirmar na conferência";
   } else if (nothing) {
-    label = "Escolher outro arquivo";
+    label = "Enviar outra planilha";
     hint = nothingToImportText(flow);
-  } else if (step === "preview") {
+  } else if (step === "check") {
     label = importCount === 1 ? "Importar 1 nota" : `Importar ${importCount} notas`;
     hint = flow.draft && !flow.draft.canApply
       ? "Só quem criou o rascunho, com a disciplina em vigor, ou a administração aplica"
       : flow.published
-        ? "As notas já estão publicadas: aparecem na hora"
-        : "Ficam ocultas até você publicar";
+        ? "As notas já estão publicadas: aparecem na hora para os alunos"
+        : "As notas ficam ocultas até você publicar";
   }
   const waiting = sending || applying;
-  const disabled = Boolean(flow.blocked) || (step === "preview" && !nothing && !flow.draft?.canApply);
+  const disabled = Boolean(flow.blocked) || (step === "check" && !nothing && !flow.draft?.canApply);
   return (
     <>
-      {/* o motivo de "nada para importar" é longo: fica numa linha só dele, acima dos botões, e os botões seguem à
-          direita como no rodapé normal (Voltar e, na ponta, o principal) */}
-      <p
-        className={cx(
-          "mr-auto basis-full text-[13px] leading-5 text-muted",
-          !nothing && "sm:basis-auto sm:max-w-[16rem]"
-        )}
-        id={hintId}
-      >
+      {/* o motivo de "nada para importar" é longo: fica numa linha só dele, acima dos botões */}
+      <p className={cx("mr-auto min-w-0 basis-full text-[13px] leading-5 text-muted", !nothing && "sm:flex-1 sm:basis-0")} id={hintId}>
         {hint}
       </p>
       <button
@@ -946,25 +1360,27 @@ export function GradeImportFooter({ flow }: { flow: GradeImportFlow }) {
       >
         Voltar
       </button>
-      <button
-        className={cx(primaryButton, "aria-disabled:cursor-not-allowed aria-disabled:opacity-55")}
-        aria-busy={waiting || undefined}
-        aria-describedby={hintId}
-        aria-disabled={busy || disabled || undefined}
-        onClick={() => {
-          if (!disabled) flow.next();
-        }}
-        type="button"
-      >
-        {waiting ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-        ) : nothing ? (
-          <FileUp className="h-4 w-4" aria-hidden />
-        ) : step === "preview" ? (
-          <Check className="h-4 w-4" aria-hidden />
-        ) : null}
-        {label}
-      </button>
+      {label ? (
+        <button
+          className={cx(primaryButton, "aria-disabled:cursor-not-allowed aria-disabled:opacity-55")}
+          aria-busy={waiting || undefined}
+          aria-describedby={hintId}
+          aria-disabled={busy || disabled || undefined}
+          onClick={() => {
+            if (!disabled) flow.next();
+          }}
+          type="button"
+        >
+          {waiting ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : nothing ? (
+            <FileUp className="h-4 w-4" aria-hidden />
+          ) : step === "check" ? (
+            <Check className="h-4 w-4" aria-hidden />
+          ) : null}
+          {applying ? "Importando" : sending ? "Conferindo" : label}
+        </button>
+      ) : null}
     </>
   );
 }
