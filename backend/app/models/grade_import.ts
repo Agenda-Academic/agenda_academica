@@ -14,9 +14,16 @@ export const MAX_IMPORT_ROWS = 2000
 export const GRADE_IMPORT_STATUSES = ['draft', 'applied', 'discarded', 'undone'] as const
 export type GradeImportStatus = (typeof GRADE_IMPORT_STATUSES)[number]
 
+/**
+ * Como a linha acha o aluno: pelo e-mail da conta, pela matrícula escolar ou pelo nome completo
+ * (sem acento, maiúscula nem espaço a mais), para a planilha de outro sistema que só traz o nome.
+ */
+export const GRADE_IMPORT_IDENTIFIER_TYPES = ['email', 'registration', 'name'] as const
+export type GradeImportIdentifierType = (typeof GRADE_IMPORT_IDENTIFIER_TYPES)[number]
+
 /** Como a docente mapeou as colunas do arquivo (guardado em `mapping`, como JSON). */
 export type GradeImportMapping = {
-  identifierType: 'email' | 'registration'
+  identifierType: GradeImportIdentifierType
   identifierColumn: string
   scoreColumn: string
   nameColumn?: string | null

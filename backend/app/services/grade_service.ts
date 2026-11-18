@@ -59,6 +59,19 @@ export function normalizeEmail(value: string) {
   return value.replace(/\s+/g, '').toLowerCase()
 }
 
+/**
+ * Nome completo para casar: sem acentos, minúsculo, com os espaços juntados e sem espaço nas
+ * pontas ("  JOSÉ   da Silva " e "jose da silva" são o mesmo nome).
+ */
+export function normalizeName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** Matrícula escolar para casar: minúscula, sem espaços e sem zeros à esquerda. */
 export function normalizeRegistration(value: string) {
   return value
@@ -150,6 +163,31 @@ type ClassifyInput = {
   trx?: TransactionClientContract
 }
 
+/** Frases da linha que não acha o aluno, por jeito de achar (e-mail, matrícula ou nome). */
+const IDENTIFIER_MESSAGES: Record<
+  GradeImportMapping['identifierType'],
+  { empty: string; ambiguous: string; missing: string }
+> = {
+  email: {
+    empty: 'Linha sem e-mail do aluno.',
+    ambiguous: 'Mais de um aluno da turma com este e-mail. Lance a nota direto na lista.',
+    missing: 'Nenhum aluno da turma com este e-mail.',
+  },
+  registration: {
+    empty: 'Linha sem matrícula do aluno.',
+    ambiguous:
+      'Mais de um aluno da turma com esta matrícula. Peça à secretaria para corrigir a matrícula na turma.',
+    missing:
+      'Nenhum aluno da turma com esta matrícula. Confira a matrícula gravada pela secretaria.',
+  },
+  name: {
+    empty: 'Linha sem o nome do aluno.',
+    ambiguous:
+      'Mais de um aluno da turma com este nome. Use o e-mail ou lance a nota direto na lista.',
+    missing: 'Nenhum aluno da turma com este nome.',
+  },
+}
+
 /** Ordem da prévia: as linhas com problema primeiro, as iguais por último. */
 const KIND_ORDER: Record<GradeRowKind, number> = {
   invalid: 0,
@@ -196,30 +234,41 @@ export type UndoConflict = { studentId: number; fullName: string | null; gradeId
 /** Notas: importação com prévia, aplicar e desfazer, edição, publicação e as visões de leitura. */
 export default class GradeService {
   /**
-   * Casa cada linha com um aluno da turma do evento (pelo e-mail da conta ou pela matrícula
-   * escolar gravada pela administração) e classifica a linha. Nada é gravado aqui.
+   * Casa cada linha com um aluno da turma do evento (pelo e-mail da conta, pela matrícula
+   * escolar gravada pela administração ou pelo nome completo) e classifica a linha. Nada é
+   * gravado aqui.
    */
   static async classify(input: ClassifyInput) {
     const { event, maxScore, mapping, fileModifiedAt, trx } = input
-    const byEmail = mapping.identifierType === 'email'
+    const by = mapping.identifierType
+    const messages = IDENTIFIER_MESSAGES[by]
+    // a chave de cada aluno da turma e a de cada linha do arquivo, do mesmo jeito
+    const keyOf = (value: string) =>
+      by === 'email'
+        ? normalizeEmail(value)
+        : by === 'registration'
+          ? normalizeRegistration(value)
+          : normalizeName(value)
 
     const enrollments = await Enrollment.query({ client: trx })
       .where('academicClassId', event.academicClassId!)
       .preload('user')
     const lookup = new Map<string, Enrollment>()
     // Dois alunos da turma com o mesmo identificador depois de normalizar (matrículas "0042" e
-    // "42", ou e-mails que só mudam nas maiúsculas): a linha não casa com nenhum, para a nota
-    // nunca ir para o aluno errado.
+    // "42", e-mails que só mudam nas maiúsculas, dois "João da Silva"): a linha não casa com
+    // nenhum, para a nota nunca ir para o aluno errado.
     const ambiguous = new Set<string>()
     for (const enrollment of enrollments) {
       if (enrollment.user?.role !== 'student') {
         continue
       }
-      const key = byEmail
-        ? normalizeEmail(enrollment.user.email)
-        : enrollment.registration
-          ? normalizeRegistration(enrollment.registration)
-          : null
+      const source =
+        by === 'email'
+          ? enrollment.user.email
+          : by === 'registration'
+            ? enrollment.registration
+            : enrollment.user.fullName
+      const key = source ? keyOf(source) : null
       if (!key) {
         continue
       }
@@ -241,9 +290,12 @@ export default class GradeService {
       if (!rawIdentifier && !nameHint && !rawScore) {
         return
       }
+      // O nome fica como veio (só com os espaços juntados), para a prévia mostrar "José da Silva";
+      // a comparação usa a chave sem acento e minúscula. E-mail e matrícula ficam normalizados.
       const identifier = rawIdentifier
-        ? (byEmail ? normalizeEmail(rawIdentifier) : normalizeRegistration(rawIdentifier)) || null
+        ? (by === 'name' ? rawIdentifier.replace(/\s+/g, ' ').trim() : keyOf(rawIdentifier)) || null
         : null
+      const key = identifier ? keyOf(identifier) : null
       const base: ClassifiedRow = {
         rowNumber: row.rowNumber ?? index + 1,
         identifier,
@@ -257,32 +309,17 @@ export default class GradeService {
         message: null,
       }
 
-      if (!identifier) {
-        classified.push({
-          ...base,
-          message: byEmail ? 'Linha sem e-mail do aluno.' : 'Linha sem matrícula do aluno.',
-        })
+      if (!identifier || !key) {
+        classified.push({ ...base, identifier: null, message: messages.empty })
         return
       }
-      if (ambiguous.has(identifier)) {
-        classified.push({
-          ...base,
-          kind: 'no_match',
-          message: byEmail
-            ? 'Mais de um aluno da turma com este e-mail. Lance a nota direto na lista.'
-            : 'Mais de um aluno da turma com esta matrícula. Peça à secretaria para corrigir a matrícula na turma.',
-        })
+      if (ambiguous.has(key)) {
+        classified.push({ ...base, kind: 'no_match', message: messages.ambiguous })
         return
       }
-      const enrollment = lookup.get(identifier)
+      const enrollment = lookup.get(key)
       if (!enrollment) {
-        classified.push({
-          ...base,
-          kind: 'no_match',
-          message: byEmail
-            ? 'Nenhum aluno da turma com este e-mail.'
-            : 'Nenhum aluno da turma com esta matrícula. Confira a matrícula gravada pela secretaria.',
-        })
+        classified.push({ ...base, kind: 'no_match', message: messages.missing })
         return
       }
       if (enrollment.status !== 'active') {

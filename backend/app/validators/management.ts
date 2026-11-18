@@ -70,7 +70,7 @@ const messages = new SimpleMessagesProvider(
     nameColumn: 'coluna do nome',
     rows: 'linhas',
     rowNumber: 'número da linha',
-    identifier: 'e-mail ou matrícula',
+    identifier: 'aluno',
     score: 'nota',
     keepAgendaWhenNewer: 'manter as notas da Agenda',
     title: 'título',

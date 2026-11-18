@@ -42,6 +42,7 @@ type StudentReport = {
 }
 type ImportRowItem = {
   rowNumber: number
+  identifier?: string | null
   kind: string
   message: string | null
   student: { id: number; fullName: string } | null
@@ -1519,6 +1520,76 @@ test.group('Fase 3: notas', (group) => {
     )
     assert.equal(await scoreOf(mathExam.id, diogo.id), 1000)
     assert.equal(await scoreOf(mathExam.id, bia.id), 600)
+  })
+
+  test('importação pelo nome: ignora acento, maiúscula e espaço; nome repetido ou que não existe não casa', async ({
+    client,
+    assert,
+  }) => {
+    const { tads, diogo, maraisa, mathExam } = await demo()
+    const token = await loginAs(client, maraisa.email)
+    const jose = await addStudent(tads, 'jose@agenda.test', 'José da Silva')
+    // Dois alunos com o mesmo nome depois de normalizar: nenhum recebe a nota pelo nome.
+    const joao1 = await addStudent(tads, 'joao1@agenda.test', 'João Pereira')
+    const joao2 = await addStudent(tads, 'joao2@agenda.test', 'JOAO  pereira')
+
+    const byName = await createImport(
+      client,
+      token,
+      importBody(
+        mathExam.id,
+        [
+          { rowNumber: 2, identifier: '  jose   DA silva ', score: '8' },
+          { rowNumber: 3, identifier: 'Diogo Queiróz da Silva', score: '9,5' },
+          { rowNumber: 4, identifier: 'João Pereira', score: '7' },
+          { rowNumber: 5, identifier: 'Fulano de Tal', score: '6' },
+          { rowNumber: 6, identifier: null, score: '5' },
+        ],
+        { mapping: { identifierType: 'name', identifierColumn: 'Nome', scoreColumn: 'Nota' } }
+      )
+    )
+    assert.deepEqual(byName.totals, { new: 2, changed: 0, same: 0, newerInAgenda: 0, rejected: 3 })
+    const row = (rowNumber: number) => byName.rows!.find((item) => item.rowNumber === rowNumber)!
+    assert.equal(row(2).kind, 'new')
+    assert.equal(row(2).student?.id, jose.id)
+    // A prévia mostra o nome como veio no arquivo, só com os espaços juntados.
+    assert.equal(row(2).identifier, 'jose DA silva')
+    assert.equal(row(3).kind, 'new')
+    assert.equal(row(3).student?.id, diogo.id)
+    assert.equal(row(4).kind, 'no_match')
+    assert.equal(
+      row(4).message,
+      'Mais de um aluno da turma com este nome. Use o e-mail ou lance a nota direto na lista.'
+    )
+    assert.isNull(row(4).student)
+    assert.equal(row(5).kind, 'no_match')
+    assert.equal(row(5).message, 'Nenhum aluno da turma com este nome.')
+    assert.equal(row(6).kind, 'invalid')
+    assert.equal(row(6).message, 'Linha sem o nome do aluno.')
+    assert.isNull(row(6).identifier)
+
+    await expectStatus(
+      client.post(`${API}/grade-imports/${byName.id}/apply`).bearerToken(token).json({}),
+      200
+    )
+    assert.equal(await scoreOf(mathExam.id, jose.id), 800)
+    assert.equal(await scoreOf(mathExam.id, diogo.id), 950)
+    assert.isUndefined(await scoreOf(mathExam.id, joao1.id))
+    assert.isUndefined(await scoreOf(mathExam.id, joao2.id))
+
+    // Outro jeito de achar o aluno é recusado, sem gravar nada.
+    const before = await gradeSnapshot()
+    const wrongType = await client
+      .post(`${API}/grade-imports`)
+      .bearerToken(token)
+      .json(
+        importBody(mathExam.id, [{ identifier: 'José da Silva', score: '8' }], {
+          mapping: { identifierType: 'cpf', identifierColumn: 'Nome', scoreColumn: 'Nota' },
+        })
+      )
+    wrongType.assertStatus(422)
+    assert.include(fieldOf(wrongType.body()), 'mapping.identifierType')
+    assert.deepEqual(await gradeSnapshot(), before)
   })
 
   test('revisão: evento que muda de turma ou disciplina descarta os rascunhos de importação', async ({

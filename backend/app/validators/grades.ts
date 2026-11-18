@@ -1,5 +1,9 @@
 import { GRADE_STATUSES } from '#models/grade'
-import { GRADE_IMPORT_SOURCES, MAX_IMPORT_ROWS } from '#models/grade_import'
+import {
+  GRADE_IMPORT_IDENTIFIER_TYPES,
+  GRADE_IMPORT_SOURCES,
+  MAX_IMPORT_ROWS,
+} from '#models/grade_import'
 import { withMessages } from '#validators/management'
 import vine from '@vinejs/vine'
 
@@ -16,7 +20,8 @@ const cellValue = (max: number) =>
 
 /**
  * POST /grade-imports: o front lê o CSV ou o XLSX e manda só as linhas, com a coluna do aluno
- * e a da nota. `points` só vale quando o evento ainda não tem valor máximo.
+ * (e-mail, matrícula ou nome) e a da nota. `points` só vale quando o evento ainda não tem
+ * valor máximo.
  */
 export const createGradeImportValidator = withMessages(
   vine.create({
@@ -27,7 +32,7 @@ export const createGradeImportValidator = withMessages(
     fileModifiedAt: vine.string().trim().maxLength(40).nullable().optional(),
     points: vine.number().min(0.01).max(999.99).nullable().optional(),
     mapping: vine.object({
-      identifierType: vine.enum(['email', 'registration'] as const),
+      identifierType: vine.enum(GRADE_IMPORT_IDENTIFIER_TYPES),
       identifierColumn: columnName(),
       scoreColumn: columnName(),
       nameColumn: columnName().nullable().optional(),
