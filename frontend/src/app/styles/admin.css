@@ -552,11 +552,6 @@
 .admin-foot-slot {
   display: contents;
 }
-/* no celular os avisos ficam acima do rodapé, por cima do corpo: o corpo ganha embaixo o espaço deles
-   (--admin-toast-room, medido em classes-view.tsx), e o fim do conteúdo rola até acima dos avisos */
-.drawer-body > .admin-panel {
-  padding-bottom: var(--admin-toast-room, 0px);
-}
 .admin-foot-note {
   flex-basis: 100%;
   display: flex;

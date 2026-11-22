@@ -2,7 +2,6 @@
 
 import {
   ArrowRight,
-  Bell,
   BellRing,
   CalendarArrowDown,
   CalendarCheck2,
@@ -141,7 +140,8 @@ function NavButton({
       data-view={item.view}
       aria-current={active ? "page" : undefined}
       aria-label={words ? `${item.label}, ${words}` : item.label}
-      title={words ? `${item.label}, ${words}` : item.short ? item.label : undefined}
+      // a dica sempre traz o nome: no trilho da administração em janela bem baixa, só os ícones ficam à vista
+      title={words ? `${item.label}, ${words}` : item.label}
       onClick={() => onNavigate(item.view)}
       type="button"
     >
@@ -189,22 +189,20 @@ const eventSearch: SearchScope = {
 };
 
 /**
- * A busca geral (a mesma de antes, com o mesmo Ctrl K): no computador, a pílula branca do topo do conteúdo, com a
- * contagem e o "Ver N eventos" numa caixinha logo abaixo; no celular, dentro da folha de busca.
+ * A busca geral (a mesma de antes, com o mesmo Ctrl K e os mesmos resultados): no computador, dentro da paleta que o
+ * item "Buscar" do trilho abre; no celular, dentro da folha de busca. Nas duas, a contagem e o "Ver N eventos"
+ * ficam logo embaixo do campo.
  */
 function SearchBox({
-  inPlace,
   inputRef,
   resultCount,
   scope = eventSearch,
   search,
   shortcut,
-  sheet,
+  variant,
   onSearchChange,
   onSubmit,
 }: {
-  /** O resultado já está na tela ao lado (Cronograma no computador): só a contagem, sem botão. */
-  inPlace: boolean;
   /** Campo da busca: o Ctrl+K leva o foco até ele. */
   inputRef: RefObject<HTMLInputElement | null>;
   resultCount?: number;
@@ -213,11 +211,12 @@ function SearchBox({
   search: string;
   /** "Ctrl K" no chip do campo e "Control+K" para o leitor de tela (Cmd no Mac). */
   shortcut: Shortcut;
-  /** Dentro da folha do celular: o resultado fica embaixo do campo, sem caixinha flutuante. */
-  sheet?: boolean;
+  /** Folha do celular ou paleta do computador: o resultado fica embaixo do campo, sem caixinha flutuante. */
+  variant: "sheet" | "palette";
   onSearchChange: (value: string) => void;
   onSubmit: () => void;
 }) {
+  const palette = variant === "palette";
   const term = search.trim();
   const count = term ? resultCount : undefined;
   const [one, many] = scope.noun;
@@ -230,13 +229,14 @@ function SearchBox({
       : count === 0
         ? `Nenhum ${one} encontrado`
         : `${count} ${count === 1 ? `${one} encontrado` : `${many} encontrados`}`;
-  // botão que leva ao resultado: funciona no toque, onde o teclado não tem Enter (o Enter continua valendo)
-  const showButton = count !== undefined && count > 0 && !inPlace;
+  // botão que leva ao resultado (e fecha a folha ou a paleta, que cobrem a tela): funciona no toque, onde o teclado
+  // não tem Enter (o Enter continua valendo)
+  const showButton = count !== undefined && count > 0;
   // a caixinha só aparece com algo a mostrar (a contagem sem o botão, ou o botão)
   const showPop = Boolean(status);
 
   return (
-    <div className={cx("tsearch-wrap", sheet && "in-sheet")}>
+    <div className={cx("tsearch-wrap", palette ? "in-palette" : "in-sheet")}>
       <form
         className="tsearch"
         role="search"
@@ -249,15 +249,17 @@ function SearchBox({
         <input
           ref={inputRef}
           className={search ? "has-value" : undefined}
-          placeholder={scope.placeholder}
+          // na paleta cabe o rótulo inteiro ("Buscar evento, disciplina ou docente")
+          placeholder={palette ? scope.label : scope.placeholder}
           aria-label={scope.label}
           aria-keyshortcuts={shortcut.aria}
           enterKeyHint="search"
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           onKeyDown={(event) => {
-            // Esc limpa a busca antes de fechar a folha
-            if (event.key === "Escape" && search) {
+            // na folha do celular, o Esc limpa a busca antes de fechar a folha. Na paleta o Esc fecha direto e o
+            // termo fica: a tela continua filtrada, e o "x" do campo ou o "Limpar busca" da tela limpam
+            if (event.key === "Escape" && search && !palette) {
               event.preventDefault();
               event.stopPropagation();
               onSearchChange("");
@@ -277,7 +279,7 @@ function SearchBox({
           >
             <X aria-hidden />
           </button>
-        ) : (
+        ) : palette ? null : (
           <span className="kbd tsearch-kbd" aria-hidden>
             {shortcut.chip}
           </span>
@@ -309,15 +311,19 @@ function studentClassesText(student: LinkedStudent) {
 }
 
 /**
- * Responsável: o bloco "Estudante: Diogo, TADS 5" no menu azul, acima dos itens (amostra responsavel-painel).
+ * Responsável: o bloco "Estudante: Diogo, TADS 5". No celular, na folha da conta; no computador, no trilho, logo
+ * abaixo do logo (o avatar do aluno com o nome e a turma embaixo, como os itens do trilho).
  * Com mais de um aluno ativo, vira seletor: um select nativo por cima do bloco, que funciona no toque, no
  * teclado e no leitor de tela. A escolha vai para o endereço (?aluno=) e para o histórico.
  */
 function StudentPick({
+  rail,
   student,
   students,
   onChoose,
 }: {
+  /** No trilho do computador: em coluna, com o primeiro nome e a turma embaixo do avatar. */
+  rail?: boolean;
   student: LinkedStudent;
   /** Só os vínculos ativos (o pendente não dá acesso). */
   students: LinkedStudent[];
@@ -327,8 +333,18 @@ function StudentPick({
   const name = firstName(student.fullName ?? "Aluno");
   const classes = studentClassesText(student);
   const many = students.length > 1 && Boolean(onChoose);
+  const whole = `Estudante: ${name}, ${classes}`;
 
-  const body = (
+  const body = rail ? (
+    <>
+      <span className="avatar" aria-hidden>
+        {student.initials}
+      </span>
+      <span className="pick-t">{name}</span>
+      <span className="pick-s">{classes}</span>
+      {many ? <ChevronsUpDown className="rail-kid-chev" aria-hidden /> : null}
+    </>
+  ) : (
     <>
       <span className="avatar" aria-hidden>
         {student.initials}
@@ -342,13 +358,21 @@ function StudentPick({
   );
 
   if (!many) {
-    return (
+    return rail ? (
+      <div className="student-pick rail-kid" title={whole}>
+        {/* no trilho só cabe o primeiro nome: o leitor de tela lê a frase inteira */}
+        <span className="sr-only">{whole}</span>
+        <span className="contents" aria-hidden>
+          {body}
+        </span>
+      </div>
+    ) : (
       <div className="student-pick">{body}</div>
     );
   }
 
   return (
-    <div className="student-pick is-select">
+    <div className={cx("student-pick is-select", rail && "rail-kid")}>
       {/* o texto à vista repete o select: o leitor de tela lê só o select */}
       <span className="contents" aria-hidden>
         {body}
@@ -450,6 +474,8 @@ function SyncButton({
 /**
  * Pé do trilho: o avatar (com o primeiro nome embaixo) abre uma caixinha com o nome, o papel, "Configurações do
  * perfil" e "Sair da conta". Esc ou um clique fora fecham, e o foco volta para o avatar.
+ * A caixinha vai para o body (portal): dentro do trilho ela ficava no contexto de empilhamento dele (sticky e com
+ * animação), e os cards da tela, que vêm depois e também animam, eram pintados por cima dela.
  */
 function AccountMenu({
   user,
@@ -533,7 +559,7 @@ function AccountMenu({
           {firstName(name)}
         </span>
       </button>
-      {open && spot ? (
+      {open && spot ? createPortal(
         <div
           ref={popRef}
           id={popId}
@@ -541,6 +567,20 @@ function AccountMenu({
           style={{ left: spot.left, bottom: spot.bottom }}
           role="group"
           aria-label="Conta"
+          onKeyDown={(event) => {
+            // fora do trilho no DOM, o Tab nas pontas da caixinha volta para o avatar (e ela fecha), em vez de
+            // seguir para o fim da página
+            if (event.key !== "Tab") {
+              return;
+            }
+            const options = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button"));
+            const edge = event.shiftKey ? options[0] : options[options.length - 1];
+            if (document.activeElement === edge) {
+              event.preventDefault();
+              setOpen(false);
+              buttonRef.current?.focus();
+            }
+          }}
         >
           <div className="acct-who">
             <span className="avatar" aria-hidden>
@@ -574,7 +614,8 @@ function AccountMenu({
             <LogOut aria-hidden />
             Sair da conta
           </button>
-        </div>
+        </div>,
+        document.body
       ) : null}
     </>
   );
@@ -625,7 +666,7 @@ export function AppShell({
   menuOpen: boolean;
   refreshing: boolean;
   search: string;
-  /** O resultado da busca já está na tela (Cronograma): no computador, sem botão de ver. */
+  /** A busca filtra a própria tela (Cronograma, Notas, Gestão, Turmas): a dica da paleta diz "ver na tela". */
   searchInPlace?: boolean;
   /** Quantos resultados a busca do menu encontra (eventos, ou o que searchScope disser). */
   searchResultCount?: number;
@@ -658,12 +699,21 @@ export function AppShell({
   const sheetPanelRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const topSearchRef = useRef<HTMLInputElement>(null);
   const sheetSearchRef = useRef<HTMLInputElement>(null);
+  // paleta de busca do computador: o item "Buscar" do trilho, o véu, o painel, o campo e para onde o foco volta
+  const railSearchRef = useRef<HTMLButtonElement>(null);
+  const paletteRef = useRef<HTMLDivElement>(null);
+  const palettePanelRef = useRef<HTMLElement>(null);
+  const paletteSearchRef = useRef<HTMLInputElement>(null);
+  const paletteReturnRef = useRef<HTMLElement | null>(null);
   // qual folha do celular está aberta e se ela veio do Ctrl+K (aí o foco volta para onde estava)
   const [sheet, setSheet] = useState<SheetKind>("conta");
   const [sheetByKey, setSheetByKey] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const shortcut = useSearchShortcut();
+  const searchTerm = search.trim();
+  // o item "Buscar" (trilho e topo do celular) diz quando há busca ativa: a tela continua filtrada pelo termo
+  const searchLabel = searchTerm ? `Buscar, busca ativa: ${searchTerm}` : "Buscar";
   const guardian = user.role === "guardian";
   // o responsável só lê: nunca cria evento. O rótulo é o mesmo do botão da página.
   const newEventLabel = canWrite && !guardian ? (user.role === "admin" ? "Novo evento oficial" : "Novo evento") : null;
@@ -674,7 +724,6 @@ export function AppShell({
   const moreItems = items.length > BOTTOM_MAX ? items.slice(BOTTOM_MAX - 1) : [];
   const moreActive = moreItems.some((item) => item.view === activeView);
   const moreCount = moreItems.reduce((sum, item) => sum + (badges?.[item.view] ?? 0), 0);
-  const reminderNews = badges?.reminders ?? 0;
   const name = user.fullName ?? user.email;
   const returnRef = sheet === "busca" ? searchButtonRef : sheet === "mais" ? moreButtonRef : meButtonRef;
 
@@ -706,6 +755,52 @@ export function AppShell({
     onMenuChange(true);
   }
 
+  // paleta de busca (computador): campo com o foco, Tab preso dentro, Esc ou um clique fora fecham. O foco volta ao
+  // item "Buscar"; aberta pelo Ctrl+K, volta para onde estava (ou para o item, se não estava em lugar nenhum)
+  useDialogLayer({
+    open: paletteOpen,
+    rootRef: paletteRef,
+    panelRef: palettePanelRef,
+    onClose: () => setPaletteOpen(false),
+    initialFocusRef: paletteSearchRef,
+    returnFocusRef: paletteReturnRef,
+  });
+
+  // o campo da paleta já entra com o foco e o termo selecionado (também num computador com tela de toque)
+  useEffect(() => {
+    if (paletteOpen) {
+      const input = paletteSearchRef.current;
+      if (input && document.activeElement !== input) {
+        input.focus();
+      }
+      input?.select();
+    }
+  }, [paletteOpen]);
+
+  function openPalette(byKey: boolean) {
+    const from = document.activeElement;
+    paletteReturnRef.current =
+      byKey && from instanceof HTMLElement && from !== document.body && from !== mainRef.current
+        ? from
+        : railSearchRef.current;
+    setPaletteOpen(true);
+  }
+
+  // a paleta é só do computador: se a janela estreitar, ela fecha (no celular a busca fica na folha de cima)
+  useEffect(() => {
+    if (!paletteOpen) {
+      return;
+    }
+    const wide = window.matchMedia(WIDE_MENU);
+    const onChange = () => {
+      if (!wide.matches) {
+        setPaletteOpen(false);
+      }
+    };
+    wide.addEventListener("change", onChange);
+    return () => wide.removeEventListener("change", onChange);
+  }, [paletteOpen]);
+
   useEffect(() => {
     const wanted = `${pageTitle} | Agenda Acadêmica`;
     document.title = wanted;
@@ -732,9 +827,9 @@ export function AppShell({
   }, [focusHeadingToken]);
 
   // os ouvintes da janela usam sempre o estado e a função mais novos do pai
-  const latest = useRef({ drawerOpen, onMenuChange });
+  const latest = useRef({ drawerOpen, onMenuChange, paletteOpen, openPalette });
   useEffect(() => {
-    latest.current = { drawerOpen, onMenuChange };
+    latest.current = { drawerOpen, onMenuChange, paletteOpen, openPalette };
   });
 
   // a folha é só do celular: se a janela alargar, ela fecha
@@ -766,7 +861,13 @@ export function AppShell({
         return;
       }
       if (window.matchMedia(WIDE_MENU).matches) {
-        focusSearch(event, topSearchRef.current);
+        if (latest.current.paletteOpen) {
+          focusSearch(event, paletteSearchRef.current);
+        } else if (isOnTopLayer(railSearchRef.current)) {
+          // computador: abre a paleta de busca já com o foco no campo
+          event.preventDefault();
+          latest.current.openPalette(true);
+        }
       } else if (latest.current.drawerOpen) {
         focusSearch(event, sheetSearchRef.current);
       } else if (isOnTopLayer(searchButtonRef.current)) {
@@ -785,25 +886,28 @@ export function AppShell({
     onMenuChange(false);
   }
 
-  function pick() {
+  function pick(rail = false) {
     return guardian && student ? (
-      <StudentPick student={student} students={students ?? [student]} onChoose={onChooseStudent} />
+      <StudentPick rail={rail} student={student} students={students ?? [student]} onChoose={onChooseStudent} />
     ) : null;
   }
 
-  function searchBox(inSheet: boolean) {
+  function searchBox(variant: "sheet" | "palette") {
     return (
       <SearchBox
-        // na folha o resultado fica escondido atrás dela: o botão aparece também no Cronograma
-        inPlace={searchInPlace && !inSheet}
-        inputRef={inSheet ? sheetSearchRef : topSearchRef}
+        inputRef={variant === "sheet" ? sheetSearchRef : paletteSearchRef}
         resultCount={searchResultCount}
         scope={searchScope}
         search={search}
         shortcut={shortcut}
-        sheet={inSheet}
+        variant={variant}
         onSearchChange={onSearchChange}
-        onSubmit={() => onSearchSubmit?.()}
+        onSubmit={() => {
+          // a paleta cobre a tela: Enter ou "Ver N eventos" fecham e mostram o resultado (na própria tela ou no
+          // Cronograma, como antes)
+          setPaletteOpen(false);
+          onSearchSubmit?.();
+        }}
       />
     );
   }
@@ -836,15 +940,16 @@ export function AppShell({
         ) : null}
         <button
           ref={searchButtonRef}
-          className="ib mtop-ib"
+          className="ib mtop-ib mtop-search"
           onClick={() => openSheet("busca")}
           aria-expanded={drawerOpen && sheet === "busca"}
           aria-haspopup="dialog"
-          aria-label="Buscar"
-          title="Buscar"
+          aria-label={searchLabel}
+          title={searchLabel}
           type="button"
         >
           <Search aria-hidden />
+          {searchTerm ? <i className="mtop-dot" aria-hidden /> : null}
         </button>
         <button
           ref={meButtonRef}
@@ -924,7 +1029,7 @@ export function AppShell({
                     <X aria-hidden />
                   </button>
                 </div>
-                {sheet === "busca" ? searchBox(true) : null}
+                {sheet === "busca" ? searchBox("sheet") : null}
                 {sheet === "mais" ? (
                   <nav className="msheet-nav" aria-label="Mais telas">
                     {moreItems.map((item) => (
@@ -974,10 +1079,49 @@ export function AppShell({
           )
         : null}
 
+      {/* Paleta de busca do computador: o mesmo campo, a mesma contagem e o mesmo "Ver N eventos", num painel
+          centralizado por cima da tela. O que se digita filtra a tela de trás como antes */}
+      {paletteOpen
+        ? createPortal(
+            <div
+              ref={paletteRef}
+              className="cmdk-veil max-lg:hidden"
+              role="dialog"
+              aria-label="Buscar"
+              aria-modal="true"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) {
+                  // sem isso o clique fora leva o foco para o body depois de fechar
+                  event.preventDefault();
+                  setPaletteOpen(false);
+                }
+              }}
+            >
+              <section ref={palettePanelRef} className="cmdk !outline-none" tabIndex={-1}>
+                {searchBox("palette")}
+                <p className="cmdk-keys" aria-hidden>
+                  <span>
+                    <kbd className="kbd">Enter</kbd>
+                    {searchInPlace ? "ver na tela" : "ver no Cronograma"}
+                  </span>
+                  <span>
+                    <kbd className="kbd">Esc</kbd>
+                    fechar
+                  </span>
+                </p>
+              </section>
+            </div>,
+            document.body
+          )
+        : null}
+
       <div className="app">
         {/* Trilho lateral flutuante, preso à altura da tela (a partir de 1024 px) */}
-        <aside className="rail max-lg:hidden" aria-label="Menu">
+        {/* is-long: o trilho comprido da administração aperta antes em janela baixa (visual-novo.css) */}
+        <aside className={cx("rail max-lg:hidden", items.length > BOTTOM_MAX && "is-long")} aria-label="Menu">
           <Logo className="rail-logo" />
+          {/* responsável: o estudante acompanhado (e o seletor, com mais de um) */}
+          {pick(true)}
           {newEventLabel ? (
             <button className="rail-new" onClick={onNewEvent} aria-label={newEventLabel} title={newEventLabel} type="button">
               <span className="rail-new-ic" aria-hidden>
@@ -988,6 +1132,27 @@ export function AppShell({
               </span>
             </button>
           ) : null}
+          {/* busca: abre a paleta (Ctrl K também). Com termo ativo, o ponto verde diz que a tela está filtrada */}
+          <button
+            ref={railSearchRef}
+            className="rail-item nv-busca"
+            onClick={() => openPalette(false)}
+            aria-expanded={paletteOpen}
+            aria-haspopup="dialog"
+            aria-keyshortcuts={shortcut.aria}
+            aria-label={searchLabel}
+            title={searchTerm ? `${searchLabel}. ${shortcut.chip}` : `Buscar, ${shortcut.chip}`}
+            type="button"
+          >
+            <span className="rail-ic" aria-hidden>
+              <Search />
+              {searchTerm ? <i className="rail-dot is-term" /> : null}
+            </span>
+            <span className="rail-lbl" aria-hidden>
+              Buscar
+            </span>
+          </button>
+          <span className="rail-sep" aria-hidden />
           <nav className="rail-nav" aria-label="Navegação principal">
             {items.map((item) => (
               <NavButton
@@ -1006,22 +1171,8 @@ export function AppShell({
         </aside>
 
         <div className="main-col">
-          {/* Barra do topo do conteúdo (computador): sem título. À direita, a busca em pílula e o sino dos avisos;
-              à esquerda, só o estudante acompanhado (responsável) */}
-          <div className="topbar max-lg:hidden">
-            {guardian && student ? <div className="topbar-pick">{pick()}</div> : null}
-            {searchBox(false)}
-            <button
-              className={cx("tbell", reminderNews > 0 && "has-news")}
-              onClick={() => onNavigate("reminders")}
-              aria-label={reminderNews ? `Avisos, ${countWords("reminders", reminderNews)}` : "Avisos"}
-              title={reminderNews ? `Avisos, ${countWords("reminders", reminderNews)}` : "Avisos"}
-              type="button"
-            >
-              <Bell aria-hidden />
-            </button>
-          </div>
-
+          {/* sem barra no topo do conteúdo: a busca foi para o trilho (item "Buscar") e o sino saiu (os avisos novos
+              ficam no ponto do item Lembretes). Cada tela começa no topo da página */}
           <main id="conteudo" ref={mainRef} className="content" tabIndex={-1}>
             {/* sem cabeçalho visível: o título da tela fica para leitores de tela */}
             <h1 ref={headingRef} className="sr-only" tabIndex={-1}>

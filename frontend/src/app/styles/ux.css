@@ -1041,9 +1041,9 @@ html .hero .pen-ring {
 }
 
 /* movimento reduzido: o globals.css já zera a duração de toda animação e transição (a caneta e a cascata chegam
-   direto ao fim); aqui saem também os deslocamentos do hover (botão, card, trilho e sino que sobem) */
+   direto ao fim); aqui saem também os deslocamentos do hover (botão, card e trilho que sobem) */
 @media (prefers-reduced-motion: reduce) {
-  html :is(.btn, .card, .rail-ic, .rail-new-ic, .rail-me .avatar, .tbell, .ib):is(:hover, :active) {
+  html :is(.btn, .card, .rail-ic, .rail-new-ic, .rail-me .avatar, .ib):is(:hover, :active) {
     transform: none !important;
   }
   html :is(.rail-item, .rail-new, .rail-me):hover :is(.rail-ic, .rail-new-ic, .avatar) {

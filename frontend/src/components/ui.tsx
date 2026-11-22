@@ -595,10 +595,6 @@ function popLayer(layer: DialogLayer) {
   if (!layers.length) {
     window.removeEventListener("keydown", onLayerKey);
     unlockPage();
-    // o pé dos avisos cresceu com o diálogo aberto e a página de trás no fim: ela vai para o novo fim
-    if (toastFootHeld) {
-      window.requestAnimationFrame(followToastFoot);
-    }
   }
   restoreFocus(layer);
   const top = layers[layers.length - 1];
@@ -669,7 +665,7 @@ type SpotInput = {
  * Com um diálogo aberto, o primeiro lugar que não cobre o painel: o normal; embaixo, ao lado do
  * painel (à esquerda do painel lateral, no computador); no topo, acima da folha; logo acima do
  * rodapé do painel (o de tela cheia, no celular); no pé do diálogo sem rodapé (o detalhe do
- * evento), que abre embaixo do conteúdo o espaço deles (ver useDialogDock). Nunca em cima do X,
+ * evento), por cima do fim do corpo (ver useDialogDock). Nunca em cima do X,
  * dos botões do rodapé nem do cabeçalho, da pílula e do título do detalhe. Com o menu do celular
  * aberto, ou se o detalhe não tiver lugar para eles (tela muito baixa), eles esperam.
  * Devolve "" (lugar normal), TOAST_HOLD ou "borda,distância,esquerda,largura". A borda é "top"
@@ -1050,111 +1046,19 @@ function liftOverToasts(item: Edges, toasts: Edges, headRoom: number) {
   return Math.max(0, Math.min(item.bottom - toasts.top + TOAST_ROOM_GAP, item.top - headRoom));
 }
 
-// a rolagem a até 4 px do fim ainda está no fim (arredondamentos da rolagem e do zoom)
-const PAGE_END_SLACK = 4;
-
-/**
- * Espaço no pé da página enquanto há aviso: --toast-foot, do alto da pilha ao pé da tela mais a
- * folga, que vira a margem de baixo do #conteudo (globals.css). No fim da rolagem, o fim do
- * conteúdo fica acima dos avisos, e o item que recebe o foco lá embaixo tem para onde subir (sem
- * isso, no fim da página não sobrava rolagem e ele ficava coberto). O espaço só cresce enquanto
- * houver aviso (a página não pula quando um sai e outro fica) e sai com o último aviso, suave
- * (--toast-foot-ease): o fim da página desce junto. Com um diálogo aberto, a página de trás fica
- * parada (ver toastFootHeld).
- */
-let toastFoot = 0;
-
-/**
- * Quanto o pé cresceu com um diálogo aberto e a página de trás no fim. Ela fica parada atrás do
- * diálogo e, quando o último fechar, vai para o novo fim (followToastFoot), como quando o aviso
- * chega sem diálogo. Sem isso, o aviso que chegou com o diálogo aberto cobria o fim do conteúdo.
- */
-let toastFootHeld = 0;
-
-/** A página está no fim, sem contar o que o pé cresceu com um diálogo aberto. */
-function pageAtEnd() {
-  const root = document.documentElement;
-  return window.scrollY + window.innerHeight >= root.scrollHeight - toastFootHeld - PAGE_END_SLACK;
-}
-
-function scrollToPageEnd() {
-  const end = document.documentElement.scrollHeight - window.innerHeight;
-  if (end > window.scrollY + 1) {
-    window.scrollTo({ top: end, behavior: reducedMotion() ? "auto" : "smooth" });
-  }
-}
-
-/**
- * Aumenta o pé da página. Se a página estava no fim, ela continua no fim: o fim do conteúdo sobe
- * acima dos avisos, como o card lateral da Gestão sobe com o --toast-corner. Com um diálogo aberto,
- * ela só vai para o novo fim quando o último fechar.
- */
-function growToastFoot(room: number) {
-  if (room <= toastFoot) {
-    return;
-  }
-  const root = document.documentElement;
-  const atEnd = pageAtEnd();
-  const grown = room - toastFoot;
-  toastFoot = room;
-  root.style.setProperty("--toast-foot", `${room}px`);
-  // entra de uma vez; só a saída é suave
-  root.style.setProperty("--toast-foot-ease", "0s");
-  if (!atEnd) {
-    return;
-  }
-  if (layers.length) {
-    toastFootHeld += grown;
-    return;
-  }
-  toastFootHeld = 0;
-  scrollToPageEnd();
-}
-
-/**
- * O último diálogo fechou (popLayer, no quadro seguinte: a página já está destravada e a tela de
- * trás já mudou o que tinha de mudar). Se a página continua no fim de antes, ela vai para o novo fim.
- */
-function followToastFoot() {
-  if (!toastFootHeld || layers.length) {
-    return;
-  }
-  const atEnd = pageAtEnd();
-  toastFootHeld = 0;
-  if (atEnd) {
-    scrollToPageEnd();
-  }
-}
-
-function releaseToastFoot() {
-  toastFoot = 0;
-  toastFootHeld = 0;
-  const root = document.documentElement;
-  root.style.removeProperty("--toast-foot");
-  root.style.removeProperty("--toast-foot-ease");
-}
-
 /**
  * Avisos no lugar normal (embaixo, sem diálogo aberto): o que recebe o foco fica acima deles.
  * No celular a pilha ocupa a largura toda, e a altura dela vira a folga de baixo da rolagem
  * (--toast-room, no scroll-margin-bottom do globals.css): o scrollIntoView das telas e o foco
  * pelo teclado já param acima dos avisos. Em qualquer largura, se o item focado ainda estiver
  * embaixo de um aviso quando a rolagem parar (a linha cresceu com "Salvo agora", ou, a partir
- * do tablet, o aviso do canto cobre a linha), a página sobe só o que falta; no fim da página, ela
- * sobe para dentro do espaço que os avisos abrem no pé dela (ver growToastFoot). O aviso que chega
- * (ou cresce) por cima do item focado pelo teclado também o faz subir; o clicado com o mouse fica.
- * A partir de 640 px, a altura do canto ocupado pelos avisos fica em --toast-corner: rolar não tira
- * de baixo deles um card grudado na tela (o lateral da Gestão), e ele usa a medida para deixar o
- * espaço livre. `present`: há aviso, em qualquer lugar (o pé da página fica enquanto houver).
+ * do tablet, o aviso do canto cobre a linha), a página sobe só o que falta, se tiver para onde.
+ * O aviso que chega (ou cresce) por cima do item focado pelo teclado também o faz subir; o
+ * clicado com o mouse fica. A partir de 640 px, a altura do canto ocupado pelos avisos fica em
+ * --toast-corner. Nada disso muda a altura da página: o aviso flutua (fixed) e não abre espaço
+ * no pé dela (rodada 11: o pé que crescia, --toast-foot, criava uma rolagem que não existia).
  */
-function useToastRoom(stackRef: RefObject<HTMLElement | null>, active: boolean, present: boolean) {
-  useLayoutEffect(() => {
-    if (!present) {
-      return;
-    }
-    return releaseToastFoot;
-  }, [present]);
-
+function useToastRoom(stackRef: RefObject<HTMLElement | null>, active: boolean) {
   useLayoutEffect(() => {
     const stack = stackRef.current;
     if (!active || !stack) {
@@ -1224,10 +1128,10 @@ function useToastRoom(stackRef: RefObject<HTMLElement | null>, active: boolean, 
       keysOnly = false;
       window.clearTimeout(timer);
     };
-    // chegou, cresceu ou voltou ao canto um aviso: o pé da página acompanha e, quando a rolagem parar,
-    // o item focado pelo teclado que ficou embaixo dele sobe (um foco novo à espera vale como foco)
+    // chegou, cresceu ou voltou ao canto um aviso: quando a rolagem parar, o item focado pelo teclado
+    // que ficou embaixo dele sobe (um foco novo à espera vale como foco)
     const update = () => {
-      growToastFoot(measure());
+      measure();
       if (!pending) {
         keysOnly = true;
       }
@@ -1257,8 +1161,11 @@ function useToastRoom(stackRef: RefObject<HTMLElement | null>, active: boolean, 
   }, [active, stackRef]);
 }
 
-/** O item com o foco no corpo do diálogo, se ficou embaixo do fim da área que rola, sobe até ficar à vista. */
-function revealFocusIn(panel: HTMLElement) {
+/**
+ * O item com o foco no corpo do diálogo, se ficou embaixo dos avisos (ou do fim da área que rola),
+ * sobe até ficar à vista, se o corpo ainda tiver para onde rolar.
+ */
+function revealFocusIn(panel: HTMLElement, stack: HTMLElement) {
   const active = document.activeElement;
   if (!(active instanceof HTMLElement) || !panel.contains(active)) {
     return;
@@ -1269,7 +1176,8 @@ function revealFocusIn(panel: HTMLElement) {
   }
   const view = body.getBoundingClientRect();
   const item = active.getBoundingClientRect();
-  const below = item.bottom + TOAST_ROOM_GAP - view.bottom;
+  const floor = Math.min(view.bottom, stack.getBoundingClientRect().top);
+  const below = item.bottom + TOAST_ROOM_GAP - floor;
   if (below > 0) {
     // sem levar o começo do item para cima do topo da área que rola
     const distance = Math.min(below, Math.max(0, item.top - view.top - TOAST_ROOM_GAP));
@@ -1278,10 +1186,10 @@ function revealFocusIn(panel: HTMLElement) {
 }
 
 /**
- * Avisos no pé do diálogo sem rodapé (o detalhe do evento): a caixa abre embaixo o espaço deles
- * (--toast-dock, no padding-bottom da .modal-box no globals.css) e o corpo passa a rolar só acima
- * deles. Assim nenhum conteúdo do detalhe fica por baixo do aviso, o Tab já para acima dele e o item
- * com o foco (ex.: "Atualizar lembrete", no fim do detalhe) sobe se tiver ficado embaixo.
+ * Avisos no pé do diálogo sem rodapé (o detalhe do evento): eles flutuam por cima do fim do corpo,
+ * sem abrir espaço (rodada 11: o padding de baixo que a caixa ganhava, --toast-dock, mudava a altura
+ * dela e criava rolagem). O item com o foco (ex.: "Atualizar lembrete", no fim do detalhe) sobe se
+ * tiver ficado embaixo deles e o corpo ainda rolar.
  */
 function useDialogDock(stackRef: RefObject<HTMLElement | null>, dock: string) {
   useLayoutEffect(() => {
@@ -1291,33 +1199,21 @@ function useDialogDock(stackRef: RefObject<HTMLElement | null>, dock: string) {
       return;
     }
     const panel = top.panel;
-    const apply = () => {
-      // a pilha fica a uma folga do pé da caixa, acima da área segura (ver o style em ToastStack). A
-      // conta não depende de onde a caixa está: a caixa centrada que cresce não muda o espaço
-      const room = stack.offsetHeight + toastGap(document.documentElement.clientWidth);
-      panel.style.setProperty("--toast-dock", `calc(${room}px + env(safe-area-inset-bottom))`);
-    };
-    const update = () => {
-      apply();
-      revealFocusIn(panel);
-    };
+    const update = () => revealFocusIn(panel, stack);
     update();
-    // chegou ou saiu um aviso: o espaço acompanha a altura da pilha
+    // chegou ou cresceu um aviso: o item com o foco confere de novo
     const watcher = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
     watcher?.observe(stack);
-    return () => {
-      watcher?.disconnect();
-      panel.style.removeProperty("--toast-dock");
-    };
+    return () => watcher?.disconnect();
   }, [dock, stackRef]);
 }
 
 /**
  * Avisos embaixo: no celular, na largura toda (12 px de cada lado), acima da área segura; no
  * computador, no canto direito. Com um diálogo aberto, eles desviam dele (ver toastSpot); no
- * detalhe sem rodapé, ficam no pé dele, no espaço que ele abre (ver useDialogDock); sem diálogo,
- * o item focado ou recém-salvo e o fim da página ficam acima deles (ver useToastRoom).
- * As duas regiões vivas ficam sempre montadas.
+ * detalhe sem rodapé, ficam no pé dele, por cima do fim do corpo (ver useDialogDock); sem diálogo,
+ * o item focado ou recém-salvo fica acima deles (ver useToastRoom). Eles flutuam (fixed) e não
+ * mudam a altura de nada. As duas regiões vivas ficam sempre montadas.
  */
 export function ToastStack({
   toasts,
@@ -1335,7 +1231,7 @@ export function ToastStack({
   );
   const held = spot === TOAST_HOLD;
   const [edge, offset, left, width] = spot && !held ? spot.split(",") : [];
-  useToastRoom(stackRef, ready && !spot && toasts.length > 0, ready && toasts.length > 0);
+  useToastRoom(stackRef, ready && !spot && toasts.length > 0);
   useDialogDock(stackRef, ready && edge === "dock" ? spot : "");
   if (!ready) {
     return null;

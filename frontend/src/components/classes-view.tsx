@@ -287,10 +287,9 @@ function useRowReveal() {
 }
 
 /**
- * No celular o painel ocupa a tela, e os avisos ficam logo acima do rodapé dele, por cima do corpo. O corpo
- * ganha embaixo o espaço dos avisos (--admin-toast-room, em admin.css), para o fim do conteúdo rolar até acima
- * deles, e o item com o foco que ficou embaixo de um aviso sobe. Os botões do rodapé ficam sempre livres (os
- * avisos ficam acima dele).
+ * No celular o painel ocupa a tela, e os avisos flutuam logo acima do rodapé dele, por cima do corpo, sem
+ * mudar a altura de nada (nada de rolagem a mais por causa do aviso). Só o item com o foco que ficou embaixo
+ * de um aviso sobe. Os botões do rodapé ficam sempre livres (os avisos ficam acima dele).
  */
 function useToastRoom(open: boolean, contentRef: RefObject<HTMLDivElement | null>) {
   useEffect(() => {

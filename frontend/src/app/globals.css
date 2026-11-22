@@ -142,6 +142,9 @@
   --nv-turmas-i: #1d7a51;
   --nv-import: #ffe0ea;
   --nv-import-i: #b23a62;
+  /* "Buscar" (rodada 11): lima, uma ferramenta e não uma tela */
+  --nv-busca: #e9f3d2;
+  --nv-busca-i: #4a6610;
 
   /* escala de texto: 12 13 14 15 16 18 22 26 */
   --fs-12: 12px;
@@ -319,19 +322,12 @@ button:disabled {
     background: var(--bg);
   }
   /* entrada (login-screen.tsx, coluna flex): o cartão fica no meio da altura, entre dois vãos que
-     dividem a sobra. Enquanto houver aviso, o vão de baixo tem pelo menos o pé dos avisos
-     (--toast-foot, do ui.tsx, o mesmo da margem do #conteudo), menos os 24 px do respiro de baixo
-     da entrada (py-6), que já contam. Com sobra, nada se mexe; sem ela, o cartão sobe só o que
-     falta ou a página ganha a rolagem que falta, e no fim da rolagem o cartão para 12 px acima dos
-     avisos. Entra de uma vez e sai suave (--toast-foot-ease). */
+     dividem a sobra. O aviso (toast) flutua por cima e não mexe em nada: antes o vão de baixo crescia
+     com ele (--toast-foot), o cartão encolhia e a folha de entrar ganhava rolagem (rodada 11). */
   .entrada::before,
   .entrada::after {
     content: "";
     flex: 1 1 0px;
-  }
-  .entrada::after {
-    min-height: max(0px, var(--toast-foot, 0px) - 24px);
-    transition: min-height var(--toast-foot-ease, 0.3s) ease;
   }
   /* o foco pelo teclado também para acima dos avisos: no celular, a regra base já deixa embaixo o
      --toast-room; a partir de 640 px, o aviso fica no canto, com a altura no --toast-corner */
@@ -2412,8 +2408,6 @@ button:disabled {
     overflow-y: auto;
     overscroll-behavior: contain;
     outline: none;
-    /* avisos no pé do detalhe (sem rodapé): o espaço deles fica embaixo do conteúdo (ui.tsx) */
-    padding-bottom: var(--toast-dock, 0px);
   }
   .modal-box.wide {
     width: min(680px, 100%);
@@ -2480,8 +2474,6 @@ button:disabled {
     border-radius: 24px 0 0 24px;
     box-shadow: 0 30px 80px rgb(var(--night-rgb) / 0.35);
     outline: none;
-    /* como na .modal-box: só sem rodapé, que o painel de edição sempre tem */
-    padding-bottom: var(--toast-dock, 0px);
   }
   .drawer-head {
     display: flex;
@@ -2637,15 +2629,8 @@ button:disabled {
       width: 390px;
     }
   }
-  /* pé da página com aviso (growToastFoot, no ui.tsx): enquanto houver aviso, o conteúdo ganha embaixo
-     a altura da pilha (--toast-foot: do alto dela ao pé da tela, mais 12 px de folga), menos os 20 px
-     do respiro de baixo do .app, que já contam. No fim da rolagem, o fim do conteúdo fica acima dos
-     avisos e o item focado lá embaixo tem para onde subir. Entra de uma vez (--toast-foot-ease: 0s) e
-     sai suave, com o fim da página descendo junto. */
-  #conteudo {
-    margin-bottom: max(0px, var(--toast-foot, 0px) - 20px);
-    transition: margin-bottom var(--toast-foot-ease, 0.3s) ease;
-  }
+  /* o aviso flutua (fixed) e não muda a altura de nada (rodada 11): antes o #conteudo ganhava embaixo a
+     altura da pilha (--toast-foot) e a página criava uma rolagem que não existia */
   /* texto, ação e fechar numa linha; sem espaço para o texto, ação e fechar descem juntos */
   .toast {
     pointer-events: auto;

@@ -52,88 +52,91 @@ export function LoginStage() {
 
   return (
     <div className="ls-palco">
-      <div className="ls-marca">
-        <span className="mark">
-          <CalendarCheck2 className="h-[22px] w-[22px]" aria-hidden />
-        </span>
-        <div>
-          <p className="brand-name">Agenda Acadêmica</p>
-          <p className="brand-sub">Prazos, notas e lembretes</p>
-        </div>
-      </div>
-
-      <p className="ls-titulo">
-        Sua semana acadêmica, <em>já organizada.</em>
-      </p>
-
-      <div className="ls-cena" aria-hidden>
-        <div className="ls-folha">
-          <div className="ls-folha-cab">
-            <p className="ls-mes">
-              {MESES[mes]} <span>{ano}</span>
-            </p>
-          </div>
-          <div className="ls-grade">
-            {DIAS.map((d, i) => (
-              <span key={i} className="ls-dow" style={{ gridRow: 1, gridColumn: i + 1 }}>
-                {d}
-              </span>
-            ))}
-            {dias.map((d, i) => (
-              <span
-                key={d.dia}
-                className={[
-                  "ls-dia",
-                  d.passado && "passado",
-                  d.hoje && "hoje",
-                  d.domingo && "domingo",
-                  d.marcado && "marcado",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                style={{ gridRow: d.linha, gridColumn: d.coluna, ["--k" as string]: i }}
-              >
-                <span className="ls-num">{d.dia}</span>
-                {d.hoje ? (
-                  <svg className="ls-anel" viewBox="0 0 64 56">
-                    <path d={ANEL} />
-                  </svg>
-                ) : null}
-                <i className={d.marca ? `ls-pt d-${d.marca}` : "ls-pt vazio"} />
-              </span>
-            ))}
+      {/* a composição (marca, título e a cena) vai junta para o meio da coluna, alinhada à esquerda por dentro */}
+      <div className="ls-conteudo">
+        <div className="ls-marca">
+          <span className="mark">
+            <CalendarCheck2 className="h-[22px] w-[22px]" aria-hidden />
+          </span>
+          <div>
+            <p className="brand-name">Agenda Acadêmica</p>
+            <p className="brand-sub">Prazos, notas e lembretes</p>
           </div>
         </div>
 
-        <div className="ls-avisos">
-          <div className="ls-nota prova">
-            <span className="ls-ic">
-              <PencilLine className="h-[18px] w-[18px]" />
-            </span>
-            <span className="ls-k">
-              {DIAS_LONGOS[diaProva.getDay()]}, {diaProva.getDate()}, 19:00
-            </span>
-            <b>Prova de Estrutura de Dados</b>
-            <small>Laboratório 3, faltam 2 dias</small>
+        <p className="ls-titulo">
+          Sua semana acadêmica, <em>já organizada.</em>
+        </p>
+
+        <div className="ls-cena" aria-hidden>
+          <div className="ls-folha">
+            <div className="ls-folha-cab">
+              <p className="ls-mes">
+                {MESES[mes]} <span>{ano}</span>
+              </p>
+            </div>
+            <div className="ls-grade">
+              {DIAS.map((d, i) => (
+                <span key={i} className="ls-dow" style={{ gridRow: 1, gridColumn: i + 1 }}>
+                  {d}
+                </span>
+              ))}
+              {dias.map((d, i) => (
+                <span
+                  key={d.dia}
+                  className={[
+                    "ls-dia",
+                    d.passado && "passado",
+                    d.hoje && "hoje",
+                    d.domingo && "domingo",
+                    d.marcado && "marcado",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  style={{ gridRow: d.linha, gridColumn: d.coluna, ["--k" as string]: i }}
+                >
+                  <span className="ls-num">{d.dia}</span>
+                  {d.hoje ? (
+                    <svg className="ls-anel" viewBox="0 0 64 56">
+                      <path d={ANEL} />
+                    </svg>
+                  ) : null}
+                  <i className={d.marca ? `ls-pt d-${d.marca}` : "ls-pt vazio"} />
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="ls-nota email">
-            <span className="ls-ic">
-              <Mail className="h-[18px] w-[18px]" />
-            </span>
-            <span className="ls-k">Lembrete por e-mail</span>
-            <b>Amanhã tem prova, às 19:00</b>
-            <small>chega 1 dia antes, no seu e-mail</small>
-          </div>
-          <div className="ls-nota nota">
-            <span className="ls-ic">
-              <GraduationCap className="h-[18px] w-[18px]" />
-            </span>
-            <span className="ls-k">Nota publicada</span>
-            <b>Matemática (P2)</b>
-            <small>a professora publicou hoje</small>
-            <span className="ls-valor">
-              7,5<small>/10</small>
-            </span>
+
+          <div className="ls-avisos">
+            <div className="ls-nota prova">
+              <span className="ls-ic">
+                <PencilLine className="h-[18px] w-[18px]" />
+              </span>
+              <span className="ls-k">
+                {DIAS_LONGOS[diaProva.getDay()]}, {diaProva.getDate()}, 19:00
+              </span>
+              <b>Prova de Estrutura de Dados</b>
+              <small>Laboratório 3, faltam 2 dias</small>
+            </div>
+            <div className="ls-nota email">
+              <span className="ls-ic">
+                <Mail className="h-[18px] w-[18px]" />
+              </span>
+              <span className="ls-k">Lembrete por e-mail</span>
+              <b>Amanhã tem prova, às 19:00</b>
+              <small>chega 1 dia antes, no seu e-mail</small>
+            </div>
+            <div className="ls-nota nota">
+              <span className="ls-ic">
+                <GraduationCap className="h-[18px] w-[18px]" />
+              </span>
+              <span className="ls-k">Nota publicada</span>
+              <b>Matemática (P2)</b>
+              <small>a professora publicou hoje</small>
+              <span className="ls-valor">
+                7,5<small>/10</small>
+              </span>
+            </div>
           </div>
         </div>
       </div>

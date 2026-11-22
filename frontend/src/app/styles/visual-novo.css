@@ -14,9 +14,11 @@
   initial-value: 0deg;
 }
 
-/* ---------- casca (rodada 10): trilho flutuante de 100 px à esquerda e o conteúdo com a barra do topo ----------
-   app-shell.tsx: .app > .rail + .main-col (.topbar + main.content). No celular (abaixo de 1024 px): .mtop no topo,
-   .bnav (pílula flutuante) embaixo e as folhas .msheet (busca, conta, "Mais"). */
+/* ---------- casca (rodada 10): trilho flutuante de 100 px à esquerda e o conteúdo ----------
+   app-shell.tsx: .app > .rail + .main-col (main.content). Sem barra no topo do conteúdo (rodada 11): a busca é o
+   item "Buscar" do trilho, que abre a paleta .cmdk, e cada tela começa no topo da página. No celular (abaixo de
+   1024 px): .mtop no topo (com a busca em ícone), .bnav (pílula flutuante) embaixo e as folhas .msheet (busca,
+   conta, "Mais"). */
 html .app {
   display: grid;
   grid-template-columns: 100px minmax(0, 1fr);
@@ -58,9 +60,6 @@ html {
     padding: 8px 16px calc(var(--bnav-room) + 24px);
     gap: 16px;
   }
-  html #conteudo {
-    margin-bottom: max(0px, var(--toast-foot, 0px) - var(--bnav-room) - 24px);
-  }
   /* os avisos do celular e do tablet ficam acima da barra de baixo (sem diálogo; com diálogo, o lugar vem do ui.tsx,
      e o Drawer e o Modal ficam por cima da barra, com o rodapé deles à vista) */
   html .toast-stack:not([style]) {
@@ -90,17 +89,19 @@ html .logo-sq svg {
   height: 24px;
 }
 
-/* ---------- trilho ---------- */
+/* ---------- trilho ----------
+   As medidas vêm de variáveis (--rail-*), que as faixas de altura do fim desta seção apertam. Fora do trilho (a
+   barra de baixo e a folha "Mais" do celular usam .rail-item) valem os valores padrão. */
 html .rail {
   position: sticky;
   top: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--rail-gap, 6px);
   height: calc(100vh - 32px);
   height: calc(100dvh - 32px);
-  padding: 18px 0 16px;
+  padding: var(--rail-pad, 18px 0 16px);
   border-radius: var(--r-xl);
   background: var(--surface);
   box-shadow: var(--sh-card);
@@ -121,13 +122,15 @@ html .rail::-webkit-scrollbar {
   }
 }
 html .rail-logo {
-  margin-bottom: 10px;
+  width: var(--rail-logo, 48px);
+  height: var(--rail-logo, 48px);
+  margin-bottom: var(--rail-logo-mb, 10px);
 }
 html .rail-nav {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: var(--rail-nav-gap, 4px);
 }
 /* item: ícone num quadrado pastel e o rótulo pequeno embaixo (cores por tela: --nv-* no globals.css) */
 html .rail-item,
@@ -136,14 +139,14 @@ html .rail-me {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--rail-it-gap, 6px);
   width: 88px;
-  padding: 6px 0;
+  padding: var(--rail-it-pad, 6px) 0;
   border: 0;
   border-radius: var(--r-lg);
   background: none;
   color: var(--ink-3);
-  font: 600 12px/1.15 var(--font);
+  font: 600 var(--rail-fs, 12px) / 1.15 var(--font);
   text-align: center;
 }
 html .rail-item {
@@ -157,13 +160,23 @@ html .rail-item.nv-lemb { --np: var(--nv-lemb); --ni: var(--nv-lemb-i); }
 html .rail-item.nv-gestao { --np: var(--nv-gestao); --ni: var(--nv-gestao-i); }
 html .rail-item.nv-turmas { --np: var(--nv-turmas); --ni: var(--nv-turmas-i); }
 html .rail-item.nv-import { --np: var(--nv-import); --ni: var(--nv-import-i); }
+html .rail-item.nv-busca { --np: var(--nv-busca); --ni: var(--nv-busca-i); }
 html .rail-item.nv-more { --np: var(--fill); --ni: var(--ink-2); }
+/* linha curta entre o "Buscar" (ferramenta) e as telas */
+html .rail-sep {
+  flex: none;
+  width: 40px;
+  height: 1px;
+  margin: var(--rail-sep-m, 2px 0 4px);
+  border-radius: 1px;
+  background: var(--line);
+}
 html .rail-ic {
   position: relative;
   display: grid;
   place-items: center;
   width: 46px;
-  height: 38px;
+  height: var(--rail-ic-h, 38px);
   border-radius: var(--r-md);
   background: var(--np);
   color: var(--ni);
@@ -222,17 +235,21 @@ html .rail-dot {
   background: var(--ipe);
   box-shadow: 0 0 0 2px var(--surface);
 }
+/* busca ativa (a tela está filtrada pelo termo): o ponto é verde */
+html .rail-dot.is-term {
+  background: var(--brand);
+}
 /* "+ Novo evento": quadrado verde com o "+" e o rótulo embaixo */
 html .rail-new {
-  margin-bottom: 8px;
+  margin-bottom: var(--rail-new-mb, 8px);
   color: var(--brand-ink);
   font-weight: 700;
 }
 html .rail-new-ic {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: var(--rail-new-w, 46px);
+  height: var(--rail-new-h, 46px);
   border-radius: var(--r-lg);
   background: var(--brand);
   color: #fff;
@@ -256,11 +273,11 @@ html .rail-foot {
   align-items: center;
   gap: 6px;
   margin-top: auto;
-  padding-top: 10px;
+  padding-top: var(--rail-foot-pt, 10px);
 }
 html .rail-me .avatar {
-  width: 42px;
-  height: 42px;
+  width: var(--rail-me, 42px);
+  height: var(--rail-me, 42px);
   font: 700 14px/1 var(--disp);
   transition: transform 0.3s var(--mola);
 }
@@ -304,48 +321,69 @@ html .sync-spin {
   height: 15px;
   color: var(--brand);
 }
-/* trilho em janela baixa: itens mais justos, para o pé não sair da tela */
+/* trilho em janela baixa: itens mais justos, para o pé (o avatar com "Sair da conta") não sair da tela. O trilho
+   comprido da administração (.is-long: 7 telas, "Novo evento oficial" e "Buscar") aperta antes: inteiro, ele
+   precisa de 965 px de altura; justo, de 818; mais justo, de 723; abaixo disso, fica só com os ícones */
 @media (min-width: 1024px) and (max-height: 860px) {
   html .rail {
-    gap: 2px;
-    padding-block: 14px 12px;
-  }
-  html .rail-logo {
-    width: 42px;
-    height: 42px;
-    margin-bottom: 6px;
-  }
-  html .rail-ic {
-    height: 34px;
-  }
-  html .rail-new-ic {
-    width: 42px;
-    height: 40px;
-  }
-  html :is(.rail-item, .rail-new, .rail-me) {
-    gap: 4px;
-    padding-block: 4px;
-    font-size: 11.5px;
-  }
-  html .rail-me .avatar {
-    width: 38px;
-    height: 38px;
+    --rail-gap: 2px;
+    --rail-pad: 14px 0 12px;
+    --rail-logo: 42px;
+    --rail-logo-mb: 6px;
+    --rail-ic-h: 34px;
+    --rail-new-w: 42px;
+    --rail-new-h: 40px;
+    --rail-it-gap: 4px;
+    --rail-it-pad: 4px;
+    --rail-fs: 11.5px;
+    --rail-me: 38px;
   }
 }
-/* notebook baixo (1366x700, 1280x720): o trilho da administração (7 itens e "Novo evento oficial") ainda cabe */
-@media (min-width: 1024px) and (max-height: 760px) {
-  html .rail-ic {
-    height: 30px;
+@media (min-width: 1024px) and (max-height: 964px) {
+  html .rail.is-long {
+    --rail-gap: 2px;
+    --rail-pad: 14px 0 12px;
+    --rail-logo: 42px;
+    --rail-logo-mb: 6px;
+    --rail-ic-h: 34px;
+    --rail-new-w: 42px;
+    --rail-new-h: 40px;
+    --rail-it-gap: 4px;
+    --rail-it-pad: 4px;
+    --rail-fs: 11.5px;
+    --rail-me: 38px;
   }
-  html :is(.rail-item, .rail-new, .rail-me) {
-    gap: 3px;
-    padding-block: 2px;
+}
+@media (min-width: 1024px) and (max-height: 800px) {
+  html .rail {
+    --rail-ic-h: 30px;
+    --rail-it-gap: 3px;
+    --rail-it-pad: 2px;
+    --rail-new-mb: 4px;
+    --rail-foot-pt: 4px;
+    --rail-sep-m: 1px 0 2px;
   }
-  html .rail-new {
-    margin-bottom: 4px;
+}
+@media (min-width: 1024px) and (max-height: 817px) {
+  html .rail.is-long {
+    --rail-ic-h: 30px;
+    --rail-it-gap: 3px;
+    --rail-it-pad: 2px;
+    --rail-new-mb: 4px;
+    --rail-foot-pt: 4px;
+    --rail-sep-m: 1px 0 2px;
   }
-  html .rail-foot {
-    padding-top: 4px;
+}
+/* só os ícones, com o nome na dica e no leitor de tela */
+@media (min-width: 1024px) and (max-height: 722px) {
+  html .rail.is-long {
+    --rail-gap: 4px;
+    --rail-nav-gap: 6px;
+    --rail-ic-h: 34px;
+    --rail-it-pad: 2px;
+  }
+  html .rail.is-long :is(.rail-item, .rail-new, .rail-me) > .rail-lbl {
+    display: none;
   }
 }
 
@@ -447,25 +485,127 @@ html .acct-opt .sync-re {
   color: var(--muted);
 }
 
-/* ---------- barra do topo do conteúdo (computador): a busca em pílula e o sino, sem título ---------- */
-html .topbar {
-  position: relative;
-  z-index: 20;
+/* ---------- busca (computador): o item "Buscar" do trilho abre a paleta, centralizada por cima da tela ----------
+   O véu é claro e sem desfoque: o que se digita continua filtrando a tela de trás, e dá para ver. */
+html .cmdk-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  min-height: 46px;
-  margin-bottom: 18px;
-  animation: anim-in 0.5s 0.05s var(--ease) both;
+  align-items: flex-start;
+  justify-content: center;
+  padding: max(72px, 13vh) 24px 24px;
+  background: rgb(15 36 24 / 0.26);
+  animation: fade-in 0.16s ease-out both;
 }
-html .topbar-pick {
-  margin-right: auto;
-  min-width: 0;
+html .cmdk {
+  width: min(640px, 100%);
+  padding: 12px;
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow:
+    0 2px 6px rgb(15 36 24 / 0.06),
+    0 36px 80px -28px rgb(15 36 24 / 0.5);
+  animation: cmdk-in 0.3s var(--mola) both;
+}
+@keyframes cmdk-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* campo grande em pílula, com a lupa num círculo pastel (o mesmo tom do item do trilho) */
+html .in-palette .tsearch-ic {
+  left: 10px;
+  box-sizing: content-box;
+  width: 20px;
+  height: 20px;
+  padding: 9px;
+  border-radius: 50%;
+  background: var(--nv-busca);
+  color: var(--nv-busca-i);
+}
+html .in-palette .tsearch input {
+  height: 60px;
+  padding: 0 20px 0 64px;
+  border: 1.5px solid var(--line);
+  background: var(--surface-2);
+  font: 500 var(--fs-18) / 1 var(--font);
+  box-shadow: none;
+}
+html .in-palette .tsearch input.has-value {
+  padding-right: 56px;
+}
+html .in-palette .tsearch input:hover {
+  border-color: var(--line-strong);
+}
+html .in-palette .tsearch input:focus {
+  border-color: var(--brand);
+  background: var(--surface);
+  box-shadow: var(--ring);
+}
+html .in-palette .tsearch-clear {
+  right: 10px;
+  width: 40px;
+  height: 40px;
+}
+html .in-palette .tsearch-pop {
+  position: static;
+  margin-top: 10px;
+  padding: 0 4px;
+  box-shadow: none;
+  animation: none;
+}
+html .in-palette .tsearch-status {
+  font-size: var(--fs-14);
+}
+html .in-palette .tsearch-go {
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: var(--r-lg);
+  font-size: var(--fs-15);
+}
+/* teclas no pé da paleta */
+html .cmdk-keys {
+  display: flex;
+  justify-content: flex-end;
+  gap: 18px;
+  margin-top: 12px;
+  padding: 10px 6px 2px;
+  border-top: 1px solid var(--line-2);
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+html .cmdk-keys span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+html .cmdk-keys .kbd {
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink-3);
+  font: 600 var(--fs-12) / 1 var(--font);
+}
+@media (prefers-reduced-motion: reduce) {
+  html .cmdk-veil,
+  html .cmdk {
+    animation: none;
+  }
 }
 html .tsearch-wrap {
   position: relative;
   width: min(340px, 100%);
+}
+html .tsearch-wrap.in-palette {
+  width: 100%;
 }
 html .tsearch {
   position: relative;
@@ -616,40 +756,6 @@ html .in-sheet .tsearch-pop {
 html .in-sheet .tsearch-go {
   min-height: 48px;
 }
-/* sino dos avisos: leva aos Lembretes; ponto ipê quando há aviso novo */
-html .tbell {
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 46px;
-  height: 46px;
-  border: 0;
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  color: var(--ink-2);
-  box-shadow: var(--sh-card);
-  transition: transform 0.3s var(--mola);
-}
-html .tbell:hover {
-  transform: translateY(-2px);
-  color: var(--ink);
-}
-html .tbell svg {
-  width: 19px;
-  height: 19px;
-}
-html .tbell.has-news::after {
-  content: "";
-  position: absolute;
-  top: 10px;
-  right: 11px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--ipe);
-  box-shadow: 0 0 0 2px var(--surface);
-}
 
 /* ---------- celular: barra do topo, barra de baixo e folhas ---------- */
 html .mtop {
@@ -703,6 +809,20 @@ html .mtop .mtop-new {
   background: var(--brand);
   color: #fff;
   box-shadow: 0 10px 18px -10px rgb(19 134 60 / 0.9);
+}
+/* busca ativa: o mesmo ponto verde do item "Buscar" do trilho */
+html .mtop .mtop-search {
+  position: relative;
+}
+html .mtop-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 2px var(--surface);
 }
 html .mtop-me {
   display: grid;
@@ -939,6 +1059,65 @@ html .student-pick.is-select:hover {
 }
 html .student-pick:has(select:focus-visible) {
   outline-color: var(--brand);
+}
+/* no trilho do computador (rodada 11, saiu da barra do topo): o avatar do aluno, o primeiro nome e a turma, em
+   coluna, num bloco claro logo abaixo do logo. Com mais de um aluno, o select transparente cobre o bloco */
+html .student-pick.rail-kid {
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  width: 88px;
+  max-width: none;
+  min-height: 0;
+  margin: 0 0 6px;
+  padding: 8px 4px;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  text-align: center;
+}
+html .student-pick.rail-kid .avatar {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 2px;
+  font-size: 12px;
+}
+html .rail-kid :is(.pick-t, .pick-s) {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html .rail-kid .pick-t {
+  font: 700 12px / 1.15 var(--font);
+  color: var(--ink);
+}
+html .rail-kid .pick-s {
+  margin-top: 0;
+  font-size: 11px;
+  line-height: 1.15;
+}
+html .rail-kid .rail-kid-chev {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+}
+html .student-pick.rail-kid.is-select:hover {
+  background: var(--brand-50);
+  box-shadow: inset 0 0 0 1px var(--brand-100);
+}
+@media (min-width: 1024px) and (max-height: 800px) {
+  html .student-pick.rail-kid {
+    padding-block: 5px;
+  }
+  html .student-pick.rail-kid .avatar {
+    width: 30px;
+    height: 30px;
+  }
 }
 
 /* ---------- controle segmentado em pílula (Agenda / Calendário, Próximos / Passados / Todos) ---------- */
@@ -1778,6 +1957,18 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: var(--nv-notas); --tom: var(--nv-no
     margin-top: 0;
   }
 }
+/* até 780 px de altura (1280x720, 1024x768, celular de 740) os vãos encolhem um pouco: a folha de entrar cabia
+   por 9 a 48 px e ganhava uma rolagem que não precisava. No celular, a frase de apoio do Google também sai */
+@media (max-height: 780px) {
+  html .entrada {
+    --g: clamp(10px, 1.6dvh, 14px);
+  }
+}
+@media (max-width: 639px) and (max-height: 780px) {
+  html .ent-hint.opcional {
+    display: none;
+  }
+}
 @media (max-height: 640px) {
   html .entrada {
     --g: clamp(8px, 2dvh, 14px);
@@ -1813,13 +2004,25 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: var(--nv-notas); --tom: var(--nv-no
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: clamp(14px, 3dvh, 28px);
   min-height: 0;
   min-width: 0;
   padding: clamp(24px, 4.4dvh, 40px) clamp(28px, 4vw, 64px) clamp(20px, 4dvh, 40px);
   overflow: hidden;
   border-right: 0;
   background: transparent;
+}
+/* a composição (marca, título e cena) no meio da coluna, nos dois eixos, como no artefato: antes ela ficava
+   encostada à esquerda e sobrava um vão à direita (a 1920, mais de 500 px). A largura é a da própria cena
+   (fit-content); por dentro, tudo alinhado à esquerda. A margem automática centraliza quando sobra e não corta
+   o topo quando falta. */
+.ls-conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 3dvh, 28px);
+  width: fit-content;
+  max-width: 100%;
+  min-height: 0;
+  margin: auto;
 }
 .ls-marca .mark {
   width: 44px;
