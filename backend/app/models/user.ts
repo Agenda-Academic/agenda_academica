@@ -56,14 +56,17 @@ export default class User extends compose(UserSchema, withAuthFinder(hash)) {
   declare reminders: HasMany<typeof Reminder>
 
   get initials() {
-    // "Prof." e "Profa." não entram nas iniciais
+    // "Prof." e "Profa." não entram nas iniciais, e "da", "de", "do"... não valem como segundo nome:
+    // "Maria da Silva" vira "MS" (e não "MD"); "Diogo Queiroz da Silva" continua "DQ"
     const words = this.fullName
-      ? this.fullName.split(' ').filter((w) => !/^profa?\.$/i.test(w))
+      ? this.fullName.split(' ').filter((w) => w && !/^profa?\.$/i.test(w))
       : this.email.split('@')
-    const [first, last] = words
-    if (first && last) {
-      return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
+    const particles = ['da', 'de', 'do', 'das', 'dos', 'e']
+    const [first = '', ...rest] = words
+    const second = rest.find((w) => w && !particles.includes(w.toLowerCase()))
+    if (first && second) {
+      return `${first.charAt(0)}${second.charAt(0)}`.toUpperCase()
     }
-    return `${first.slice(0, 2)}`.toUpperCase()
+    return first.slice(0, 2).toUpperCase()
   }
 }

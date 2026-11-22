@@ -9,11 +9,14 @@ const email = () => vine.string().trim().toLowerCase().email().maxLength(254)
 const password = () => vine.string().minLength(8).maxLength(32)
 const notificationChannel = () => vine.enum(['email'])
 
+/** O nome aparece em avisos, listas e e-mails: sem teto, um nome gigante quebra as telas. */
+export const MAX_NAME_LENGTH = 120
+
 /**
  * Validator to use when performing self-signup
  */
 export const signupValidator = vine.create({
-  fullName: vine.string().nullable(),
+  fullName: vine.string().maxLength(MAX_NAME_LENGTH).nullable(),
   email: email().unique({ table: 'users', column: 'email', caseInsensitive: true }),
   password: password(),
   passwordConfirmation: password().sameAs('password'),
@@ -70,7 +73,7 @@ updateUserRoleValidator.messagesProvider = new SimpleMessagesProvider({
 })
 
 export const updateProfileValidator = vine.create({
-  fullName: vine.string().nullable().optional(),
+  fullName: vine.string().maxLength(MAX_NAME_LENGTH).nullable().optional(),
   defaultReminderMinutes: vine.number().min(15).max(10080).optional(),
   notificationChannel: notificationChannel().optional(),
 })
