@@ -19,6 +19,7 @@ import {
   countText,
   cx,
   dateParts,
+  formatDateBR,
   errorMessage,
   formatShortDate,
   formatTime,
@@ -35,7 +36,8 @@ import { eventLastDay } from "./event-bits";
 import { activeAssignments } from "./event-editor";
 import { launchedCount, subscribeGradesChanged } from "./event-grades-drawer";
 import { Pager, usePaged } from "./pager";
-import { EmptyState, SectionTitle, secondaryButton } from "./ui";
+import { Select, type SelectOption } from "./select";
+import { EmptyState, PageHeader, secondaryButton } from "./ui";
 
 /**
  * Tela Notas da docente e da administração (desenho 5.7): as avaliações (prova e trabalho de turma) que a
@@ -77,8 +79,6 @@ type Tab = "pending" | "past" | "next" | "all";
 const PAGE_SIZE = 8;
 /** Avaliações cuja situação carrega ao mesmo tempo (só as da página à vista). */
 const PARALLEL = 6;
-/** Acima disso, os filtros de turma e disciplina viram uma lista de escolha em vez de botões. */
-const MAX_CHIPS = 6;
 
 async function loadSummary(token: string, eventId: number): Promise<Summary> {
   try {
@@ -430,7 +430,7 @@ export function GradesTeacher({
   } else if (!mine.length && noClass) {
     // docente sem turma: a Gestão também não deixa criar avaliação, então o próximo passo é pedir o vínculo
     content = (
-      <div className="px-6 pb-6">
+      <div className="p-6 max-sm:p-4">
         <EmptyState
           icon={Users}
           text="Você ainda não tem turmas vinculadas"
@@ -440,7 +440,7 @@ export function GradesTeacher({
     );
   } else if (!mine.length) {
     content = (
-      <div className="px-6 pb-6">
+      <div className="p-6 max-sm:p-4">
         <EmptyState
           icon={ClipboardCheck}
           text={admin ? "Nenhuma prova ou trabalho de turma" : "Nenhuma prova ou trabalho nas suas disciplinas"}
@@ -451,7 +451,7 @@ export function GradesTeacher({
     );
   } else if (!found.length) {
     content = (
-      <div className="px-6 pb-6">
+      <div className="p-6 max-sm:p-4">
         <EmptyState
           icon={Search}
           text={`Nenhuma avaliação com ${quoted(term)}`}
@@ -463,19 +463,19 @@ export function GradesTeacher({
   } else if (!list.length && hiddenByOffer) {
     // a aba ficou vazia só por causa do filtro: o vazio diz isso (e a busca, quando há), com o caminho de volta
     content = (
-      <div className="px-6 pb-6" role="status">
+      <div className="p-6 max-sm:p-4" role="status">
         <div className="empty-inline compact">
           <span className="empty-ico">
-            <Search className="h-5 w-5" aria-hidden />
+            <Search aria-hidden />
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-ink wrap-anywhere">
+          <div className="empty-body">
+            <p className="empty-t">
               {searching
                 ? `Nenhuma avaliação de ${offerLabel} com ${quoted(term)} em ${tabName}`
                 : `Nenhuma avaliação de ${offerLabel} em ${tabName}`}
             </p>
-            <p className="mt-0.5 text-sm leading-5 text-muted">{`${hiddenText}.`}</p>
-            <div className="mt-2.5 flex flex-wrap gap-2">
+            <p className="empty-s">{`${hiddenText}.`}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
               <button className={cx(secondaryButton, "btn-sm")} onClick={showAllOffers} type="button">
                 {showAllOffersLabel}
               </button>
@@ -516,7 +516,7 @@ export function GradesTeacher({
       };
     }
     content = (
-      <div className="px-6 pb-6">
+      <div className="p-6 max-sm:p-4">
         <EmptyState compact icon={empty.icon} text={empty.text} hint={empty.hint} action={empty.action} />
       </div>
     );
@@ -617,11 +617,13 @@ export function GradesTeacher({
   }
 
   const showControls = mine.length > 0 && found.length > 0;
+  // aba vazia sem disciplina escolhida: o filtro sairia só com "Todas 0"; quem fala é o vazio
+  const showOffers = showControls && offers.length > 1 && (tabFound.length > 0 || activeOffer !== null);
   return (
-    <section className="card notas-docente-card" aria-labelledby="notas-docente-titulo">
-      <div className="notas-docente-card-head">
-        <SectionTitle id="notas-docente-titulo" title="Notas das avaliações" subtitle={subtitle} />
-        {showControls ? (
+    <div className="notas-docente-page">
+      <PageHeader id="notas-docente-titulo" title="Notas das avaliações" subtitle={subtitle} />
+      {showControls ? (
+        <div className="notas-docente-bar">
           <div className="seg notas-docente-tabs-seg" role="group" aria-label="Quais avaliações mostrar">
             {tabs.map((item) => (
               <button
@@ -636,18 +638,25 @@ export function GradesTeacher({
               </button>
             ))}
           </div>
-        ) : null}
-      </div>
-      {/* aba vazia sem disciplina escolhida: o filtro sairia só com "Todas as disciplinas 0"; quem fala é o vazio */}
-      {showControls && offers.length > 1 && (tabFound.length > 0 || activeOffer) ? (
-        <OfferFilter byClass={multiClass} offers={offers} total={tabFound.length} value={activeOffer} onChange={setOffer} />
+          {showOffers ? (
+            <OfferFilter byClass={multiClass} offers={offers} total={tabFound.length} value={activeOffer} onChange={setOffer} />
+          ) : null}
+        </div>
       ) : null}
-      {content}
-    </section>
+      <section className="card notas-docente-card" aria-labelledby="notas-docente-titulo">
+        {content}
+      </section>
+    </div>
   );
 }
 
-/** Filtro por turma e disciplina: botões quando são poucas; lista de escolha quando são muitas. */
+/** Valor de "todas" no filtro de turma e disciplina. */
+const ALL_OFFERS = "todas";
+
+/**
+ * Filtro por turma e disciplina (amostra A, "Disciplina: Todas"): o Select próprio em pílula, azul quando há um
+ * filtro aplicado. Cada opção traz quantas avaliações a aba aberta tem nela; a que não tem nenhuma fica apagada.
+ */
 function OfferFilter({
   byClass,
   offers,
@@ -662,55 +671,35 @@ function OfferFilter({
   total: number;
   value: string | null;
 }) {
-  const label = byClass ? "Filtrar por turma e disciplina" : "Filtrar por disciplina";
-  const allLabel = byClass ? "Todas as turmas" : "Todas as disciplinas";
-  // a lista de escolha sempre existe; os botões só quando são poucos (no celular, o CSS mostra só a lista)
-  const select = (
-    <label className="notas-docente-filter-sel">
-      <span>{byClass ? "Turma e disciplina" : "Disciplina"}</span>
-      <select className="input" aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value || null)}>
-        <option value="">{`${allLabel} ${total}`}</option>
-        {offers.map((item) => (
-          <option key={item.key} value={item.key}>
-            {`${item.label} ${item.count}`}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-  if (offers.length > MAX_CHIPS) {
-    return <div className="notas-docente-filter">{select}</div>;
-  }
+  const options: SelectOption[] = [
+    { value: ALL_OFFERS, label: byClass ? "Todas as turmas" : "Todas", count: total },
+    ...offers.map((item) => ({
+      value: item.key,
+      label: item.label,
+      count: item.count,
+      disabled: item.count === 0 && value !== item.key,
+    })),
+  ];
   return (
-    <div className="notas-docente-filter has-chips">
-      {select}
-      <div className="chips" role="group" aria-label={label}>
-        <button className={cx("chip", value === null && "all")} aria-pressed={value === null} onClick={() => onChange(null)} type="button">
-          {allLabel}
-          <span className="n">{total}</span>
-        </button>
-        {offers.map((item) =>
-          item.count === 0 && value !== item.key ? null : (
-            <button
-              key={item.key}
-              className={cx("chip", value === item.key && "picked")}
-              aria-pressed={value === item.key}
-              onClick={() => onChange(value === item.key ? null : item.key)}
-              type="button"
-            >
-              <span className="wrap-anywhere">{item.label}</span>
-              <span className="n">{item.count}</span>
-            </button>
-          )
-        )}
-      </div>
-    </div>
+    <Select
+      className="notas-docente-offer"
+      ariaLabel={byClass ? "Turma e disciplina" : "Disciplina"}
+      prefix={byClass ? "Turma e disciplina:" : "Disciplina:"}
+      variant="filter"
+      size="sm"
+      width="auto"
+      active={value !== null}
+      value={value ?? ALL_OFFERS}
+      options={options}
+      onChange={(next) => onChange(next === ALL_OFFERS ? null : next)}
+      onClear={() => onChange(null)}
+    />
   );
 }
 
 function ListSkeleton() {
   return (
-    <div className="grid gap-3 px-6 pb-6" role="status">
+    <div className="grid gap-3 p-6 max-sm:p-4" role="status">
       <span className="sr-only">Carregando as avaliações</span>
       {[0, 1, 2, 3].map((item) => (
         <span key={item} className="flex items-center gap-4">
@@ -762,7 +751,7 @@ function SummaryPills({
   if (event.status === "cancelled") {
     return (
       <span className="notas-docente-ev-status">
-        <span className="pill stat stat-canc">Cancelada</span>
+        <span className="stat red">Cancelada</span>
       </span>
     );
   }
@@ -770,7 +759,7 @@ function SummaryPills({
   if (future) {
     return (
       <span className="notas-docente-ev-status">
-        <span className="pill stat">Agendada</span>
+        <span className="stat gray">Agendada</span>
         <span className="notas-docente-ev-when">{relativeDue(event.startsAt)}</span>
       </span>
     );
@@ -786,7 +775,7 @@ function SummaryPills({
   if (!summary.ok) {
     return (
       <span className="notas-docente-ev-status">
-        <span className="pill stat">
+        <span className="stat gray">
           {summary.forbidden ? <Lock aria-hidden /> : null}
           {summary.forbidden ? "Sem acesso" : "Situação não carregou"}
         </span>
@@ -795,7 +784,7 @@ function SummaryPills({
           {summary.forbidden ? null : (
             <>
               {" "}
-              <button className="link min-h-6 text-[13px]" onClick={onRetry} type="button">
+              <button className="link min-h-6 text-[13px] max-md:min-h-11 pointer-coarse:min-h-11" onClick={onRetry} type="button">
                 Tentar de novo
               </button>
             </>
@@ -811,7 +800,7 @@ function SummaryPills({
     <span className="notas-docente-ev-line">A turma ainda não tem alunos ativos</span>
   );
   const draftPill = summary.drafts ? (
-    <span className="pill stat stat-alt">
+    <span className="stat amber">
       <FileClock aria-hidden />
       Rascunho de importação
     </span>
@@ -819,9 +808,9 @@ function SummaryPills({
   if (publishedAt) {
     return (
       <span className="notas-docente-ev-status">
-        <span className="pill stat stat-conc">
+        <span className="stat green">
           <Eye aria-hidden />
-          Publicadas
+          {`Publicadas em ${formatDateBR(publishedAt)}`}
         </span>
         {draftPill}
         {ofTotal}
@@ -831,7 +820,7 @@ function SummaryPills({
   if (summary.launched) {
     return (
       <span className="notas-docente-ev-status">
-        <span className="pill stat stat-alt">
+        <span className="stat amber">
           <EyeOff aria-hidden />
           Notas ocultas
         </span>
@@ -842,7 +831,7 @@ function SummaryPills({
   }
   return (
     <span className="notas-docente-ev-status">
-      {draftPill ?? <span className="pill stat">Sem notas</span>}
+      {draftPill ?? <span className="stat gray">Sem notas</span>}
       {summary.drafts ? <span className="notas-docente-ev-line">Falta conferir e aplicar a importação</span> : ofTotal}
     </span>
   );
@@ -882,14 +871,14 @@ function EvaluationRow({
     .join(", ");
   return (
     <li className={cx("notas-docente-ev", focused && "is-focus")} data-grades-event={event.id}>
-      <span className="ev-date" aria-hidden>
-        <span className="dw">{parts.weekday}</span>
-        <span className="dn">{parts.day}</span>
+      <span className="dbadge" aria-hidden>
+        <small>{parts.weekday}</small>
+        <b>{parts.day}</b>
       </span>
       <div className="notas-docente-ev-body">
         <p className="ev-title">{event.title}</p>
         <p className="ev-meta">
-          <span className={cx("pill", meta.tint)}>{meta.short}</span>
+          <span className={cx("cat", meta.tint)}>{meta.short}</span>
           <span className="sr-only">{formatShortDate(event.startsAt)}, </span>
           <span className="wrap-anywhere">{details}</span>
         </p>

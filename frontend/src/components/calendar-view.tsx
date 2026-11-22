@@ -3,11 +3,13 @@
 import {
   CalendarRange,
   CalendarX2,
+  Check,
+  ChevronRight,
   History,
   Inbox,
   Info,
   ListChecks,
-  Megaphone,
+  Plus,
   Search,
   SearchX,
   X,
@@ -28,13 +30,25 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { addDays, cx, formatTime, isWholeDay, monthGroupLabel, monthTitle, startOfDay, weekRangeLabel, weekdayLabels } from "@/lib/format";
+import { addDays, cx, formatTime, isWholeDay, monthGroupLabel, monthTitle, startOfDay, weekRangeLabel } from "@/lib/format";
 import { adminOnlyCategories, allCategories, categoryMeta } from "@/lib/meta";
 import type { AcademicClass, AcademicEvent, Category, UserRole } from "@/lib/types";
 import { EventDetailContent, EventRow, eventLastDay, formatDayRange, type EventStatusChange } from "./event-bits";
-import { MonthBar, MonthPagerFooter, MonthStrip, type MonthChip, type PagerTarget } from "./month-pager";
+import {
+  MonthEmpty,
+  MonthNeighbors,
+  MonthPicker,
+  currentMonthKey,
+  monthBounds,
+  monthTarget,
+  monthYearTitle,
+  nearestMonthWith,
+  type MonthNoun,
+  type PagerTarget,
+} from "./month-pager";
 import { Pager, usePaged } from "./pager";
-import { Modal, SectionTitle, Segmented, SegmentedButton } from "./ui";
+import { Select, type SelectOption } from "./select";
+import { Modal, PageHeader, Segmented, SegmentedButton } from "./ui";
 
 export type CalendarMode = "list" | "month";
 type TimeFilter = "upcoming" | "past" | "all";
@@ -75,6 +89,11 @@ function inPeriod(event: AcademicEvent, period: TimeFilter) {
   const todayStart = startOfDay(new Date()).getTime();
   const lastDay = eventLastDay(event).getTime();
   return period === "upcoming" ? lastDay >= todayStart : lastDay < todayStart;
+}
+
+/** Mês com prova ou trabalho ganha o marcador no seletor de mês. */
+function isMarked(event: AcademicEvent) {
+  return event.category === "exam" || event.category === "assignment";
 }
 
 function plural(count: number, one: string, many: string) {
@@ -396,32 +415,35 @@ function weekRange(start: Date, refYear: number) {
   return weekRangeLabel(start, end, new Date(refYear, 6, 1));
 }
 
-function weekLabel(start: Date, currentWeek: Date, refYear: number) {
+/** Rótulo da semana na Agenda: "Esta semana" com o intervalo ao lado, mais claro; as outras, só o intervalo. */
+function weekLabel(start: Date, currentWeek: Date, refYear: number): { label: string; range?: string } {
   const offset = Math.round((start.getTime() - currentWeek.getTime()) / WEEK_MS);
-  // com o intervalo também na semana de hoje ("Esta semana, 15 a 21 de nov"): o mesmo jeito das outras e do Painel
+  const range = weekRange(start, refYear);
   if (offset === 0) {
-    return `Esta semana, ${weekRange(start, refYear)}`;
+    return { label: "Esta semana", range };
   }
   if (offset === 1) {
-    return `Próxima semana, ${weekRange(start, refYear)}`;
+    return { label: "Próxima semana", range };
   }
   if (offset === -1) {
-    return `Semana passada, ${weekRange(start, refYear)}`;
+    return { label: "Semana passada", range };
   }
-  return `Semana de ${weekRange(start, refYear)}`;
+  return { label: range };
 }
 
-/** Eventos do mês por semana, de domingo a sábado ("Esta semana, 15 a 21 de nov", "Próxima semana, 22 a 28 de nov"). */
+type ListGroup = { label: string; range?: string; items: MonthItem[] };
+
+/** Eventos do mês por semana, de domingo a sábado ("Esta semana 22 a 28 de nov", "29 de nov a 5 de dez"). */
 function groupByWeek(items: MonthItem[], refYear: number) {
   const currentWeek = weekStartOf(Date.now());
-  const groups: Array<{ label: string; items: MonthItem[] }> = [];
+  const groups: ListGroup[] = [];
   for (const item of items) {
-    const label = weekLabel(weekStartOf(item.day), currentWeek, refYear);
+    const { label, range } = weekLabel(weekStartOf(item.day), currentWeek, refYear);
     const last = groups[groups.length - 1];
-    if (last && last.label === label) {
+    if (last && last.label === label && last.range === range) {
       last.items.push(item);
     } else {
-      groups.push({ label, items: [item] });
+      groups.push({ label, range, items: [item] });
     }
   }
   return groups;
@@ -490,6 +512,16 @@ function useMediaQuery(query: string) {
     () => window.matchMedia(query).matches,
     () => false
   );
+}
+
+/** "2 eventos" com espaço que não quebra: no botão estreito, o número não fica numa linha e a palavra na outra. */
+function keepCount(target: PagerTarget | null): PagerTarget | null {
+  return target ? { ...target, count: target.count.replace(/ /g, " ") } : null;
+}
+
+/** Alvo de um clique ou tecla que faz alguma coisa (botão, link, campo, interruptor). */
+function isControl(target: EventTarget) {
+  return target instanceof Element && target.closest("button, a[href], input, select, textarea, [role='switch']") !== null;
 }
 
 /** Dois quadros depois: passa na frente do foco e da rolagem que a casca faz ao trocar de tela. */
@@ -576,8 +608,11 @@ function sizeAsideRoom(room: HTMLElement, list: HTMLElement, aside: HTMLElement)
 
 /** Até onde vai, no alto da tela, o cabeçalho DOM a SÁB quando gruda (no celular, abaixo do cabeçalho do app). */
 function stuckHeadBottom(day: HTMLElement) {
-  const head = day.closest(".cal")?.querySelector<HTMLElement>(".cal-head");
-  return head ? (Number.parseFloat(getComputedStyle(head).top) || 0) + head.offsetHeight : 0;
+  const head = day.closest(".cg")?.querySelector<HTMLElement>(".cg-dow");
+  if (!head || getComputedStyle(head).position !== "sticky") {
+    return 0;
+  }
+  return (Number.parseFloat(getComputedStyle(head).top) || 0) + head.offsetHeight;
 }
 
 /**
@@ -767,51 +802,14 @@ function ListEmpty({ actions, hint, icon: Icon, title }: { actions?: ReactNode; 
         <Icon className="h-6 w-6" aria-hidden />
       </span>
       {/* o termo da busca vem no título: uma palavra mais larga que o card quebra em vez de passar dele */}
-      <p className="mt-2 text-[15px] font-bold text-ink wrap-anywhere">{title}</p>
-      {hint ? <p className="max-w-sm text-sm leading-5 text-muted">{hint}</p> : null}
+      <p className="mt-2 text-[15px] font-semibold text-ink wrap-anywhere">{title}</p>
+      {hint ? <p className="max-w-[44ch] text-sm leading-5 text-muted">{hint}</p> : null}
       {actions ? <div className="mt-3 flex flex-wrap justify-center gap-2.5">{actions}</div> : null}
     </div>
   );
 }
 
-/**
- * Título do evento na grade, como veio (decisão 12), que quebra só entre as palavras. Cada palavra vai num bloco que termina em
- * reticências quando ela é mais larga que o chip ("Matemá..."), em qualquer linha, em vez de partir ao
- * meio ("Seminári / o") ou perder as últimas letras na borda ("Prova de / Matemát"). As palavras que
- * cabem voltam a ser texto (fitChipWords): com mais de 2 linhas, o line-clamp corta a 2ª linha com
- * reticências, terminando a última palavra ("de Engenh...") em vez de esconder ela inteira.
- */
-function chipTitle(title: string) {
-  return title
-    .trim()
-    .split(/\s+/)
-    .map((word, index) => (
-      <Fragment key={index}>
-        {index ? " " : null}
-        <span>{word}</span>
-      </Fragment>
-    ));
-}
-
-/**
- * Palavras dos títulos dos chips (chipTitle): cada uma começa como bloco que corta com reticências
- * (globals.css) e ganha "fits", que a deixa como texto, quando cabe na largura do chip. Lê todas antes
- * de mudar alguma, pelas medidas de layout (sem as animações de entrada): no bloco, a largura do texto é
- * o scrollWidth; no texto, o offsetWidth.
- */
-function fitChipWords(grid: HTMLElement | null) {
-  if (!grid?.isConnected) {
-    return;
-  }
-  const words = Array.from(grid.querySelectorAll<HTMLElement>(".ce .t > span"));
-  const fits = words.map((word) => {
-    const natural = word.classList.contains("fits") ? word.offsetWidth : word.scrollWidth;
-    return natural <= (word.parentElement?.clientWidth ?? 0);
-  });
-  words.forEach((word, index) => word.classList.toggle("fits", fits[index]));
-}
-
-/** Eventos de um dia escolhido no mês, logo abaixo da semana dele (o card do dia do Figma, perto do dia). */
+/** Eventos de um dia escolhido no mês, logo abaixo da semana dele. */
 function DayEvents({
   date,
   events,
@@ -821,6 +819,7 @@ function DayEvents({
   selectedEventId,
   showTeacher,
   titleRef,
+  onNewEventOn,
   onOpen,
 }: {
   date: Date;
@@ -832,17 +831,21 @@ function DayEvents({
   selectedEventId: number | null;
   showTeacher: (event: AcademicEvent) => boolean;
   titleRef: RefObject<HTMLHeadingElement | null>;
+  /** Quem pode criar evento: "Novo evento neste dia" no pé da lista, com a data preenchida. */
+  onNewEventOn?: (date: Date) => void;
   onOpen: (id: number) => void;
 }) {
   const Heading = level === 2 ? "h2" : "h3";
   return (
     <div>
-      <Heading ref={titleRef} tabIndex={-1} className="h2 pr-12">
-        {dayTitle(date)}
-      </Heading>
-      <p className="sub">{events.length ? plural(events.length, "evento", "eventos") : "Nenhum evento neste dia."}</p>
+      <div className="cg-day-h">
+        <Heading ref={titleRef} tabIndex={-1} className="cg-day-t">
+          {dayTitle(date)}
+        </Heading>
+        <p className="cg-day-s">{events.length ? plural(events.length, "evento", "eventos") : "Nenhum evento neste dia."}</p>
+      </div>
       {events.length ? (
-        <div className="mt-3 grid gap-0.5">
+        <div className="cg-day-list">
           {events.map((event) => (
             <EventRow
               key={event.id}
@@ -857,42 +860,53 @@ function DayEvents({
           ))}
         </div>
       ) : null}
+      {onNewEventOn ? (
+        <div className="cg-day-new">
+          <button className="btn btn-g btn-sm" onClick={() => onNewEventOn(date)} type="button">
+            <Plus className="h-4 w-4" aria-hidden />
+            Novo evento neste dia
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
 
+const DOW = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+/** "18:00" ou "dia todo", na dica e no nome dos eventos da grade. */
+function whenShort(event: AcademicEvent) {
+  return isWholeDay(event.startsAt, event.endsAt) ? "dia todo" : formatTime(event.startsAt);
+}
+
 function MonthCalendar({
-  count,
   cursor,
   dayPanel,
   emptyNote,
   events,
   monthEventCount,
+  picker,
   selectedDay,
   selectedEventId,
   setCursor,
-  strip,
   onOpenEvent,
   onSelectDay,
 }: {
-  /** Contador do mês ("4 eventos em novembro"), à direita do cabeçalho, antes do "Hoje". */
-  count?: ReactNode;
   cursor: MonthCursor;
-  /** Aviso do mês sem eventos (na busca, com os meses que têm resultado). */
+  /** Aviso do mês sem eventos (acima da grade). */
   emptyNote?: ReactNode;
-  /** Faixa dos meses (na busca: os meses com resultado). */
-  strip?: ReactNode;
   /** Lista do dia escolhido: entra logo abaixo da semana dele (se o dia não está na grade mostrada, não aparece). */
   dayPanel?: ReactNode;
   events: AcademicEvent[];
   monthEventCount: number;
+  /** Cabeçalho do card: o seletor de mês (MonthPicker), montado por quem tem as contagens. */
+  picker: ReactNode;
   selectedDay: string | null;
   selectedEventId: number | null;
   setCursor: (cursor: MonthCursor) => void;
   onOpenEvent: (id: number, day: string) => void;
   onSelectDay: (day: string) => void;
 }) {
-  const titleId = useId();
   const weeks = useMemo(() => buildWeeks(cursor, events), [cursor, events]);
   const [activeDay, setActiveDay] = useState<string | null>(null);
   const pendingFocus = useRef<string | null>(null);
@@ -921,31 +935,8 @@ function MonthCalendar({
     }
   });
 
-  // títulos dos chips: antes de pintar, a cada mês ou evento novo; de novo quando a grade muda de
-  // largura (janela, menu, chips que aparecem a partir de 1024 px) e quando a Open Sans termina de chegar
-  useLayoutEffect(() => fitChipWords(gridRef.current), [weeks]);
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) {
-      return;
-    }
-    const refit = () => fitChipWords(grid);
-    const observer = new ResizeObserver(refit);
-    observer.observe(grid);
-    void document.fonts.ready.then(refit);
-    document.fonts.addEventListener("loadingdone", refit);
-    return () => {
-      observer.disconnect();
-      document.fonts.removeEventListener("loadingdone", refit);
-    };
-  }, []);
-
   function showMonthOf(date: Date) {
     setCursor({ year: date.getFullYear(), month: date.getMonth() });
-  }
-
-  function shiftMonth(delta: number) {
-    showMonthOf(new Date(cursor.year, cursor.month + delta, 1));
   }
 
   function onGridKey(event: ReactKeyboardEvent<HTMLDivElement>) {
@@ -978,159 +969,134 @@ function MonthCalendar({
     }
   }
 
-  const current = monthIndex(cursor);
-  // já no mês de hoje, o "Hoje" não teria o que fazer: fica esmaecido (sem "disabled", para o foco não cair)
-  const atToday = current === monthIndex(thisMonth());
+  /** O foco vai para o dia (ao fechar o detalhe, ele volta para lá) e o evento abre. */
+  function openEvent(id: number, key: string) {
+    gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${key}"]`)?.focus({ preventScroll: true });
+    setActiveDay(key);
+    onOpenEvent(id, key);
+  }
 
   return (
-    <div>
-      {/* o mesmo cabeçalho da Agenda: trocar de vista mantém o mês, no mesmo lugar */}
-      <MonthBar
-        title={indexTitle(current)}
-        // no celular estreito, com o "Hoje" na mesma linha, o nome do mês vai abreviado ("Nov", "Mar de 2027")
-        shortTitle={`${shortMonths[cursor.month].charAt(0).toUpperCase()}${shortMonths[cursor.month].slice(1)}${
-          cursor.year === new Date().getFullYear() ? "" : ` de ${cursor.year}`
-        }`}
-        titleId={titleId}
-        prev={{ title: indexTitle(current - 1), onGo: () => shiftMonth(-1) }}
-        next={{ title: indexTitle(current + 1), onGo: () => shiftMonth(1) }}
-        extra={
-          <>
-            {count}
-            <button
-              className="btn btn-s btn-sm crono-today"
-              aria-disabled={atToday || undefined}
-              aria-label={atToday ? "Hoje: este já é o mês atual" : "Hoje: ir para o mês atual"}
-              onClick={() => {
-                if (!atToday) {
-                  showMonthOf(new Date());
-                }
-              }}
-              title={atToday ? "Este já é o mês atual" : "Ir para o mês atual"}
-              type="button"
-            >
-              Hoje
-            </button>
-          </>
-        }
-      />
+    <section className="card rise cg-card" aria-label="Calendário do mês">
+      {picker}
 
-      {strip}
+      {monthEventCount === 0 ? (emptyNote ?? null) : null}
 
-      {monthEventCount === 0 ? (emptyNote ?? <p className="callout past mb-3">Nenhum evento em {monthName(cursor)}.</p>) : null}
-
-      <div ref={gridRef} className="cal" role="group" aria-labelledby={titleId} onKeyDown={onGridKey}>
-        <div className="cal-head" aria-hidden>
-          {weekdayLabels.map((label) => (
-            <span key={label} className="max-sm:px-0 max-sm:text-center">
-              {label}
-            </span>
+      <div ref={gridRef} className="cg" role="group" aria-label={monthYearTitle(monthIndex(cursor))} onKeyDown={onGridKey}>
+        <div className="cg-dow" aria-hidden>
+          {DOW.map((label) => (
+            <span key={label}>{label}</span>
           ))}
         </div>
         {weeks.map((week, weekIndex) => (
           <Fragment key={week.cells[0].key}>
-            <div className={cx("week cal-week", week.lanes > 0 && "has-bars")} style={{ ["--lanes" as string]: week.lanes }}>
+            <div className={cx("cg-wk", week.lanes > 0 && "has-bars")} style={{ ["--lanes" as string]: week.lanes }}>
               {week.cells.map((cell, dayIndex) => {
                 const weekend = cell.date.getDay() === 0 || cell.date.getDay() === 6;
                 const selected = cell.key === selectedDay;
                 const dots = Array.from(new Set(cell.events.map((event) => event.category))).slice(0, 4);
+                // o nome do mês no 1º dia dele e no 1º dia da grade ("31 jan", "1 fev")
+                const showMonth = cell.date.getDate() === 1 || (weekIndex === 0 && dayIndex === 0);
                 return (
-                  <button
+                  <div
                     key={cell.key}
-                    aria-label={dayLabel(cell.date, cell.events.length, cell.today)}
-                    aria-pressed={selected}
                     className={cx(
-                      "day group w-full text-left max-lg:min-h-16 max-lg:items-center max-lg:px-1 max-lg:py-1.5",
+                      "cg-c",
                       !cell.inMonth && "out",
                       cell.today && "today",
                       weekend && "we",
                       selected && "sel",
                       cell.events.length >= 4 && "busy"
                     )}
-                    data-day={cell.key}
-                    // ordem do dia na grade: os dias entram um pouco um depois do outro (visual-novo.css)
-                    style={{ ["--k" as string]: weekIndex * 7 + dayIndex }}
-                    onClick={(click) => {
-                      // os chips dos eventos abrem o evento; o resto do dia mostra a lista do dia
-                      const chip = (click.target as HTMLElement).closest<HTMLElement>("[data-event-id]");
-                      if (chip?.dataset.eventId) {
-                        onOpenEvent(Number(chip.dataset.eventId), cell.key);
-                      } else {
-                        onSelectDay(cell.key);
-                      }
-                    }}
-                    onFocus={() => setActiveDay(cell.key)}
-                    tabIndex={cell.key === rovingKey ? 0 : -1}
-                    type="button"
                   >
-                    <span className="dnum">{cell.date.getDate()}</span>
+                    {/* o botão do dia cobre a célula (::after): clicar no espaço livre abre a lista do dia */}
+                    <button
+                      aria-label={dayLabel(cell.date, cell.events.length, cell.today)}
+                      aria-pressed={selected}
+                      className="cg-hit"
+                      data-day={cell.key}
+                      onClick={() => onSelectDay(cell.key)}
+                      onFocus={() => setActiveDay(cell.key)}
+                      tabIndex={cell.key === rovingKey ? 0 : -1}
+                      type="button"
+                    >
+                      <span className="cg-dn">{cell.date.getDate()}</span>
+                      {showMonth ? <span className="cg-mon">{shortMonths[cell.date.getMonth()]}</span> : null}
+                    </button>
                     {cell.events.length ? (
-                      <span className="hidden min-w-0 flex-col gap-1 lg:flex">
+                      <div className="cg-items">
                         {/* lugar das faixas dos eventos de vários dias (desenhadas por cima, na semana) */}
-                        {week.lanes ? <span className="cal-lanes" aria-hidden /> : null}
+                        {week.lanes ? <span className="cg-lanes" aria-hidden /> : null}
                         {cell.chips.map((event) => (
-                          <span
+                          <button
                             key={event.id}
                             className={cx(
-                              "ce transition hover:brightness-95",
-                              categoryMeta[event.category].tint,
-                              selectedEventId === event.id && "ring-2 ring-night/60",
-                              event.status === "cancelled" && "line-through opacity-70"
+                              "cg-ev",
+                              `k-${categoryMeta[event.category].tint}`,
+                              classCategories.includes(event.category) && "full",
+                              selectedEventId === event.id && "sel",
+                              event.status === "cancelled" && "cancel"
                             )}
-                            data-event-id={event.id}
-                            title={`${event.title}, ${isWholeDay(event.startsAt, event.endsAt) ? "dia todo" : formatTime(event.startsAt)}`}
+                            // pelo teclado, o evento está na lista do dia (Enter no dia)
+                            tabIndex={-1}
+                            onClick={() => openEvent(event.id, cell.key)}
+                            // o nome inteiro e o horário na dica: no dia estreito o chip mostra só o título
+                            title={`${event.title}, ${whenShort(event)}`}
+                            type="button"
                           >
-                            {/* o título como veio, em todas as larguras (decisão 12): no dia estreito ele quebra em
-                                até 2 linhas e corta no fim (globals.css .ce .t); o nome inteiro fica na dica */}
-                            <span className="t">{chipTitle(event.title)}</span>
-                            <span className="h">{isWholeDay(event.startsAt, event.endsAt) ? "dia todo" : formatTime(event.startsAt)}</span>
-                          </span>
+                            <i className={cx("dot", categoryMeta[event.category].accent)} aria-hidden />
+                            <span className="tx">{event.title}</span>
+                            {/* a hora vem depois do título e some quando o dia é estreito (cronograma.css) */}
+                            {isWholeDay(event.startsAt, event.endsAt) ? null : (
+                              <span className="tm">{formatTime(event.startsAt)}</span>
+                            )}
+                          </button>
                         ))}
                         {cell.hidden > 0 ? (
-                          <span className="cal-more">
-                            +{cell.hidden}
-                            <span className="cal-more-w"> {cell.hidden === 1 ? "evento" : "eventos"}</span>
-                          </span>
+                          <button
+                            aria-label={`Mais ${plural(cell.hidden, "evento", "eventos")} em ${dayAndMonth(cell.date)}`}
+                            className={cx("cg-more", selected && "open")}
+                            tabIndex={-1}
+                            onClick={() => onSelectDay(cell.key)}
+                            type="button"
+                          >
+                            +{cell.hidden} mais
+                          </button>
                         ) : null}
-                      </span>
+                      </div>
                     ) : null}
                     {dots.length ? (
-                      <span className="cal-dots lg:hidden" aria-hidden>
+                      <span className="cg-dots" aria-hidden>
                         {dots.map((category) => (
                           <span key={category} className={cx("dot", categoryMeta[category].accent)} />
                         ))}
-                        {cell.events.length > 1 ? <span className="cal-count">{cell.events.length}</span> : null}
+                        {cell.events.length > 1 ? <span className="cg-count">{cell.events.length}</span> : null}
                       </span>
                     ) : null}
-                  </button>
+                  </div>
                 );
               })}
-              {/* eventos de vários dias: uma faixa por semana, do primeiro ao último dia dela, com o nome uma vez só.
-                  O clique abre o evento; pelo teclado, o evento está na lista do dia (Enter no dia). */}
+              {/* eventos de vários dias: uma faixa por semana, do primeiro ao último dia dela, com o nome uma vez só
+                  e o nome inteiro na dica. O clique abre o evento; pelo teclado, ele está na lista do dia. */}
               {week.bars.length ? (
-                <div className="cal-bars" aria-hidden>
+                <div className="cg-bars" aria-hidden>
                   {week.bars.map((bar) => (
                     <span
                       key={bar.event.id}
                       className={cx(
-                        "cal-bar",
-                        categoryMeta[bar.event.category].tint,
+                        "cg-bar",
+                        `k-${categoryMeta[bar.event.category].tint}`,
                         bar.fromBefore && "from-before",
                         bar.toAfter && "to-after",
                         bar.out && "out",
                         selectedEventId === bar.event.id && "sel",
-                        bar.event.status === "cancelled" && "line-through opacity-70"
+                        bar.event.status === "cancelled" && "cancel"
                       )}
                       style={{ gridColumn: `${bar.col + 1} / span ${bar.span}`, gridRow: bar.lane + 1 }}
                       title={`${bar.event.title}, ${formatDayRange(bar.event)}`}
-                      onClick={() => {
-                        // o foco vai para o dia da faixa: ao fechar o detalhe, ele volta para lá
-                        gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${bar.dayKey}"]`)?.focus({ preventScroll: true });
-                        setActiveDay(bar.dayKey);
-                        onOpenEvent(bar.event.id, bar.dayKey);
-                      }}
+                      onClick={() => openEvent(bar.event.id, bar.dayKey)}
                     >
-                      <span className="cal-bar-t">{bar.event.title}</span>
+                      <span className="cg-bar-t">{bar.event.title}</span>
                     </span>
                   ))}
                 </div>
@@ -1142,18 +1108,27 @@ function MonthCalendar({
         ))}
       </div>
 
-      {/* legenda das cores no pé da grade, onde não disputa a atenção com o mês */}
-      {present.length ? (
-        <ul className="cal-leg" aria-label="Cores das categorias">
-          {present.map((category) => (
-            <li key={category}>
-              <span className={cx("dot", categoryMeta[category].accent)} aria-hidden />
-              {categoryMeta[category].label}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
+      {/* pé: legenda das cores e os atalhos do teclado */}
+      <div className="cg-foot">
+        <p className="cg-keys">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>
+            Setas andam pelos dias, <span className="kbd">PgUp</span> <span className="kbd">PgDn</span> trocam o mês,{" "}
+            <span className="kbd">Enter</span> abre o dia.
+          </span>
+        </p>
+        {present.length ? (
+          <ul className="cg-leg" aria-label="Cores das categorias">
+            {present.map((category) => (
+              <li key={category}>
+                <span className={cx("dot", categoryMeta[category].accent)} aria-hidden />
+                {categoryMeta[category].label}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -1193,6 +1168,7 @@ export function CalendarView({
   toggleCategory,
   onDelete,
   onEdit,
+  onNewEventOn,
   onRemoveReminder,
   onSaveReminder,
   onSelect,
@@ -1222,6 +1198,11 @@ export function CalendarView({
   toggleCategory: (category: Category) => void;
   onDelete: (event: AcademicEvent) => void;
   onEdit: (event: AcademicEvent) => void;
+  /**
+   * Quem pode criar evento (o page.tsx passa só para esses perfis): a lista do dia no Calendário ganha
+   * "Novo evento neste dia", que abre o Novo evento com a data do dia.
+   */
+  onNewEventOn?: (date: Date) => void;
   onRemoveReminder: (event: AcademicEvent) => void;
   onSaveReminder: () => void;
   onSelect: (id: number | null) => void;
@@ -1258,9 +1239,6 @@ export function CalendarView({
     }
     return listMonthOf(selectedEvent, inPeriod(selectedEvent, "upcoming") ? "upcoming" : "all");
   });
-  // mês sem eventos que a Agenda mostra mesmo assim (com o vazio e os atalhos), porque a pessoa veio do
-  // Calendário nele: "mês|filtros". Com outro mês ou outro filtro, a lista volta ao mês com eventos mais perto.
-  const [pinnedMonth, setPinnedMonth] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(() =>
     calendarMode === "month" && selectedEvent ? dayKey(new Date(selectedEvent.startsAt)) : null
   );
@@ -1305,13 +1283,10 @@ export function CalendarView({
   // o instante (e não o texto), para a mesma data em outro formato não contar como mudança
   const currentStart = selectedEvent ? new Date(selectedEvent.startsAt).getTime() : null;
   const [tracked, setTracked] = useState({ key: currentKey, start: currentStart });
-  // ajustes de estado deste render: a Agenda só acerta o mês dela no render seguinte, já com eles
-  let adjusting = false;
   if (tracked.key !== currentKey || tracked.start !== currentStart) {
     // o mesmo evento mudou de data: a lista e o mês vão atrás dele, mesmo se foi escolhido aqui
     const moved = tracked.key === currentKey && tracked.start !== null && currentStart !== null;
     setTracked({ key: currentKey, start: currentStart });
-    adjusting = true;
     if (selectedEvent && (moved || selectedEvent.id !== internalId)) {
       if (!selectedCategories.includes(selectedEvent.category)) {
         setCatFix(selectedEvent.id);
@@ -1351,7 +1326,8 @@ export function CalendarView({
   }
   const quiet = quietId !== null && quietId === selectedEventId;
 
-  const sectionRef = useRef<HTMLElement>(null);
+  // a tela inteira (cabeçalho, filtros, lista ou grade): as buscas por linha, dia e aba partem daqui
+  const sectionRef = useRef<HTMLDivElement>(null);
   // rodapé do Modal do detalhe, onde o detalhe põe a ação principal
   const [modalFoot, setModalFoot] = useState<HTMLDivElement | null>(null);
   const listId = useId();
@@ -1361,11 +1337,10 @@ export function CalendarView({
   const allChipRef = useRef<HTMLButtonElement>(null);
   // categorias: no celular, uma faixa que rola de lado (cronograma.css)
   const catsRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLElement>(null);
   const asideRoomRef = useRef<HTMLDivElement>(null);
-  // cabeçalho do mês da Agenda: o pé da lista leva a página até ele e o foco para o título
-  const monthBarRef = useRef<HTMLDivElement>(null);
-  const monthTitleRef = useRef<HTMLHeadingElement>(null);
+  // título do seletor de mês da Agenda: o pé da lista leva a página até ele e o foco para lá
+  const monthTitleRef = useRef<HTMLElement>(null);
   // linha "28 resultados de março a dezembro de 2027": o Pager da busca leva o foco e a página até ela
   const searchHeadRef = useRef<HTMLParagraphElement>(null);
   // evento, modo e data para os quais a página já rolou até a linha ou o dia
@@ -1400,32 +1375,45 @@ export function CalendarView({
   // Agenda mês a mês: os meses com eventos no filtro (período, categorias, turma) e o mês na tela
   const months = useMemo(() => bucketByMonth(listEvents, timeFilter), [listEvents, timeFilter]);
   const monthKeys = useMemo(() => [...months.keys()].sort((a, b) => a - b), [months]);
-  // contagem de cada mês na faixa e no pé: o evento conta só no mês em que entra na lista (nos Próximos, o que
-  // está em andamento conta no mês de hoje), como na Gestão. Assim a soma dos meses fecha com a aba ("Todas 118")
-  const startCounts = useMemo(() => {
-    const todayStart = startOfDay(new Date()).getTime();
-    const counts = new Map<number, number>();
-    for (const event of listEvents) {
-      const key = monthIndexOf(periodSpan(event, timeFilter, todayStart).first);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return counts;
-  }, [listEvents, timeFilter]);
-  const startCount = (index: number) => startCounts.get(index) ?? 0;
+  // Calendário: quantos eventos acontecem em cada mês (com busca, os resultados), para o seletor de mês
+  const calMonths = useMemo(() => bucketByMonth(scopedEvents, "all"), [scopedEvents]);
+  const calCounts = useMemo(() => new Map([...calMonths].map(([key, items]) => [key, items.length])), [calMonths]);
+  const calMarks = useMemo(
+    () => new Set([...calMonths].filter(([, items]) => items.some((item) => isMarked(item.event))).map(([key]) => key)),
+    [calMonths]
+  );
+  // o mês do cursor entra nos limites: depois de filtrar, o mês na tela pode ficar fora dos meses com eventos
+  // (Janeiro de 2028 com o chip Provas); sem isso as setas travam e o vazio não acha o mês com eventos
+  const calBounds = useMemo(() => monthBounds([...calMonths.keys(), monthIndex(cursor)]), [calMonths, cursor]);
+  // Agenda sem o filtro de categoria (mesmo período, turma e "Só meus"): quanto o filtro esconde em cada mês
+  const allListMonths = useMemo(
+    () => (allEvents ? bucketByMonth(scope(allEvents).filter((event) => inPeriod(event, timeFilter)), timeFilter) : null),
+    [allEvents, scope, timeFilter]
+  );
   const filterKey = `${timeFilter}|${selectedCategories.join(",")}|${mineOnly ? 1 : 0}|${classFilter}`;
   const cursorIndex = monthIndex(cursor);
-  let shownIndex: number | null = null;
-  if (monthKeys.length) {
-    shownIndex =
-      months.has(cursorIndex) || pinnedMonth === `${cursorIndex}|${filterKey}`
-        ? cursorIndex
-        : nearestMonth(monthKeys, cursorIndex, timeFilter === "past");
-  }
-  // a lista foi para outro mês (filtro novo, mês vazio, dados que chegaram): o Calendário acompanha.
-  // Com busca, a Agenda mostra todos os meses juntos (paginados), e o mês não muda.
-  if (calendarMode === "list" && !term && !adjusting && catFix === null && searchFix === null && shownIndex !== null && shownIndex !== cursorIndex) {
-    setCursor(indexMonth(shownIndex));
-  }
+  // a Agenda mostra o mês do seletor, mesmo vazio (dezembro sem eventos continua navegável, com o vazio útil);
+  // o filtro não troca o mês sozinho
+  const shownIndex: number | null = monthKeys.length ? cursorIndex : null;
+  // quantos eventos cada mês mostra na lista (o que começou antes e continua conta nos dois meses)
+  const listCounts = useMemo(() => new Map([...months].map(([key, items]) => [key, items.length])), [months]);
+  const listMarks = useMemo(
+    () => new Set([...months].filter(([, items]) => items.some((item) => isMarked(item.event))).map(([key]) => key)),
+    [months]
+  );
+  // limites do mês na Agenda, como na Gestão: em Próximos, nada antes do mês de hoje (o "‹" do topo fica sem mês
+  // anterior e o pé não oferece "Outubro, nenhum evento"); em Passados, nada depois dele. O mês na tela e um mês
+  // com evento (o recesso que começou antes e continua) ficam sempre dentro
+  const listBounds = useMemo(() => {
+    const bounds = monthBounds([...monthKeys, cursorIndex]);
+    const today = currentMonthKey();
+    const first = Math.min(today, cursorIndex, monthKeys[0] ?? today);
+    const last = Math.max(today, cursorIndex, monthKeys[monthKeys.length - 1] ?? today);
+    return {
+      min: timeFilter === "upcoming" ? Math.max(bounds.min, first) : bounds.min,
+      max: timeFilter === "past" ? Math.min(bounds.max, last) : bounds.max,
+    };
+  }, [monthKeys, cursorIndex, timeFilter]);
   // busca na Agenda: os resultados de todos os meses, agrupados por mês, 12 por página
   const searchItems = useMemo(() => (term ? searchOrder(listEvents, timeFilter) : []), [term, listEvents, timeFilter]);
   const searchPage = usePaged(searchItems, SEARCH_PAGE, `${term}|${filterKey}`);
@@ -1441,22 +1429,24 @@ export function CalendarView({
     }
   }
   const shownItems = shownIndex === null ? [] : (months.get(shownIndex) ?? []);
-  let prevIndex: number | null = null;
-  let nextIndex: number | null = null;
-  if (shownIndex !== null) {
-    for (const key of monthKeys) {
-      if (key < shownIndex) {
-        prevIndex = key;
-      } else if (key > shownIndex && nextIndex === null) {
-        nextIndex = key;
-      }
-    }
-  }
+  // meses com eventos mais perto, antes e depois do mês na tela (o vazio leva a eles)
+  const prevIndex = shownIndex === null ? null : nearestMonthWith(listCounts, shownIndex, -1, listBounds);
+  const nextIndex = shownIndex === null ? null : nearestMonthWith(listCounts, shownIndex, 1, listBounds);
 
-  // contagem por categoria: allEvents já chega filtrado pela busca; aqui entram o perfil e o período
-  // da Agenda ou, no Calendário, o mês que está na tela (o mesmo do contador). Com busca, o Calendário
-  // conta todos os meses, como a faixa dos meses com resultado e o menu
+  // chips de categoria: a mesma lista e a mesma contagem na Agenda e no Calendário. Contam o cronograma
+  // inteiro (todos os períodos e meses) no perfil, na turma, no "Só meus" e na busca, como o "N eventos no
+  // total"; o período tem as próprias contagens nas abas e o mês, no seletor de mês
   const categoryCounts = useMemo(() => {
+    const counts = Object.fromEntries(allCategories.map((category) => [category, 0])) as Record<Category, number>;
+    for (const event of scope(allEvents ?? events)) {
+      counts[event.category] += 1;
+    }
+    return counts;
+  }, [allEvents, events, scope]);
+
+  // o que a tela mostra por categoria, para dizer quanto o filtro esconde: o período da Agenda ou, no
+  // Calendário, o mês que está na tela (com busca, todos os meses, como a faixa dos meses com resultado)
+  const viewCounts = useMemo(() => {
     const counts = Object.fromEntries(allCategories.map((category) => [category, 0])) as Record<Category, number>;
     for (const event of scope(allEvents ?? events)) {
       if (monthMode ? Boolean(term) || occursInMonth(event, cursor) : inPeriod(event, timeFilter)) {
@@ -1498,8 +1488,9 @@ export function CalendarView({
   // total das categorias (o que a tela teria sem o filtro de categoria) e quanto o filtro esconde dele: na busca,
   // a tela diz "2 escondidos pelo filtro" e oferece mostrar (decisão 14)
   const totalCount = Object.values(categoryCounts).reduce((sum, count) => sum + count, 0);
+  const viewTotal = Object.values(viewCounts).reduce((sum, count) => sum + count, 0);
   const shownCount = monthMode ? (term ? scopedEvents.length : monthEvents.length) : listEvents.length;
-  const hiddenCount = allSelected ? 0 : Math.max(0, totalCount - shownCount);
+  const hiddenCount = allSelected ? 0 : Math.max(0, viewTotal - shownCount);
   const hiddenText = plural(hiddenCount, "escondido", "escondidos") + " pelo filtro";
   // sem nada para mostrar nem filtro ativo, a linha das categorias some (o "Todas 0" sozinho não dizia nada).
   // No Calendário sem busca ela fica, para a linha não sumir e voltar a cada mês vazio
@@ -1568,24 +1559,20 @@ export function CalendarView({
     }
     return counts;
   }, [scopedEvents]);
-  const asideOpen = side && selectedEvent !== null;
+  // Agenda no computador sem evento escolhido: o painel ao lado já mostra o 1º evento da lista na tela (o
+  // próximo, em Próximos), como na amostra, em vez de a lista esticar pela tela toda. É uma prévia: a escolha
+  // (e o endereço) só muda quando a pessoa clica numa linha ou usa algo do painel (adoptPreview)
+  const previewEvent =
+    side && selectedEventId === null && !periodNotice
+      ? ((term ? searchPage.items[0]?.event : shownItems[0]?.event) ?? null)
+      : null;
+  const detailEvent = selectedEvent ?? previewEvent;
+  const asideOpen = side && detailEvent !== null;
   const asideRef = useRef<HTMLElement>(null);
-  const resetAside = useAsideFollow(asideRef, asideOpen, String(selectedEventId ?? ""));
+  // a prévia que vira escolha não leva o foco para o título (a pessoa já está no painel)
+  const quietAsideFocus = useRef(false);
+  const resetAside = useAsideFollow(asideRef, asideOpen, String(detailEvent?.id ?? ""));
   useAsideRoom(asideRoomRef, listRef, asideRef, asideOpen);
-  // quanto o card da lista (sem a folga do useAsideRoom) passa do fim do painel ao lado. Os dois começam no
-  // alto da mesma linha da grade; o painel vem do detalhe (o ref do aside ainda não está pronto na 1ª vez)
-  const panelGap = useCallback((panel: HTMLElement) => {
-    const room = asideRoomRef.current;
-    const aside = panel.closest("aside");
-    const card = room?.parentElement;
-    if (!room || !aside || !card) {
-      return null;
-    }
-    const style = getComputedStyle(card);
-    const cardHeight =
-      pageTop(room) - pageTop(card) + (Number.parseFloat(style.paddingBottom) || 0) + (Number.parseFloat(style.borderBottomWidth) || 0);
-    return cardHeight - aside.offsetHeight;
-  }, []);
   const hiddenByFilters =
     !monthMode && catFix === null && searchFix === null && selectedEvent !== null && !periodNotice && !listEvents.some((event) => event.id === selectedEvent.id);
 
@@ -1650,6 +1637,10 @@ export function CalendarView({
   // no computador, o foco vai para o título do detalhe ao lado (no Modal, quem cuida é o próprio Modal)
   useEffect(() => {
     if (!side || selectedEventId === null) {
+      return;
+    }
+    if (quietAsideFocus.current) {
+      quietAsideFocus.current = false;
       return;
     }
     afterPaint(() => {
@@ -1730,7 +1721,12 @@ export function CalendarView({
     // Próximos começa no primeiro mês à frente e Passados no mais recente (os dois saem do mês de hoje);
     // Todos tem tudo dos outros dois e fica no mês que está na tela
     if (value !== timeFilter && value !== "all") {
-      setCursor(thisMonth());
+      let target = monthIndex(thisMonth());
+      if (value === "past") {
+        const pastKeys = [...bucketByMonth(scopedEvents.filter((event) => inPeriod(event, "past")), "past").keys()];
+        target = pastKeys.length ? Math.max(...pastKeys) : target;
+      }
+      setCursor(indexMonth(target));
     }
     setTimeFilter(value);
     setPeriodNotice(null);
@@ -1738,7 +1734,6 @@ export function CalendarView({
 
   /** Mês escolhido na faixa, nas setas ou no pé da lista. */
   function goToMonth(index: number) {
-    setPinnedMonth(null);
     setCursor(indexMonth(index));
     // o detalhe ao lado é de um evento que não está no mês novo: fecha, para o painel não ficar solto
     if (calendarMode === "list" && selectedEvent && !(months.get(index) ?? []).some((item) => item.event.id === selectedEvent.id)) {
@@ -1753,8 +1748,8 @@ export function CalendarView({
   function goToMonthTop(index: number) {
     goToMonth(index);
     afterPaint(() => {
-      const bar = monthBarRef.current;
       const title = monthTitleRef.current;
+      const bar = title?.closest<HTMLElement>(".mpick-bar") ?? null;
       if (!bar) {
         return;
       }
@@ -1774,8 +1769,8 @@ export function CalendarView({
    */
   function showPeriod(value: TimeFilter, from: HTMLElement) {
     setPeriod(value);
-    const tabs = from.closest("section")?.querySelectorAll<HTMLButtonElement>('.seg[aria-label="Período"] button');
-    tabs?.[timeFilters.findIndex((item) => item.value === value)]?.focus();
+    const tabs = (sectionRef.current ?? from.ownerDocument).querySelectorAll<HTMLButtonElement>('.seg[aria-label="Período"] button');
+    tabs[timeFilters.findIndex((item) => item.value === value)]?.focus();
   }
 
   function clearAll() {
@@ -1847,9 +1842,6 @@ export function CalendarView({
       }
       setQuietId(selectedEvent.id);
     }
-    if (mode === "list") {
-      setPinnedMonth(`${monthIndex(cursor)}|${filterKey}`);
-    }
     setCalendarMode(mode);
   }
 
@@ -1859,7 +1851,6 @@ export function CalendarView({
     // na busca a lista tem todos os meses: ao limpar a busca, a Agenda fica no mês do evento escolhido
     const chosen = term ? listEvents.find((event) => event.id === id) : null;
     if (chosen) {
-      setPinnedMonth(null);
       setCursor(listMonthOf(chosen, timeFilter));
     }
     onSelect(id);
@@ -1910,6 +1901,21 @@ export function CalendarView({
     onSelect(id);
   }
 
+  /**
+   * Prévia do painel ao lado que vira escolha: a pessoa clicou ou apertou uma tecla no painel (o lembrete, o
+   * Editar). O evento passa a ser o escolhido antes do clique, para as ações valerem para ele; a página não
+   * rola e o foco fica onde a pessoa está.
+   */
+  function adoptPreview() {
+    if (!previewEvent) {
+      return;
+    }
+    quietAsideFocus.current = true;
+    scrolledFor.current = { id: previewEvent.id, mode: calendarMode, start: new Date(previewEvent.startsAt).getTime() };
+    setInternalId(previewEvent.id);
+    onSelect(previewEvent.id);
+  }
+
   /** Fecha o painel ao lado e devolve o foco para a linha de origem. */
   function closeAside() {
     const eventId = selectedEventId;
@@ -1926,17 +1932,20 @@ export function CalendarView({
 
   /** Detalhe do evento. No Modal, `footerSlot` leva a ação principal para o rodapé fixo (à vista sem rolar). */
   function renderDetail(event: AcademicEvent, footerSlot?: HTMLElement | null) {
+    // Na prévia (evento ainda não escolhido), a página manda a antecedência padrão; aqui vale a que está salva,
+    // senão o painel mostraria uma alteração que ninguém fez.
+    const previewSaved =
+      event.id !== selectedEventId && event.reminder && event.reminder.enabled !== false ? event.reminder : null;
     return (
       <EventDetailContent
         key={event.id}
         canManage={canManageEvent(event)}
         event={event}
         footerSlot={footerSlot}
-        reminderOffset={reminderOffset}
+        reminderOffset={previewSaved ? String(previewSaved.offsetMinutes) : reminderOffset}
         saving={saving}
         setReminderOffset={setReminderOffset}
         cornerSpace={side}
-        panelGap={panelGap}
         titleRef={detailTitleRef}
         onDelete={onDelete}
         onEdit={onEdit}
@@ -1959,14 +1968,35 @@ export function CalendarView({
           : noClass
             ? "Cronograma"
             : "Cronograma da sua turma";
-  // texto neutro ao dispositivo (sem "Clique" nem "Toque"); a dica some no celular (cronograma.css), o
-  // convite a entrar numa turma fica
+
+  // linha de contexto embaixo do título ("TADS 5, Matemática e Engenharia de Software"). Com busca, fica a de
+  // antes dela (a lista filtrada pela busca mudaria a linha a cada letra)
+  const liveContext = useMemo(
+    () => contextText(role, allEvents ?? events, canManageEvent),
+    [role, allEvents, events, canManageEvent]
+  );
+  const [baseContext, setBaseContext] = useState(liveContext);
+  if (!term && baseContext !== liveContext) {
+    setBaseContext(liveContext);
+  }
+  const context = term ? baseContext : liveContext;
+  // aluno (a menor também) ou responsável sem prova nem trabalho no período (nenhum evento com turma): a turma
+  // dele ("INF 3A"), como o subtítulo de quem já tem disciplinas, em vez de uma dica de uso solta. A página manda
+  // em `classes` as turmas em que o aluno está matriculado (no responsável, o catálogo do aluno)
+  const ownClasses =
+    (role === "guardian" || role === "student") && classes.length > 0 && classes.length <= 3
+      ? joinAnd([...new Set(classes.map((academicClass) => academicClass.name))])
+      : null;
+  // texto neutro ao dispositivo (sem "Clique" nem "Toque"); o convite a entrar numa turma vem primeiro
   const subtitle =
-    role === "student" && noClass ? (
-      "Entre numa turma para ver as provas e os trabalhos dela"
-    ) : (
-      <span className="crono-hint">{monthMode ? "Escolha um dia para ver os eventos dele" : "Escolha um evento para ver os detalhes"}</span>
-    );
+    role === "student" && noClass
+      ? "Entre numa turma para ver as provas e os trabalhos dela"
+      : (context ??
+        ownClasses ??
+        (monthMode ? "Escolha um dia para ver os eventos dele" : "Escolha um evento para ver os detalhes"));
+
+  // nome do que a lista conta, no seletor de mês e nos vazios: "evento", "prova", "resultado"
+  const monthNoun: MonthNoun = [nouns.one, nouns.many, nouns.none.toLowerCase()];
 
   /**
    * Linha da Agenda. As datas do campus (institucional, feriado, recesso) ficam numa linha mais baixa
@@ -1989,7 +2019,8 @@ export function CalendarView({
           hideClass={role === "student" || role === "guardian"}
           hideDate={continued}
           highlight={term || null}
-          selected={selectedEventId === event.id}
+          // a prévia do painel ao lado também fica marcada: a linha e o painel mostram o mesmo evento
+          selected={(selectedEventId ?? previewEvent?.id) === event.id}
           showMonth={monthIndexOf(eventSpan(event).first) !== monthIndexOf(item.day)}
           // o ano do cabeçalho do mês (ou do grupo da busca): sob "Junho de 2027", o selo diz "MAI" e não "MAI 2027"
           refYear={new Date(item.day).getFullYear()}
@@ -2023,58 +2054,24 @@ export function CalendarView({
     );
   }
 
-  function listGroups(groups: Array<{ label: string; items: MonthItem[] }>, ids?: string[]) {
+  function listGroups(groups: ListGroup[], ids?: string[]) {
     return groups.map((group, position) => (
-      <div key={group.label} className="crono-week">
-        <p className="ev-group" id={ids?.[position]} tabIndex={ids ? -1 : undefined}>
+      <div key={`${group.label}|${group.range ?? ""}`} className="crono-week">
+        <p className="ev-group crono-gh" id={ids?.[position]} tabIndex={ids ? -1 : undefined}>
           {group.label}
+          {group.range ? <span className="crono-gh-r"> {group.range}</span> : null}
         </p>
         <div className="crono-rows">{dayRows(group.items)}</div>
       </div>
     ));
   }
 
-  /** Mês vizinho com eventos, para o pé da lista e os atalhos do mês vazio. */
-  function pagerTarget(index: number | null): PagerTarget | null {
-    return index === null
-      ? null
-      : { title: indexTitle(index), count: countText(startCount(index)), onGo: () => goToMonthTop(index) };
-  }
-
-  /** Agenda de um mês: cabeçalho com as setas, a faixa dos meses, a lista do mês por semana e o pé. */
+  /** Agenda de um mês: o seletor "‹ Novembro de 2026 ›", a lista do mês por semana e o pé com os meses vizinhos. */
   function monthList(index: number) {
     const shown = indexMonth(index);
-    const todayIndex = monthIndex(thisMonth());
-    // o mês na tela entra na faixa mesmo sem eventos (veio do Calendário), para a pessoa ver onde está
-    const stripKeys = months.has(index) ? monthKeys : [...monthKeys, index].sort((a, b) => a - b);
-    // pontos das provas e trabalhos na faixa, quando eles se misturam às datas do campus
-    const mixed =
-      selectedCategories.some((category) => campusCategories.includes(category)) &&
-      selectedCategories.some((category) => classCategories.includes(category));
-    const chips: MonthChip[] = stripKeys.map((key) => {
-      const items = months.get(key) ?? [];
-      const month = indexMonth(key);
-      const now = key === todayIndex;
-      return {
-        index: key,
-        year: month.year,
-        short: shortMonths[month.month],
-        count: startCount(key),
-        label: `${indexTitle(key)}, ${countText(startCount(key))}${now ? ", mês atual" : ""}`,
-        dots: mixed
-          ? classCategories
-              .filter((category) => items.some((item) => item.event.category === category))
-              .map((category) => categoryMeta[category].accent)
-          : [],
-        active: key === index,
-        now,
-      };
-    });
     const forward = timeFilter !== "past";
-    const main = forward ? (nextIndex ?? prevIndex) : (prevIndex ?? nextIndex);
-    // o que começou num mês anterior (um recesso de maio que entra em junho) não conta na faixa nem no pé
-    // ("jun 11"): fica num grupo próprio, "Continua de maio", fora das semanas, e a conta da faixa fecha com
-    // as semanas. Na ordem da lista: no alto, ou no fim em Passados (do mais recente para o mais antigo)
+    // o que começou num mês anterior (um recesso de maio que entra em junho) fica num grupo próprio, "Continua
+    // de maio", fora das semanas. Na ordem da lista: no alto, ou no fim em Passados (do mais recente ao mais antigo)
     const todayStart = startOfDay(new Date()).getTime();
     const startedBefore = (item: MonthItem) => monthIndexOf(periodSpan(item.event, timeFilter, todayStart).first) < index;
     const carried = shownItems.filter(startedBefore);
@@ -2083,7 +2080,7 @@ export function CalendarView({
       shown.year
     );
     const carriedFrom = new Set(carried.map((item) => monthIndexOf(periodSpan(item.event, timeFilter, todayStart).first)));
-    const carriedGroup = carried.length
+    const carriedGroup: ListGroup[] = carried.length
       ? [
           {
             label:
@@ -2096,52 +2093,54 @@ export function CalendarView({
       : [];
     const weekGroups = forward ? [...carriedGroup, ...ownGroups] : [...ownGroups, ...carriedGroup];
 
+    // "2 eventos" não se separa no botão do vazio (a 360 px ele quebrava como "..., 2 / eventos")
+    const nextTarget = keepCount(monthTarget(nextIndex, listCounts, goToMonthTop, monthNoun, index));
+    const prevTarget = keepCount(monthTarget(prevIndex, listCounts, goToMonthTop, monthNoun, index));
+    // quantos o filtro de categoria esconde neste mês (dentro do período, da turma e do "Só meus")
+    const hiddenHere = allSelected ? 0 : Math.max(0, (allListMonths?.get(index)?.length ?? 0) - shownItems.length);
+    const monthWord = monthInText(index, false);
+
     return (
       <>
-        <div className="crono-nav">
-          <MonthBar
-            barRef={monthBarRef}
-            titleRef={monthTitleRef}
-            title={indexTitle(index)}
-            prev={prevIndex === null ? null : { title: indexTitle(prevIndex), onGo: () => goToMonth(prevIndex) }}
-            next={nextIndex === null ? null : { title: indexTitle(nextIndex), onGo: () => goToMonth(nextIndex) }}
-            emptyPrev={`Não há ${nouns.many} antes`}
-            emptyNext={`Não há ${nouns.many} depois`}
-          />
-          <MonthStrip chips={chips} onPick={goToMonth} />
-        </div>
+        <MonthPicker
+          card
+          value={index}
+          onChange={goToMonth}
+          counts={listCounts}
+          marks={listMarks}
+          min={listBounds.min}
+          max={listBounds.max}
+          noun={monthNoun}
+          titleRef={monthTitleRef}
+        />
 
         {shownItems.length ? (
           <>
             <div key={`mes-${timeFilter}-${index}`} className="crono-list pop">
               {listGroups(weekGroups)}
             </div>
-            <MonthPagerFooter main={forward ? "next" : "prev"} prev={pagerTarget(prevIndex)} next={pagerTarget(nextIndex)} />
+            {/* pé discreto: o mês vizinho do calendário, mesmo vazio ("Outubro, nenhum evento") */}
+            <MonthNeighbors
+              main={forward ? "next" : "prev"}
+              prev={monthTarget(index > listBounds.min ? index - 1 : null, listCounts, goToMonthTop, monthNoun, index)}
+              next={monthTarget(index < listBounds.max ? index + 1 : null, listCounts, goToMonthTop, monthNoun, index)}
+            />
           </>
         ) : (
-          <ListEmpty
-            icon={CalendarX2}
-            // o cabeçalho logo acima já diz o ano ("Janeiro de 2027"): o vazio fala só o mês, como no Calendário
-            title={`${nouns.none} em ${monthInText(index, false)}.`}
-            hint={`Os meses com ${nouns.many} estão na faixa acima.`}
-            actions={
-              // os meses vizinhos com eventos, na ordem do calendário; o do sentido da leitura em destaque
-              <>
-                {[prevIndex, nextIndex].map((target) =>
-                  target === null ? null : (
-                    <button
-                      key={target}
-                      aria-label={`Ver ${monthInText(target, indexMonth(target).year !== new Date().getFullYear())}, ${countText(startCount(target))}`}
-                      className={target === main ? "btn btn-p" : "btn btn-s"}
-                      onClick={() => goToMonthTop(target)}
-                      type="button"
-                    >
-                      Ver {monthInText(target, indexMonth(target).year !== new Date().getFullYear())}
-                      <span className="crono-btn-n">{startCount(target)}</span>
-                    </button>
-                  )
-                )}
-              </>
+          // mês vazio: continua navegável, e o vazio leva ao mês com eventos mais perto no sentido da leitura
+          <MonthEmpty
+            title={`${nouns.none} em ${monthWord}`}
+            next={forward ? nextTarget : prevTarget ? null : nextTarget}
+            prev={forward ? (nextTarget ? null : prevTarget) : prevTarget}
+            endText={!nextTarget && !prevTarget ? `Não há ${nouns.many} em outros meses` : forward && !nextTarget ? `Não há ${nouns.many} depois de ${monthWord}` : undefined}
+            hidden={
+              hiddenHere
+                ? {
+                    text: `${plural(hiddenHere, "evento escondido", "eventos escondidos")} pelo filtro neste mês.`,
+                    actionLabel: "Mostrar todas",
+                    onAction: showHiddenByCategory,
+                  }
+                : null
             }
           />
         )}
@@ -2149,107 +2148,76 @@ export function CalendarView({
     );
   }
 
-  /** Calendário com busca: a faixa dos meses com resultado e o aviso do mês sem resultado, com atalhos. */
-  function calendarSearchParts() {
-    if (!term) {
-      return { strip: undefined, note: undefined };
-    }
-    if (!searchMonths || !searchMonthKeys.length) {
-      return {
-        strip: undefined,
-        note: (
-          <div className="callout past mb-3 flex-wrap items-center">
-            {/* a mesma frase da Agenda: com o filtro escondendo resultados, diz quantos e oferece mostrar */}
-            <span className="min-w-0 flex-1 wrap-anywhere">
-              {hiddenCount
-                ? `Nada encontrado para "${term}" com o filtro, ${hiddenText}.`
-                : `Nada encontrado para "${term}".${narrowed ? " Os filtros escolhidos também valem para a busca." : ""}`}
-            </span>
-            {hiddenCount ? (
-              <button
-                aria-label={`Mostrar todos, ${plural(hiddenCount, "resultado", "resultados")}`}
-                // a ação principal do aviso, em azul, como na Agenda (decisão 8)
-                className="btn btn-p btn-sm"
-                onClick={showHiddenByCategory}
-                type="button"
-              >
-                Mostrar todos
-                <span className="crono-btn-n">{hiddenCount}</span>
-              </button>
-            ) : narrowed ? (
-              <button className="btn btn-p btn-sm" onClick={clearNarrowing} type="button">
-                Limpar filtros
-              </button>
-            ) : null}
-            <button className={cx("btn btn-sm", hiddenCount || narrowed ? "btn-s" : "btn-p")} onClick={clearSearch} type="button">
-              Limpar busca
+  /** Aviso fino acima da grade do Calendário: o mês sem eventos (ou sem resultado) e o atalho para o mais perto. */
+  function calendarNote() {
+    if (term && !calMonths.size) {
+      return (
+        <div className="callout past cg-note flex-wrap items-center">
+          {/* a mesma frase da Agenda: com o filtro escondendo resultados, diz quantos e oferece mostrar */}
+          <span className="min-w-0 flex-1 wrap-anywhere">
+            {hiddenCount
+              ? `Nada encontrado para "${term}" com o filtro, ${hiddenText}.`
+              : `Nada encontrado para "${term}".${narrowed ? " Os filtros escolhidos também valem para a busca." : ""}`}
+          </span>
+          {hiddenCount ? (
+            <button
+              aria-label={`Mostrar todos, ${plural(hiddenCount, "resultado", "resultados")}`}
+              className="btn btn-p btn-sm"
+              onClick={showHiddenByCategory}
+              type="button"
+            >
+              Mostrar todos
+              <span className="crono-btn-n">{hiddenCount}</span>
             </button>
-          </div>
-        ),
-      };
+          ) : narrowed ? (
+            <button className="btn btn-p btn-sm" onClick={clearNarrowing} type="button">
+              Limpar filtros
+            </button>
+          ) : null}
+          <button className={cx("btn btn-sm", hiddenCount || narrowed ? "btn-s" : "btn-p")} onClick={clearSearch} type="button">
+            Limpar busca
+          </button>
+        </div>
+      );
     }
-    const todayIndex = monthIndex(thisMonth());
-    const keys = searchMonths.has(cursorIndex) ? searchMonthKeys : [...searchMonthKeys, cursorIndex].sort((a, b) => a - b);
-    const chips: MonthChip[] = keys.map((key) => {
-      const count = searchMonths.get(key)?.length ?? 0;
-      const month = indexMonth(key);
-      return {
-        index: key,
-        year: month.year,
-        short: shortMonths[month.month],
-        count,
-        label: `${indexTitle(key)}, ${plural(count, "resultado", "resultados")}${key === todayIndex ? ", mês atual" : ""}`,
-        dots: [],
-        active: key === cursorIndex,
-        now: key === todayIndex,
-      };
-    });
-    const pick = (key: number) => {
+    const go = (key: number) => {
       setCursor(indexMonth(key));
       setSelectedDay(null);
+      // o botão some com o mês novo: o foco vai para o título do seletor
+      afterPaint(() => sectionRef.current?.querySelector<HTMLElement>(".cg-card .mpick-title")?.focus({ preventScroll: true }));
     };
-    // atalho do aviso: o mês novo tem resultado, o aviso some e o botão clicado sai junto; o foco vai para o
-    // título do mês (o leitor de tela anuncia o mês, e o Tab segue dali para a grade)
-    const pickFromNote = (key: number, button: HTMLElement) => {
-      const section = button.closest("section");
-      pick(key);
-      afterPaint(() => section?.querySelector<HTMLElement>(".crono-title")?.focus({ preventScroll: true }));
-    };
-    const before = searchMonthKeys.filter((key) => key < cursorIndex).pop() ?? null;
-    const after = searchMonthKeys.find((key) => key > cursorIndex) ?? null;
-    return {
-      strip: (
-        <div className="crono-nav">
-          <MonthStrip chips={chips} label="Meses com resultados" onPick={pick} />
-        </div>
-      ),
-      note: (
-        <div className="callout past mb-3 flex-wrap items-center">
-          <span className="min-w-0 flex-1 wrap-anywhere">
-            Nenhum resultado para &quot;{term}&quot; em {monthName(cursor)}.
-          </span>
-          {[before, after].map((key) =>
-            key === null ? null : (
-              <button
-                key={key}
-                aria-label={`Ver ${indexTitle(key).toLowerCase()}, ${plural(searchMonths.get(key)?.length ?? 0, "resultado", "resultados")}`}
-                className="btn btn-s btn-sm"
-                onClick={(click) => pickFromNote(key, click.currentTarget)}
-                type="button"
-              >
-                Ver {indexTitle(key).toLowerCase()}
-                <span className="crono-btn-n">{searchMonths.get(key)?.length ?? 0}</span>
-              </button>
-            )
-          )}
-        </div>
-      ),
-    };
+    const next = keepCount(monthTarget(nearestMonthWith(calCounts, cursorIndex, 1, calBounds), calCounts, go, monthNoun, cursorIndex));
+    const prev = next ? null : keepCount(monthTarget(nearestMonthWith(calCounts, cursorIndex, -1, calBounds), calCounts, go, monthNoun, cursorIndex));
+    const target = next ?? prev;
+    return (
+      <p className="month-note cg-note" role="status">
+        <CalendarX2 className="month-note-ico" aria-hidden />
+        <span>
+          {term ? `Nenhum resultado para "${term}"` : nouns.none} em {monthInText(cursorIndex, false)}.
+        </span>
+        {target ? (
+          <button className="month-note-link" onClick={target.onGo} type="button">
+            {next ? "Próximo" : "Anterior"}: {target.title}, {target.count}
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </button>
+        ) : null}
+        {!term && hiddenCount ? (
+          <button
+            aria-label={`Mostrar todas as categorias, ${plural(hiddenCount, "evento", "eventos")} em ${monthInText(cursorIndex, false)}`}
+            className="month-note-link"
+            onClick={showHiddenByCategory}
+            type="button"
+          >
+            Mostrar todas ({hiddenCount})
+          </button>
+        ) : null}
+      </p>
+    );
   }
 
   /**
-   * Busca na Agenda: os resultados de todos os meses juntos, um grupo por mês, 12 por página. No alto, a faixa
-   * dos meses encontrados (com quantos em cada um); o mês escolhido nela abre a página dele e vai até o grupo.
+   * Busca na Agenda: os resultados de todos os meses juntos, um grupo por mês, 12 por página. No alto, quantos e
+   * de que meses; com mais de um mês, um seletor leva à página do mês escolhido.
    */
   function searchList() {
     const monthCounts = new Map<number, number>();
@@ -2259,23 +2227,6 @@ export function CalendarView({
     }
     const keys = [...monthCounts.keys()].sort((a, b) => a - b);
     const groups = groupByMonth(searchPage.items);
-    const onPage = new Set(groups.map((group) => group.key));
-    const todayIndex = monthIndex(thisMonth());
-    const chips: MonthChip[] = keys.map((key) => {
-      const month = indexMonth(key);
-      const count = monthCounts.get(key) ?? 0;
-      return {
-        index: key,
-        year: month.year,
-        short: shortMonths[month.month],
-        count,
-        label: `${indexTitle(key)}, ${plural(count, "resultado", "resultados")}${onPage.has(key) ? ", nesta página" : ""}${key === todayIndex ? ", mês atual" : ""}`,
-        dots: [],
-        // os meses desta página ficam marcados na faixa (aria-current só no primeiro; os outros dizem "nesta página")
-        active: onPage.has(key),
-        now: key === todayIndex,
-      };
-    });
     const jump = (key: number) => {
       const position = searchItems.findIndex((item) => monthIndexOf(item.day) === key);
       if (position < 0) {
@@ -2292,10 +2243,15 @@ export function CalendarView({
         label.focus({ preventScroll: true });
       });
     };
+    const monthOptions: SelectOption[] = keys.map((key) => ({
+      value: String(key),
+      label: indexTitle(key),
+      count: monthCounts.get(key) ?? 0,
+    }));
     const total = searchItems.length;
     return (
       <>
-        <div className="crono-nav">
+        <div className="crono-range-bar">
           <p ref={searchHeadRef} className="crono-range" tabIndex={-1}>
             <b>{plural(total, "resultado", "resultados")}</b> {monthSpanText(keys[0], keys[keys.length - 1])}
             {/* o filtro de categoria continua valendo na busca: a linha diz quantos ele esconde (decisão 14) */}
@@ -2308,7 +2264,20 @@ export function CalendarView({
               </>
             ) : null}
           </p>
-          {keys.length > 1 ? <MonthStrip chips={chips} label="Meses com resultados" onPick={jump} /> : null}
+          {keys.length > 1 ? (
+            <Select
+              ariaLabel="Ir para o mês"
+              className="crono-range-pick"
+              options={monthOptions}
+              placeholder="Ir para o mês"
+              prefix="Mês:"
+              size="sm"
+              value={String(monthIndexOf(searchPage.items[0]?.day ?? Date.now()))}
+              variant="filter"
+              width="auto"
+              onChange={(value) => jump(Number(value))}
+            />
+          ) : null}
         </div>
         <div key={`busca-${timeFilter}-${searchPage.page}`} className="crono-list pop">
           {listGroups(groups, groups.map((group) => `${listId}-m-${group.key}`))}
@@ -2328,7 +2297,7 @@ export function CalendarView({
 
     const seeOther =
       otherPeriod && otherCount ? (
-        <button className="btn btn-p" onClick={(click) => showPeriod(otherPeriod, click.currentTarget)} type="button">
+        <button className="btn btn-s btn-sm" onClick={(click) => showPeriod(otherPeriod, click.currentTarget)} type="button">
           Ver em {periodNames[otherPeriod]}
         </button>
       ) : null;
@@ -2349,14 +2318,14 @@ export function CalendarView({
               <>
                 <button
                   aria-label={`Mostrar todos, ${plural(hiddenCount, "resultado", "resultados")}`}
-                  className="btn btn-p"
+                  className="btn btn-s btn-sm"
                   onClick={showHiddenByCategory}
                   type="button"
                 >
                   Mostrar todos
                   <span className="crono-btn-n">{hiddenCount}</span>
                 </button>
-                <button className="btn btn-s" onClick={clearSearch} type="button">
+                <button className="btn btn-g btn-sm" onClick={clearSearch} type="button">
                   Limpar busca
                 </button>
               </>
@@ -2374,11 +2343,11 @@ export function CalendarView({
             <>
               {seeOther}
               {narrowed ? (
-                <button className={seeOther ? "btn btn-s" : "btn btn-p"} onClick={clearNarrowing} type="button">
+                <button className={seeOther ? "btn btn-g btn-sm" : "btn btn-s btn-sm"} onClick={clearNarrowing} type="button">
                   Limpar filtros
                 </button>
               ) : null}
-              <button className={seeOther || narrowed ? "btn btn-s" : "btn btn-p"} onClick={clearSearch} type="button">
+              <button className={seeOther || narrowed ? "btn btn-g btn-sm" : "btn btn-s btn-sm"} onClick={clearSearch} type="button">
                 Limpar busca
               </button>
             </>
@@ -2405,7 +2374,7 @@ export function CalendarView({
             <>
               {seeOther}
               {narrowed ? (
-                <button className="btn btn-s" onClick={clearNarrowing} type="button">
+                <button className={seeOther ? "btn btn-g btn-sm" : "btn btn-s btn-sm"} onClick={clearNarrowing} type="button">
                   Limpar filtros
                 </button>
               ) : null}
@@ -2416,362 +2385,373 @@ export function CalendarView({
     );
   }
 
-  const calSearch = monthMode ? calendarSearchParts() : null;
-  // Calendário sem busca, mês vazio no filtro: diz o que falta ("Nenhuma prova em janeiro") e, quando o filtro
-  // esconde datas do mês, oferece mostrar todas (antes dizia "Nenhum evento", com 2 datas escondidas)
-  const monthEmptyNote =
-    monthMode && !term ? (
-      <div className="callout past mb-3 flex-wrap items-center">
-        <span className="min-w-0 flex-1">
-          {nouns.none} em {monthName(cursor)}.
-        </span>
-        {hiddenCount ? (
+  // contador no fim da linha dos filtros da Agenda: sem filtro, o total; com filtro, quanto sobra. No
+  // Calendário, a contagem fica no seletor de mês. No celular ele fica só para o leitor de tela
+  const counter =
+    calendarMode === "list" && !(term && listEvents.length) ? (
+      <span className="crono-total" role="status">
+        {hasFilter ? counterText : `${plural(periodCounts.all, "evento", "eventos")} no total`}
+      </span>
+    ) : null;
+
+  const classOptions: SelectOption[] = [
+    { value: "all", label: "Todas" },
+    { value: "official", label: "Só da instituição", description: "Datas sem turma, para todos" },
+    ...classes.map((academicClass) => ({ value: String(academicClass.id), label: academicClass.name, group: "Turmas" })),
+  ];
+
+  // a busca fica só no menu (no celular, na gaveta); aqui aparece o chip dela, que limpa a busca. O termo longo
+  // termina em reticência, e o termo inteiro fica no title e no nome do X
+  const searchChip = term ? (
+    <span className="chip picked crono-term min-w-0 max-w-full pr-1.5" title={`Busca: ${term}`}>
+      <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="min-w-0 truncate">
+        Busca: <b>{term}</b>
+      </span>
+      <button
+        className="relative grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-surface-2 pointer-coarse:after:absolute pointer-coarse:after:-inset-2"
+        aria-label={`Limpar busca por "${term}"`}
+        onClick={clearSearch}
+        title={`Limpar busca por "${term}"`}
+        type="button"
+      >
+        <X className="h-3.5 w-3.5" aria-hidden />
+      </button>
+    </span>
+  ) : null;
+
+  // busca sem nada em período nenhum: as abas "Próximos 0 | Passados 0 | Todos 0" repetiriam o "Nada encontrado"
+  const periodSeg =
+    calendarMode === "list" && !(term && periodCounts.upcoming + periodCounts.past === 0) ? (
+      <Segmented label="Período">
+        {timeFilters.map((item) => (
           <button
-            aria-label={`Mostrar todas as categorias, ${plural(hiddenCount, "evento", "eventos")} em ${monthName(cursor)}`}
-            className="btn btn-s btn-sm"
-            onClick={showHiddenByCategory}
+            key={item.value}
+            className={cx("crono-period", timeFilter === item.value && "on")}
+            aria-pressed={timeFilter === item.value}
+            onClick={() => setPeriod(item.value)}
             type="button"
           >
-            Mostrar todas
-            <span className="crono-btn-n">{hiddenCount}</span>
+            {item.label}
+            <span className="n">{periodCounts[item.value]}</span>
           </button>
-        ) : null}
-      </div>
-    ) : undefined;
-  // contador: na Agenda, no fim da linha das abas do período; no Calendário, no cabeçalho do mês, antes do
-  // "Hoje". No celular ele fica só para o leitor de tela: as abas e os chips já mostram as contagens, e o
-  // texto caía numa linha só para ele
-  // Na Agenda sem busca nem filtro, o total já está na aba ("Próximos 118"): o contador fica só para o leitor
-  // de tela, em vez de repetir o número ao lado
-  const counter = (
-    <span
-      className={cx(
-        "whitespace-nowrap text-sm font-semibold text-ink-3 max-sm:sr-only",
-        // na Agenda sem filtro, o total já está na aba; com zero, o vazio logo abaixo já diz isso (antes "0
-        // encontrados" no alto repetia o "Nada encontrado" do meio)
-        ((calendarMode === "list" && !hasFilter) || (monthMode ? monthEvents.length : listEvents.length) === 0) && "sr-only"
-      )}
-      role="status"
-    >
-      {counterText}
+        ))}
+      </Segmented>
+    ) : null;
+
+  const mineSwitch =
+    role === "teacher" ? (
+      <button
+        aria-checked={mineOnly}
+        className={cx("sw crono-mine", mineOnly && "on")}
+        onClick={() => setMineOnly(!mineOnly)}
+        role="switch"
+        title="Só os eventos que você publicou"
+        type="button"
+      >
+        <i aria-hidden />
+        Só meus eventos
+      </button>
+    ) : null;
+
+  const classSelect =
+    role === "admin" && classes.length ? (
+      <Select
+        active={classFilter !== "all"}
+        ariaLabel="Turma"
+        className="crono-class"
+        options={classOptions}
+        prefix="Turma:"
+        size="sm"
+        value={classFilter}
+        variant="filter"
+        width="auto"
+        onChange={(value) => setClassFilter(value)}
+      />
+    ) : null;
+
+  const clearLink = showClear ? (
+    <button className="link max-sm:hidden" onClick={clearNarrowing} type="button">
+      Limpar filtros
+    </button>
+  ) : null;
+
+  const hiddenLine = calHiddenLine ? (
+    <span className="crono-hidden">
+      <span className="text-sm font-semibold text-ink-3">{hiddenText}</span>
+      <button
+        aria-label={`Mostrar todos, ${plural(hiddenCount, "resultado", "resultados")}`}
+        className="link"
+        onClick={showHiddenByCategory}
+        type="button"
+      >
+        Mostrar todos
+      </button>
     </span>
+  ) : null;
+
+  // categorias: no celular, uma faixa de uma linha que rola de lado, com o "Limpar filtros" no fim
+  const categoryChips = (
+    <div ref={catsRef} className="chips crono-cats" role="group" aria-label="Categorias" hidden={hideCats}>
+      <button
+        ref={allChipRef}
+        className={cx("chip", allSelected && "on")}
+        aria-pressed={allSelected}
+        onClick={selectAllCategories}
+        type="button"
+      >
+        {allSelected ? <Check className="h-3.5 w-3.5" aria-hidden /> : null}
+        Todas
+        <span className="n">{totalCount}</span>
+      </button>
+      {allCategories.map((category) => {
+        const picked = !allSelected && selectedCategories.includes(category);
+        const meta = categoryMeta[category];
+        // sem nada para mostrar, o chip some, mesmo escolhido ("Trabalhos 0" marcado parecia um filtro
+        // que mostra algo). Só fica quando nenhuma escolhida tem eventos: aí a pessoa vê o que está ativo
+        if (allEvents && categoryCounts[category] === 0 && !(picked && !pickedWithEvents)) {
+          return null;
+        }
+        return (
+          <button
+            key={category}
+            className={cx("chip", picked && "on")}
+            aria-pressed={picked}
+            onClick={() => {
+              // com "Todas" ativo (mesmo por uma escolha que cobre todas as que têm eventos), mostra só a clicada
+              if (allSelected && setCategories) {
+                setCategories([category]);
+                return;
+              }
+              // desmarcar a última escolhida que tem eventos volta a Todas, em vez de revelar uma
+              // escolhida escondida com 0 ("Trabalhos 0") e deixar a lista vazia
+              const rest = selectedCategories.filter((item) => item !== category);
+              if (picked && setCategories && !rest.some((item) => categoryCounts[item] > 0)) {
+                setCategories(allCategories);
+                return;
+              }
+              toggleCategory(category);
+            }}
+            type="button"
+          >
+            <span className={cx("dot", meta.accent)} aria-hidden />
+            {meta.label}
+            <span className="n">{categoryCounts[category]}</span>
+          </button>
+        );
+      })}
+      {showClear ? (
+        <button className="link crono-clear sm:hidden" onClick={clearNarrowing} type="button">
+          Limpar filtros
+        </button>
+      ) : null}
+    </div>
   );
 
+  const firstRowItems = [searchChip, periodSeg, mineSwitch, classSelect].some(Boolean);
+
   return (
-    <div className={cx("grid items-start gap-5", asideOpen && "xl:grid-cols-[minmax(0,1fr)_400px]")}>
-      {/* self-start: com o detalhe ao lado, o card termina no fim do conteúdo (esticado, o mês curto deixava
-          um buraco de 300 px dentro dele); na lista longa, a folga do useAsideRoom leva o fim até o do painel */}
-      <section ref={sectionRef} className="card pad rise crono-card min-w-0 self-start" aria-label="Cronograma">
-        <div className="head">
-          <SectionTitle title={title} subtitle={subtitle} />
+    <div ref={sectionRef} className="crono">
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        actions={
           <Segmented label="Modo de visualização">
             <SegmentedButton active={calendarMode === "list"} onClick={() => changeMode("list")} icon={ListChecks} label="Agenda" />
             <SegmentedButton active={calendarMode === "month"} onClick={() => changeMode("month")} icon={CalendarRange} label="Calendário" />
           </Segmented>
-        </div>
+        }
+      />
 
-        {/* coluna presa à largura do card (minmax(0, 1fr)): um termo longo não alarga a coluna nem passa da tela */}
-        <div className="mt-4 grid grid-cols-1 gap-3 border-b border-line-2 pb-4 max-sm:mt-3 max-sm:gap-2.5 max-sm:pb-3">
-          {/* 1ª linha: busca, período, "Só meus", turma e, na Agenda, o contador no fim. No Calendário do aluno
-              ela não tem nada e some (o contador vai para o cabeçalho do mês) */}
-          {term || calendarMode === "list" || role === "teacher" || (role === "admin" && classes.length) ? (
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {/* a busca fica só no menu (no celular, na gaveta); aqui aparece o chip dela, que limpa a busca.
-                  O termo longo termina em reticência dentro do card, e o termo inteiro fica no title e no nome
-                  do X. No toque, o X tem alvo de 40 px (o ::after), sem mudar o desenho. */}
-              {term ? (
-                <span className="chip picked min-w-0 max-w-full pr-1.5" title={`Busca: ${term}`}>
-                  <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  <span className="min-w-0 truncate">
-                    Busca: <b>{term}</b>
-                  </span>
-                  <button
-                    className="relative grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-surface-2 pointer-coarse:after:absolute pointer-coarse:after:-inset-2"
-                    aria-label={`Limpar busca por "${term}"`}
-                    onClick={clearSearch}
-                    title={`Limpar busca por "${term}"`}
-                    type="button"
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </span>
-              ) : null}
-
-              {/* busca sem nada em período nenhum: as abas "Próximos 0 | Passados 0 | Todos 0" repetiriam o "Nada
-                  encontrado" logo abaixo (decisão 13) */}
-              {calendarMode === "list" && !(term && periodCounts.upcoming + periodCounts.past === 0) ? (
-                <Segmented label="Período">
-                  {timeFilters.map((item) => (
-                    <button
-                      key={item.value}
-                      className={cx("crono-period", timeFilter === item.value && "on")}
-                      aria-pressed={timeFilter === item.value}
-                      onClick={() => setPeriod(item.value)}
-                      type="button"
-                    >
-                      {item.label}
-                      <span className="crono-n">{periodCounts[item.value]}</span>
-                    </button>
-                  ))}
-                </Segmented>
-              ) : null}
-
-              {role === "teacher" ? (
-                <button
-                  className={cx("chip", mineOnly && "picked text-brand-ink bg-brand-50")}
-                  aria-pressed={mineOnly}
-                  onClick={() => setMineOnly(!mineOnly)}
-                  type="button"
-                >
-                  <Megaphone className="h-3.5 w-3.5" aria-hidden />
-                  Só meus eventos
-                </button>
-              ) : null}
-
-              {/* o select fica da largura da maior turma: um nome sem espaço não passa do card, e a turma
-                  escolhida termina em reticência */}
-              {role === "admin" && classes.length ? (
-                <select
-                  aria-label="Turma"
-                  className={cx(
-                    "input min-h-[44px] w-auto min-w-0 max-w-full truncate font-semibold",
-                    classFilter !== "all" && "border-night text-night"
-                  )}
-                  value={classFilter}
-                  onChange={(event) => setClassFilter(event.target.value)}
-                >
-                  <option value="all">Todas as turmas</option>
-                  <option value="official">Somente institucionais</option>
-                  {classes.map((academicClass) => (
-                    <option key={academicClass.id} value={academicClass.id}>
-                      {academicClass.name}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-
-              {calendarMode === "list" ? (
-                <span className="crono-count">
-                  {/* com busca e resultados, o total e os meses já estão na linha acima da lista (.crono-range) */}
-                  {term && listEvents.length ? null : counter}
-                  {/* "Limpar filtros" ao lado do contador; no celular ele fica no fim das categorias. Com busca e
-                      resultados, quantos o filtro esconde fica na linha acima da lista (.crono-range) */}
-                  {showClear ? (
-                    <button className="link max-sm:hidden" onClick={clearNarrowing} type="button">
-                      Limpar filtros
-                    </button>
-                  ) : null}
-                </span>
-              ) : null}
+      {/* filtros fora do card, como na amostra: na Agenda, o período, o "Só meus" e a turma numa linha e as
+          categorias embaixo; no Calendário, tudo numa linha só */}
+      {calendarMode === "list" ? (
+        <div className="crono-fbar">
+          {firstRowItems || counter ? (
+            <div className="crono-frow">
+              {searchChip}
+              {periodSeg}
+              {mineSwitch}
+              {classSelect}
+              <span className="crono-fright">
+                {counter}
+                {clearLink}
+              </span>
             </div>
           ) : null}
-
-          {/* categorias: no celular, uma faixa de uma linha que rola de lado (como a dos meses), com o "Limpar
-              filtros" no fim; assim os filtros não empurram a lista para a metade de baixo da tela. No computador,
-              o "Limpar filtros" fica ao lado do contador (Agenda) ou no fim desta linha (Calendário) */}
-          <div className={cx("crono-filters", asideOpen && "tight")} hidden={hideCats}>
-            <div ref={catsRef} className="chips crono-cats items-center" role="group" aria-label="Categorias">
-              <button
-                ref={allChipRef}
-                className={cx("chip", allSelected && "all")}
-                aria-pressed={allSelected}
-                onClick={selectAllCategories}
-                type="button"
-              >
-                Todas
-                <span className="n">{totalCount}</span>
-              </button>
-              {allCategories.map((category) => {
-                const picked = !allSelected && selectedCategories.includes(category);
-                const meta = categoryMeta[category];
-                // sem nada para mostrar, o chip some, mesmo escolhido ("Trabalhos 0" marcado parecia um filtro
-                // que mostra algo). Só fica quando nenhuma escolhida tem eventos: aí a pessoa vê o que está ativo
-                if (allEvents && categoryCounts[category] === 0 && !(picked && !pickedWithEvents)) {
-                  return null;
-                }
-                return (
-                  <button
-                    key={category}
-                    className={cx("chip", picked && cx("picked", meta.tint))}
-                    aria-pressed={picked}
-                    onClick={() => {
-                      // com "Todas" ativo (mesmo por uma escolha que cobre todas as que têm eventos), mostra só a clicada
-                      if (allSelected && setCategories) {
-                        setCategories([category]);
-                        return;
-                      }
-                      // desmarcar a última escolhida que tem eventos volta a Todas, em vez de revelar uma
-                      // escolhida escondida com 0 ("Trabalhos 0") e deixar a lista vazia
-                      const rest = selectedCategories.filter((item) => item !== category);
-                      if (picked && setCategories && !rest.some((item) => categoryCounts[item] > 0)) {
-                        setCategories(allCategories);
-                        return;
-                      }
-                      toggleCategory(category);
-                    }}
-                    type="button"
-                  >
-                    <span className={cx("dot", meta.accent)} aria-hidden />
-                    {meta.label}
-                    <span className="n">{categoryCounts[category]}</span>
-                  </button>
-                );
-              })}
-              {showClear ? (
-                <button className="link crono-clear sm:hidden" onClick={clearNarrowing} type="button">
-                  Limpar filtros
-                </button>
-              ) : null}
-            </div>
-            {calendarMode === "month" && (showClear || calHiddenLine) ? (
-              // no celular, o "Limpar filtros" fica no fim das categorias; a linha do que o filtro esconde fica
-              <span className={cx("crono-count", !calHiddenLine && "max-sm:hidden")}>
-                {calHiddenLine ? (
-                  <span className="crono-hidden">
-                    <span className="text-sm font-semibold text-ink-3">{hiddenText}</span>
-                    <button
-                      aria-label={`Mostrar todos, ${plural(hiddenCount, "resultado", "resultados")}`}
-                      className="link"
-                      onClick={showHiddenByCategory}
-                      type="button"
-                    >
-                      Mostrar todos
-                    </button>
-                  </span>
-                ) : null}
-                {showClear ? (
-                  <button className="link max-sm:hidden" onClick={clearNarrowing} type="button">
-                    Limpar filtros
-                  </button>
-                ) : null}
+          {categoryChips}
+        </div>
+      ) : (
+        <div className="crono-fbar is-cal">
+          <div className="crono-frow">
+            {searchChip}
+            {mineSwitch}
+            {classSelect}
+            {firstRowItems && !hideCats ? <span className="crono-vr" aria-hidden /> : null}
+            {categoryChips}
+            {clearLink || hiddenLine ? (
+              <span className={cx("crono-fright", !hiddenLine && "max-sm:hidden")}>
+                {hiddenLine}
+                {clearLink}
               </span>
             ) : null}
           </div>
         </div>
+      )}
 
-        {calendarMode === "list" && periodNotice ? (
-          <div className="callout blue mt-3 flex-wrap items-center">
-            <Info className="h-4 w-4 shrink-0" aria-hidden />
-            {/* o aviso traz o título do evento: uma palavra mais larga que o card quebra em vez de passar dele */}
-            <span className="min-w-0 flex-1 wrap-anywhere">{periodNotice}</span>
-            <button className="link" onClick={(click) => showPeriod("upcoming", click.currentTarget)} type="button">
-              Ver só os próximos
-            </button>
-          </div>
-        ) : null}
-        {calendarMode === "list" && term && listEvents.length && otherPeriod && otherCount ? (
-          <div className="callout blue mt-3 flex-wrap items-center">
-            <Info className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="min-w-0 flex-1">
-              Também há {plural(otherCount, "resultado", "resultados")} em {periodNames[otherPeriod]}.
-            </span>
-            <button className="link" onClick={() => setPeriod(otherPeriod)} type="button">
-              Ver em {periodNames[otherPeriod]}
-            </button>
-          </div>
-        ) : null}
-        {hiddenByFilters && selectedEvent ? (
-          <div className="callout blue mt-3 flex-wrap items-center">
-            <Info className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="min-w-0 flex-1 wrap-anywhere">
-              &quot;{selectedEvent.title}&quot; não aparece na lista com os filtros atuais.
-            </span>
-            <button className="link" onClick={clearFilters} type="button">
-              {term ? "Limpar busca e filtros" : "Limpar filtros"}
-            </button>
-          </div>
-        ) : null}
-
-        <div ref={listRef} className="mt-3 max-sm:mt-2.5">
-          {calendarMode === "list" ? (
-            listBody()
-          ) : (
-            <MonthCalendar
-              cursor={cursor}
-              dayPanel={
-                // a lista do dia entra na grade, embaixo da semana dele; a grade continua larga
-                compact && selectedDayDate ? (
-                  <section
-                    key={selectedDay}
-                    ref={dayPanelRef}
-                    className="cal-day pop"
-                    aria-label={`Eventos de ${dayTitle(selectedDayDate)}`}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape" && !event.defaultPrevented) {
-                        event.preventDefault();
-                        closeDay();
-                      }
-                    }}
-                  >
-                    <button
-                      className="ib sm absolute right-3 top-3"
-                      aria-label="Fechar dia"
-                      onClick={closeDay}
-                      title="Fechar dia"
-                      type="button"
-                    >
-                      <X className="h-4 w-4" aria-hidden />
-                    </button>
-                    <DayEvents
-                      date={selectedDayDate}
-                      events={dayEvents}
-                      hideClass={role === "student" || role === "guardian"}
-                      highlight={term || null}
-                      level={3}
-                      selectedEventId={selectedEventId}
-                      showTeacher={showTeacher}
-                      titleRef={dayTitleRef}
-                      onOpen={openFromDay}
-                    />
-                  </section>
-                ) : null
-              }
-              events={scopedEvents}
-              count={counter}
-              emptyNote={calSearch?.note ?? monthEmptyNote}
-              strip={calSearch?.strip}
-              monthEventCount={monthEvents.length}
-              selectedDay={selectedDay}
-              selectedEventId={selectedEventId}
-              setCursor={setCursor}
-              onOpenEvent={openFromGrid}
-              onSelectDay={selectDay}
-            />
-          )}
-        </div>
-        {/* folga no fim da lista com o detalhe ao lado (useAsideRoom): a linha escolhida e o começo do
-            detalhe cabem juntos na tela, e no fim da página os dois cards terminam juntos */}
-        {asideOpen ? <div ref={asideRoomRef} aria-hidden /> : null}
-      </section>
-
-      {/* computador, na Agenda: detalhe ao lado, que acompanha a página (sem rolagem própria) */}
-      {asideOpen && selectedEvent ? (
-        <aside
-          ref={asideRef}
-          className="card pad rise relative min-w-0 xl:sticky xl:top-5"
-          style={{ "--i": 1 } as CSSProperties}
-          aria-label="Detalhe do evento"
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && !event.defaultPrevented) {
-              event.preventDefault();
-              closeAside();
-            }
-          }}
-        >
-          <button
-            className="ib sm absolute right-4 top-4 z-[1]"
-            aria-label="Fechar detalhe"
-            onClick={closeAside}
-            title="Fechar detalhe"
-            type="button"
-          >
-            <X className="h-4 w-4" aria-hidden />
+      {calendarMode === "list" && periodNotice ? (
+        <div className="callout blue crono-notice flex-wrap items-center">
+          <Info className="h-4 w-4 shrink-0" aria-hidden />
+          {/* o aviso traz o título do evento: uma palavra mais larga que a tela quebra em vez de passar dela */}
+          <span className="min-w-0 flex-1 wrap-anywhere">{periodNotice}</span>
+          <button className="link" onClick={(click) => showPeriod("upcoming", click.currentTarget)} type="button">
+            Ver só os próximos
           </button>
-          <div key={`evento-${selectedEvent.id}`} className="pop">
-            {renderDetail(selectedEvent)}
-          </div>
-        </aside>
+        </div>
       ) : null}
+      {calendarMode === "list" && term && listEvents.length && otherPeriod && otherCount ? (
+        <div className="callout blue crono-notice flex-wrap items-center">
+          <Info className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1">
+            Também há {plural(otherCount, "resultado", "resultados")} em {periodNames[otherPeriod]}.
+          </span>
+          <button className="link" onClick={() => setPeriod(otherPeriod)} type="button">
+            Ver em {periodNames[otherPeriod]}
+          </button>
+        </div>
+      ) : null}
+      {hiddenByFilters && selectedEvent ? (
+        <div className="callout blue crono-notice flex-wrap items-center">
+          <Info className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1 wrap-anywhere">
+            &quot;{selectedEvent.title}&quot; não aparece na lista com os filtros atuais.
+          </span>
+          <button className="link" onClick={clearFilters} type="button">
+            {term ? "Limpar busca e filtros" : "Limpar filtros"}
+          </button>
+        </div>
+      ) : null}
+
+      <div className={cx("crono-layout", asideOpen && "has-aside")}>
+        {calendarMode === "list" ? (
+          // self-start: com o detalhe ao lado, o card termina no fim do conteúdo; na lista longa, a folga do
+          // useAsideRoom leva o fim até o do painel
+          <section ref={listRef} className="card rise crono-listcard min-w-0 self-start" aria-label="Eventos do mês">
+            {listBody()}
+            {/* folga no fim da lista com o detalhe ao lado (useAsideRoom): a linha escolhida e o começo do
+                detalhe cabem juntos na tela, e no fim da página os dois cards terminam juntos */}
+            {asideOpen ? <div ref={asideRoomRef} aria-hidden /> : null}
+          </section>
+        ) : (
+          <MonthCalendar
+            cursor={cursor}
+            dayPanel={
+              // a lista do dia entra na grade, embaixo da semana dele; a grade continua larga
+              compact && selectedDayDate ? (
+                <section
+                  key={selectedDay}
+                  ref={dayPanelRef}
+                  className="cg-day pop"
+                  aria-label={`Eventos de ${dayTitle(selectedDayDate)}`}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape" && !event.defaultPrevented) {
+                      event.preventDefault();
+                      closeDay();
+                    }
+                  }}
+                >
+                  <button className="ib sm ghost cg-day-x" aria-label="Fechar dia" onClick={closeDay} title="Fechar dia" type="button">
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                  <DayEvents
+                    date={selectedDayDate}
+                    events={dayEvents}
+                    hideClass={role === "student" || role === "guardian"}
+                    highlight={term || null}
+                    level={3}
+                    selectedEventId={selectedEventId}
+                    showTeacher={showTeacher}
+                    titleRef={dayTitleRef}
+                    onNewEventOn={onNewEventOn}
+                    onOpen={openFromDay}
+                  />
+                </section>
+              ) : null
+            }
+            emptyNote={calendarNote()}
+            events={scopedEvents}
+            monthEventCount={monthEvents.length}
+            picker={
+              <MonthPicker
+                card
+                value={cursorIndex}
+                onChange={(key) => setCursor(indexMonth(key))}
+                counts={calCounts}
+                marks={calMarks}
+                min={calBounds.min}
+                max={calBounds.max}
+                noun={monthNoun}
+              />
+            }
+            selectedDay={selectedDay}
+            selectedEventId={selectedEventId}
+            setCursor={setCursor}
+            onOpenEvent={openFromGrid}
+            onSelectDay={selectDay}
+          />
+        )}
+
+        {/* computador, na Agenda: detalhe ao lado, que acompanha a página (sem rolagem própria) */}
+        {asideOpen && detailEvent ? (
+          <aside
+            ref={asideRef}
+            className="card rise crono-detail relative min-w-0 xl:sticky xl:top-5"
+            style={{ "--i": 1 } as CSSProperties}
+            aria-label={selectedEvent ? "Detalhe do evento" : "Próximo evento da lista"}
+            onKeyDown={(event) => {
+              if (selectedEvent && event.key === "Escape" && !event.defaultPrevented) {
+                event.preventDefault();
+                closeAside();
+              }
+            }}
+            // prévia: usar o painel (clique ou tecla de ação) escolhe o evento antes, para a ação valer para ele
+            onKeyDownCapture={
+              selectedEvent
+                ? undefined
+                : (event) => {
+                    if ((event.key === "Enter" || event.key === " ") && isControl(event.target)) {
+                      adoptPreview();
+                    }
+                  }
+            }
+            onPointerDownCapture={
+              selectedEvent
+                ? undefined
+                : (event) => {
+                    if (isControl(event.target)) {
+                      adoptPreview();
+                    }
+                  }
+            }
+          >
+            {/* a prévia não tem o que fechar: o X aparece com um evento escolhido */}
+            {selectedEvent ? (
+              <button
+                className="ib sm ghost crono-detail-x"
+                aria-label="Fechar detalhe"
+                onClick={closeAside}
+                title="Fechar detalhe"
+                type="button"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            ) : null}
+            <div key={`evento-${detailEvent.id}`} className="pop">
+              {renderDetail(detailEvent)}
+            </div>
+          </aside>
+        ) : null}
+      </div>
 
       {/* celular, tablet e Calendário: detalhe no Modal, com o foco no título do evento. O evento que
           veio da Agenda ao trocar de modo só fica marcado: o Modal abre quando a pessoa clica nele. */}
@@ -2780,7 +2760,7 @@ export function CalendarView({
           title="Detalhes do evento"
           initialFocusRef={detailTitleRef}
           onClose={() => onSelect(null)}
-          // rodapé fixo com a ação principal (Editar ou o lembrete); sem ação, ele some (cronograma.css)
+          // rodapé fixo com a ação principal (Editar); sem ação, ele some (cronograma.css)
           footer={<div ref={setModalFoot} className="ev-foot" />}
         >
           {renderDetail(selectedEvent, modalFoot)}
@@ -2788,4 +2768,30 @@ export function CalendarView({
       ) : null}
     </div>
   );
+}
+
+/** Junta nomes em frase: "A", "A e B", "A, B e C". */
+function joinAnd(items: string[]) {
+  return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+}
+
+/**
+ * Contexto embaixo do título: as turmas e as disciplinas dos eventos ("TADS 5, Matemática e Engenharia de
+ * Software"). Docente: só os eventos dele. Com mais de 3 disciplinas, só a contagem ("6 disciplinas").
+ * Administração: todas as turmas. Sem turma nenhuma, null (fica a dica de uso).
+ */
+function contextText(role: UserRole, list: AcademicEvent[], canManage: (event: AcademicEvent) => boolean) {
+  if (role === "admin") {
+    return "Datas da instituição e eventos de todas as turmas";
+  }
+  const own = role === "teacher" ? list.filter(canManage) : list;
+  const unique = (values: Array<string | null | undefined>) =>
+    [...new Set(values.filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const classNames = unique(own.map((event) => event.academicClass?.name));
+  if (!classNames.length) {
+    return null;
+  }
+  const subjects = unique(own.map((event) => event.subject?.name));
+  const subjectText = subjects.length > 3 ? `${subjects.length} disciplinas` : joinAnd(subjects);
+  return [classNames.join(", "), subjectText].filter(Boolean).join(", ");
 }

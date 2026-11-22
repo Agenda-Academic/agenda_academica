@@ -1,18 +1,19 @@
 "use client";
 
-import { BookOpen, ChevronRight, CircleAlert, Plus, School, Search, SearchX, UserRound, Users } from "lucide-react";
+import { BookOpen, ChevronRight, CircleAlert, GraduationCap, Plus, School, Search, SearchX, UserRound, Users } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { getClassStudents, getClasses, getCourses, getSubjects, searchUsers } from "@/lib/api";
 import { classTermLabel, countText, cx, errorMessage, latestTermLabel, normalizeText } from "@/lib/format";
 import type { AcademicContext, ClassSummary, Course, Subject, UserSummary } from "@/lib/types";
 import { useAppActions, useBackLayer, type ClassesTarget } from "./app-actions";
-import { ClassPanel, NewClassPanel } from "./classes-class-panel";
+import { ClassPanel, CoursePanel, CoursesPanel, NewClassPanel, NewCoursePanel } from "./classes-class-panel";
 import { AddOfferPanel, AddStudentsPanel, NewSubjectPanel, OfferPanel, SubjectPanel } from "./classes-panels";
 import { plural, refreshRemotes, useDebounced, useRemote, type PanelApi, type PanelView } from "./classes-shared";
 import { StudentPanel } from "./classes-student-panel";
 import { SavedPill } from "./dashboard-bits";
 import { Pager, usePaged } from "./pager";
-import { Drawer, EmptyState, ErrorState, Segmented, SectionTitle, primaryButton } from "./ui";
+import { Select, type SelectOption } from "./select";
+import { Drawer, EmptyState, ErrorState, PageHeader, Segmented, SectionTitle, primaryButton, secondaryButton } from "./ui";
 
 /**
  * Tela "Turmas e disciplinas" (só administração; desenho 5.3). Dona: área Admin.
@@ -48,9 +49,12 @@ export type ClassesData = {
 
 /** Turmas por página no card Turmas (com até 2 a mais, a lista mostra todas: não vale uma página para 1 ou 2). */
 const CLASS_PAGE = 8;
-/** O card Disciplinas acompanha a altura do card Turmas: de 3 a 10 disciplinas por página. */
-const SUBJECT_MIN = 3;
-const SUBJECT_MAX = 10;
+/**
+ * Disciplinas por página no card Disciplinas (com até 2 a mais, todas). O card termina na altura do próprio
+ * conteúdo, sem acompanhar o card Turmas: uma página pequena ao lado de uma lista de turmas curta mostraria 3 de 5
+ * disciplinas com paginação, com espaço de sobra.
+ */
+const SUBJECT_PAGE = 8;
 /** Alunos achados pela busca: 8 por página. A API devolve no máximo 20 (backend, UsersController). */
 const STUDENT_PAGE = 8;
 const STUDENT_API_LIMIT = 20;
@@ -423,6 +427,28 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
       }));
   }, [segmentClasses]);
 
+  const courseSelectOptions: SelectOption[] = [
+    { value: "", label: "Todos", description: "Turmas de todos os cursos" },
+    ...courseOptions.map((course) => ({
+      value: String(course.id),
+      label: course.code,
+      description: course.name,
+      keywords: course.name,
+      count: segmentClasses.filter((item) => item.courseId === course.id).length,
+    })),
+  ];
+  const termSelectOptions: SelectOption[] = [
+    { value: "", label: "Todos" },
+    ...termOptions.map((option) => ({
+      value: option.key,
+      label: option.label,
+      count: segmentClasses.filter((item) => inTerm(item, option.key)).length,
+    })),
+    ...(termFilter && !termOptions.some((option) => option.key === termFilter)
+      ? [{ value: termFilter, label: termFilter.replace("-", "/") }]
+      : []),
+  ];
+
   const filtersActive = Boolean(courseFilter || termFilter);
   const classFilter = (item: ClassSummary) =>
     (!courseFilter || String(item.courseId) === courseFilter) &&
@@ -459,17 +485,9 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
 
   const segmentSubjects = subjectSegment === "active" ? (data?.subjects ?? []) : (data?.archivedSubjects ?? []);
   const visibleSubjects = segmentSubjects.filter((item) => subjectMatches(item, words));
-  // o card Disciplinas acompanha a altura de uma página cheia do card Turmas: cada turma (77 px) vale um pouco mais
-  // que uma disciplina (64 px), e a linha de filtros do card Turmas vale mais uma. Conta o tamanho da página, não as
-  // linhas da página de agora: trocar a página das turmas não mexe no card Disciplinas
-  const classPageRows = Math.min(visibleClasses.length, pageSize(visibleClasses.length, CLASS_PAGE));
-  const subjectLimit = Math.min(
-    SUBJECT_MAX,
-    Math.max(SUBJECT_MIN, classPageRows + 2 + (classPaged.pageCount > 1 ? 1 : 0)),
-  );
-  // com uma turma só na lista (um filtro), a página das disciplinas não leva uma a mais: o card Turmas fica baixo e
-  // os dois cards terminariam a mais de 80 px um do outro
-  const subjectSize = pageSize(visibleSubjects.length, subjectLimit, classPageRows <= 1 ? 0 : 1);
+  // páginas de 8 disciplinas (com 9 ou 10, todas), como as turmas: o card não depende do tamanho do card Turmas
+  const subjectLimit = SUBJECT_PAGE;
+  const subjectSize = pageSize(visibleSubjects.length, subjectLimit);
   const subjectPaged = usePaged(visibleSubjects, subjectSize, subjectSig);
   // um filtro do card Turmas mudou o tamanho da página das disciplinas: a página continua no mesmo primeiro item
   const [subjectSizeSeen, setSubjectSizeSeen] = useState({
@@ -491,7 +509,7 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
     const index = visibleSubjects.findIndex((item) => item.id === pinnedSubject.id);
     if (index >= 0) {
       setPinShown(`subject-${pinnedSubject.id}-${pin?.sig}`);
-      const size = pageSize(visibleSubjects.length, subjectLimit, 1);
+      const size = pageSize(visibleSubjects.length, subjectLimit);
       subjectPaged.setPage(Math.floor(index / size) + 1);
     }
   }
@@ -555,6 +573,10 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
   const subjectsHit = visibleSubjects.length > 0;
   const studentsFirst = Boolean(term) && Boolean(data) && !classesHit && !subjectsHit && foundStudents.length > 0;
   const subjectsFirst = Boolean(term) && Boolean(data) && !classesHit && subjectsHit;
+
+  // Lado a lado (admin.css, a partir de 1360 px), os cards Turmas e Disciplinas terminam na altura do próprio
+  // conteúdo (a exceção da regra das colunas): o número de turmas e o de disciplinas não batem, e esticar um card
+  // deixaria um buraco dentro dele. A ação de criar fica só no botão do cabeçalho de cada card.
 
   /* ---------------------------------------------------------------- */
   /* Painel lateral (um por vez; o conteúdo troca e o Voltar volta)    */
@@ -827,6 +849,21 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
   const api: PanelApi = {
     push,
     back: () => requestBack(false),
+    backWith: (update) => {
+      if (stack.length <= 1) {
+        closeNow();
+        return;
+      }
+      swapRef.current = { mode: "open" };
+      holdFocus();
+      setBusy(false);
+      // o conteúdo anterior volta mudado (ex.: a turma com o curso recém-criado): ele abre de novo, no começo
+      setStack((current) =>
+        current.length > 1
+          ? [...current.slice(0, -2), { id: seq.current++, view: update(current[current.length - 2].view) }]
+          : current,
+      );
+    },
     close: closeNow,
     cancel: () => requestClose(),
     removed: (kind) => {
@@ -904,6 +941,12 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
       }
       case "newClass":
         return "Nova turma";
+      case "newCourse":
+        return "Novo curso";
+      case "courses":
+        return "Cursos";
+      case "course":
+        return data?.courses.find((item) => item.id === view.courseId)?.name ?? "Curso";
       case "subject": {
         const found = [...(data?.subjects ?? []), ...(data?.archivedSubjects ?? [])].find(
           (item) => item.id === view.subjectId,
@@ -931,6 +974,12 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
         return <ClassPanel {...common} view={view} />;
       case "newClass":
         return <NewClassPanel {...common} view={view} />;
+      case "newCourse":
+        return <NewCoursePanel {...common} view={view} />;
+      case "courses":
+        return <CoursesPanel {...common} view={view} />;
+      case "course":
+        return <CoursePanel {...common} view={view} />;
       case "subject":
         return <SubjectPanel {...common} view={view} />;
       case "newSubject":
@@ -1041,14 +1090,12 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
       .filter(Boolean)
       .join(" ");
     return (
+      // compacto como os outros vazios da tela; a criação fica só no botão azul do cabeçalho do card
       <EmptyState
+        compact
         icon={School}
         text={text}
-        hint="Crie a turma e depois adicione as disciplinas e os alunos."
-        action={{
-          label: "Criar turma",
-          onClick: () => openPanel({ kind: "newClass" }),
-        }}
+        hint="Use Nova turma para criar a primeira e depois adicione as disciplinas e os alunos."
       />
     );
   }
@@ -1083,11 +1130,7 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
         compact
         icon={BookOpen}
         text="Nenhuma disciplina cadastrada"
-        hint="Cadastre as disciplinas para ofertar nas turmas."
-        action={{
-          label: "Criar disciplina",
-          onClick: () => openPanel({ kind: "newSubject" }),
-        }}
+        hint="Use Nova disciplina para cadastrar as disciplinas que as turmas vão ofertar."
       />
     );
   }
@@ -1115,44 +1158,36 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
         </button>
       </div>
       <div className="admin-filters" role="group" aria-label="Filtros das turmas">
-        <select
-          className="input admin-f-course"
-          aria-label="Curso"
-          // o campo corta o nome comprido no fim (admin.css): a dica mostra o curso escolhido inteiro
-          title={courseOptions.find((course) => String(course.id) === courseFilter)?.name ?? "Todos os cursos"}
+        {/* filtros em pílula (amostra A): "Curso: Todos" e "Semestre: 2026/2", azuis quando ligados. O chip mostra a
+            sigla do curso; a lista mostra o nome inteiro */}
+        <Select
+          variant="filter"
+          size="sm"
+          prefix="Curso:"
+          ariaLabel="Curso"
+          active={Boolean(courseFilter)}
           disabled={!data}
           value={courseFilter}
-          onChange={(event) => {
-            setCourseFilter(event.target.value);
-          }}
-        >
-          <option value="">Todos os cursos</option>
-          {courseOptions.map((course) => (
-            <option key={course.id} value={String(course.id)}>
-              {course.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="input admin-f-term"
-          aria-label="Período"
+          onChange={(value) => setCourseFilter(value)}
+          onClear={() => setCourseFilter("")}
+          options={courseSelectOptions}
+          menuMinWidth={340}
+        />
+        <Select
+          variant="filter"
+          size="sm"
+          prefix="Semestre:"
+          ariaLabel="Semestre"
+          active={Boolean(termFilter)}
           disabled={!data}
           value={termFilter}
-          onChange={(event) => {
-            setTermFilter(event.target.value);
-          }}
-        >
-          <option value="">Todos os períodos</option>
-          {termOptions.map((option) => (
-            <option key={option.key} value={option.key}>
-              {option.label}
-            </option>
-          ))}
-          {termFilter && !termOptions.some((option) => option.key === termFilter) ? (
-            <option value={termFilter}>{termFilter.replace("-", "/")}</option>
-          ) : null}
-        </select>
-        {filtersActive ? (
+          onChange={(value) => setTermFilter(value)}
+          onClear={() => setTermFilter("")}
+          options={termSelectOptions}
+          menuMinWidth={260}
+        />
+        {/* cada filtro ligado tem o próprio X ("Limpar curso"); com os dois ligados, um link limpa os dois */}
+        {courseFilter && termFilter ? (
           <button className="link admin-clear" onClick={clearFilters} type="button">
             Limpar filtros
           </button>
@@ -1190,7 +1225,7 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
         <>
           <div className="admin-thead" aria-hidden>
             <span>Turma</span>
-            <span>Período</span>
+            <span>Semestre</span>
             <span>Alunos</span>
             <span />
           </div>
@@ -1205,14 +1240,6 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
               </li>
             ))}
           </ul>
-          {/* lado a lado (CSS, a partir de 1280 px), com poucas turmas: a lista termina numa linha "Nova turma", e o
-              card Turmas acaba perto do card Disciplinas, sem ser esticado com um vão embaixo da última turma */}
-          {segment === "active" && !term && classPaged.pageCount <= 1 ? (
-            <button className="admin-addrow" onClick={() => openPanel({ kind: "newClass" })} type="button">
-              <Plus className="h-4 w-4" aria-hidden />
-              Nova turma
-            </button>
-          ) : null}
         </>
       ) : (
         <div className="admin-rows-pad">{classesEmpty()}</div>
@@ -1229,7 +1256,7 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
   const subjectsCard = (
     <section
       ref={subjectsCardRef}
-      className="card pad duo-side admin-disc"
+      className={cx("card pad duo-side admin-disc", !firstLoad && !shownSubjects.length && "is-empty")}
       aria-labelledby="disciplinas-titulo"
       aria-busy={firstLoad || undefined}
     >
@@ -1272,41 +1299,43 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
           <ClassRowsSkeleton compact />
         </div>
       ) : shownSubjects.length ? (
-        <ul
-          className="admin-dlist"
-          aria-label={subjectSegment === "active" ? "Disciplinas ativas" : "Disciplinas arquivadas"}
-        >
-          {shownSubjects.map((item) => (
-            <li key={item.id}>
-              <button
-                className="admin-drow"
-                data-row={`subject-${item.id}`}
-                onClick={() => openPanel({ kind: "subject", subjectId: item.id })}
-                type="button"
-              >
-                <span className="admin-d-main">
-                  <span className="admin-d-t">{item.name}</span>
-                  <span className={cx("admin-d-s", !item.usedIn && subjectSegment === "active" && "none")}>
-                    <span className="admin-code">{item.code}</span>
-                    {subjectSegment === "archived"
-                      ? "arquivada"
-                      : item.usedIn
-                        ? `usada em ${plural(item.usedIn, "turma", "turmas")}`
-                        : "ainda sem turma"}
-                  </span>
-                  {savedRow === `subject-${item.id}` ? (
-                    <span className="mt-1.5 flex">
-                      <SavedPill />
+        <>
+          <ul
+            className="admin-dlist"
+            aria-label={subjectSegment === "active" ? "Disciplinas ativas" : "Disciplinas arquivadas"}
+          >
+            {shownSubjects.map((item) => (
+              <li key={item.id}>
+                <button
+                  className="admin-drow"
+                  data-row={`subject-${item.id}`}
+                  onClick={() => openPanel({ kind: "subject", subjectId: item.id })}
+                  type="button"
+                >
+                  <span className="admin-d-main">
+                    <span className="admin-d-t">{item.name}</span>
+                    <span className={cx("admin-d-s", !item.usedIn && subjectSegment === "active" && "none")}>
+                      <span className="admin-code">{item.code}</span>
+                      {subjectSegment === "archived"
+                        ? "arquivada"
+                        : item.usedIn
+                          ? `usada em ${plural(item.usedIn, "turma", "turmas")}`
+                          : "ainda sem turma"}
                     </span>
-                  ) : null}
-                </span>
-                <ChevronRight className="admin-go" aria-hidden />
-              </button>
-            </li>
-          ))}
-        </ul>
+                    {savedRow === `subject-${item.id}` ? (
+                      <span className="mt-1.5 flex">
+                        <SavedPill />
+                      </span>
+                    ) : null}
+                  </span>
+                  <ChevronRight className="admin-go" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       ) : (
-        <div className="mt-3.5">{subjectsEmpty()}</div>
+        <div className="admin-disc-empty mt-3.5">{subjectsEmpty()}</div>
       )}
       {!firstLoad && subjectPaged.pageCount > 1 ? (
         <div className="admin-disc-foot">
@@ -1423,8 +1452,28 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
     </section>
   );
 
+  const pageSub = !data
+    ? "Carregando"
+    : `${countText(activeCount, "turma ativa", "turmas ativas")}, ${countText(data.subjects.length, "disciplina", "disciplinas")} e ${countText(data.courses.length, "curso", "cursos")}`;
+
   return (
     <div className="grid gap-5">
+      <PageHeader
+        title="Turmas e disciplinas"
+        subtitle={pageSub}
+        actions={
+          <button
+            className={secondaryButton}
+            disabled={!data}
+            onClick={() => openPanel({ kind: "courses" })}
+            type="button"
+          >
+            <GraduationCap className="h-4 w-4" aria-hidden />
+            Cursos
+            {data ? <span className="admin-n">{data.courses.length}</span> : null}
+          </button>
+        }
+      />
       {nothingFound ? (
         nothingCard
       ) : (

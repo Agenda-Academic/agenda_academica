@@ -1,12 +1,13 @@
 "use client";
 
-import { Bell, Loader2, Save } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { cx } from "@/lib/format";
-import { reminderOptions, roleLabels } from "@/lib/meta";
+import { roleLabels } from "@/lib/meta";
 import type { User } from "@/lib/types";
 import { ProfileGuardians } from "./profile-guardians";
 import { ProfileStudents } from "./profile-students";
+import { DefaultReminderSelect, ReminderChannels } from "./reminders-view";
 import { ConfirmDialog, Field, Modal } from "./ui";
 
 export type ProfileFormState = {
@@ -50,7 +51,7 @@ export function ProfileModal({
   const nameRef = useRef<HTMLInputElement>(null);
   const prefsTabRef = useRef<HTMLButtonElement>(null);
   const linksTabRef = useRef<HTMLButtonElement>(null);
-  const introRef = useRef<HTMLDivElement>(null);
+  const reminderRef = useRef<HTMLButtonElement>(null);
   const formId = useId();
   const nameErrorId = useId();
   const tabsId = useId();
@@ -59,17 +60,14 @@ export function ProfileModal({
   const linksLabel = user.role === "student" ? "Responsáveis" : user.role === "guardian" ? "Alunos" : null;
   // a aba pedida só vale para quem tem a dos vínculos (aluno e responsável)
   const [tab, setTab] = useState<ProfileTab>(() => (linksLabel ? initialTab : "prefs"));
-  // no toque, o foco não entra no campo do nome (o teclado subiria cobrindo a folha): fica na aba ou no topo.
-  // Aberto na aba dos vínculos, o foco vai para a própria aba (a pessoa vê onde está e anda com as setas)
-  const [finePointer] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches);
+  // ao abrir, o foco nunca vai para o campo do nome (no celular o teclado subiria cobrindo a folha, e o anel azul no
+  // nome parecia pedir para trocá-lo): fica na aba aberta (a pessoa vê onde está e anda com as setas) ou, sem abas,
+  // no primeiro controle que não abre teclado, a antecedência padrão
   const [openedOnLinks] = useState(() => Boolean(linksLabel) && initialTab === "links");
-  const initialFocusRef = openedOnLinks ? linksTabRef : finePointer ? nameRef : linksLabel ? prefsTabRef : introRef;
+  const initialFocusRef = openedOnLinks ? linksTabRef : linksLabel ? prefsTabRef : reminderRef;
 
   const dirty =
     cleanName(form.fullName) !== cleanName(initial.fullName) || form.defaultReminderMinutes !== initial.defaultReminderMinutes;
-  const options = reminderOptions.some((option) => option.value === initial.defaultReminderMinutes)
-    ? reminderOptions
-    : [...reminderOptions, { value: initial.defaultReminderMinutes, label: `${initial.defaultReminderMinutes} minutos antes` }];
 
   function requestClose() {
     if (saving) {
@@ -137,7 +135,7 @@ export function ProfileModal({
           )
         }
       >
-        <div ref={introRef} tabIndex={-1} className="flex items-center gap-3.5 rounded-2xl bg-surface-2 p-4 outline-none">
+        <div className="flex items-center gap-3.5 rounded-2xl bg-surface-2 p-4">
           <span className="disp flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-[15px] font-bold text-brand-ink">
             {user.initials ?? (user.fullName ?? user.email).slice(0, 2).toUpperCase()}
           </span>
@@ -212,31 +210,17 @@ export function ProfileModal({
                 />
               </Field>
 
-              <Field label="Lembrete padrão" hint="usado ao ativar novos lembretes">
-                <select
-                  className="input"
-                  value={form.defaultReminderMinutes}
-                  onChange={(event) => setForm({ ...form, defaultReminderMinutes: event.target.value })}
-                >
-                  {options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              {/* o mesmo controle, as mesmas opções e os mesmos textos da tela Lembretes */}
+              <DefaultReminderSelect
+                value={Number(form.defaultReminderMinutes)}
+                keep={Number(initial.defaultReminderMinutes)}
+                buttonRef={reminderRef}
+                onChange={(minutes) => setForm({ ...form, defaultReminderMinutes: String(minutes) })}
+              />
 
-              {/* o canal num quadro e a observação embaixo, como no Figma; o aviso é no próprio sistema */}
-              <div className="grid gap-2">
-                <span className="lbl">Avisos</span>
-                <div className="flex items-start gap-3 rounded-2xl bg-surface-2 px-4 py-3">
-                  <Bell className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
-                  <span className="min-w-0 text-sm leading-5">
-                    <span className="block font-bold text-ink">No sistema</span>
-                    <span className="block text-muted">Na hora marcada, o aviso aparece no Painel e em Lembretes.</span>
-                  </span>
-                </div>
-                <p className="field-help !mt-1">Também chega no e-mail da sua conta.</p>
+              <div className="prof-ch">
+                <span className="lbl">Onde o aviso chega</span>
+                <ReminderChannels email={user.email} />
               </div>
             </div>
           </form>

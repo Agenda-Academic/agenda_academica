@@ -1,53 +1,726 @@
-/* Gestão (manage-view.tsx e gestao-row-menu.tsx). Dono: grupo gestao.
-   Entra no globals.css dentro de @layer components, antes do ux.css. Tokens de :root (--brand, --ink,
-   --muted, --line...). A lista mostra um mês por vez com o cabeçalho e a faixa de meses do Cronograma
-   (.crono-bar, .crono-strip, .crono-pager, de month-pager.tsx e cronograma.css). */
+/* Gestão (manage-view.tsx e gestao-row-menu.tsx). Dono: grupo gestao. Direção visual A ("Claro e organizado").
+   Entra no globals.css dentro de @layer components, antes do ux.css: as regras que disputam com o ux.css começam
+   com "html" e repetem a classe para ganhar na especificidade. Tokens de :root (--ink, --muted, --line, --brand,
+   --amber*, --green*...). A tela: cabeçalho (título de 26px e "Novo evento"), abas sublinhadas (docente),
+   indicadores, filtros numa linha e um card com as seções (visão geral) ou a lista do período (por mês). */
 
-/* ---------- filtros: período ("Próximos 118") e origem (administração) ---------- */
-.gestao-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px 28px;
-  margin-top: 20px;
+/* ---------- cabeçalho, abas e espaçamento ---------- */
+/* celular: as ações do cabeçalho na largura toda, a principal primeiro */
+@media (max-width: 639px) {
+  .gx-head .pagehead-a {
+    width: 100%;
+  }
+  .gx-head .pagehead-a > .btn {
+    flex: 1 1 100%;
+  }
+  .gx-head .pagehead-a > .btn-p {
+    order: -1;
+  }
 }
-.gestao-seg .n {
-  font-size: 12px;
-  font-weight: 650;
-  color: var(--muted);
+.gx-tabs {
+  margin: 18px 0 24px;
 }
-.gestao-seg .on .n {
-  color: var(--ink-3);
+.gx-tabs .badge {
+  margin-left: 2px;
 }
-.gestao-origin {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
+.gx-gap {
+  height: 24px;
+}
+.gx-notice {
+  margin-bottom: 24px;
+}
+.gx-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+.gx-listwrap {
   min-width: 0;
-  max-width: 100%;
+  scroll-margin-top: 16px;
 }
-.gestao-origin-l {
-  padding-bottom: 12px;
-  font-size: 13px;
-  font-weight: 650;
+
+/* ---------- indicadores (4 em linha a partir de 1100px, 2 x 2 abaixo) ---------- */
+html .kpis.gx-kpis.gx-kpis.gx-kpis {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (min-width: 1100px) {
+  html .kpis.gx-kpis.gx-kpis.gx-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+html .gx-kpis .kpi {
+  display: flex;
+  flex-direction: column;
+  min-height: 112px;
+  /* sem padding próprio: vale o global (18px 20px), o mesmo dos indicadores do Painel */
+  border: 1px solid var(--line);
+}
+/* topo de 24 px e número com a margem e a entrelinha globais: o número e a dica na mesma altura do Painel */
+html .gx-kpis .kpi-top {
+  min-height: 24px;
+}
+html .gx-kpis .kpi-label {
+  font-size: var(--fs-13);
+}
+html .gx-kpis .kpi-val {
+  font-size: var(--fs-26);
+}
+html .gx-kpis .kpi-val small {
+  margin-left: 6px;
   color: var(--muted);
+}
+html .gx-kpis .kpi-hint {
+  margin-top: 6px;
+}
+html .gx-kpis .kpi.attn .kpi-hint {
+  color: #92400e;
+}
+html .gx-kpis .kpi.gx-ok :is(.kpi-ico) {
+  color: var(--green);
+}
+html .gx-kpis .kpi.gx-ok .kpi-hint {
+  color: var(--green);
+  font-weight: 600;
+}
+html .gx-kpis .kpi .gx-bar {
+  margin-top: 10px;
+}
+/* "2 de 2 avaliações" numa linha só; abaixo de 480 a palavra sai ("2 de 2", o rótulo já diz o que é) */
+html .gx-kpis .kpi-val {
   white-space: nowrap;
 }
-/* abaixo de 1100px: listas de escolha, lado a lado quando há duas */
-.gestao-selects {
-  display: grid;
-  gap: 12px;
-  margin-top: 20px;
-}
-.gestao-selects.two {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-/* "Da instituição 115" não cabe em meia largura no celular: uma lista embaixo da outra */
 @media (max-width: 479px) {
-  .gestao-selects.two {
-    grid-template-columns: minmax(0, 1fr);
+  .gx-kpis .gx-kpi-noun {
+    display: none;
   }
+}
+@media (max-width: 639px) {
+  /* os 2 cards de cada fila com a mesma altura (a fila estica os dois) */
+  html .kpis.gx-kpis.gx-kpis.gx-kpis {
+    align-items: stretch;
+  }
+  html .gx-kpis .kpi {
+    min-height: 0;
+    padding: 14px;
+  }
+  html .gx-kpis .kpi-hint {
+    font-size: var(--fs-12);
+  }
+  /* rótulo de 1 ou 2 linhas na grade 2 x 2: os números começam na mesma altura nos dois cards da fila */
+  html .gx-kpis .kpi-top {
+    min-height: 36px;
+    align-items: flex-start;
+  }
+}
+
+/* barra de progresso (notas lançadas; notas publicadas no indicador) */
+.gx-bar {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--fill);
+}
+.gx-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--amber-bar);
+}
+.gx-bar.green > i {
+  background: var(--green-bar);
+}
+.gx-bar.zero {
+  background: color-mix(in srgb, var(--amber-line) 45%, var(--surface));
+}
+
+/* ---------- filtros: período à esquerda, disciplina ou origem à direita ---------- */
+.gx-fbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.gx-fright {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  min-width: 0;
+}
+html .gx-chip {
+  height: 36px;
+}
+@media (max-width: 639px) {
+  /* o período ocupa a largura toda, em colunas iguais: nenhuma opção some à direita nem rola escondida */
+  html .gx-fbar > .seg.gx-seg {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    width: 100%;
+    overflow: visible;
+  }
+  html .gx-fbar > .seg.gx-seg button {
+    min-width: 0;
+    padding: 0 8px;
+  }
+  .gx-fright {
+    margin-left: 0;
+  }
+}
+/* celular: com 4 opções (Visão geral, Próximos, Passados, Todos), a grade fica 2 x 2 */
+@media (max-width: 519px) {
+  html .gx-fbar > .seg.gx-seg-4 {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- card e seções ---------- */
+html .gx-card {
+  overflow: clip;
+  padding: 0;
+}
+.gx-sec {
+  padding: 4px 20px 10px;
+}
+.gx-sec + .gx-sec {
+  border-top: 1px solid var(--line);
+}
+.gx-sec.attn {
+  background: color-mix(in srgb, var(--amber-bg) 45%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--amber-bar);
+}
+.gx-sec.ok {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  background: color-mix(in srgb, var(--green-bg) 55%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--green-bar);
+}
+.gx-sech {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 0 10px;
+}
+.gx-sech h3 {
+  font-size: var(--fs-16);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.gx-sech .gx-lnk {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  margin-left: auto;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--link);
+}
+.gx-sech .gx-lnk:hover {
+  text-decoration: underline;
+}
+.gx-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px 0 2px;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--muted);
+}
+.gx-sub > span {
+  font-weight: 500;
+  color: var(--faint);
+}
+.gx-allgood {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  font-size: var(--fs-14);
+  color: var(--ink-2);
+}
+.gx-allgood svg {
+  color: var(--green);
+}
+.gx-allgood b {
+  font-weight: 700;
+  color: var(--ink);
+}
+.gx-none {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0 14px;
+  font-size: var(--fs-14);
+  color: var(--muted);
+}
+.gx-pad {
+  padding: 16px 20px;
+}
+.gx-pad + .gx-sec {
+  border-top: 0;
+}
+html .gx-empty {
+  padding: 28px 16px;
+}
+.gx-sec-top {
+  border-bottom: 1px solid var(--line);
+}
+.gx-sec-top .gx-sech {
+  padding: 16px 0;
+}
+.gx-sec-top + .gx-sec {
+  border-top: 0;
+}
+
+/* ---------- linha do evento ---------- */
+.gx-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gx-row {
+  position: relative;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.gx-row + .gx-row {
+  box-shadow: 0 -1px 0 var(--line-2);
+}
+.gx-sec.attn .gx-row + .gx-row {
+  box-shadow: 0 -1px 0 var(--amber-line);
+}
+.gx-row:hover {
+  background: var(--surface-2);
+}
+.gx-sec.attn .gx-row:hover {
+  background: color-mix(in srgb, var(--amber-bg) 80%, var(--surface));
+}
+.gx-row.editing {
+  background: var(--brand-50);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+.gx-row.gx-req {
+  cursor: default;
+}
+.gx-main {
+  min-width: 0;
+}
+.gx-t {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.gx-title {
+  min-width: 0;
+  font-size: var(--fs-15);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.gx-row.closed .gx-title {
+  color: var(--ink-3);
+}
+.gx-title-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.gx-title-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.gx-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+html .gx-pills .stat {
+  height: 22px;
+  font-size: var(--fs-12);
+}
+.gx-m {
+  margin-top: 3px;
+  font-size: var(--fs-13);
+  line-height: 1.45;
+  color: var(--muted);
+}
+.gx-m > .cat {
+  margin-right: 10px;
+  vertical-align: baseline;
+}
+.gx-aud {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.gx-when {
+  display: grid;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.gx-when b {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink);
+}
+.gx-when span {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.gx-when .soon {
+  font-weight: 600;
+  color: var(--amber);
+}
+.gx-nt {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.gx-prog {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.gx-prog-l {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.gx-prog-l b {
+  font-weight: 600;
+  color: var(--ink);
+}
+html .gx-prog .stat {
+  height: 20px;
+  padding: 0 7px;
+  font-size: var(--fs-12);
+}
+.gx-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+html .gx-acts .btn-sm {
+  height: 34px;
+  padding: 0 12px;
+}
+.gx-more {
+  display: grid;
+  place-items: center;
+}
+.gx-req-ico {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--amber-line);
+  border-radius: var(--r-md);
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+/* tabela a partir de 1440px (abaixo, até o notebook de 1366, o cartão): Evento | Quando | Notas | Ações | ... (sem notas na lista: a coluna sai). As colunas
+   fixas têm a largura do conteúdo delas ("18:00, em 10 dias", "Publicadas em 15/11", "Publicar notas" e "Editar"):
+   o resto fica com o evento, para a linha "Engenharia de Software, TADS 5, Sala 7, Bloco A" caber inteira a 1440.
+   --gx-acts: com "Precisa de atenção" no card, as ações são mais largas ("Baixar planilha" e "Lançar notas") e o
+   card inteiro usa a mesma largura, para Quando e Notas ficarem alinhados entre as seções.
+   --gx-more: a coluna dos três pontos, com 44 px no toque. */
+.gx {
+  --gx-more: 32px;
+}
+/* a mesma regra do botão "..." (.gestao-more): 44 px no toque e abaixo de 768 px */
+@media (pointer: coarse), (max-width: 767px) {
+  .gx {
+    --gx-more: 44px;
+  }
+}
+@media (min-width: 1440px) {
+  .gx-card {
+    --gx-when: 124px;
+    --gx-state: 160px;
+    --gx-acts: 224px;
+  }
+  .gx-card:has(.gx-sec.attn) {
+    --gx-acts: 264px;
+  }
+  .gx-row,
+  .gx-colhead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--gx-when) var(--gx-state) var(--gx-acts) var(--gx-more);
+    align-items: center;
+    column-gap: 16px;
+  }
+  .gx-row {
+    min-height: 64px;
+    margin: 0 -12px;
+    padding: 10px 12px;
+  }
+  .no-state .gx-row,
+  .gx-colhead.no-state {
+    grid-template-columns: minmax(0, 1fr) calc(var(--gx-when) + 16px) var(--gx-acts) var(--gx-more);
+  }
+  .no-state .gx-state {
+    display: none;
+  }
+  .gx-date {
+    display: none !important;
+  }
+  .gx-colhead {
+    padding: 12px 0 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: var(--fs-12);
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .gx-colhead .r {
+    grid-column: -3 / -1;
+    text-align: right;
+  }
+  .gx-colhead + .gx-list > .gx-row:first-child,
+  .gx-colhead + div .gx-row:first-child {
+    margin-top: 4px;
+  }
+}
+/* telas largas (1680 px ou mais): mais ar entre as colunas, que seguem com a largura do conteúdo (o vão fica no evento) */
+@media (min-width: 1680px) {
+  .gx-card {
+    --gx-when: 136px;
+    --gx-state: 176px;
+    --gx-acts: 232px;
+  }
+  .gx-card:has(.gx-sec.attn) {
+    --gx-acts: 264px;
+  }
+  .gx-row,
+  .gx-colhead {
+    column-gap: 24px;
+  }
+}
+
+/* cartão abaixo de 1440px: selo da data, título, para quem e quando; a situação das notas e a ação principal
+   ("Editar", "Lançar notas", "Ver notas") sempre à vista, nunca só no "..." */
+@media (max-width: 1439px) {
+  .gx-row {
+    margin: 0 -10px;
+    padding: 12px 10px;
+  }
+  .gx-when {
+    display: none;
+  }
+  .gx-state:empty,
+  .gx-acts:empty,
+  .gx-more:empty {
+    display: none;
+  }
+  .gx-colhead {
+    display: none;
+  }
+}
+/* notebook e tablet (640 a 1439): duas linhas. Em cima, o título com as notas, a ação e o "..." à direita; embaixo,
+   o detalhe (categoria, para quem e quando) na largura toda, numa linha só a partir de 1280. O .gx-main some do
+   desenho (display: contents) para o título e o detalhe ocuparem áreas próprias da grade */
+@media (min-width: 640px) and (max-width: 1439px) {
+  .gx-row {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto auto var(--gx-more);
+    grid-template-areas:
+      "date title state acts more"
+      "date meta meta meta meta";
+    align-items: center;
+    column-gap: 16px;
+    row-gap: 2px;
+  }
+  .gx-date {
+    grid-area: date;
+    align-self: start;
+  }
+  .gx-main {
+    display: contents;
+  }
+  .gx-t {
+    grid-area: title;
+    align-self: end;
+    min-height: 34px;
+  }
+  .gx-m {
+    grid-area: meta;
+    align-self: start;
+    margin-top: 0;
+  }
+  .gx-state {
+    grid-area: state;
+    justify-self: end;
+  }
+  .gx-acts {
+    grid-area: acts;
+    flex-wrap: nowrap;
+  }
+  .gx-more {
+    grid-area: more;
+  }
+  /* "1 de 30 com nota" e "Ocultas" lado a lado, a barra embaixo: a linha do título não cresce */
+  .gx-prog {
+    width: 200px;
+  }
+  .gx-prog-l {
+    flex-wrap: nowrap;
+    margin-bottom: 4px;
+  }
+  /* "Precisa de atenção" (planilha e lançar): a situação e as duas ações ganham uma linha própria embaixo */
+  .gx-sec.attn .gx-row {
+    grid-template-areas:
+      "date title title title more"
+      "date meta meta meta meta"
+      "date state state acts acts";
+    row-gap: 4px;
+  }
+  .gx-sec.attn .gx-state {
+    justify-self: start;
+    margin-top: 8px;
+  }
+  .gx-sec.attn .gx-acts {
+    margin-top: 8px;
+  }
+}
+/* a partir de 1280 (notebook de 1366), com "Precisa de atenção", as ações cabem na linha do título */
+@media (min-width: 1280px) and (max-width: 1439px) {
+  .gx-sec.attn .gx-row {
+    grid-template-areas:
+      "date title state acts more"
+      "date meta meta meta meta";
+    row-gap: 2px;
+  }
+  .gx-sec.attn .gx-state {
+    justify-self: end;
+    margin-top: 0;
+  }
+  .gx-sec.attn .gx-acts {
+    margin-top: 0;
+  }
+}
+/* celular: selo, título e "..." em cima; embaixo do título, a situação das notas e a ação dividem a linha
+   ("Depois da prova" à esquerda, "Editar" à direita). Sem espaço para as duas, a ação desce e ocupa a largura */
+@media (max-width: 639px) {
+  .gx-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    column-gap: 12px;
+    row-gap: 8px;
+  }
+  .gx-date {
+    order: 0;
+    flex: none;
+  }
+  /* selo 48 + "..." + os dois vãos: o título ocupa o resto e força a situação e as ações para baixo */
+  .gx-main {
+    order: 1;
+    flex: 1 1 calc(100% - 48px - var(--gx-more) - 24px);
+    padding-top: 2px;
+  }
+  .gx-more {
+    order: 2;
+    flex: none;
+  }
+  .gx-acts {
+    order: 4;
+  }
+  .gx-state {
+    order: 3;
+    flex: 1000 1 auto;
+    align-self: center;
+    min-width: 0;
+    margin-left: 60px;
+  }
+  .gx-state:empty + .gx-acts {
+    margin-left: 60px;
+  }
+  .gx-acts {
+    flex: 1 0 auto;
+    flex-wrap: nowrap;
+  }
+  html .gx-acts .btn {
+    flex: 1 1 auto;
+  }
+  .gx-prog {
+    max-width: 320px;
+  }
+}
+@media (max-width: 479px) {
+  .gx-sec,
+  .gx-pad {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+  .gx-row {
+    column-gap: 10px;
+  }
+  .gx-main {
+    flex-basis: calc(100% - 48px - var(--gx-more) - 20px);
+  }
+  .gx-state {
+    margin-left: 58px;
+  }
+  .gx-state:empty + .gx-acts {
+    margin-left: 58px;
+  }
+  html .gx-acts .btn {
+    height: 44px;
+  }
+}
+/* toque (decisão 2): 44 px de alvo com o dedo e também abaixo de 768 px, nos controles próprios da Gestão */
+@media (pointer: coarse), (max-width: 767px) {
+  html .gx-head .btn,
+  html .gx-stack .btn,
+  html .gx-empty .btn,
+  html .gx-chip {
+    min-height: 44px;
+  }
+  /* a seta do botão dividido ("Novo evento para uma disciplina") também com 44 px de largura */
+  html .gx-head .split > .btn:last-child {
+    min-width: 44px;
+  }
+  html .gx-acts .btn-sm {
+    height: 44px;
+  }
+  html .gx-fbar > .seg.gx-seg button {
+    height: 44px;
+  }
+  /* "Ver os N próximos": link solto, com a altura de toque */
+  .gx-sech .gx-lnk {
+    min-height: 44px;
+  }
+  /* o título que abre o editor: a área de toque cresce para cima e para baixo sem mudar a linha */
+  .gx-title-btn {
+    margin-block: -12px;
+    padding-block: 12px;
+  }
+}
+
+/* selo da data com o dia da semana em maiúsculas ("SEG 23"), como no Cronograma e no Painel (decisão 1) */
+html .dbadge.gx-date small {
+  text-transform: uppercase;
 }
 
 /* ---------- aviso da busca do menu (a única busca da tela) ---------- */
@@ -55,13 +728,13 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 14px;
   padding: 6px 6px 6px 12px;
   min-height: 44px;
-  border-radius: 12px;
+  border: 1px solid var(--brand-200);
+  border-radius: var(--r-md);
   background: var(--brand-50);
-  color: var(--brand-ink);
-  font-size: 14px;
+  color: var(--brand-h);
+  font-size: var(--fs-14);
   line-height: 1.4;
 }
 .gestao-searchnote b {
@@ -74,7 +747,6 @@
   gap: 4px;
   margin-left: auto;
 }
-/* no celular, o texto em cima e as ações embaixo, à direita (sem estourar a largura) */
 @media (max-width: 639px) {
   .gestao-searchnote {
     flex-wrap: wrap;
@@ -87,231 +759,32 @@
   }
 }
 
-/* ---------- mês: "‹ Janeiro de 2027 ›  16 eventos" e a faixa dos meses ---------- */
-.crono-nav.gestao-nav {
-  margin: 22px 0 0;
-  padding: 0;
-  border: 0;
+/* ---------- menus: "Mais ações" (três pontos) e "Para qual disciplina?" ---------- */
+html .ib.sm.gestao-more.gestao-more {
+  width: 32px;
+  height: 32px;
 }
-/* o título do mês fica abaixo do título do card na hierarquia */
-.gestao-nav .crono-title {
-  font-size: 19px;
-}
-.gestao-nav-count {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--muted);
-  white-space: nowrap;
-}
-/* celular: a contagem já está no chip do mês */
-@media (max-width: 479px) {
-  .gestao-nav-count {
-    display: none;
-  }
-}
-/* pé do mês embaixo da tabela: a última linha já tem a borda */
-.gestao-foot .crono-pager {
-  margin-top: 0;
-  border-top: 0;
-}
-.gestao-foot:has(.crono-pager) {
-  padding-top: 18px;
-}
-
-/* ---------- tabela (a partir de 1280px) ---------- */
-/* o nome das colunas fica preso no alto enquanto o mês rola (o card usa overflow: clip, que não segura o sticky) */
-.gestao-tbl thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  box-shadow: inset 0 -1px 0 var(--line);
-}
-/* mês comprido rolado: a barra do mês saiu pelo alto e o nome dele vai junto do cabeçalho preso */
-.gestao-th-month {
-  margin-left: 14px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--brand-50);
-  color: var(--brand-ink);
-  font-weight: 700;
-  white-space: nowrap;
-}
-/* lista curta, tudo de uma vez: o nome do mês (com o ano) antes do primeiro evento de cada um */
-html .gestao-tbl .gestao-month-row th {
-  position: static;
-  height: auto;
-  padding: 18px 24px 8px !important;
-  background: #fff;
-  box-shadow: none;
-  border-bottom: 1px solid var(--line-2);
-  font-family: var(--disp);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--ink);
-}
-.gestao-month-row .n,
-.gestao-group-h .n {
-  margin-left: 10px;
-  font-family: var(--font-sans, inherit);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.gestao-group + .gestao-group {
-  margin-top: 18px;
-}
-.gestao-group-h {
-  margin-bottom: 8px;
-  font-family: var(--disp);
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--ink);
-}
-
-/* "Notas" com texto e o espaço que guarda o lugar dele nas linhas sem notas: Editar e Mais ações alinhados */
-.gestao-notas {
-  width: 88px;
-  flex-shrink: 0;
-  padding: 0 10px;
-}
-.gestao-slot {
-  display: inline-block;
-  height: 1px;
-}
-
-/* ---------- linhas curtas (abaixo de 1280px) ---------- */
-.gestao-rows {
-  display: grid;
-  border-top: 1px solid var(--line-2);
-}
-.gestao-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 3px 0;
-  border-bottom: 1px solid var(--line-2);
-}
-.gestao-row:last-child {
-  border-bottom: 0;
-}
-.gestao-row-main {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  margin-left: -8px;
-  padding: 8px;
-  border-radius: 12px;
-  text-align: left;
-  color: var(--ink);
-  transition: background-color 0.15s ease;
-}
-.gestao-row-main:hover {
-  background: var(--surface-2);
-}
-.gestao-row-main:hover .ev-date {
-  background: #fff;
-}
-.gestao-row.editing .gestao-row-main {
-  background: var(--brand-50);
-  box-shadow: inset 3px 0 0 var(--brand);
-}
-.gestao-row.closed .gestao-row-t {
-  color: var(--ink-3);
-}
-.gestao-row.closed .ev-date {
-  opacity: 0.7;
-}
-.gestao-row-txt {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-/* o título inteiro, sem corte: os importados do calendário são longos ("Dia Nacional de Zumbi e da Consciência
-   Negra (Feriado Nacional)") e o cartão é curto */
-.gestao-row-t {
-  display: block;
-  font-size: 15px;
-  font-weight: 650;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-}
-/* categoria, hora e para quem é: o texto corre depois da etiqueta e quebra a linha inteiro, sem reticências
-   (no celular a turma e a disciplina só aparecem aqui) */
-.gestao-row-s {
-  display: block;
-  min-width: 0;
-  margin-top: 4px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-.gestao-row-s > .pill {
-  display: inline-flex;
-  margin-right: 8px;
-  vertical-align: top;
-}
-.gestao-row-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
-}
-/* o lápis diz que a linha abre a edição: no mesmo botão de ícone com contorno do "Mais ações" ao lado (.ib.sm) */
-.gestao-row-pen {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  flex-shrink: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: #fff;
-  color: var(--ink-3);
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-.gestao-row-main:hover .gestao-row-pen {
+html .ib.gx-menu-btn.on {
   border-color: var(--brand-200);
   background: var(--brand-50);
-  color: var(--brand-ink);
+  color: var(--brand-h);
 }
-@media (max-width: 479px) {
-  .gestao-row-main {
-    gap: 10px;
+/* toque e celular: 44 px (a classe repetida ganha do ".ib.sm" do ux.css, que vem depois) */
+@media (pointer: coarse), (max-width: 767px) {
+  html .ib.sm.gestao-more.gestao-more {
+    width: 44px;
+    height: 44px;
   }
-  .gestao-row-pen {
-    display: none;
-  }
-}
-
-/* ---------- "Mais ações": botão de três pontos e o menu ---------- */
-html .ib.gestao-more.on {
-  border-color: var(--brand-200);
-  background: var(--brand-50);
-  color: var(--brand-ink);
 }
 .gestao-menu {
   position: fixed;
   z-index: 80;
-  min-width: 200px;
+  max-width: calc(100vw - 16px);
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow:
-    0 14px 34px rgb(var(--shadow-rgb) / 0.16),
-    0 2px 6px rgb(var(--shadow-rgb) / 0.08);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-pop);
   animation: gestao-menu-in 0.12s ease-out;
 }
 .gestao-menu.up {
@@ -329,6 +802,12 @@ html .ib.gestao-more.on {
     transform: translateY(4px);
   }
 }
+.gestao-menu-h {
+  padding: 8px 10px 6px;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--muted);
+}
 .gestao-menu-item {
   position: relative;
   display: flex;
@@ -337,33 +816,64 @@ html .ib.gestao-more.on {
   width: 100%;
   height: 40px;
   padding: 0 12px;
-  border-radius: 9px;
-  font-size: 14px;
-  font-weight: 600;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-14);
+  font-weight: 500;
   color: var(--ink-2);
   text-align: left;
   white-space: nowrap;
 }
 .gestao-menu-item svg {
   flex-shrink: 0;
-  color: var(--ink-3);
+  color: var(--muted);
 }
 .gestao-menu-item:hover,
 .gestao-menu-item:focus-visible {
-  background: var(--surface-2);
+  background: var(--fill);
   color: var(--ink);
 }
 .gestao-menu-item:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: -2px;
 }
+/* item com segunda linha ("Matemática" e "TADS 5, Noturno"), com o ícone num quadrado */
+.gestao-menu-item.two {
+  height: auto;
+  min-height: 52px;
+  gap: 12px;
+  padding: 8px 10px;
+  white-space: normal;
+}
+.gestao-menu-item.two b {
+  display: block;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink);
+}
+.gestao-menu-item.two b + span {
+  display: block;
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.gestao-menu-ico {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  background: var(--brand-50);
+}
+.gestao-menu-ico svg {
+  color: var(--brand);
+}
 .gestao-menu-item.danger,
 .gestao-menu-item.danger svg {
-  color: var(--danger);
+  color: var(--red);
 }
 .gestao-menu-item.danger:hover,
 .gestao-menu-item.danger:focus-visible {
-  background: #fff1f3;
+  background: var(--red-bg);
 }
 /* Excluir fica separado das outras ações por uma linha */
 .gestao-menu-item.danger:not(:first-child) {
@@ -382,33 +892,7 @@ html .ib.gestao-more.on {
   opacity: 0.5;
   cursor: not-allowed;
 }
-
-/* ---------- card ao lado: datas da instituição, por mês ---------- */
-.gestao-side-group {
-  margin-top: 16px;
-}
-.gestao-side-month {
-  font-size: 13.5px;
-  font-weight: 650;
-  color: var(--ink-3);
-}
-.gestao-side-group .manage-side-list {
-  margin-top: 8px;
-}
-.gestao-side-link {
-  margin-top: 14px;
-}
-
-/* toque: alvos de 44px */
-@media (pointer: coarse) {
-  .gestao-notas,
-  .gestao-searchnote .btn-sm {
-    min-height: 44px;
-  }
-  .gestao-row-pen {
-    width: 44px;
-    height: 44px;
-  }
+@media (pointer: coarse), (max-width: 767px) {
   .gestao-menu-item {
     height: 46px;
   }
@@ -417,24 +901,155 @@ html .ib.gestao-more.on {
   .gestao-menu {
     animation: none;
   }
-  .gestao-row-main {
+  .gx-row {
     transition: none;
   }
 }
 
-/* ---------- docente: abas Eventos e Minhas turmas na linha do título ---------- */
-/* As abas vêm antes dos painéis (tablist e depois tabpanel), mas, com o card largo, flutuam à direita: o
-   título de cada painel ("Eventos que você gerencia", "Turmas em que você dá aula") fica no alto, à esquerda,
-   e o cabeçalho (flex) encolhe ao lado delas. No card estreito, continuam numa linha própria acima do título. */
-@container (min-width: 680px) {
-  .gestao-tabcard > .docente-tabs-row {
-    float: right;
-    padding: 20px 24px 0 16px;
+/* ---------- editor do evento (event-editor.tsx): seções, disciplina em cartões, pontuação, rodapé ---------- */
+.ed-sec {
+  margin-bottom: -8px;
+}
+.ed-sec ~ .ed-sec {
+  padding-top: 20px;
+  border-top: 1px solid var(--line-2);
+}
+html .ed-add-end {
+  justify-self: start;
+  height: 40px;
+  color: var(--link);
+}
+@media (min-width: 640px) {
+  html .ed-add-end {
+    margin-bottom: 2px;
   }
 }
+.ed-pts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.ed-pts .field-help {
+  flex-basis: 100%;
+}
+html .ed-pts .chip {
+  min-width: 44px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+.ed-pairs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 8px;
+}
+.ed-pair {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: left;
+  box-shadow: var(--sh-btn);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.ed-pair:hover {
+  border-color: var(--line-hover);
+  background: var(--surface-2);
+}
+.ed-pair b {
+  display: block;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ed-pair b + span {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.ed-pair-dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+}
+.ed-pair.on {
+  border-color: var(--brand);
+  background: var(--brand-50);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+.ed-pair.on .ed-pair-dot {
+  border: 5px solid var(--brand);
+}
+.ed-pair.bad {
+  border-color: var(--red-bar);
+}
+.ed-pair:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-color: var(--brand);
+}
+/* Salvar sem mudança: cinza neutro (o azul lavado parecia quebrado) */
+html .btn.btn-p.ed-save-off,
+html .btn.btn-p.ed-save-off:hover {
+  border-color: var(--line);
+  background: var(--fill);
+  color: var(--muted);
+  box-shadow: none;
+  opacity: 1;
+}
+.ed-more {
+  margin-right: 4px;
+}
+/* "Turma" e "opcional" na linha do rótulo do Select, como nos outros campos do painel */
+.ed-who .select-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ed-who .select-label .hint {
+  font-weight: 400;
+  color: var(--muted);
+}
 
-/* docente: "Disciplinas e turmas" embaixo da lista, na largura toda. Os itens dividem a largura (auto-fit), sem
-   colunas vazias à direita quando são só dois ou três */
-.manage-side-list.gestao-assign-list {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+/* 4º indicador da docente enquanto as turmas carregam: esqueleto no lugar do número e da dica */
+.gx-kpis .gx-kpi-skel {
+  display: inline-block;
+  width: 40px;
+  height: 26px;
+  vertical-align: top;
+}
+.gx-kpis .gx-kpi-skel-hint {
+  display: inline-block;
+  width: 128px;
+  max-width: 100%;
+  height: 13px;
+  vertical-align: top;
+}
+/* o rótulo e o ícone também: ainda não se sabe se o card é "Alunos ativos" ou "Pedidos de entrada" */
+.gx-kpis .gx-kpi-skel-label {
+  display: inline-block;
+  width: 96px;
+  height: 13px;
+  vertical-align: middle;
+}
+html .gx-kpis .kpi-ico.skel {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--fill);
+}
+html .gx-kpis .gx-kpi-loading {
+  pointer-events: none;
 }

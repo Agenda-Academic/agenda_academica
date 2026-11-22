@@ -4,7 +4,6 @@ import { CheckCircle2, Clock, Info, Link2, Loader2 } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { claimGuardianLink, conflictOf } from "@/lib/api";
 import {
-  cx,
   fieldErrors,
   firstName,
   formatDateBR,
@@ -17,6 +16,7 @@ import type { ClaimLinkResult, GuardianRelationship, LinkedStudent } from "@/lib
 import { useAppActions } from "./app-actions";
 import { delay } from "./dashboard-bits";
 import { GuardianDataDialog, GuardianDataView, guardianDataLinkLabel } from "./guardian-data-dialog";
+import { Select } from "./select";
 import { Field } from "./ui";
 
 /**
@@ -84,7 +84,7 @@ export function GuardianLinkCard({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
-  const relationshipRef = useRef<HTMLSelectElement>(null);
+  const relationshipRef = useRef<HTMLButtonElement>(null);
   // "Quais dados o responsável vê": no painel, o Voltar devolve o foco a este link
   const dataLinkRef = useRef<HTMLButtonElement>(null);
   const focusDataLink = useRef(false);
@@ -257,24 +257,19 @@ export function GuardianLinkCard({
           spellCheck={false}
         />
       </Field>
-      <Field className="resp-vinc-rel" label="Parentesco" error={relationshipError ?? undefined}>
-        <select
-          ref={relationshipRef}
-          className={cx("input", !relationship && "resp-select-empty")}
-          value={relationship}
-          onChange={(event) => {
-            setRelationship(event.target.value as GuardianRelationship | "");
-            setRelationshipError(null);
-          }}
-        >
-          <option value="">Escolha</option>
-          {relationshipOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <Select
+        className="resp-vinc-rel"
+        label="Parentesco"
+        buttonRef={relationshipRef}
+        value={relationship || null}
+        options={relationshipOptions}
+        searchable={false}
+        error={relationshipError ?? undefined}
+        onChange={(value) => {
+          setRelationship(value as GuardianRelationship);
+          setRelationshipError(null);
+        }}
+      />
       <p className="field-help resp-vinc-help" id={helpId}>
         Peça o código ao aluno, no perfil dele, ou à secretaria do campus.
       </p>

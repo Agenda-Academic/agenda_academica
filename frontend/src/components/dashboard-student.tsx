@@ -1,14 +1,15 @@
 "use client";
 
-import { ArrowRight, Bell, BellRing, BookOpen, CalendarDays, Plus, ShieldAlert, Target, Trophy } from "lucide-react";
+import { ArrowRight, Bell, BellRing, BookOpen, CalendarDays, Loader2, Plus, ShieldAlert, Target, Trophy } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { getMyGuardians } from "@/lib/api";
 import {
   classTermLabel,
   countText,
   cx,
-  formatShortDate,
+  firstName,
   formatShortDateTime,
+  latestTermLabel,
   shiftLabel,
 } from "@/lib/format";
 import { reminderOffsetLabel, reminderOptions } from "@/lib/meta";
@@ -32,6 +33,7 @@ import {
   openAhead,
   upcomingOfficialDates,
   useColumnFill,
+  useWideLayout,
   type CalendarFilter,
 } from "./dashboard-bits";
 import { LatestGradesCard } from "./latest-grades-card";
@@ -44,7 +46,8 @@ import {
   useJoinClass,
 } from "./student-join-card";
 import { Pager, usePaged } from "./pager";
-import { Drawer, EmptyState, SectionTitle } from "./ui";
+import { DateBadge, sendWhen } from "./reminders-view";
+import { Drawer, PageHeader, SectionTitle } from "./ui";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -59,7 +62,12 @@ const AHEAD_MIN = 4;
 const AHEAD_MAX = 8;
 /** "Datas da instituição": as 3 próximas, até 5 quando a outra coluna é mais alta. */
 const DATES_MIN = 3;
-const DATES_MAX = 5;
+const DATES_MAX = 6;
+/**
+ * Turma parada: as datas da instituição são a lista da coluna larga, ao lado da turma, dos lembretes e das notas
+ * (em duas colunas no card largo, por isso até 10).
+ */
+const IDLE_DATES_MAX = 10;
 /**
  * Com a coluna principal mais baixa (turma sem compromissos, poucas notas), as datas da instituição descem até 1,
  * como no Painel da docente e do responsável, para as colunas terminarem juntas sem buraco no fim.
@@ -113,6 +121,7 @@ export function StudentDashboard({
   onOpenCalendar,
   onOpenReminders,
   onQuickReminder,
+  onRemindMany,
   onSelect,
 }: {
   /** Lembretes cuja hora chegou (aviso no sistema). */
@@ -131,6 +140,8 @@ export function StudentDashboard({
   onOpenReminders: () => void;
   /** Cria o lembrete do destaque com a antecedência padrão, sem sair do Painel. Com promessa, o giro dura até ela terminar. */
   onQuickReminder?: (event: AcademicEvent) => void | Promise<unknown>;
+  /** Liga o lembrete de várias avaliações com a antecedência padrão ("Lembrar das N que faltam"). */
+  onRemindMany?: (events: AcademicEvent[]) => void | Promise<unknown>;
   onSelect: (id: number) => void;
 }) {
   const { notices, token, navigate, openProfile, toast } = useAppActions();
@@ -270,8 +281,8 @@ export function StudentDashboard({
     )
     .sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime());
 
-  // foco depois do "Lembrar da prova" (remindExam): o lembrete novo, quando a lista do card já o mostra; enquanto
-  // não aparece, o título do card. Só se o foco ficou perdido (o botão saiu da tela junto com o vazio) ou no card
+  // foco depois do "Lembrar das que faltam" (remindMissing): o primeiro lembrete novo, quando a lista do card já o
+  // mostra; enquanto não aparece, o título do card. Só se o foco ficou perdido (o botão saiu da tela) ou no card
   const remindersRef = useRef<HTMLElement>(null);
   const focusReminderOf = useRef<number | null>(null);
   const scheduledKey = scheduled.map((reminder) => reminder.academicEventId).join(",");
@@ -335,18 +346,20 @@ export function StudentDashboard({
     ? (nextEvent.reminder ?? reminders.find((reminder) => reminder.enabled && reminder.academicEventId === nextEvent.id) ?? null)
     : null;
   const quick = nextEvent && !heroReminder ? quickOffset(nextEvent, defaultReminderMinutes, now) : null;
-  // sem lembrete agendado: um clique para lembrar da próxima prova que ainda não tem
-  // (a do destaque já tem o botão de lembrar nele: aqui vai a próxima, se houver)
-  const examToRemind = onQuickReminder
-    ? classUpcoming.find(
+  // as provas e os trabalhos dos próximos 30 dias que ainda não têm lembrete e ainda dão tempo de avisar: o card de
+  // lembretes liga todos de uma vez ("Lembrar das N que faltam"), com a mesma conta da tela Lembretes
+  const missing = onRemindMany
+    ? next30.filter(
         (event) =>
-          event.category === "exam" &&
-          event.id !== nextEvent?.id &&
+          (event.category === "exam" || event.category === "assignment") &&
+          event.status !== "cancelled" &&
+          event.status !== "completed" &&
           !event.reminder &&
-          !reminders.some((reminder) => reminder.enabled && reminder.academicEventId === event.id) &&
+          !reminders.some((reminder) => reminder.academicEventId === event.id) &&
           quickOffset(event, defaultReminderMinutes, now) !== null
       )
-    : undefined;
+    : [];
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // turma sem nada à frente: o destaque vazio já diz isso e leva ao Cronograma. Os indicadores todos em zero e
   // "Próximos compromissos" repetiriam o mesmo vazio, com mais um "Ver cronograma" (decisão 13): eles saem, e o
@@ -360,6 +373,8 @@ export function StudentDashboard({
   // com turma, as duas colunas terminam juntas: os compromissos mostram de 4 (celular) a 8 itens e as datas da
   // instituição, de 3 a 5, o que couber até o fim da coluna mais alta. Com a turma parada (classIdle), a lista da
   // coluna larga é a das datas da instituição (de 1 a 5), e a coluna de apoio não tem lista
+  // lado a lado (1280 px ou mais) ou numa coluna só: sem turma, a ordem dos cards muda no JSX (o foco segue a tela)
+  const wide = useWideLayout();
   const {
     gridRef: boardGridRef,
     mainGapRef: boardMainGapRef,
@@ -369,17 +384,21 @@ export function StudentDashboard({
     gridClass: boardGridClass,
   } = useColumnFill(
     classIdle
-      ? { total: officialDates.length, min: DATES_MIN, max: DATES_MAX, floor: DATES_FLOOR }
+      ? { total: officialDates.length, min: DATES_MIN, max: IDLE_DATES_MAX, floor: DATES_FLOOR }
       : { total: noClass ? 0 : classAhead.length, min: AHEAD_MIN, max: AHEAD_MAX },
     { total: noClass || classIdle ? 0 : officialDates.length, min: DATES_MIN, max: DATES_MAX, floor: DATES_FLOOR },
     [
       noClass,
       classIdle,
       heightKey(classAhead.slice(0, AHEAD_MAX)),
-      heightKey(officialDates.slice(0, DATES_MAX)),
+      heightKey(officialDates.slice(0, IDLE_DATES_MAX)),
       gradesKey,
+      // o card da turma fica no alto da coluna de apoio: a altura dele entra na conta
+      classes.map((item) => item.id).join(","),
+      subjects.length,
+      pending.length,
       scheduled.length,
-      examToRemind?.id ?? 0,
+      missing.length,
       avisos?.length ?? 0,
       notices.length,
     ].join("|")
@@ -420,17 +439,21 @@ export function StudentDashboard({
         : { label: "Ativar lembrete", icon: Bell, onClick: () => onSelect(nextEvent.id), opensEvent: nextEvent.id };
 
   /**
-   * "Lembrar da prova" do card de lembretes: depois de criar, o botão some com o vazio. O foco vai para o lembrete
-   * novo na lista do card (como em Lembretes) ou, sem ele à vista, para o título do card, e não cai no fim da página.
+   * "Lembrar das N que faltam" do card de lembretes: depois de criar, o botão some. O foco vai para o primeiro
+   * lembrete novo na lista do card (como em Lembretes) ou, sem ele à vista, para o título do card, e não cai no fim
+   * da página.
    */
-  async function remindExam(event: AcademicEvent) {
-    if (!onQuickReminder) {
+  async function remindMissing() {
+    if (!onRemindMany || !missing.length || bulkBusy || savingReminder) {
       return;
     }
+    const event = [...missing].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0];
     focusReminderOf.current = event.id;
+    setBulkBusy(true);
     try {
-      await onQuickReminder(event);
+      await onRemindMany(missing);
     } finally {
+      setBulkBusy(false);
       // depois da pintura: o lembrete novo (ou o título, enquanto ele não chega); some sozinho em 3 s
       window.requestAnimationFrame(focusNewReminder);
       window.setTimeout(() => {
@@ -441,75 +464,79 @@ export function StudentDashboard({
     }
   }
 
-  /** Card "Próximos lembretes" (igual com e sem turma; muda só a dica do vazio), do tamanho do conteúdo. */
-  function remindersCard(order: number) {
-    let emptyHint = noClass ? "Abra uma data da instituição e ative um lembrete." : "Abra um evento e ative um lembrete.";
-    if (examToRemind) {
-      // a prova do destaque já tem o botão de lembrar nele: aqui vai a seguinte, e o texto diz que é a seguinte
-      const when = formatShortDate(examToRemind.startsAt);
-      emptyHint =
-        nextEvent?.category === "exam"
-          ? `Prova seguinte: ${examToRemind.title}, ${when}.`
-          : `Próxima prova: ${examToRemind.title}, ${when}.`;
-    }
+  /**
+   * Card "Próximos lembretes" (igual com e sem turma; muda só a dica do vazio), do tamanho do conteúdo. As linhas
+   * seguem as da tela Lembretes: selo da data, título e quando o aviso chega ("Aviso hoje, 18:00").
+   */
+  function remindersCard(order: number, className?: string) {
+    // as mesmas frases da tela Lembretes ("Nenhum aviso agendado", "Ligue o lembrete das provas e trabalhos que vêm
+    // aí" e, sem avaliações, "Ligue o lembrete de um evento"), com e sem turma, sem "clique" nem "aqui embaixo"
+    const emptyHint = "Ligue o lembrete de um evento para ser avisado antes dele.";
+    const remindManyButton = (
+      <button
+        className="btn btn-s btn-sm al-rem-many"
+        aria-busy={bulkBusy || undefined}
+        aria-disabled={bulkBusy || savingReminder || undefined}
+        onClick={() => void remindMissing()}
+        type="button"
+      >
+        {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Bell className="h-4 w-4" aria-hidden />}
+        {missing.length === 1 ? "Lembrar da que falta" : `Lembrar das ${missing.length} que faltam`}
+      </button>
+    );
     return (
-      <section ref={remindersRef} className="card pad rise" style={delay(order)} aria-label="Próximos lembretes">
-        {/* sem lembretes, o vazio logo abaixo já diz isso */}
+      <section ref={remindersRef} className={cx("card pad rise", className)} style={delay(order)} aria-label="Próximos lembretes">
         <SectionTitle
           title="Próximos lembretes"
-          subtitle={
-            scheduled.length
-              ? `${scheduled.length} ${scheduled.length === 1 ? "lembrete agendado" : "lembretes agendados"}`
-              : undefined
-          }
+          subtitle={scheduled.length ? countText(scheduled.length, "lembrete ligado", "lembretes ligados") : undefined}
         />
-        {/* wrap-anywhere: os títulos e a dica do vazio, que traz o título da próxima prova, vêm da
-            pessoa e, com palavra ou link longo, quebram em qualquer ponto */}
-        <div className="mt-3.5 flex flex-col gap-2 wrap-anywhere">
-          {scheduled.slice(0, 3).map((reminder) => (
-            <button
-              key={reminder.id}
-              className="mini"
-              data-opens-event={reminder.academicEventId}
-              data-reminder-of={reminder.academicEventId}
-              onClick={() => onSelect(reminder.academicEventId)}
-              type="button"
-            >
-              <span className="mini-ico">
-                <Bell className="h-[18px] w-[18px]" aria-hidden />
-              </span>
-              <span className="min-w-0">
-                {/* o título quebra linha, como no Figma (a coluna tem 330 px) */}
-                <span className="mini-t block wrap-anywhere">
-                  {reminder.academicEvent?.title ?? `Evento #${reminder.academicEventId}`}
-                </span>
-                {/* mesmo formato da linha em Lembretes */}
-                <span className="mini-s block">
-                  Aviso: {formatShortDateTime(reminder.sendAt)} ({reminderOffsetLabel(reminder.offsetMinutes)})
-                </span>
-              </span>
-            </button>
-          ))}
-          {!scheduled.length ? (
-            <EmptyState
-              compact
-              icon={Bell}
-              text="Nenhum lembrete agendado"
-              hint={emptyHint}
-              action={
-                examToRemind && onQuickReminder
-                  ? { label: "Lembrar da prova", onClick: () => void remindExam(examToRemind) }
-                  : undefined
-              }
-            />
-          ) : null}
-        </div>
+        {scheduled.length ? (
+          // wrap-anywhere: os títulos vêm da pessoa e, com palavra ou link longo, quebram em qualquer ponto
+          <ul className="al-rems wrap-anywhere">
+            {scheduled.slice(0, 3).map((reminder) => (
+              <li key={reminder.id}>
+                <button
+                  className="al-rem"
+                  data-opens-event={reminder.academicEventId}
+                  data-reminder-of={reminder.academicEventId}
+                  onClick={() => onSelect(reminder.academicEventId)}
+                  type="button"
+                >
+                  {reminder.academicEvent ? (
+                    <DateBadge value={reminder.academicEvent.startsAt} now={now} />
+                  ) : (
+                    <span className="dbadge lb-date" aria-hidden />
+                  )}
+                  <span className="min-w-0">
+                    <span className="al-rem-t">{reminder.academicEvent?.title ?? `Evento #${reminder.academicEventId}`}</span>
+                    <span className="al-rem-s">
+                      Aviso <b>{sendWhen(reminder.sendAt, now)}</b>
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          // o estado vazio único (decisão 3): ícone no círculo, título, texto e a ação em btn-s btn-sm
+          <div className="empty-inline compact al-rem-empty">
+            <span className="empty-ico">
+              <Bell aria-hidden />
+            </span>
+            <div className="empty-body">
+              <p className="empty-t">Nenhum aviso agendado</p>
+              <p className="empty-s">{missing.length ? "Ligue o lembrete das provas e trabalhos que vêm aí." : emptyHint}</p>
+              {missing.length ? remindManyButton : null}
+            </div>
+          </div>
+        )}
+        {missing.length && scheduled.length ? remindManyButton : null}
         {/* a mesma frase já está no card de avisos quando há algum */}
         {!avisos?.length && !notices.length ? (
           <p className="kpi-hint">O aviso aparece aqui e também chega no seu e-mail.</p>
         ) : null}
         <div className="card-foot">
-          <button className="link min-h-6" onClick={onOpenReminders} type="button">
+          <button className="link link-solto" onClick={onOpenReminders} type="button">
             {scheduled.length > 3 ? `Ver todos os lembretes (${scheduled.length})` : "Gerenciar lembretes"}
             <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
           </button>
@@ -517,6 +544,17 @@ export function StudentDashboard({
       </section>
     );
   }
+
+  // cabeçalho da tela: "Olá, Diogo" e a turma com o semestre
+  const greeting = `Olá, ${firstName(context?.user.fullName ?? "estudante")}`;
+  const headSubtitle = noClass
+    ? pending.length
+      ? `Pedido para entrar na ${pending[0].academicClass.name} aguardando confirmação`
+      : "Você ainda não está em uma turma"
+    : classes.length === 1
+      ? `${classes[0].name}, ${classes[0].semester ? `semestre ${classTermLabel(classes[0])}` : `ano letivo ${classes[0].year}`}`
+      : `${countText(classes.length, "turma", "turmas")}, semestre ${latestTermLabel(classes, now)}`;
+  const pageHead = context ? <PageHeader title={greeting} subtitle={headSubtitle} /> : null;
 
   /** Pedidos de entrada ainda sem decisão, no card da turma (quem já tem turma pediu outra). */
   const pendingNotes = pending.length ? (
@@ -545,20 +583,16 @@ export function StudentDashboard({
 
   /** Card da turma (uma) ou das turmas (mais de uma), com o acesso discreto para entrar em outra. */
   const classCard = context ? (
-    // o card termina no próprio conteúdo (xl:self-start), sem esticar até a altura do destaque com um vão entre
-    // os chips e "Entrar em outra turma" (decisão 5); o destaque ao lado é que acompanha a linha
-    <section
-      className="card pad rise flex flex-col max-xl:order-last xl:self-start"
-      style={delay(1)}
-      aria-labelledby={classTitleId}
-    >
+    // no alto da coluna de apoio, do tamanho do conteúdo; o destaque fica na largura toda, sem esticar até a
+    // altura deste card (antes, lado a lado, sobravam uns 50 px vazios em cima e embaixo do destaque)
+    <section className="card pad rise flex flex-col" style={delay(6)} aria-labelledby={classTitleId}>
       {classes.length === 1 ? (
         <>
           {/* nome de turma longo, sem espaço, quebra em qualquer ponto */}
           <h2
             ref={classHeadingRef}
             id={classTitleId}
-            className="disp text-[24px] font-bold leading-tight wrap-anywhere"
+            className="disp text-[22px] font-bold leading-tight wrap-anywhere"
             tabIndex={-1}
           >
             {classes[0].name}
@@ -598,7 +632,7 @@ export function StudentDashboard({
         </>
       ) : (
         <>
-          <h2 ref={classHeadingRef} id={classTitleId} className="disp text-[24px] font-bold leading-tight" tabIndex={-1}>
+          <h2 ref={classHeadingRef} id={classTitleId} className="disp text-[22px] font-bold leading-tight" tabIndex={-1}>
             Suas turmas
           </h2>
           {/* com mais de uma página, o subtítulo diz quais turmas estão à vista ("1 a 3 de 5"): o Pager do rodapé
@@ -633,7 +667,7 @@ export function StudentDashboard({
       )}
       {pendingNotes}
       <div className="card-foot aluno-classes-foot">
-        <button className="link min-h-6" onClick={() => setJoinOpen(true)} type="button">
+        <button className="link link-solto" onClick={() => setJoinOpen(true)} type="button">
           <Plus className="h-[15px] w-[15px]" aria-hidden />
           Entrar em outra turma
         </button>
@@ -692,55 +726,76 @@ export function StudentDashboard({
 
   // Sem matrícula ativa: o card de entrar no lugar do destaque e as datas da instituição embaixo; os lembretes ao lado
   if (noClass) {
+    // sem foco automático no campo: ao abrir o Painel, o foco fica no começo da página (decisão da rodada 8)
+    const joinCard = (
+      <StudentJoinCard
+        className={wide ? "duo-fill" : undefined}
+        autoFocus={false}
+        pendingEnrollments={context?.pendingEnrollments ?? []}
+        order={0}
+      />
+    );
+    const noClassDates = (
+      <InstitutionDatesCard
+        columns
+        events={officialDates}
+        // lado a lado (largura toda acima de 1280 px) as datas ficam em duas colunas: uma a mais fecha a última linha
+        limit={wide ? NO_CLASS_DATES + 1 : NO_CLASS_DATES}
+        listed={officialListed}
+        order={2}
+        subtitle="Valem para todos os alunos, com ou sem turma"
+        onOpenAll={openOfficial}
+        onSelect={onSelect}
+      />
+    );
     return (
       <div className="pnl pnl-noclass grid gap-5">
+        {pageHead}
         <AvisosCard host avisos={avisos ?? []} events={events} onDismiss={onDismissAviso} onOpen={onSelect} />
         {reviewBanner}
 
-        {/* duas colunas: entrar na turma e os lembretes (do tamanho do conteúdo, parados no alto). Embaixo, as datas
-            da instituição na largura toda. No celular e no tablet, um card embaixo do outro, com as datas antes dos
-            lembretes (aluno.css, .pnl-noclass). O card de entrar já explica o que falta (sem um card "Sem turma"
-            repetindo a mesma orientação) */}
-        <div className="duo">
-          <div className="duo-col duo-main">
-            <StudentJoinCard className="duo-fill" pendingEnrollments={context?.pendingEnrollments ?? []} order={0} />
-          </div>
-          <div className="duo-col duo-side">{remindersCard(1)}</div>
-        </div>
-        <InstitutionDatesCard
-          events={officialDates}
-          limit={NO_CLASS_DATES}
-          listed={officialListed}
-          order={2}
-          subtitle="Valem para todos os alunos, com ou sem turma"
-          onOpenAll={openOfficial}
-          onSelect={onSelect}
-        />
+        {/* Lado a lado: entrar na turma e os lembretes, que terminam na mesma linha (os dois esticam, e a folga dos
+            lembretes fica antes do rodapé); embaixo, as datas da instituição na largura toda. No celular e no
+            tablet, um card embaixo do outro, já na ordem da tela no JSX: as datas vêm antes dos lembretes, que sem
+            turma costumam estar vazios (o foco do teclado segue a mesma ordem). O card de entrar já explica o que
+            falta (sem um card "Sem turma" repetindo a mesma orientação) */}
+        {wide ? (
+          <>
+            <div className="duo">
+              <div className="duo-col duo-main">{joinCard}</div>
+              <div className="duo-col duo-side">{remindersCard(1, "duo-fill")}</div>
+            </div>
+            {noClassDates}
+          </>
+        ) : (
+          <>
+            {joinCard}
+            {noClassDates}
+            {remindersCard(1)}
+          </>
+        )}
       </div>
     );
   }
 
   return (
     <div className="pnl grid gap-5">
+      {pageHead}
       <AvisosCard host avisos={avisos ?? []} events={events} onDismiss={onDismissAviso} onOpen={onSelect} />
       {reviewBanner}
 
-      {/* Destaque + turma (no celular e no tablet a turma vai para o fim do Painel) */}
-      <div className={cx("grid items-stretch gap-5 max-xl:contents", context && "xl:grid-cols-[minmax(0,1fr)_var(--side-w)]")}>
-        <div className="hero-slot rise" style={delay(0)}>
-          <NextEventHero
-            event={nextEvent}
-            hideClass={oneClass}
-            secondary={heroSecondary}
-            emptyTitle="Nenhuma prova ou trabalho à frente"
-            emptyText="Quando a docente publicar uma avaliação da sua turma, ela aparece aqui."
-            // a data oficial da instituição fica só no card "Datas da instituição" (decisão 4)
-            onOpen={onSelect}
-            onEmptyAction={{ label: "Ver cronograma", onClick: () => onOpenCalendar() }}
-          />
-        </div>
-
-        {classCard}
+      {/* Destaque na largura toda (como nos outros Painéis); a turma fica no alto da coluna de apoio, embaixo */}
+      <div className="hero-slot rise" style={delay(0)}>
+        <NextEventHero
+          event={nextEvent}
+          hideClass={oneClass}
+          secondary={heroSecondary}
+          emptyTitle="Nenhuma prova ou trabalho à frente"
+          emptyText="Quando a docente publicar uma avaliação da sua turma, ela aparece aqui."
+          // a data oficial da instituição fica só no card "Datas da instituição" (decisão 4)
+          onOpen={onSelect}
+          onEmptyAction={{ label: "Ver cronograma", onClick: () => onOpenCalendar() }}
+        />
       </div>
 
       {/* Indicadores (todos levam ao Cronograma ou a Lembretes). Com a turma parada e nenhum lembrete, os quatro
@@ -756,7 +811,7 @@ export function StudentDashboard({
             actionLabel="Ver no cronograma"
             onClick={() => onOpenCalendar()}
           >
-            <div className="-mt-10 flex justify-end">
+            <div className="kpi-spark">
               <WeekSpark events={next30} />
             </div>
           </InsightTile>
@@ -765,26 +820,32 @@ export function StudentDashboard({
             label="Provas à frente"
             order={3}
             value={String(exams30.length)}
-            tone="c-prova"
             actionLabel="Ver as provas no cronograma"
             onClick={() => onOpenCalendar({ categories: ["exam"] })}
             hint={exams30.length ? "nos próximos 30 dias" : "nenhuma prova nos próximos 30 dias"}
             note={examsNote}
             extra={
               exams30.length ? (
-                <div className="kpi-chips mt-3 flex flex-wrap gap-1.5">
+                <div className="kpi-chips mt-3 flex flex-wrap gap-x-1.5 gap-y-1">
                   {exams30.slice(0, 4).map((event) => (
+                    // o botão é a área de toque (44 px no celular) e a pílula fica dentro dele
                     <button
                       key={event.id}
-                      className="pill c-prova kpi-chip"
+                      className="kpi-chip-hit"
                       aria-label={`${event.title}, ${dateChip(event.startsAt, chipsWithMonth)}`}
                       data-opens-event={event.id}
                       onClick={() => onSelect(event.id)}
                       type="button"
                     >
-                      {dateChip(event.startsAt, chipsWithMonth)}
+                      <span className="pill c-prova">{dateChip(event.startsAt, chipsWithMonth)}</span>
                     </button>
                   ))}
+                  {/* no toque e no celular fica só a próxima data (painel.css): as outras viram "+N" ao lado */}
+                  {exams30.length > 1 ? (
+                    <span className="kpi-chips-more" aria-hidden>
+                      +{exams30.length - 1}
+                    </span>
+                  ) : null}
                 </div>
               ) : undefined
             }
@@ -794,10 +855,9 @@ export function StudentDashboard({
             label="Lembretes agendados"
             order={4}
             value={String(scheduled.length)}
-            tone="c-ativ"
             actionLabel="Abrir Lembretes"
             onClick={onOpenReminders}
-            hint={scheduled.length ? `próximo aviso ${formatShortDateTime(scheduled[0].sendAt)}` : "nenhum lembrete agendado"}
+            hint={scheduled.length ? `próximo aviso ${formatShortDateTime(scheduled[0].sendAt)}` : "nenhum aviso agendado"}
           />
           <InsightTile
             icon={Trophy}
@@ -805,7 +865,6 @@ export function StudentDashboard({
             order={5}
             value={pointsAtStake ? String(pointsAtStake) : "0"}
             unit={pointsAtStake ? "pts" : undefined}
-            tone="c-extra"
             actionLabel={pointedCategories.length ? "Ver as avaliações no cronograma" : "Ver no cronograma"}
             onClick={() => onOpenCalendar(pointedCategories.length ? { categories: pointedCategories } : undefined)}
             // a dica fica curta (uma linha); as disciplinas estão na barra, no nome dela e no cronograma
@@ -834,9 +893,9 @@ export function StudentDashboard({
         </div>
       )}
 
-      {/* Duas colunas que terminam juntas (useColumnFill): os compromissos da turma e as últimas notas à
-          esquerda; os lembretes e as datas da instituição na coluna de apoio. A lista da coluna mais baixa
-          mostra mais itens; a sobra que ficar vai para o pé do card de baixo. No celular, uma embaixo da outra */}
+      {/* Duas colunas que terminam juntas (useColumnFill): os compromissos da turma, os lembretes e as últimas notas
+          à esquerda; a turma e as datas da instituição na coluna de apoio. A lista da coluna mais baixa mostra mais
+          itens; a pequena sobra que ficar vai para o card de baixo (duo-even). No celular, uma embaixo da outra */}
       {classIdle ? (
         // turma parada: as datas da instituição na coluna larga (o que há à frente) e, ao lado, os lembretes e as
         // notas. No celular, um embaixo do outro, nessa ordem
@@ -844,6 +903,7 @@ export function StudentDashboard({
           <div className="duo-col duo-main">
             <InstitutionDatesCard
               className="duo-fill"
+              columns
               events={officialDates}
               limit={aheadCount}
               listed={officialListed}
@@ -854,7 +914,11 @@ export function StudentDashboard({
             />
           </div>
           <div className="duo-col duo-side">
-            {remindersCard(7)}
+            {classCard}
+            {/* sem nada da turma à frente e nenhum lembrete ligado, o card de lembretes só repetiria um vazio logo
+                acima do vazio das notas (e o destaque já diz que não há prova nem trabalho): ele sai, como os
+                indicadores. Os lembretes continuam no menu */}
+            {scheduled.length ? remindersCard(7) : null}
             <LatestGradesCard
               className="duo-fill"
               fillRef={boardSideGapRef}
@@ -896,17 +960,19 @@ export function StudentDashboard({
               />
             </section>
 
+            {remindersCard(7)}
+
             <LatestGradesCard
               className="duo-fill"
               fillRef={boardMainGapRef}
-              order={7}
+              order={8}
               onContentChange={setGradesKey}
               onSeeAll={(eventId) => navigate("grades", { eventId: eventId ?? null })}
             />
           </div>
 
           <div className="duo-col duo-side">
-            {remindersCard(8)}
+            {classCard}
             <InstitutionDatesCard
               className="duo-fill"
               events={officialDates}

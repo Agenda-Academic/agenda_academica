@@ -40,6 +40,7 @@ import {
   type PanelApi,
   type SubjectDraft,
 } from "./classes-shared";
+import { Select } from "./select";
 import { EmptyState, ErrorState, Field, Segmented, SegmentedButton, primaryButton, secondaryButton } from "./ui";
 
 const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
@@ -1059,18 +1060,20 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
                 <span className="admin-s-main">
                   <span className="admin-s-name">{teacher.fullName}</span>
                 </span>
-                <select
-                  className="input admin-role-select"
-                  aria-label={`Tipo do vínculo de ${teacher.fullName}`}
+                <Select
+                  className="admin-role"
+                  size="sm"
+                  width="auto"
+                  menuMinWidth={240}
+                  ariaLabel={`Tipo do vínculo de ${teacher.fullName}`}
                   disabled={working !== null}
                   value={teacher.role}
-                  onChange={(event) =>
-                    changeRole(teacher.assignmentId, teacher.fullName, teacher.role, event.target.value as TeachingRole)
-                  }
-                >
-                  <option value="titular">{teachingRoleLabels.titular}</option>
-                  <option value="substituto">{teachingRoleLabels.substituto}</option>
-                </select>
+                  onChange={(value) => changeRole(teacher.assignmentId, teacher.fullName, teacher.role, value)}
+                  options={[
+                    { value: "titular", label: teachingRoleLabels.titular },
+                    { value: "substituto", label: teachingRoleLabels.substituto },
+                  ]}
+                />
                 <button
                   className={cx("ib sm", busyLook)}
                   aria-disabled={busyAttr}

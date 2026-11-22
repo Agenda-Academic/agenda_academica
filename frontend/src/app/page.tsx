@@ -92,13 +92,15 @@ import {
   errorMessage,
   fieldErrors,
   firstName,
+  formatRelativeWhen,
   formatTime,
   localDateKey,
   matchesSearch,
   normalizeText,
   startOfDay,
+  toDateTimeLocal,
 } from "@/lib/format";
-import { allCategories, categoryMeta, gradableCategories, isGradable, knownRoles } from "@/lib/meta";
+import { allCategories, categoryMeta, gradableCategories, isGradable, knownRoles, reminderOffsetLabel } from "@/lib/meta";
 import type {
   AcademicContext,
   AcademicEvent,
@@ -694,24 +696,13 @@ function upsertReminder(list: Reminder[], reminder: Reminder) {
   ].sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime());
 }
 
-const weekdayNames = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
-
-/** Quando o aviso aparece, numa frase: "no domingo, 08/11, às 19:00", "na quarta, 04/11, às 19:00". */
-function avisoWhen(value: string) {
-  const date = new Date(value);
-  const weekday = date.getDay();
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const time = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  return `${weekday === 0 || weekday === 6 ? "no" : "na"} ${weekdayNames[weekday]}, ${day}/${month}, às ${time}`;
-}
-
 /**
- * Fim dos textos de lembrete: ": aviso na quarta, 04/11, às 19:00". Evento cancelado ou concluído não tem aviso (o
- * lembrete fica guardado, mas não avisa), e o texto não promete um.
+ * Fim dos textos de lembrete: ": aviso hoje às 18:00", ": aviso amanhã às 18:00" ou ": aviso qui, 26/11, às 19:00"
+ * (o mesmo formatador do detalhe e de Lembretes). Evento cancelado ou concluído não tem aviso (o lembrete fica
+ * guardado, mas não avisa), e o texto não promete um.
  */
 function avisoTail(event: Pick<AcademicEvent, "status"> | null | undefined, sendAt: string) {
-  return event?.status === "cancelled" || event?.status === "completed" ? "" : `: aviso ${avisoWhen(sendAt)}`;
+  return event?.status === "cancelled" || event?.status === "completed" ? "" : `: aviso ${formatRelativeWhen(sendAt)}`;
 }
 
 /** Resultado curto de uma mudança de situação, mostrado no próprio painel lateral. */
@@ -1279,6 +1270,8 @@ export default function Home() {
   // notas de uma avaliação: a aba Notas do painel do evento (editorTab), aberta pela ação "Notas" da Gestão e da
   // tela Notas; a gaveta sozinha (EventGradesDrawer) só quando o evento não está na lista da página
   const [editorTab, setEditorTab] = useState<EditorTab>("details");
+  // o painel aberto pelo "Duplicar" (cabeçalho "Duplicar evento")
+  const [duplicating, setDuplicating] = useState(false);
   const [gradesEventId, setGradesEventId] = useState<number | null>(null);
   // o painel do evento preenche: o Voltar do navegador passa pela aba Notas (lista de alunos, importação)
   const editorBackRef = useRef<EditorBack | null>(null);
@@ -1624,6 +1617,15 @@ export default function Home() {
   const activeStudents = useMemo(() => linkedStudents.filter((item) => item.status === "active"), [linkedStudents]);
   const pendingStudents = useMemo(() => linkedStudents.filter((item) => item.status === "pending"), [linkedStudents]);
   const guardianStudent = isGuardian ? pickStudent(context, studentChoice) : null;
+  // aluno: as turmas em que está matriculado (o subtítulo do Cronograma diz a turma mesmo sem prova nem trabalho)
+  const isStudent = user?.role === "student";
+  const studentClasses = useMemo(
+    () =>
+      isStudent
+        ? (context?.enrollments ?? []).flatMap((enrollment) => (enrollment.academicClass ? [enrollment.academicClass] : []))
+        : null,
+    [isStudent, context]
+  );
 
   const manageableEvents = useMemo(
     () => joinedEvents.filter(canManageEvent).sort(byStart),
@@ -2629,6 +2631,7 @@ export default function Home() {
     setEditingEventId(event?.id ?? null);
     setEditingFallback(event);
     setEditorTab(tab);
+    setDuplicating(false);
     setEventForm(form);
     setFormSnapshot(snapshot);
     setServerErrorState(null);
@@ -2700,15 +2703,20 @@ export default function Home() {
     });
   }
 
-  function requestCloseEditor() {
+  /**
+   * X, Esc e Fechar do painel. `guard` é a pergunta do editor sobre notas digitadas e não salvas na grade: ela vem
+   * por último, depois da pergunta do rascunho, e nada se descarta antes da última resposta.
+   */
+  function requestCloseEditor(guard?: (close: () => void) => void) {
     if (savingEvent) {
       return;
     }
+    const close = () => (guard ? guard(() => closeEditor()) : closeEditor());
     if (dirty) {
-      askDiscard(() => closeEditor());
+      askDiscard(close);
       return;
     }
-    closeEditor();
+    close();
   }
 
   /** Com rascunho alterado, pergunta antes de trocar o que está no painel. */
@@ -2756,6 +2764,43 @@ export default function Home() {
         subjectId: String(subjectId),
       })
     );
+  }
+
+  /**
+   * "Novo evento neste dia" (lista do dia no Cronograma): o Novo evento de sempre, com a data escolhida e o horário
+   * padrão dele (o das aulas da noite).
+   */
+  function openNewEventOn(date: Date) {
+    if (!user || !writesEvents(user.role)) {
+      return;
+    }
+    const role = user.role;
+    guardDraft(() => {
+      const base = createInitialEventForm(role, context);
+      const last = role === "teacher" ? lastCreateRef.current : null;
+      const standard = new Date(base.startsAt);
+      const day = new Date(date.getFullYear(), date.getMonth(), date.getDate(), standard.getHours(), standard.getMinutes());
+      openEditor(null, { ...base, ...(last ?? {}), startsAt: toDateTimeLocal(day), endsAt: "" });
+    });
+  }
+
+  /**
+   * "Duplicar" (menu "..." da Gestão): abre um Novo evento com os dados copiados, uma semana depois. O título ganha
+   * " (cópia)" e o cabeçalho diz "Duplicar evento", para não publicar dois eventos iguais sem perceber.
+   */
+  function duplicateEvent(event: AcademicEvent) {
+    if (!user || !writesEvents(user.role)) {
+      return;
+    }
+    guardDraft(() => {
+      const form = eventToForm(event);
+      const weekLater = (value: string) => (value ? toDateTimeLocal(addDays(new Date(value), 7)) : "");
+      // o título tem até 140 caracteres (o mesmo teto do painel): a marca entra cortando o fim, se preciso
+      const mark = " (cópia)";
+      const title = `${form.title.slice(0, 140 - mark.length).trimEnd()}${mark}`;
+      openEditor(null, { ...form, title, startsAt: weekLater(form.startsAt), endsAt: weekLater(form.endsAt) });
+      setDuplicating(true);
+    });
   }
 
   async function saveEvent() {
@@ -3185,22 +3230,28 @@ export default function Home() {
     }
   }
 
-  /** Um clique: lembrete com a maior antecedência válida até a padrão da pessoa. */
-  async function quickReminder(event: AcademicEvent) {
+  /**
+   * Um clique: lembrete com a maior antecedência válida até a padrão da pessoa (ou com a antecedência escolhida,
+   * no menu da linha em Lembretes). Devolve true quando o lembrete foi criado.
+   */
+  async function quickReminder(event: AcademicEvent, minutes?: number) {
     const active = sessionRef.current;
     if (!active || savingReminder) {
-      return;
+      return false;
     }
     const subject = `lembrete-${event.id}`;
     const existing = reminderByEvent.get(event.id);
     if (existing) {
       pushToast("info", `"${event.title}" já tem lembrete${avisoTail(event, existing.sendAt)}.`);
-      return;
+      return false;
     }
-    const offsetMinutes = bestReminderOffset(event.startsAt, active.user.defaultReminderMinutes, Date.now());
+    const offsetMinutes =
+      minutes !== undefined && new Date(event.startsAt).getTime() - minutes * 60000 > Date.now()
+        ? minutes
+        : bestReminderOffset(event.startsAt, active.user.defaultReminderMinutes, Date.now());
     if (offsetMinutes === null) {
       pushToast("danger", "Esse evento começa em menos de 15 minutos. Não dá mais para criar lembrete.");
-      return;
+      return false;
     }
     setSavingReminder(true);
     try {
@@ -3211,10 +3262,166 @@ export default function Home() {
         action: { label: "Desfazer", onClick: () => void undoReminder(saved) },
       });
       void loadAll(active);
+      return true;
     } catch (err) {
       actionFailed(err, active, subject, event.id);
+      return false;
     } finally {
       setSavingReminder(false);
+    }
+  }
+
+  /**
+   * "Lembrar das que faltam" (Lembretes): um lembrete com a antecedência padrão para cada evento, um de cada vez,
+   * e um aviso só no fim, com Desfazer (apaga os criados). Se algum falhar, o aviso diz quantos.
+   */
+  async function remindMany(list: AcademicEvent[]) {
+    const active = sessionRef.current;
+    if (!active || savingReminder || !list.length) {
+      return false;
+    }
+    setSavingReminder(true);
+    const created: Reminder[] = [];
+    let failed = 0;
+    let lastError: unknown = null;
+    for (const event of list) {
+      if (reminderByEvent.get(event.id)) {
+        continue;
+      }
+      const offsetMinutes = bestReminderOffset(event.startsAt, active.user.defaultReminderMinutes, Date.now());
+      if (offsetMinutes === null) {
+        failed += 1;
+        continue;
+      }
+      try {
+        const saved = await saveReminder(active.token, { academicEventId: event.id, offsetMinutes, enabled: true });
+        created.push(saved);
+        setReminders((current) => upsertReminder(current, saved));
+      } catch (err) {
+        failed += 1;
+        lastError = err;
+      }
+    }
+    setSavingReminder(false);
+    if (created.length) {
+      const first = list.find((event) => event.id === created[0].academicEventId);
+      const text =
+        created.length === 1
+          ? `Lembrete de "${first?.title ?? "evento"}" criado${avisoTail(first, created[0].sendAt)}.`
+          : `${created.length} lembretes criados, cada um ${reminderOffsetLabel(active.user.defaultReminderMinutes)} ou o mais perto disso.`;
+      pushToast("success", failed ? `${text} ${failed === 1 ? "Um não deu certo" : `${failed} não deram certo`}; tente de novo.` : text, {
+        keys: ["lembretes-lote"],
+        action: { label: "Desfazer", onClick: () => void undoMany(created) },
+      });
+    } else if (lastError) {
+      actionFailed(lastError, active, "lembretes-lote");
+    } else {
+      pushToast("danger", "Nenhum lembrete foi criado. Os eventos já estão perto demais.", { keys: ["lembretes-lote"] });
+    }
+    void loadAll(active);
+    return created.length > 0;
+  }
+
+  /** Desfaz o "Lembrar das que faltam": apaga os lembretes que ele criou. */
+  async function undoMany(created: Reminder[]) {
+    const active = sessionRef.current;
+    if (!active) {
+      return;
+    }
+    for (const reminder of created) {
+      try {
+        await deleteReminder(active.token, reminder.id);
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 404)) {
+          actionFailed(err, active, "lembretes-lote");
+          break;
+        }
+      }
+      setReminders((list) => list.filter((item) => item.id !== reminder.id));
+    }
+    pushToast("info", created.length === 1 ? "Lembrete desfeito." : `${created.length} lembretes desfeitos.`, { keys: ["lembretes-lote"] });
+    void loadAll(active);
+  }
+
+  /** "Limpar todos" (Lembretes): remove os lembretes de eventos cancelados ou concluídos, com Desfazer. */
+  async function clearReminders(list: Reminder[]) {
+    const active = sessionRef.current;
+    if (!active || savingReminder || !list.length) {
+      return false;
+    }
+    setSavingReminder(true);
+    const removed: Reminder[] = [];
+    try {
+      for (const reminder of list) {
+        try {
+          await deleteReminder(active.token, reminder.id);
+        } catch (err) {
+          if (!(err instanceof ApiError && err.status === 404)) {
+            throw err;
+          }
+        }
+        removed.push(reminder);
+        setReminders((current) => current.filter((item) => item.id !== reminder.id));
+      }
+      pushToast("success", removed.length === 1 ? "Lembrete removido." : `${removed.length} lembretes removidos.`, {
+        keys: ["lembretes-limpar"],
+        action: {
+          label: "Desfazer",
+          onClick: () => {
+            // um aviso só para o lote (restoreReminder daria um por lembrete)
+            void (async () => {
+              const again = sessionRef.current;
+              if (!again) {
+                return;
+              }
+              let back = 0;
+              try {
+                for (const reminder of removed) {
+                  const saved = await saveReminder(again.token, {
+                    academicEventId: reminder.academicEventId,
+                    offsetMinutes: reminder.offsetMinutes,
+                    enabled: true,
+                  });
+                  back += 1;
+                  setReminders((current) => upsertReminder(current, saved));
+                }
+                pushToast("success", back === 1 ? "Lembrete de volta." : `${back} lembretes de volta.`, { keys: ["lembretes-limpar"] });
+              } catch (err) {
+                actionFailed(err, again, "lembretes-limpar");
+              } finally {
+                void loadAll(again);
+              }
+            })();
+          },
+        },
+      });
+      return true;
+    } catch (err) {
+      actionFailed(err, active, "lembretes-limpar");
+      return false;
+    } finally {
+      setSavingReminder(false);
+      void loadAll(active);
+    }
+  }
+
+  /** Antecedência padrão salva direto em Lembretes (o perfil continua com o mesmo campo). */
+  async function saveDefaultReminder(minutes: number) {
+    const active = sessionRef.current;
+    if (!active) {
+      return false;
+    }
+    try {
+      const updated = await updateProfile(active.token, { defaultReminderMinutes: minutes });
+      const nextSession = { ...active, user: updated };
+      sessionRef.current = nextSession;
+      setSession(nextSession);
+      writeStorage("local", SESSION_KEY, nextSession);
+      pushToast("success", `Padrão salvo: ${reminderOffsetLabel(minutes)}. Vale para os lembretes novos.`, { keys: ["perfil"] });
+      return true;
+    } catch (err) {
+      actionFailed(err, active, "perfil");
+      return false;
     }
   }
 
@@ -3241,7 +3448,7 @@ export default function Home() {
   async function removeReminderRecord(reminder: Reminder) {
     const active = sessionRef.current;
     if (!active || savingReminder) {
-      return;
+      return false;
     }
     const subject = `lembrete-${reminder.academicEventId}`;
     setSavingReminder(true);
@@ -3254,14 +3461,16 @@ export default function Home() {
       });
       setReminderDraft(null);
       void loadAll(active);
+      return true;
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         // já não existia: sai da tela do mesmo jeito, e a recarga diz se o evento saiu junto
         setReminders((list) => list.filter((item) => item.id !== reminder.id));
         void reminderGone(reminder, active, errorMessage(err));
-        return;
+        return true;
       }
       actionFailed(err, active, subject);
+      return false;
     } finally {
       setSavingReminder(false);
     }
@@ -3322,12 +3531,12 @@ export default function Home() {
   async function changeReminderOffset(reminder: Reminder, minutes: number) {
     const active = sessionRef.current;
     if (!active || savingReminder || minutes === reminder.offsetMinutes) {
-      return;
+      return false;
     }
     const event = eventsById.get(reminder.academicEventId) ?? reminder.academicEvent;
     if (event && new Date(event.startsAt).getTime() - minutes * 60000 <= Date.now()) {
       pushToast("danger", "Esse horário de aviso já passou. Escolha uma antecedência menor.");
-      return;
+      return false;
     }
     const subject = `lembrete-${reminder.academicEventId}`;
     setSavingReminder(true);
@@ -3343,8 +3552,10 @@ export default function Home() {
         keys: [subject],
       });
       void loadAll(active);
+      return true;
     } catch (err) {
       actionFailed(err, active, subject, reminder.academicEventId);
+      return false;
     } finally {
       setSavingReminder(false);
     }
@@ -4148,8 +4359,9 @@ export default function Home() {
     <AppActionsProvider value={actions}>
       <AppShell
         activeView={activeView}
-        // o mesmo número do card "Avisos N" do Painel: lembretes avisando e avisos do sistema ainda não lidos
-        badges={{ reminders: avisos.length + notices.length }}
+        // só os avisos que a tela Lembretes mostra (lembretes cuja hora chegou). Os avisos do sistema, como "Maria
+        // agora acompanha sua agenda", ficam no card de avisos do Painel e não acendem o ponto de Lembretes
+        badges={{ reminders: avisos.length }}
         canWrite={canWrite}
         context={context}
         focusHeadingToken={focusHeadingToken}
@@ -4252,6 +4464,7 @@ export default function Home() {
                   onOpenCalendar={openCalendar}
                   onOpenReminders={() => goTo("reminders")}
                   onQuickReminder={quickReminder}
+                  onRemindMany={remindMany}
                   onSelect={selectEvent}
                 />
               ) : null}
@@ -4301,7 +4514,9 @@ export default function Home() {
                   allEvents={searchedEvents}
                   calendarMode={calendarMode}
                   canManageEvent={canManageEvent}
-                  classes={context?.catalog.classes ?? []}
+                  // o aluno recebe as turmas em que está matriculado (o catálogo dele traz todas as turmas abertas
+                  // para entrar); os outros perfis, o catálogo
+                  classes={studentClasses ?? context?.catalog.classes ?? []}
                   // aluno sem turma: título "Cronograma" e o convite para entrar numa turma (a mesma regra do Painel;
                   // durante a carga, sem o context, fica o título comum)
                   noClass={
@@ -4325,6 +4540,8 @@ export default function Home() {
                   toggleCategory={toggleCategory}
                   onDelete={requestDeleteEvent}
                   onEdit={beginEdit}
+                  // "Novo evento neste dia" na lista do dia: só para quem cria eventos
+                  onNewEventOn={canWrite ? openNewEventOn : undefined}
                   onRemoveReminder={removeReminderFromEvent}
                   onSaveReminder={() => void handleSaveReminder()}
                   onSelect={selectEvent}
@@ -4347,6 +4564,7 @@ export default function Home() {
                   search={search}
                   onClearSearch={clearSearchInPlace}
                   onDelete={requestDeleteEvent}
+                  onDuplicate={canWrite ? duplicateEvent : undefined}
                   onEdit={beginEdit}
                   onNewEvent={openNewEvent}
                   onNewEventFor={openNewEventFor}
@@ -4388,16 +4606,21 @@ export default function Home() {
                 <RemindersView
                   avisos={avisos}
                   defaultReminderMinutes={user.defaultReminderMinutes}
+                  email={user.email}
                   reminders={remindersWithEvents}
+                  role={user.role}
                   saving={savingReminder}
+                  studentName={guardianStudent ? firstName(guardianStudent.fullName ?? "Aluno") : null}
                   upcomingEvents={upcomingEvents}
                   onChangeOffset={changeReminderOffset}
-                  onDelete={(reminder) => void removeReminderRecord(reminder)}
+                  onClearMany={clearReminders}
+                  onDelete={removeReminderRecord}
                   onDismissAviso={dismissAviso}
                   onOpenCalendar={openCalendar}
                   onOpenEvent={selectEvent}
-                  onOpenProfile={openProfile}
                   onQuickReminder={quickReminder}
+                  onRemindMany={remindMany}
+                  onSaveDefault={saveDefaultReminder}
                 />
               ) : null}
 
@@ -4436,6 +4659,7 @@ export default function Home() {
         allEvents={joinedEvents}
         context={context}
         dirty={dirty}
+        duplicating={duplicating}
         editingEvent={editingEvent}
         form={eventForm}
         open={editorOpen}

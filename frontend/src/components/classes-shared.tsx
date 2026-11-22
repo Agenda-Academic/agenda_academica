@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { createPortal } from "react-dom";
 import { getClassStudents, getStudentGuardians, searchUsers, updateEnrollment } from "@/lib/api";
 import { cx, firstName, formatDateBR } from "@/lib/format";
-import type { EnrollmentStatus } from "@/lib/types";
+import type { Course, CourseModality, EnrollmentStatus } from "@/lib/types";
 import { secondaryButton } from "./ui";
 
 /**
@@ -26,6 +26,17 @@ export type ClassDraft = {
   shift: string;
   period: string;
 };
+
+/** Campos do "Novo curso", como a pessoa digita. codeEdited: a sigla deixou de seguir o nome. */
+export type CourseDraft = {
+  name: string;
+  code: string;
+  codeEdited: boolean;
+  modality: CourseModality | "";
+};
+
+/** Passo do cadastro de turma: 1 curso, 2 período e turno, 3 nome e conferência. */
+export type ClassStep = 1 | 2 | 3;
 
 export type SubjectDraft = {
   code: string;
@@ -49,8 +60,32 @@ export type PanelView =
       /** Página e filtro da lista de alunos: voltar do painel do aluno devolve a lista como estava. */
       studentPage?: number;
       studentFilter?: string;
+      /** Abre já na seção do código ("Ligar o código da turma", depois de criar): o foco vai para o título dela. */
+      section?: "codigo";
     }
-  | { kind: "newClass"; draft?: ClassDraft; dirty?: boolean }
+  | {
+      kind: "newClass";
+      draft?: ClassDraft;
+      dirty?: boolean;
+      step?: ClassStep;
+      /** A pessoa mexeu no nome: ele deixa de seguir a sugestão. */
+      nameEdited?: boolean;
+      /** "Outro" no período do curso: o campo de texto aberto. */
+      periodOther?: boolean;
+      /** Cursos criados agora, antes de a lista recarregar. */
+      newCourses?: Course[];
+      /** A turma criada: o painel mostra o que fazer em seguida. */
+      created?: { id: number; name: string };
+    }
+  | {
+      kind: "newCourse";
+      draft?: CourseDraft;
+      dirty?: boolean;
+      /** De onde veio: da Nova turma (volta com o curso escolhido) ou da lista de cursos. */
+      from?: "newClass" | "courses";
+    }
+  | { kind: "courses" }
+  | { kind: "course"; courseId: number; draft?: { name: string; code: string }; dirty?: boolean }
   | { kind: "subject"; subjectId: number; draft?: SubjectDraft; dirty?: boolean }
   | { kind: "newSubject"; offerTo?: number; draft?: SubjectDraft; dirty?: boolean }
   | { kind: "addOffer"; classId: number; added?: number[] }
@@ -64,6 +99,11 @@ export type PanelApi = {
   push: (view: PanelView, returnKey?: string) => void;
   /** Volta ao conteúdo anterior (ou fecha, se não houver). */
   back: () => void;
+  /**
+   * Volta ao conteúdo anterior sem perguntar, mudando o que ele guarda (ex.: o "Novo curso" criou o curso e a
+   * "Nova turma" volta com ele escolhido).
+   */
+  backWith: (update: (previous: PanelView) => PanelView) => void;
   /** Fecha o painel (sem perguntar). */
   close: () => void;
   /** Cancelar do rodapé: fecha o painel, perguntando antes se há rascunho (como o X e o Esc). */
@@ -273,6 +313,24 @@ export function joinPt(parts: string[]) {
     return parts[0] ?? "";
   }
   return `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}`;
+}
+
+/** Palavras que não entram na sigla sugerida ("Tecnologia em Análise e Desenvolvimento de Sistemas" vira TADS). */
+const CODE_SKIP = new Set(["a", "o", "e", "em", "de", "do", "da", "dos", "das", "ao", "aos", "na", "no", "nas", "nos", "para", "com"]);
+
+/** Sigla sugerida pelo nome do curso: as iniciais das palavras que contam; com uma palavra só, as 4 primeiras letras. */
+export function suggestCourseCode(name: string) {
+  const words = name
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^A-Za-z0-9\s-]/g, " ")
+    .split(/[\s-]+/)
+    .filter((word) => word && !CODE_SKIP.has(word.toLowerCase()));
+  if (!words.length) {
+    return "";
+  }
+  const code = words.length === 1 ? words[0].slice(0, 4) : words.map((word) => word[0]).join("");
+  return code.toUpperCase().slice(0, 12);
 }
 
 /** "1 aluno", "2 alunos". */
@@ -592,7 +650,10 @@ export function SkeletonRows({ rows = 3, label = "Carregando" }: { rows?: number
   );
 }
 
-/** Lembra o último curso e o último período usados ao criar turma (WCAG 3.3.7). Sem armazenamento, nada. */
+/**
+ * Lembra o último ano e semestre usados ao criar turma (WCAG 3.3.7). O curso, o período e o turno não vêm daqui
+ * (a gaveta abria com os dados de outra turma). Sem armazenamento, nada.
+ */
 const LAST_CLASS_KEY = "agenda.admin.ultimaTurma";
 
 export function readLastClass(): Partial<ClassDraft> | null {

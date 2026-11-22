@@ -21,7 +21,7 @@
 }
 .docente-tabs .n {
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
 }
 /* celular: as duas abas lado a lado, cada uma com metade da largura; o "2 pedidos" desce para baixo do nome da
@@ -50,15 +50,31 @@
   height: 20px;
   padding: 0 8px;
   border-radius: 999px;
-  background: #fef3c7;
-  color: #92400e;
-  font-size: 11.5px;
+  background: var(--amber-bg);
+  color: var(--amber);
+  font-size: 12px;
   font-weight: 700;
 }
 
 /* ------------------------------------------------------------------ */
 /* Lista de turmas (como a tabela de Turmas da administração)          */
 /* ------------------------------------------------------------------ */
+.docente-turmas {
+  overflow: clip;
+}
+.docente-turmas-head {
+  padding: 20px 24px 18px;
+}
+@media (max-width: 639px) {
+  .docente-turmas-head {
+    padding: 16px 16px 14px;
+  }
+  /* o mesmo recuo do .pad no celular (16 px): o título e as linhas alinhados com os outros cards */
+  .docente-turmas .docente-turma-row {
+    padding-left: 16px;
+    padding-right: 12px;
+  }
+}
 .docente-turma-head {
   display: none;
 }
@@ -85,7 +101,7 @@
   text-align: left;
   font-size: 14px;
   color: var(--ink);
-  background: #fff;
+  background: var(--surface);
   transition: background-color 0.16s ease;
 }
 button.docente-turma-row:hover {
@@ -103,7 +119,7 @@ button.docente-turma-row:hover {
   cursor: default;
 }
 .docente-turma-row .t {
-  font-weight: 650;
+  font-weight: 600;
 }
 .docente-turma-row .s {
   color: var(--muted);
@@ -177,8 +193,8 @@ button.docente-turma-row:hover {
 /* número de alunos em destaque (como os indicadores, menor) */
 .docente-turma-row .docente-num {
   font-family: var(--disp);
-  font-size: 20px;
-  font-weight: 750;
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
@@ -243,7 +259,7 @@ button.docente-turma-row:hover {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
 }
@@ -268,14 +284,14 @@ button.docente-turma-row:hover {
 }
 .docente-dsec-t {
   font-family: var(--disp);
-  font-size: 16.5px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.3;
   color: var(--ink);
 }
 .docente-dsec-s {
   margin-top: 2px;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
 }
@@ -297,8 +313,8 @@ button.docente-turma-row:hover {
   background: var(--brand-50);
 }
 .docente-oferta.warn {
-  border-color: #f3dca4;
-  background: #fff8e6;
+  border-color: var(--amber-line);
+  background: var(--amber-bg);
 }
 .docente-of-top {
   display: flex;
@@ -314,8 +330,8 @@ button.docente-turma-row:hover {
   gap: 6px 8px;
 }
 .docente-of-name b {
-  font-size: 14.5px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .docente-code-chip {
@@ -325,38 +341,23 @@ button.docente-turma-row:hover {
   padding: 0 7px;
   border-radius: 7px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
   color: var(--ink-3);
-  font-family: var(--mono);
-  font-size: 11.5px;
-  font-weight: 500;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
-/* "Sua disciplina": etiqueta azul cheia. A regra global html .pill (visual-novo.css) tira o fundo das pílulas e
-   deixava o texto branco sobre o azul-claro do card (1,13:1); com html na frente, esta vale por cima dela.
-   Branco sobre --brand: 4,9:1 */
-html .pill.docente-pill-mine {
+/* "Sua disciplina" e "Titular": a etiqueta clara da direção A (.pill.stat, com .blue na disciplina da docente),
+   como os outros selos. Aqui só não encolhe ao lado de um nome longo */
+.docente-pill-mine {
   flex-shrink: 0;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: var(--brand);
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 700;
 }
-html .pill.docente-pill-mine::before {
-  display: none;
-}
-@media (forced-colors: active) {
-  html .pill.docente-pill-mine {
-    border: 1px solid CanvasText;
-  }
-}
-.docente-pill-wt {
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--ink-3);
+/* sobre o azul-claro do card da disciplina dela, o fundo branco destaca a etiqueta (a borda e o texto seguem azuis) */
+html .docente-oferta.mine .pill.stat.docente-pill-mine {
+  background: var(--surface);
 }
 .docente-docs {
   margin-top: 8px;
@@ -364,11 +365,11 @@ html .pill.docente-pill-mine::before {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 16px;
-  font-size: 13.5px;
+  font-size: 13px;
 }
 .docente-oferta.warn .docente-docs {
   gap: 6px 10px;
-  color: #92400e;
+  color: var(--amber);
 }
 .docente-doc {
   display: inline-flex;
@@ -389,7 +390,7 @@ html .pill.docente-pill-mine::before {
   border-radius: 8px;
   background: var(--bebe-botao);
   color: var(--bebe-ink);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -407,7 +408,7 @@ html .pill.docente-pill-mine::before {
 .docente-n {
   margin-left: -4px;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -440,9 +441,9 @@ html .pill.docente-pill-mine::before {
 }
 .docente-pend-box {
   margin-bottom: 18px;
-  border: 1px solid #f3dca4;
+  border: 1px solid var(--amber-line);
   border-radius: 14px;
-  background: #fff8e6;
+  background: var(--amber-bg);
 }
 .docente-bulk {
   display: flex;
@@ -451,14 +452,14 @@ html .pill.docente-pill-mine::before {
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  border-bottom: 1px solid #f3dca4;
+  border-bottom: 1px solid var(--amber-line);
 }
 .docente-ck {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   min-height: 24px;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink-2);
   cursor: pointer;
@@ -498,7 +499,7 @@ html .pill.docente-pill-mine::before {
   padding: 12px;
 }
 .docente-prow + .docente-prow {
-  border-top: 1px solid #f3dca4;
+  border-top: 1px solid var(--amber-line);
 }
 .docente-p-main {
   flex: 1 1 180px;
@@ -506,7 +507,7 @@ html .pill.docente-pill-mine::before {
 }
 .docente-p-name {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
   overflow-wrap: anywhere;
 }
@@ -545,7 +546,7 @@ html .pill.docente-pill-mine::before {
   border-radius: 10px;
   background: var(--neutral-tint);
   color: var(--ink-3);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
 }
 .docente-s-main {
@@ -554,7 +555,7 @@ html .pill.docente-pill-mine::before {
 }
 .docente-s-name {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
   overflow-wrap: anywhere;
 }
@@ -567,6 +568,16 @@ html .pill.docente-pill-mine::before {
 .docente-more {
   min-height: 32px;
   margin-top: 10px;
+}
+/* toque e telas abaixo de 768 px: "Selecionar os N" e o nome do pedido (que também marca) com 44 px */
+@media (pointer: coarse), (max-width: 767px) {
+  .docente-ck,
+  .docente-p-pick {
+    min-height: 44px;
+  }
+  .docente-p-pick {
+    align-items: center;
+  }
 }
 
 /* código da turma */
@@ -582,7 +593,7 @@ html .pill.docente-pill-mine::before {
 }
 .docente-code-big {
   font-family: var(--mono);
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: 0.08em;

@@ -15,8 +15,10 @@ import {
 import {
   addDays,
   classTermLabel,
+  countText,
   cx,
   dateParts,
+  firstName,
   formatShortDate,
   formatTime,
   isWholeDay,
@@ -43,27 +45,23 @@ import {
   upcomingOfficialDates,
   useColumnFill,
   useSavedReveal,
+  useWideLayout,
   type CalendarFilter,
 } from "./dashboard-bits";
 import { eventLastDay } from "./event-bits";
-import { EmptyState, SectionTitle } from "./ui";
+import { EmptyState, PageHeader, SectionTitle } from "./ui";
 
 /** Blocos de evento na semana; os que não cabem viram "+N eventos" no dia deles. */
 const WEEK_LIMIT = 7;
 
 /**
- * Até quantos itens "Meus próximos eventos" mostra para terminar junto com a coluna de apoio. Com a
- * semana muito cheia (7 blocos, continuações, sábado), a coluna de apoio vai de uns 1.200 a 1.450 px
- * e a lista precisa de 9 a 13 itens para a sobra ficar menor que um item. useColumnFill põe um item
- * por vez, antes da pintura: 16 deixa folga e fica longe do limite de atualizações seguidas do React.
+ * Lado a lado, "Meus próximos eventos" fica na coluna de apoio, embaixo da semana, e as datas da instituição na
+ * coluna larga, embaixo das turmas: cada coluna tem uma lista, e useColumnFill põe ou tira itens de cada uma até as
+ * duas terminarem juntas (decisão 5). Com a semana cheia, a coluna de apoio passa de 1.200 px: a lista da docente
+ * vai até MINE_MAX e as datas, até DATES_MAX.
  */
-const MINE_MAX = 16;
-
-/**
- * Maior sobra (px) que "Meus próximos eventos" ou "Datas da instituição" guardam esticados antes do "Ver todos"; acima
- * dela, as colunas ficam do tamanho do conteúdo (duo-loose) e o link fica logo depois da lista.
- */
-const LIST_LOOSE_GAP = 20;
+const MINE_MAX = 12;
+const DATES_MAX = 10;
 
 /** Uma semana em ms (para comparar a semana do Painel com a de hoje). */
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -293,30 +291,221 @@ export function TeacherDashboard({
   // com um evento só, ele já está no destaque: a lista não o repete e mostra o caminho para publicar mais
   const listEvents = myOpen.length === 1 && nextMine && myOpen[0].id === nextMine.id ? [] : myOpen;
 
-  // as duas colunas terminam juntas: "Meus próximos eventos" e "Datas da instituição" mostram mais itens
-  // enquanto a coluna delas for a mais baixa (com a semana cheia, a lista passa de 8); quando a lista da
-  // docente acaba, as datas da instituição descem até 1 para a coluna dela não ficar com um buraco. Se ainda
-  // sobrar mais que um respiro (LIST_LOOSE_GAP), o card não estica: o "Ver todos" fica logo depois da lista e as
-  // colunas terminam a menos de 80 px uma da outra (sem vão antes do link nem embaixo dele)
+  // as duas colunas terminam juntas (decisão 5): as datas da instituição (coluna larga) e "Meus próximos eventos"
+  // (coluna de apoio, embaixo da semana) mostram mais ou menos itens até as colunas fecharem na mesma linha; a
+  // pequena sobra que restar vai para o último card da coluna mais baixa (duo-even)
+  // lado a lado (1280 px ou mais) ou numa coluna só: o JSX muda de ordem, não o CSS (o foco segue a tela)
+  const wide = useWideLayout();
   const { gridRef, mainGapRef, sideGapRef, mainCount, sideCount, gridClass } = useColumnFill(
-    { total: listEvents.length, min: 3, max: MINE_MAX },
-    { total: listedDates.length, min: 3, max: 6, floor: 1 },
+    { total: listedDates.length, min: 3, max: DATES_MAX, floor: 1 },
+    { total: listEvents.length, min: 3, max: MINE_MAX, floor: 1 },
     [
       assignments.length,
       heightKey(listEvents.slice(0, MINE_MAX)),
-      heightKey(listedDates.slice(0, 6)),
+      heightKey(listedDates.slice(0, DATES_MAX)),
       weekKey(week.days),
       weekEmpty,
-    ].join("|"),
-    LIST_LOOSE_GAP
+      wide,
+    ].join("|")
   );
+  // cabeçalho da tela: "Olá, Maraísa" e as turmas com o semestre, na ordem do Painel do aluno ("TADS 5, semestre
+  // 2026/2"); com mais de duas turmas, só o número delas (a linha não cresce sem fim)
+  const greeting = `Olá, ${firstName(context?.user.fullName ?? "docente")}`;
+  const classesText = classes.length
+    ? classes.length > 2
+      ? countText(classes.length, "turma", "turmas")
+      : classes.map((item) => item.name).join(", ")
+    : null;
+  const headSubtitle = [classesText, term ? `${classesText ? "semestre" : "Semestre"} ${term}` : null]
+    .filter(Boolean)
+    .join(", ");
 
   function upcomingCountFor(academicClassId: number, subjectId: number) {
     return myOpen.filter((event) => event.academicClassId === academicClassId && event.subjectId === subjectId).length;
   }
 
+  // os quatro cards de baixo; lado a lado ficam em duas colunas, numa coluna só seguem a ordem da docente
+  const turmasCard = (
+    <section className="card pad rise prof-turmas" style={delay(6)} aria-labelledby="prof-turmas-titulo">
+      <SectionTitle id="prof-turmas-titulo" title="Minhas turmas e disciplinas" />
+      {assignments.length ? (
+        <ul className="subj-grid">
+          {assignments.map((assignment) => {
+            const count = upcomingCountFor(assignment.academicClassId, assignment.subjectId);
+            const subjectName = assignment.subject?.name ?? "Disciplina";
+            const className = assignment.academicClass?.name ?? "turma";
+            return (
+              <li
+                key={assignment.id}
+                className="subj-card flex min-w-0 flex-col gap-3.5 p-4"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-semibold text-ink">{subjectName}</p>
+                  {/* nome de turma longo, sem espaço, quebra em qualquer ponto */}
+                  <p className="sub !mt-1 wrap-anywhere">
+                    {[
+                      assignment.academicClass?.name,
+                      shiftLabel(assignment.academicClass?.shift),
+                      assignment.subject?.code,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </p>
+                </div>
+                <p className="flex items-center gap-2 text-sm font-semibold text-ink-3">
+                  <span className={cx("dot", count ? "d-prova" : "bg-line-strong")} aria-hidden />
+                  {count ? `${count} evento${count === 1 ? "" : "s"} à frente` : "Sem eventos futuros"}
+                </p>
+                <button
+                  className="btn btn-s btn-sm w-fit"
+                  aria-label={`Novo evento de ${subjectName} para ${className}`}
+                  onClick={() => onNewEventFor(assignment.academicClassId, assignment.subjectId)}
+                  type="button"
+                >
+                  <Plus className="h-[15px] w-[15px]" aria-hidden />
+                  Evento
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <div className="mt-4">
+          <EmptyState
+            compact
+            icon={Users}
+            text="Sem turmas vinculadas"
+            hint="Peça à administração para vincular suas disciplinas e turmas."
+          />
+        </div>
+      )}
+    </section>
+  );
+  const datesCard = (
+    <InstitutionDatesCard
+      className="duo-fill prof-dates"
+      emptyText={nextOfficial ? "Nenhuma outra data da instituição à frente" : undefined}
+      events={listedDates}
+      subtitle={nextOfficial ? "Depois da próxima, feriados, recessos e eventos oficiais" : undefined}
+      limit={mainCount}
+      listed={officialListed}
+      fillRef={mainGapRef}
+      order={7}
+      savedId={savedId}
+      onOpenAll={openOfficial}
+      onSelect={onSelect}
+    />
+  );
+  const weekCard = (
+    <section className="card pad rise prof-week" style={delay(7)} aria-label={weekTitle}>
+      <SectionTitle title={weekTitle} subtitle={weekEmpty ? undefined : weekSubtitle(week.listed, isMine)} />
+      {weekEmpty ? (
+        // semana inteira livre: uma linha só. O próximo evento da docente já é o destaque logo acima; repetir
+        // "Próximo: ..." aqui seria o mesmo item duas vezes seguidas (decisão 13)
+        <div className="wk-empty">
+          <EmptyState
+            compact
+            icon={CalendarDays}
+            text="Semana livre"
+            hint="Nenhum evento seu, das suas turmas ou da instituição nestes dias."
+          />
+        </div>
+      ) : (
+        // todos os dias da semana (Figma): "Livre" apagado no dia sem nada; hoje em destaque e os dias que já
+        // passaram mais apagados
+        <ul className="wk">
+          {week.days.map((day) => {
+            const parts = dateParts(day.date.toISOString());
+            const free = !day.events.length && !day.continuing.length && !day.hidden;
+            const isToday = day.key === todayKey;
+            const past = day.key < todayKey;
+            return (
+              <li
+                key={day.key}
+                className={cx("wk-day", isToday && "wk-today", past && "wk-past")}
+                aria-current={isToday ? "date" : undefined}
+              >
+                <span className="wk-label">
+                  {parts.weekday} {parts.day}
+                  {isToday ? <span className="wk-today-tag">Hoje</span> : null}
+                </span>
+                <div className="wk-evs">
+                  {day.continuing.map((event) => (
+                    <p key={`segue-${event.id}`} className="wk-line">
+                      <span className={cx("dot", categoryMeta[event.category].accent)} aria-hidden />
+                      {event.title} ({eventLastDay(event).getTime() === day.key ? "último dia" : "continua"})
+                    </p>
+                  ))}
+                  {day.events.map((event) => (
+                    <button
+                      key={event.id}
+                      className={cx("wk-ev", categoryMeta[event.category].tint)}
+                      data-event-id={event.id}
+                      data-opens-event={event.id}
+                      onClick={() => onSelect(event.id)}
+                      type="button"
+                    >
+                      <span className="wk-t">
+                        <span className={cx("dot", categoryMeta[event.category].accent)} aria-hidden />
+                        <span className="min-w-0">{event.title}</span>
+                      </span>
+                      <span className="wk-h">{weekHint(event, isMine(event))}</span>
+                      {savedId === event.id ? (
+                        <span className="mt-1.5 flex">
+                          <SavedPill />
+                        </span>
+                      ) : null}
+                    </button>
+                  ))}
+                  {day.hidden ? (
+                    <p className="wk-more">+{day.hidden === 1 ? "1 evento" : `${day.hidden} eventos`}</p>
+                  ) : null}
+                  {free ? <p className="wk-free">Livre</p> : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {week.hidden && onOpenCalendar ? (
+        // os que não couberam estão no Cronograma, que lista todos os próximos (não só a semana):
+        // "+N eventos" no dia já diz quantos faltam, e o rodapé fica sem número
+        <div className="card-foot">
+          <button className="link" onClick={() => onOpenCalendar()} type="button">
+            Ver no cronograma
+            <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+  const mineCard = (
+    <section className="card pad rise duo-fill prof-mine" style={delay(8)} aria-label="Meus próximos eventos">
+      <SectionTitle title="Meus próximos eventos" />
+      <EventList
+        className="mt-3"
+        events={listEvents}
+        limit={sideCount}
+        fillRef={sideGapRef}
+        savedId={savedId}
+        emptyCompact
+        emptyIcon={CalendarPlus}
+        emptyText={myOpen.length ? "Só o evento do destaque está publicado" : "Nenhum evento publicado ainda"}
+        emptyHint={
+          myOpen.length
+            ? "Use + Evento em Minhas turmas e disciplinas para publicar o próximo."
+            : "Use os atalhos das disciplinas para publicar o primeiro."
+        }
+        // o mesmo conjunto da aba "Próximos" da Gestão e do KPI "Publicações futuras"
+        showAll={{ label: "Ver todos na Gestão", count: myOpen.length, onClick: onOpenManage, always: true }}
+        onSelect={onSelect}
+      />
+    </section>
+  );
+
   return (
-    <div ref={rootRef} className="pnl grid gap-5">
+    <div ref={rootRef} className="pnl pnl-prof grid gap-5">
+      <PageHeader title={greeting} subtitle={headSubtitle || undefined} />
       <AvisosCard host avisos={avisos ?? []} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
 
       <div className="hero-slot rise" style={delay(0)}>
@@ -357,7 +546,6 @@ export function TeacherDashboard({
           label="Turmas"
           order={3}
           value={String(classes.length)}
-          tone="c-trab"
           hint={classesHint}
           actionLabel="Ver minhas turmas e disciplinas"
           onClick={openClassesCard}
@@ -367,7 +555,6 @@ export function TeacherDashboard({
           label="Disciplinas"
           order={4}
           value={String(assignments.length)}
-          tone="c-ativ"
           hint={term ? `no semestre ${term}` : "sem vínculo"}
           actionLabel="Ver minhas turmas e disciplinas"
           onClick={openClassesCard}
@@ -379,7 +566,6 @@ export function TeacherDashboard({
           order={5}
           value={nextOfficial ? shortDayMonth(nextOfficial.startsAt) : "Nenhuma"}
           unit={nextOfficial ? yearUnit(nextOfficial.startsAt) : undefined}
-          tone="c-inst"
           valueClassName={nextOfficial ? "is-date" : undefined}
           hint={nextOfficial ? `${nextOfficial.title}, ${relativeDue(nextOfficial.startsAt)}` : "nenhuma data da instituição à frente"}
           actionLabel="Ver as datas da instituição no cronograma"
@@ -387,181 +573,30 @@ export function TeacherDashboard({
         />
       </div>
 
-      {/* Arranjo do Figma: turmas e próximos eventos na coluna larga; semana e datas oficiais ao lado */}
+      {/* Lado a lado: turmas e datas da instituição na coluna larga; a semana e os eventos da docente na de apoio.
+          Cada coluna tem uma lista, e as duas terminam juntas pelo número de itens (useColumnFill). Numa coluna
+          só (abaixo de 1280 px), o JSX já vem na ordem turmas, eventos, semana e datas: o foco do teclado e o
+          leitor de tela seguem a ordem da tela */}
       <div ref={gridRef} className={cx("duo", gridClass)}>
-        <div className="duo-col duo-main">
-          <section className="card pad rise" style={delay(6)} aria-labelledby="prof-turmas-titulo">
-            <SectionTitle id="prof-turmas-titulo" title="Minhas turmas e disciplinas" />
-            {assignments.length ? (
-              <ul className="subj-grid">
-                {assignments.map((assignment) => {
-                  const count = upcomingCountFor(assignment.academicClassId, assignment.subjectId);
-                  const subjectName = assignment.subject?.name ?? "Disciplina";
-                  const className = assignment.academicClass?.name ?? "turma";
-                  return (
-                    <li
-                      key={assignment.id}
-                      className="flex min-w-0 flex-col gap-3.5 rounded-2xl bg-surface-2 p-4"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-[15.5px] font-bold">{subjectName}</p>
-                        {/* nome de turma longo, sem espaço, quebra em qualquer ponto */}
-                        <p className="sub !mt-1 wrap-anywhere">
-                          {[
-                            assignment.academicClass?.name,
-                            shiftLabel(assignment.academicClass?.shift),
-                            assignment.subject?.code,
-                          ]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </p>
-                      </div>
-                      <p className="flex items-center gap-2 text-sm font-semibold text-ink-3">
-                        <span className={cx("dot", count ? "d-prova" : "bg-line-strong")} aria-hidden />
-                        {count ? `${count} evento${count === 1 ? "" : "s"} à frente` : "Sem eventos futuros"}
-                      </p>
-                      <button
-                        className="btn btn-s btn-sm w-fit"
-                        aria-label={`Novo evento de ${subjectName} para ${className}`}
-                        onClick={() => onNewEventFor(assignment.academicClassId, assignment.subjectId)}
-                        type="button"
-                      >
-                        <Plus className="h-[15px] w-[15px]" aria-hidden />
-                        Evento
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <div className="mt-4">
-                <EmptyState
-                  compact
-                  icon={Users}
-                  text="Sem turmas vinculadas"
-                  hint="Peça à administração para vincular suas disciplinas e turmas."
-                />
-              </div>
-            )}
-          </section>
-
-          <section className="card pad rise duo-fill" style={delay(7)} aria-label="Meus próximos eventos">
-            <SectionTitle title="Meus próximos eventos" />
-            <EventList
-              className="mt-3"
-              events={listEvents}
-              limit={mainCount}
-              fillRef={mainGapRef}
-              savedId={savedId}
-              emptyCompact
-              emptyIcon={CalendarPlus}
-              emptyText={myOpen.length ? "Só o evento do destaque está publicado" : "Nenhum evento publicado ainda"}
-              emptyHint={
-                myOpen.length
-                  ? "Use + Evento nas disciplinas acima para publicar o próximo."
-                  : "Use os atalhos das disciplinas para publicar o primeiro."
-              }
-              // o mesmo conjunto da aba "Próximos" da Gestão e do KPI "Publicações futuras"
-              showAll={{ label: "Ver todos na Gestão", count: myOpen.length, onClick: onOpenManage, always: true }}
-              onSelect={onSelect}
-            />
-          </section>
-        </div>
-
-        <div className="duo-col duo-side">
-          <section className="card pad rise" style={delay(8)} aria-label={weekTitle}>
-            <SectionTitle title={weekTitle} subtitle={weekEmpty ? undefined : weekSubtitle(week.listed, isMine)} />
-            {weekEmpty ? (
-              // semana inteira livre: uma linha só. O próximo evento da docente já é o destaque logo acima; repetir
-              // "Próximo: ..." aqui seria o mesmo item duas vezes seguidas (decisão 13)
-              <div className="wk-empty">
-                <EmptyState
-                  compact
-                  icon={CalendarDays}
-                  text="Semana livre"
-                  hint="Nenhum evento seu, das suas turmas ou da instituição nestes dias."
-                />
-              </div>
-            ) : (
-              // todos os dias da semana (Figma): "Livre" apagado no dia sem nada; hoje em destaque e os dias que já
-              // passaram mais apagados
-              <ul className="wk">
-                {week.days.map((day) => {
-                  const parts = dateParts(day.date.toISOString());
-                  const free = !day.events.length && !day.continuing.length && !day.hidden;
-                  const isToday = day.key === todayKey;
-                  const past = day.key < todayKey;
-                  return (
-                    <li
-                      key={day.key}
-                      className={cx("wk-day", isToday && "wk-today", past && "wk-past")}
-                      aria-current={isToday ? "date" : undefined}
-                    >
-                      <span className="wk-label">
-                        {parts.weekday} {parts.day}
-                        {isToday ? <span className="wk-today-tag">Hoje</span> : null}
-                      </span>
-                      <div className="wk-evs">
-                        {day.continuing.map((event) => (
-                          <p key={`segue-${event.id}`} className="wk-line">
-                            <span className={cx("dot", categoryMeta[event.category].accent)} aria-hidden />
-                            {event.title} ({eventLastDay(event).getTime() === day.key ? "último dia" : "continua"})
-                          </p>
-                        ))}
-                        {day.events.map((event) => (
-                          <button
-                            key={event.id}
-                            className={cx("wk-ev", categoryMeta[event.category].tint)}
-                            data-event-id={event.id}
-                            data-opens-event={event.id}
-                            onClick={() => onSelect(event.id)}
-                            type="button"
-                          >
-                            <span className="wk-t">{event.title}</span>
-                            <span className="wk-h">{weekHint(event, isMine(event))}</span>
-                            {savedId === event.id ? (
-                              <span className="mt-1.5 flex">
-                                <SavedPill />
-                              </span>
-                            ) : null}
-                          </button>
-                        ))}
-                        {day.hidden ? (
-                          <p className="wk-more">+{day.hidden === 1 ? "1 evento" : `${day.hidden} eventos`}</p>
-                        ) : null}
-                        {free ? <p className="wk-free">Livre</p> : null}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {week.hidden && onOpenCalendar ? (
-              // os que não couberam estão no Cronograma, que lista todos os próximos (não só a semana):
-              // "+N eventos" no dia já diz quantos faltam, e o rodapé fica sem número
-              <div className="card-foot">
-                <button className="link" onClick={() => onOpenCalendar()} type="button">
-                  Ver no cronograma
-                  <ArrowRight className="h-[15px] w-[15px]" aria-hidden />
-                </button>
-              </div>
-            ) : null}
-          </section>
-
-          <InstitutionDatesCard
-            className="duo-fill"
-            emptyText={nextOfficial ? "Nenhuma outra data da instituição à frente" : undefined}
-            events={listedDates}
-            subtitle={nextOfficial ? "Depois da próxima, feriados, recessos e eventos oficiais" : undefined}
-            limit={sideCount}
-            listed={officialListed}
-            fillRef={sideGapRef}
-            order={9}
-            savedId={savedId}
-            onOpenAll={openOfficial}
-            onSelect={onSelect}
-          />
-        </div>
+        {wide ? (
+          <>
+            <div className="duo-col duo-main">
+              {turmasCard}
+              {datesCard}
+            </div>
+            <div className="duo-col duo-side">
+              {weekCard}
+              {mineCard}
+            </div>
+          </>
+        ) : (
+          <div className="duo-col duo-main">
+            {turmasCard}
+            {mineCard}
+            {weekCard}
+            {datesCard}
+          </div>
+        )}
       </div>
     </div>
   );

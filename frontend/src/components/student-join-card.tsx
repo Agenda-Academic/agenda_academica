@@ -10,7 +10,7 @@ import { delay } from "./dashboard-bits";
 
 /**
  * Card "Entrar em uma turma" do Painel do aluno sem matrícula ativa (desenho 5.5, amostra aluno-entrar-turma):
- * campo do código já focado, POST /enrollments/join (joinClass), "Você entrou em TADS 5" (aviso embaixo, e o
+ * campo do código (sem foco automático: a página abre no começo, rodada 8), POST /enrollments/join (joinClass), "Você entrou em TADS 5" (aviso embaixo, e o
  * Painel passa a mostrar a turma) ou "Pedido enviado para TADS 5. A docente ou a secretaria confirma." (o status
  * do pedido fica visível no card). Código ruim: a frase única da API abaixo do campo; 429: o tempo de espera.
  * Depois de entrar, useAppActions().reload(). Dona: área Aluno (renderiza em dashboard-student.tsx).
@@ -21,7 +21,7 @@ import { delay } from "./dashboard-bits";
 export type StudentJoinCardProps = {
   /** Pedidos de entrada ainda sem decisão (context.pendingEnrollments): mostre o status no card. */
   pendingEnrollments?: Enrollment[];
-  /** Foca o campo do código ao montar (padrão: sim, quando o card é o principal do Painel). */
+  /** Foca o campo do código ao montar (padrão: não; o Painel abre com o foco no começo da página). */
   autoFocus?: boolean;
   /** Posição na animação de entrada do Painel (delay). */
   order?: number;
@@ -267,7 +267,7 @@ export function pendingList(
 /* ------------------------------------------------------------------ */
 
 export function StudentJoinCard({
-  autoFocus = true,
+  autoFocus = false,
   order = 0,
   pendingEnrollments = [],
   onJoined,
@@ -283,7 +283,7 @@ export function StudentJoinCard({
   // frase do último envio para o leitor de tela (a região fica sempre montada)
   const [announce, setAnnounce] = useState("");
 
-  // o campo já vem focado (desenho 5.5); não tira o foco de um diálogo aberto nem de algo que a pessoa focou
+  // com autoFocus, o campo vem focado; não tira o foco de um diálogo aberto nem de algo que a pessoa focou
   useEffect(() => {
     // no celular e no tablet (toque), o foco automático abriria o teclado sozinho ao entrar no Painel
     if (!autoFocus || window.matchMedia("(pointer: coarse)").matches) {

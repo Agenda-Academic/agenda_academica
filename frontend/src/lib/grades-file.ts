@@ -6,7 +6,7 @@
  * Dona: área Notas (docente).
  */
 import type { SheetData } from "write-excel-file/browser";
-import type { GradeEventInfo, GradeImportMapping, GradeImportRow, GradeImportRowInput } from "./types";
+import type { GradeEventInfo, GradeImportMapping, GradeImportRow, GradeImportRowInput, GradeStatus } from "./types";
 
 /** Teto do corpo do POST /grade-imports (bodyparser da API: 1 MB). */
 export const MAX_BODY_BYTES = 1_000_000;
@@ -495,6 +495,9 @@ export function columnsVerdict(sheet: ParsedSheet, choice: ColumnChoice): "ok" |
   if (!columnHasData(sheet, choice.identifierColumn)) return "student";
   if (!choice.scoreColumn || choice.scoreColumn === choice.identifierColumn) return "score";
   if (!columnHasData(sheet, choice.scoreColumn)) {
+    // a turma toda com falta ou dispensa: a nota fica em branco e a coluna Situação traz o que importar
+    const statusIndex = statusColumnIndex(sheet, choice);
+    if (statusIndex >= 0 && columnHasData(sheet, sheet.headers[statusIndex])) return "ok";
     const other = sheet.headers.some(
       (header) => header !== choice.identifierColumn && header !== choice.scoreColumn && looksLikeScores(sheet, header)
     );
@@ -559,13 +562,43 @@ export function toMapping(choice: ColumnChoice): GradeImportMapping {
   };
 }
 
+/** A coluna Situação da planilha baixada (falta e dispensa), quando o arquivo tem e não é a coluna da nota. */
+function statusColumnIndex(sheet: ParsedSheet, choice: ColumnChoice) {
+  const index = sheet.headers.findIndex((header) => headerKey(header) === "situacao");
+  if (index < 0) return -1;
+  const header = sheet.headers[index];
+  return header === choice.scoreColumn || header === choice.identifierColumn || header === choice.nameColumn ? -1 : index;
+}
+
+/** As palavras de falta e dispensa que a API aceita (F, Falta, Faltou, D, Dispensa, Dispensado/a). */
+const STATUS_WORD = /^(f|falta|faltou|d|dispensa|dispensad[oa])$/;
+
+export function isStatusWord(value: string) {
+  return STATUS_WORD.test(headerKey(value).replace(/\s/g, ""));
+}
+
+/**
+ * Texto que `buildImportRows` manda quando a linha tem nota e Falta ou Dispensa ("8,5 e Falta"), em duas partes
+ * para a conferência mostrar o que a planilha traz: a nota com vírgula ("8,5") e
+ * a situação por extenso ("Falta" ou "Dispensa"). Null quando o texto não é nota e situação.
+ */
+export function scoreAndStatus(raw: string): { score: string; status: "Falta" | "Dispensa" } | null {
+  const match = /^(\S+) e (.+)$/.exec(raw.trim());
+  // até duas casas, como o parseScore da API: "8,555 e Falta" é nota inválida, não nota e falta
+  if (!match || !/^\d+([.,]\d{1,2})?$/.test(match[1]) || !isStatusWord(match[2])) return null;
+  const word = headerKey(match[2]).replace(/\s/g, "");
+  return { score: match[1].replace(".", ","), status: word.startsWith("f") ? "Falta" : "Dispensa" };
+}
+
 /**
  * Linhas para o POST: identificador, nome e nota como vieram no arquivo (a API normaliza e aceita "7,5"). Linha
- * com as três células vazias fica de fora (a API também a ignora); célula de nota vazia nunca vira zero.
+ * com as três células vazias fica de fora (a API também a ignora); célula de nota vazia nunca vira zero. Com a
+ * nota em branco, vale o que está na coluna Situação ("Falta", "Dispensa", F ou D): a API lê essas palavras.
  */
 export function buildImportRows(sheet: ParsedSheet, choice: ColumnChoice): GradeImportRowInput[] {
   const idIndex = sheet.headers.indexOf(choice.identifierColumn);
   const scoreIndex = sheet.headers.indexOf(choice.scoreColumn);
+  const statusIndex = statusColumnIndex(sheet, choice);
   // pelo nome, a coluna do aluno já é o nome: não vai de novo como "name"
   const nameIndex =
     choice.nameColumn && choice.identifierType !== "name" && choice.nameColumn !== choice.identifierColumn
@@ -574,7 +607,18 @@ export function buildImportRows(sheet: ParsedSheet, choice: ColumnChoice): Grade
   const rows: GradeImportRowInput[] = [];
   for (const row of sheet.rows) {
     const identifier = row.cells[idIndex] ?? "";
-    const score = row.cells[scoreIndex] ?? "";
+    const scoreCell = (row.cells[scoreIndex] ?? "").trim();
+    const statusCell = statusIndex >= 0 ? (row.cells[statusIndex] ?? "").trim() : "";
+    // nota e Falta ou Dispensa na mesma linha: vai junto ("8,5 e Falta"), a API recusa e a linha aparece com
+    // problema, em vez de a nota valer e a falta sumir sem aviso. Outro texto na Situação não muda a nota.
+    // "-" na nota é como o Moodle marca "sem nota": conta como em branco, e a Situação vale.
+    const blankScore = !scoreCell || /^[-–—]$/.test(scoreCell);
+    const score =
+      !blankScore && isStatusWord(statusCell)
+        ? `${scoreCell} e ${statusCell}`
+        : blankScore && statusCell
+          ? statusCell
+          : scoreCell;
     const name = nameIndex >= 0 ? (row.cells[nameIndex] ?? "") : "";
     if (!identifier && !score && !name) {
       continue;
@@ -650,7 +694,13 @@ export function fileSlug(value: string) {
   );
 }
 
-type TemplateStudent = { email: string; registration?: string | null; fullName: string | null };
+/** Aluno da planilha da turma; com `grade`, a planilha já vem com a nota atual (falta e dispensa na coluna Situação). */
+type TemplateStudent = {
+  email: string;
+  registration?: string | null;
+  fullName: string | null;
+  grade?: { status: GradeStatus; score: number | null } | null;
+};
 
 const HEADER_STYLE = {
   fontWeight: "bold" as const,
@@ -691,29 +741,41 @@ export function templateHeaders(students: TemplateStudent[], maxScoreText?: stri
     "E-mail",
     ...(students.some((student) => student.registration) ? ["Matrícula"] : []),
     templateScoreHeader(maxScoreText),
+    ...(students.some((student) => student.grade && student.grade.status !== "graded") ? ["Situação"] : []),
   ];
 }
 
+const statusWords: Record<GradeStatus, string> = { graded: "", absent: "Falta", excused: "Dispensa" };
+
 /**
- * Planilha da turma: na primeira aba, a turma e os alunos ativos (em ordem alfabética) com a nota em branco para
- * preencher; na segunda, a avaliação e como preencher. A Agenda acha o aluno sozinha pelo e-mail que já vem
- * preenchido (a docente nunca digita e-mail), e a matrícula só entra quando a lista traz alguma (a administração).
+ * Planilha da turma: na primeira aba, a turma e os alunos ativos (em ordem alfabética) com a nota atual já
+ * preenchida (em branco para quem ainda não tem) e, quando há, a coluna Situação com falta e dispensa; na
+ * segunda, a avaliação e como preencher. A Agenda acha o aluno sozinha pelo e-mail que já vem preenchido (a
+ * docente nunca digita e-mail), e a matrícula só entra quando a lista traz alguma (a administração). Reimportar a
+ * planilha sem mexer marca as notas como iguais: só o que mudou entra.
  */
 export async function downloadTemplate(info: GradeEventInfo, students: TemplateStudent[]) {
   const headers = templateHeaders(students, info.maxScoreText);
   const withRegistration = headers.includes("Matrícula");
+  const withStatus = headers.includes("Situação");
   const className = info.academicClass?.name ?? "";
   const sorted = [...students].sort((a, b) => (a.fullName ?? a.email).localeCompare(b.fullName ?? b.email, "pt-BR"));
   const fill = { backgroundColor: "#FFF8DB" };
   const headerRow = headers.map((title) => ({ value: title, ...HEADER_STYLE }));
-  const rows: SheetData = sorted.map((student) => [
-    className,
-    student.fullName ?? "",
-    student.email,
-    ...(withRegistration ? [student.registration ?? ""] : []),
-    // a nota fica em branco, com fundo amarelo, para a docente ver onde escrever
-    { type: Number, ...fill },
-  ]);
+  const rows: SheetData = sorted.map((student) => {
+    const grade = student.grade ?? null;
+    const score = grade && grade.status === "graded" && grade.score !== null ? grade.score / 100 : null;
+    return [
+      className,
+      student.fullName ?? "",
+      student.email,
+      ...(withRegistration ? [student.registration ?? ""] : []),
+      // a nota fica com fundo amarelo, para a docente ver onde escrever (em branco para quem ainda não tem)
+      score === null ? { type: Number, ...fill } : { type: Number, value: score, ...fill },
+      ...(withStatus ? [grade ? statusWords[grade.status] : ""] : []),
+    ];
+  });
+  const withGrades = students.some((student) => student.grade);
   const date = new Date(info.startsAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
   const label = { fontWeight: "bold" as const };
   const howTo: SheetData = [
@@ -726,16 +788,31 @@ export async function downloadTemplate(info: GradeEventInfo, students: TemplateS
     [{ value: "Vale", ...label }, info.maxScoreText ? `${info.maxScoreText} pontos` : "Ainda sem pontuação"],
     [],
     [{ value: "Como preencher", fontWeight: "bold" as const, fontSize: 13 }],
-    ["1. Na aba Notas, escreva a nota de cada aluno na coluna amarela. Vale vírgula ou ponto: 7,5."],
-    ["2. Quem não fez a avaliação fica com a nota em branco."],
+    [
+      withGrades
+        ? "1. Na aba Notas, a coluna amarela já traz as notas lançadas. Escreva ou mude a nota de cada aluno. Vale vírgula ou ponto: 7,5."
+        : "1. Na aba Notas, escreva a nota de cada aluno na coluna amarela. Vale vírgula ou ponto: 7,5.",
+    ],
+    [
+      withStatus
+        ? "2. Quem não fez a avaliação fica com a nota em branco. Para falta ou dispensa, apague a nota e escreva Falta ou Dispensa na coluna Situação."
+        : "2. Quem não fez a avaliação fica com a nota em branco. Para falta ou dispensa, escreva F ou D no lugar da nota.",
+    ],
     ["3. Você só escreve as notas: a Agenda acha cada aluno sozinha, pelos dados que já vêm na planilha."],
-    ["4. Salve a planilha e envie em Notas, na avaliação, com Importar notas. Antes de gravar, você confere tudo."],
+    ["4. Salve a planilha e envie em Notas, na avaliação, com Importar planilha. Antes de gravar, você confere o que mudou."],
   ];
   await downloadXlsx(`notas-${fileSlug(className || "turma")}-${fileSlug(info.title)}.xlsx`, [
     {
       sheet: "Notas",
       data: [headerRow, ...rows],
-      columns: [{ width: 14 }, { width: 34 }, { width: 34 }, ...(withRegistration ? [{ width: 14 }] : []), { width: 16 }],
+      columns: [
+        { width: 14 },
+        { width: 34 },
+        { width: 34 },
+        ...(withRegistration ? [{ width: 14 }] : []),
+        { width: 16 },
+        ...(withStatus ? [{ width: 14 }] : []),
+      ],
       stickyRowsCount: 1,
     },
     { sheet: "Como preencher", data: howTo, columns: [{ width: 14 }, { width: 60 }] },

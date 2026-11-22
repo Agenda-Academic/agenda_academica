@@ -94,7 +94,7 @@ export function AdminPendingCard({ order = 0, onLayoutChange }: AdminPendingCard
       ? plural(items.length, "item para resolver", "itens para resolver")
       : "Tudo em dia"
     : remote.error
-      ? "Não deu para carregar"
+      ? undefined // o aviso do corpo já diz que não deu para carregar
       : "Carregando";
 
   return (
@@ -115,13 +115,13 @@ export function AdminPendingCard({ order = 0, onLayoutChange }: AdminPendingCard
         </div>
       ) : state === "erro" ? (
         <div className="empty-inline compact mt-3.5" role="alert">
-          <span className="empty-ico bg-[#ffe4e8] text-[#be123c]">
-            <TriangleAlert className="h-5 w-5" aria-hidden />
+          <span className="empty-ico admin-ico-error">
+            <TriangleAlert aria-hidden />
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-ink">Não deu para carregar as pendências</p>
-            <p className="mt-0.5 text-sm leading-5 text-muted">{errorMessage(remote.error)}</p>
-            <RetryButton className="btn btn-s btn-sm mt-2.5" onRetry={() => void remote.reload()} />
+          <div className="empty-body">
+            <p className="empty-t">Não deu para carregar as pendências</p>
+            <p className="empty-s">{errorMessage(remote.error)}</p>
+            <RetryButton className="btn btn-s btn-sm" icon onRetry={() => void remote.reload()} />
           </div>
         </div>
       ) : items.length ? (

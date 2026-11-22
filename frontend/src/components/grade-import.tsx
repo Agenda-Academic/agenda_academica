@@ -52,9 +52,10 @@ import {
   importableCount,
   rejectedCount,
   rejectedKinds,
-  rowKindLabel,
   rowReason,
+  situationLabel,
 } from "./grade-import-preview";
+import { Select, type SelectOption } from "./select";
 import { Field, Segmented, SegmentedButton, primaryButton, secondaryButton } from "./ui";
 
 /**
@@ -196,6 +197,17 @@ export function useGradeImport({
   function start() {
     reset();
     goStep("send");
+  }
+
+  /**
+   * "Importar planilha" da grade: a planilha já foi escolhida no seletor do sistema (ou arrastada sobre a grade).
+   * Começa do zero e lê na hora: sem perguntas, vai direto ao Conferir. O passo Enviar só aparece quando falta a
+   * pontuação da avaliação ou quando a leitura falha.
+   */
+  function startWithFile(selected: File) {
+    reset();
+    goStep("send");
+    void chooseFile(selected);
   }
 
   /** Abre um rascunho da lista ("Continuar") direto em Conferir. */
@@ -468,9 +480,10 @@ export function useGradeImport({
     const active = templateStudents;
     try {
       await downloadTemplateSheet(info, active);
+      const withGrades = active.some((student) => student.grade);
       toast(
         active.length
-          ? `Planilha baixada com ${countText(active.length, "aluno", "alunos")}. Escreva as notas e envie a planilha aqui.`
+          ? `Planilha baixada com ${countText(active.length, "aluno", "alunos")}${withGrades ? " e as notas atuais" : ""}. Preencha e use Importar planilha.`
           : "Planilha baixada. A turma ainda não tem alunos ativos: preencha nome, e-mail e nota de cada um.",
         { tone: "info", key: "notas-modelo" }
       );
@@ -483,7 +496,7 @@ export function useGradeImport({
     if (!draft?.rows || !info) return;
     const rows = draft.rows.filter((row) => rejectedKinds.includes(row.kind));
     try {
-      await downloadRejectedSheet(`linhas-com-problema-${fileSlug(info.title)}.xlsx`, rows, rowKindLabel, rowReason);
+      await downloadRejectedSheet(`linhas-com-problema-${fileSlug(info.title)}.xlsx`, rows, situationLabel, rowReason);
     } catch {
       toast("Não deu para gerar a planilha. Tente de novo.", { tone: "danger", key: "notas-rejeitadas" });
     }
@@ -571,6 +584,7 @@ export function useGradeImport({
     pendingFile: Boolean(file) && step === "send",
     focusAsk,
     start,
+    startWithFile,
     openDraft,
     setPointsText,
     setColumns,
@@ -854,24 +868,33 @@ function ColumnSelect({
   hint?: string;
   label: string;
   onChange: (value: string) => void;
-  selectRef?: RefObject<HTMLSelectElement | null>;
+  selectRef?: RefObject<HTMLButtonElement | null>;
   value: string;
   flow: GradeImportFlow;
 }) {
   const headers = flow.file?.sheet.headers ?? [];
   const example = flow.file && value ? columnSamples(flow.file.sheet, value, 1)[0] : "";
+  // a lista de escolha própria (Select): cada coluna com um exemplo da primeira linha, para achar a certa sem abrir
+  // a planilha
+  const options: SelectOption[] = [
+    ...(allowEmpty ? [{ value: "", label: allowEmpty }] : []),
+    ...headers.map((header) => {
+      const sample = flow.file ? columnSamples(flow.file.sheet, header, 1)[0] : "";
+      return { value: header, label: header, description: sample ? `Primeira linha: ${sample}` : "Coluna vazia" };
+    }),
+  ];
   return (
     <div className="grid content-start">
-      <Field label={label} hint={hint} error={error}>
-        <select ref={selectRef} className="input" value={value} onChange={(event) => onChange(event.target.value)}>
-          <option value="">{allowEmpty ?? "Escolha a coluna"}</option>
-          {headers.map((header) => (
-            <option key={header} value={header}>
-              {header}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <Select
+        buttonRef={selectRef}
+        error={error}
+        hint={hint}
+        label={label}
+        options={options}
+        placeholder="Escolha a coluna"
+        value={value}
+        onChange={(next) => onChange(next)}
+      />
       {example && !error ? <p className="mt-1.5 text-[13px] text-muted wrap-anywhere">{`Primeira linha: ${example}`}</p> : null}
     </div>
   );
@@ -885,8 +908,8 @@ const typeHelp: Record<IdentifierType, string> = {
 
 function ColumnsStep({ flow, headingRef, onPick }: { flow: GradeImportFlow; headingRef: RefObject<HTMLHeadingElement | null>; onPick: () => void }) {
   const { columnErrors, columns, file, focusAsk } = flow;
-  const identifierRef = useRef<HTMLSelectElement>(null);
-  const scoreRef = useRef<HTMLSelectElement>(null);
+  const identifierRef = useRef<HTMLButtonElement>(null);
+  const scoreRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (focusAsk?.field === "identifier") identifierRef.current?.focus();
@@ -942,7 +965,7 @@ function ColumnsStep({ flow, headingRef, onPick }: { flow: GradeImportFlow; head
           Quais colunas usar
         </h3>
         {reason === "asked" ? (
-          <p className="text-[13.5px] leading-5 text-muted">Diga de onde vêm o aluno e a nota. A conferência é refeita com as colunas novas.</p>
+          <p className="text-[14px] leading-5 text-muted">Diga de onde vêm o aluno e a nota. A conferência é refeita com as colunas novas.</p>
         ) : null}
       </div>
       {reason !== "asked" ? (
@@ -1088,7 +1111,7 @@ function CheckStep({ flow, headingRef }: { flow: GradeImportFlow; headingRef: Re
         <p className="notas-docente-file-s">
           {file ? columnsText : `Rascunho de ${formatShortDateTime(draft.createdAt)}. ${columnsText}`}{" "}
           {file ? (
-            <button className="link min-h-6 text-[12.5px]" aria-disabled={flow.busy || undefined} onClick={flow.adjustColumns} type="button">
+            <button className="link min-h-6 text-[13px] max-md:min-h-11 pointer-coarse:min-h-11" aria-disabled={flow.busy || undefined} onClick={flow.adjustColumns} type="button">
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
               Ajustar colunas
             </button>

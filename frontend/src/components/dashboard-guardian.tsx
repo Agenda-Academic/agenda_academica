@@ -40,7 +40,7 @@ import {
 import { GuardianDataDialog } from "./guardian-data-dialog";
 import { GuardianLinkCard } from "./guardian-link-card";
 import { LatestGradesCard } from "./latest-grades-card";
-import { Drawer, EmptyState, SectionTitle, secondaryButton } from "./ui";
+import { Drawer, EmptyState, PageHeader, SectionTitle, secondaryButton } from "./ui";
 
 /**
  * Painel do responsável com o aluno escolhido (desenho 5.6, amostra responsavel-painel): faixa "Você acompanha
@@ -85,11 +85,10 @@ const DATES_MAX = 6;
 /** Lado a lado, as datas da instituição descem até 1 quando a lista de provas acaba (sem buraco no card dela). */
 const DATES_FLOOR = 1;
 /**
- * Nada da turma à frente (examsIdle): as datas da instituição e as notas ficam na largura toda, uma embaixo da
- * outra, e as datas mostram as 5 próximas. Lado a lado, o card de notas vazio é baixo e as datas cairiam para 1, com
- * metade da tela vazia embaixo.
+ * Nada da turma à frente (examsIdle): a grade continua com duas colunas, como com provas. As datas da instituição
+ * ficam na coluna larga (a lista que acerta a altura, em duas colunas no card largo) e as notas publicadas na de apoio.
  */
-const IDLE_DATES = 5;
+const IDLE_DATES_MAX = 10;
 
 /** Maior antecedência que ainda dá tempo de avisar, até a padrão da pessoa (a mesma conta do Painel do aluno). */
 function quickOffset(event: AcademicEvent, defaultMinutes: number, now: number) {
@@ -258,6 +257,7 @@ function GuardianHero({
 
 export function GuardianDashboard({
   avisos,
+  context,
   defaultReminderMinutes,
   events,
   reminders,
@@ -379,7 +379,7 @@ export function GuardianDashboard({
   const examsLater = Math.max(0, examsListed - (heroInExams ? 1 : 0));
   // nada da turma à frente: o destaque já diz "Nenhuma prova ou trabalho à frente" e leva ao Cronograma. O card de
   // provas logo abaixo repetiria o mesmo vazio com outro "Ver cronograma" (decisão 13): ele sai, e as datas da
-  // instituição e as notas ficam na largura toda, uma embaixo da outra (IDLE_DATES)
+  // instituição ficam na coluna larga, com as notas ao lado (IDLE_DATES_MAX)
   const examsIdle = !heroEvent && exams30.length === 0;
   const openExams = () => onOpenCalendar({ categories: gradableCategories });
 
@@ -389,9 +389,13 @@ export function GuardianDashboard({
   const openOfficial = () => onOpenCalendar({ categories: officialCategories });
 
   // as duas colunas terminam juntas: as listas mostram mais itens enquanto a coluna delas for a mais baixa
+  // sem nada da turma à frente, a lista da coluna larga é a das datas da instituição, e a de apoio (as notas) não
+  // tem lista
   const { gridRef, mainGapRef, sideGapRef, mainCount, sideCount, gridClass } = useColumnFill(
-    { total: examsList.length, min: EXAMS_MIN, max: EXAMS_MAX },
-    { total: officialDates.length, min: DATES_MIN, max: DATES_MAX, floor: DATES_FLOOR },
+    examsIdle
+      ? { total: officialDates.length, min: DATES_MIN, max: IDLE_DATES_MAX, floor: DATES_FLOOR }
+      : { total: examsList.length, min: EXAMS_MIN, max: EXAMS_MAX },
+    { total: examsIdle ? 0 : officialDates.length, min: DATES_MIN, max: DATES_MAX, floor: DATES_FLOOR },
     [student.id, gradesKey, examsIdle, heightKey(examsList.slice(0, EXAMS_MAX)), heightKey(officialDates.slice(0, DATES_MAX))].join("|")
   );
   const examsShown = Math.min(mainCount, examsList.length);
@@ -400,27 +404,29 @@ export function GuardianDashboard({
     <div className="pnl grid gap-5">
       <AvisosCard host avisos={avisos} events={events} onDismiss={onDismissAviso} onOpen={onSelect} />
 
-      <section className="card resp-faixa rise" style={delay(0)} aria-label="Aluno acompanhado">
-        <span className="avatar" aria-hidden>
-          {student.initials}
-        </span>
-        <div className="resp-faixa-text">
-          <p className="resp-faixa-t wrap-anywhere">
-            Você acompanha <b>{name}</b>
+      {/* cabeçalho da tela, como nas outras: quem está na tela, o aluno acompanhado e os dois caminhos (o que o
+          responsável vê e acompanhar outro aluno). O nome do aluno também está no seletor do menu */}
+      <PageHeader
+        title={`Olá, ${firstName(context?.user.fullName ?? "responsável")}`}
+        subtitle={
+          <>
+            Você acompanha <b className="font-semibold text-ink-2">{name}</b>
             {classNames ? `, ${classNames}` : null}
-          </p>
-          <p className="resp-faixa-s">{classLine}</p>
-        </div>
-        <div className="resp-faixa-acts">
-          <button className="link resp-link" onClick={() => setDataOpen(true)} type="button">
-            <Info className="h-4 w-4" aria-hidden />O que você vê
-          </button>
-          <button className="link resp-link" onClick={() => setLinkOpen(true)} type="button">
-            <UserPlus className="h-4 w-4" aria-hidden />
-            Acompanhar outro aluno
-          </button>
-        </div>
-      </section>
+            <span className="resp-head-line">{classLine}</span>
+          </>
+        }
+        actions={
+          <>
+            <button className="link resp-link" onClick={() => setDataOpen(true)} type="button">
+              <Info className="h-4 w-4" aria-hidden />O que você vê
+            </button>
+            <button className="link resp-link" onClick={() => setLinkOpen(true)} type="button">
+              <UserPlus className="h-4 w-4" aria-hidden />
+              Acompanhar outro aluno
+            </button>
+          </>
+        }
+      />
 
       {pending.length ? (
         <p className="callout blue rise" style={delay(1)}>
@@ -455,26 +461,35 @@ export function GuardianDashboard({
       </div>
 
       {examsIdle ? (
-        // nada da turma à frente: as datas da instituição (o que há à frente, as 5 próximas) e as notas na largura
-        // toda, uma embaixo da outra, cada card do tamanho do conteúdo
-        <>
-          <InstitutionDatesCard
-            events={officialDates}
-            limit={IDLE_DATES}
-            listed={officialListed}
-            order={2}
-            onOpenAll={openOfficial}
-            onSelect={onSelect}
-          />
-          <LatestGradesCard
-            key={student.id}
-            studentId={student.id}
-            title="Notas publicadas"
-            order={3}
-            onContentChange={setGradesKey}
-            onSeeAll={(eventId) => onOpenGrades(eventId)}
-          />
-        </>
+        // nada da turma à frente: as duas colunas continuam (decisão da rodada 8). As datas da instituição, o que há à
+        // frente, na coluna larga, e as notas publicadas ao lado; as datas mostram o que couber até as duas fecharem
+        <div ref={gridRef} className={cx("duo", gridClass)}>
+          <div className="duo-col duo-main">
+            <InstitutionDatesCard
+              className="duo-fill"
+              columns
+              events={officialDates}
+              limit={mainCount}
+              listed={officialListed}
+              fillRef={mainGapRef}
+              order={2}
+              onOpenAll={openOfficial}
+              onSelect={onSelect}
+            />
+          </div>
+          <div className="duo-col duo-side">
+            <LatestGradesCard
+              key={student.id}
+              className="duo-fill"
+              fillRef={sideGapRef}
+              studentId={student.id}
+              title="Notas publicadas"
+              order={3}
+              onContentChange={setGradesKey}
+              onSeeAll={(eventId) => onOpenGrades(eventId)}
+            />
+          </div>
+        </div>
       ) : (
         <div ref={gridRef} className={cx("duo", gridClass)}>
           <div className="duo-col duo-main">

@@ -436,17 +436,34 @@ type FillState = {
   final: boolean;
   done: boolean;
   /**
-   * Lado a lado, sobrou mais de LOOSE_GAP no fim de uma coluna mesmo assim (as listas acabaram): a mais baixa
+   * Lado a lado, sobrou mais de looseGap no fim de uma coluna mesmo assim (as listas acabaram): a mais baixa
    * fica parada no alto ao rolar.
    */
   loose: boolean;
+  /**
+   * Lado a lado, a sobra que ficou depois de acertar os itens é pequena (até looseGap): o último card da coluna
+   * mais baixa cresce esse pouco (a folga fica antes do rodapé dele) e as duas terminam na mesma linha (decisão 5).
+   */
+  even: boolean;
+  /** Com even: a sobra (px) e a coluna mais baixa, que a reparte entre as linhas das listas dela. */
+  slack: number;
+  short: "main" | "side" | null;
 };
 
 /** Sobra pequena demais para mais um item (px). */
 const FILL_SLACK = 40;
 
-/** Maior diferença aceitável no fim das colunas (px, decisão 5); acima dela, as colunas ficam soltas (loose). */
-const LOOSE_GAP = 80;
+/**
+ * Maior folga a mais por linha (px) quando a sobra que o número de itens não fecha é repartida entre as linhas da
+ * lista do card mais baixo (e o vão antes do rodapé): sem um buraco só no fim do card (rodada 9).
+ */
+const SPREAD_MAX = 16;
+
+/**
+ * Maior sobra que o último card da coluna mais baixa absorve (px): menos que um item da lista, só a folga que o
+ * número de itens não consegue fechar. Acima dela, as colunas ficam soltas (loose).
+ */
+const LOOSE_GAP = 64;
 
 /**
  * Altura do conteúdo de uma coluna (.duo-col): a soma dos cards e dos vãos entre eles, sem transform (a entrada
@@ -465,6 +482,28 @@ function columnContentHeight(column: HTMLElement) {
   return kids.reduce((sum, kid) => sum + kid.offsetHeight, 0) + gap * (kids.length - 1) - spacers;
 }
 
+/** Largura em que os painéis põem as colunas lado a lado (a mesma do ux.css para .duo-side). */
+const WIDE_QUERY = "(min-width: 1280px)";
+
+function subscribeWide(onChange: () => void) {
+  const media = window.matchMedia(WIDE_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+/**
+ * Diz se o painel está lado a lado (1280 px ou mais). Numa coluna só, a página monta os cards já na ordem em que
+ * aparecem na tela: o foco do teclado e o leitor de tela seguem a mesma ordem (WCAG 2.4.3 e 1.3.2), sem order
+ * nem display: contents no CSS.
+ */
+export function useWideLayout() {
+  return useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia(WIDE_QUERY).matches,
+    () => true
+  );
+}
+
 /**
  * Duas colunas lado a lado (.duo) que terminam juntas, sem sobra grande e sem rolagem por dentro.
  * Nenhum card estica (decisão 5: o card termina no próprio conteúdo, sem buraco dentro nem rodapé puxado;
@@ -474,10 +513,11 @@ function columnContentHeight(column: HTMLElement) {
  * antes, ele sai. Quando a lista da coluna mais baixa já mostra tudo e ainda sobra espaço, a lista da outra
  * coluna perde itens (até o floor dela) enquanto isso diminuir a sobra: as colunas terminam juntas sem um
  * card esticado com um buraco. Com as colunas uma embaixo da outra, cada lista mostra o mínimo. A conta recomeça
- * quando a largura, as fontes ou os dados (dataKey) mudam; tudo acontece antes da pintura. looseGap é a maior
- * diferença aceitável no fim das colunas (padrão LOOSE_GAP); acima dela, a mais baixa fica parada no alto ao rolar
- * (duo-loose, a exceção do card lateral sticky ao lado de uma lista longa). mainGapRef e sideGapRef continuam
- * no retorno para os cards que ainda põem o espaçador (.fill-gap, escondido no Painel).
+ * quando a largura, as fontes ou os dados (dataKey) mudam; tudo acontece antes da pintura. A sobra que o número de
+ * itens não fecha (menos que um item, até looseGap) vai para o último card (.duo-fill) da coluna mais baixa, antes
+ * do rodapé dele (duo-even): as colunas terminam na mesma linha. Acima de looseGap, a mais baixa fica parada no
+ * alto ao rolar (duo-loose, a exceção do card lateral sticky ao lado de uma lista longa). mainGapRef e sideGapRef
+ * vão para o espaçador (.fill-gap) desse card, que só aparece com duo-even.
  */
 export function useColumnFill(main: FillList, side: FillList, dataKey: string, looseGap = LOOSE_GAP) {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -496,8 +536,13 @@ export function useColumnFill(main: FillList, side: FillList, dataKey: string, l
     final: false,
     done: false,
     loose: false,
+    even: false,
+    slack: 0,
+    short: null,
   });
   const [fill, setFill] = useState<FillState>(() => fresh(key));
+  // coluna que recebeu a folga repartida entre as linhas (--fill-row): ela sai antes de medir de novo
+  const spreadRef = useRef<HTMLElement | null>(null);
   let current = fill;
   if (fill.key !== key) {
     current = fresh(key);
@@ -536,16 +581,28 @@ export function useColumnFill(main: FillList, side: FillList, dataKey: string, l
     if (fill.done || fill.key !== key) {
       return;
     }
+    // a folga repartida da conta anterior muda a altura das linhas: sai antes de medir
+    if (spreadRef.current) {
+      spreadRef.current.style.removeProperty("--fill-row");
+      spreadRef.current = null;
+    }
     const columns = Array.from(gridRef.current?.children ?? []) as HTMLElement[];
-    const sideBySide = columns.length > 1 && Math.abs(columns[0].offsetTop - columns[1].offsetTop) < 2;
+    // no celular a coluna pode virar "display: contents" (os cards se intercalam): aí não há duas colunas
+    const sideBySide =
+      columns.length > 1 &&
+      getComputedStyle(columns[0]).display !== "contents" &&
+      Math.abs(columns[0].offsetTop - columns[1].offsetTop) < 2;
     // a sobra de cada coluna é a diferença entre as alturas do conteúdo delas (os cards não esticam: painel.css)
     const heightMain = sideBySide ? columnContentHeight(columns[0]) : 0;
     const heightSide = sideBySide ? columnContentHeight(columns[1]) : 0;
     const freeMain = Math.max(0, heightSide - heightMain);
     const freeSide = Math.max(0, heightMain - heightSide);
     const loose = sideBySide && Math.max(freeMain, freeSide) > looseGap;
+    const even = sideBySide && !loose && Math.max(freeMain, freeSide) > 1;
+    const slack = Math.max(freeMain, freeSide);
+    const short = freeMain > freeSide ? "main" : "side";
     if (fill.final) {
-      setFill({ ...fill, final: false, done: true, loose });
+      setFill({ ...fill, final: false, done: true, loose, even, slack, short });
       return;
     }
     // quantos cada lista mostra de fato (o limite pode passar do total)
@@ -571,9 +628,34 @@ export function useColumnFill(main: FillList, side: FillList, dataKey: string, l
     } else if (freeSide > FILL_SLACK && shownMain > mainFloor) {
       setFill({ ...fill, main: shownMain - 1, tried: "cutMain", before: freeSide, cutting: true });
     } else if (columns.length) {
-      setFill({ ...fill, tried: null, done: true, loose });
+      setFill({ ...fill, tried: null, done: true, loose, even, slack, short });
     }
   }, [fill, key, looseGap, main.total, main.max, main.floor, main.min, side.total, side.max, side.floor, side.min]);
+
+  // A sobra que o número de itens não fecha (menos que um item) não vira um buraco antes do rodapé: ela é repartida
+  // entre as linhas das listas da coluna mais baixa e o vão do rodapé do último card (--fill-row, painel.css), até
+  // SPREAD_MAX por linha; o pouco que passar disso fica no espaçador. Sem linhas na coluna, fica no espaçador.
+  useLayoutEffect(() => {
+    if (!fill.done || fill.key !== key || !fill.even || !fill.short) {
+      return;
+    }
+    const columns = Array.from(gridRef.current?.children ?? []) as HTMLElement[];
+    const column = fill.short === "main" ? columns[0] : columns[1];
+    if (!column) {
+      return;
+    }
+    // as linhas das listas de todos os cards da coluna (o último card pode não ter lista, como "Atividade por turma")
+    const rows = column.querySelectorAll(".pnl-list .ev, [data-fill-row]").length;
+    if (!rows) {
+      return;
+    }
+    const share = Math.min(SPREAD_MAX, Math.floor((fill.slack / (rows + 1)) * 2) / 2);
+    if (share <= 0) {
+      return;
+    }
+    column.style.setProperty("--fill-row", `${share}px`);
+    spreadRef.current = column;
+  }, [fill, key]);
 
   return {
     gridRef,
@@ -581,8 +663,11 @@ export function useColumnFill(main: FillList, side: FillList, dataKey: string, l
     sideGapRef,
     mainCount: current.main,
     sideCount: current.side,
-    /** Classe da grade (.duo): "duo-loose" quando as colunas ficam soltas (ver FillState.loose). */
-    gridClass: current.loose ? "duo-loose" : undefined,
+    /**
+     * Classe da grade (.duo): "duo-loose" quando as colunas ficam soltas (ver FillState.loose); "duo-even" quando o
+     * último card da coluna mais baixa cresce a pequena sobra que restou (FillState.even).
+     */
+    gridClass: current.loose ? "duo-loose" : current.even ? "duo-even" : undefined,
   };
 }
 
@@ -696,7 +781,7 @@ export function CategoryBreakdown({
       </div>
       <ul className="legend">
         {present.map(({ category, count }) => (
-          <li key={category}>
+          <li key={category} data-fill-row>
             <span>
               <span className={cx("dot", categoryMeta[category].accent)} aria-hidden />
               {categoryMeta[category].label}
@@ -857,6 +942,7 @@ export function EventList({
  */
 export function InstitutionDatesCard({
   className,
+  columns,
   emptyText = "Nenhuma data da instituição à frente",
   events,
   fillRef,
@@ -870,6 +956,11 @@ export function InstitutionDatesCard({
 }: {
   /** Classes a mais no card (ex.: "duo-fill", para esticar junto da coluna). */
   className?: string;
+  /**
+   * Card largo (coluna larga ou largura toda): as datas de cada mês em duas colunas quando o card passa de 900 px
+   * (painel.css), para não sobrar uma data só num card de 1100 px.
+   */
+  columns?: boolean;
   /** O vazio; quando a próxima data já está no destaque, "Nenhuma outra data..." (decisão 13). */
   emptyText?: string;
   /** As datas oficiais à frente (upcomingOfficialDates), sem a que já aparece no destaque da tela. */
@@ -892,7 +983,7 @@ export function InstitutionDatesCard({
     <section className={cx("card pad rise flex flex-col", className)} style={delay(order)} aria-labelledby={titleId}>
       <SectionTitle id={titleId} title="Datas da instituição" subtitle={subtitle} />
       <EventList
-        className="mt-2"
+        className={cx("mt-2", columns && "pnl-list-2")}
         events={events}
         grouped="month"
         hideClass
@@ -1629,7 +1720,7 @@ export function AvisosCard({
   );
 }
 
-/** Barras por semana (próximas cinco) para o KPI de 30 dias. */
+/** Barras por semana (próximas cinco) para o KPI de 30 dias, com a legenda curta "por semana" embaixo (painel.css). */
 export function WeekSpark({ events }: { events: AcademicEvent[] }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1643,14 +1734,19 @@ export function WeekSpark({ events }: { events: AcademicEvent[] }) {
   const max = Math.max(...weeks, 1);
   const peak = weeks.indexOf(max);
   return (
-    <div className="flex h-10 items-end gap-1" role="img" aria-label={`Eventos por semana: ${weeks.join(", ")}`}>
-      {weeks.map((count, index) => (
-        <span
-          key={index}
-          className={cx("w-2.5 rounded-[3px]", index === peak && count ? "bg-brand" : "bg-brand-100")}
-          style={{ height: `${Math.max((count / max) * 100, 8)}%` }}
-        />
-      ))}
+    <div className="spark" role="img" aria-label={`Eventos por semana: ${weeks.join(", ")}`}>
+      <div className="spark-bars">
+        {weeks.map((count, index) => (
+          <span
+            key={index}
+            className={cx("w-2.5 rounded-[3px]", index === peak && count ? "bg-brand" : "bg-brand-100")}
+            style={{ height: `${Math.max((count / max) * 100, 8)}%` }}
+          />
+        ))}
+      </div>
+      <span className="spark-cap" aria-hidden>
+        por semana
+      </span>
     </div>
   );
 }

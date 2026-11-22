@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { countText, cx, parseScore } from "@/lib/format";
+import { scoreAndStatus } from "@/lib/grades-file";
 import { gradeImportKindLabels, gradeStatusLabels } from "@/lib/meta";
 import type { GradeImport, GradeImportRow, GradeImportRowKind } from "@/lib/types";
 import { Pager, usePaged } from "./pager";
@@ -103,6 +104,12 @@ export function rowKindLabel(row: GradeImportRow) {
   return isWithoutIdentifier(row) ? "Sem identificação" : (gradeImportKindLabels[row.kind] ?? row.kind);
 }
 
+/** Etiqueta da linha com problema, na conferência e na planilha baixada ("Nota e falta", "Sem aluno"). */
+export function situationLabel(row: GradeImportRow) {
+  const both = row.kind === "invalid" ? scoreAndStatus(row.rawScore ?? "") : null;
+  return both ? `Nota e ${both.status.toLowerCase()}` : rowKindLabel(row);
+}
+
 /**
  * Motivo da linha no relatório: a frase da API, menos a do aluno fora da turma, que a API escreve no masculino
  * ("O aluno não está ativo"); aqui ela sai neutra.
@@ -122,15 +129,39 @@ function previousText(row: GradeImportRow) {
   return row.previousScoreText ?? "";
 }
 
+/** Falta e dispensa vêm sem nota: a palavra da planilha ("Falta", "D") vira "Falta" ou "Dispensa". */
+const statusWords: Record<string, string> = {
+  f: gradeStatusLabels.absent,
+  falta: gradeStatusLabels.absent,
+  faltou: gradeStatusLabels.absent,
+  d: gradeStatusLabels.excused,
+  dispensa: gradeStatusLabels.excused,
+  dispensado: gradeStatusLabels.excused,
+  dispensada: gradeStatusLabels.excused,
+};
+
+/** Valor novo da linha: a nota, ou "Falta"/"Dispensa" quando a planilha marcou a situação. */
+function nextText(row: GradeImportRow) {
+  if (row.scoreText) return row.scoreText;
+  const word = (row.rawScore ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[\s.]/g, "");
+  return statusWords[word] ?? "";
+}
+
 /** Motivo curto da linha que fica de fora ("11,5 passa de 10.", "Nota em branco."); senão a frase da API. */
 function problemText(row: GradeImportRow, maxScore: number | null, maxScoreText: string | null) {
   const raw = (row.rawScore ?? "").trim();
   if (row.kind === "invalid" && row.identifier) {
     // "-" é como o Moodle marca quem ainda não tem nota
     if (!raw || /^[-–—]$/.test(raw)) return "Nota em branco. Esta linha fica de fora.";
+    // nota e Falta ou Dispensa na mesma linha: vale a frase da API, a mesma da planilha das linhas com problema
+    if (scoreAndStatus(raw)) return rowReason(row);
     const value = parseScore(raw);
     if (value !== null && Number.isNaN(value)) {
-      if (/^-/.test(raw)) return `${raw} é negativa.`;
+      if (/^-\d/.test(raw)) return `${raw} é negativa.`;
       if (/^\d+[.,]\d{3,}$/.test(raw)) return `${raw} tem mais de duas casas depois da vírgula.`;
       return `${raw} não é uma nota. Use um número, como 7,5.`;
     }
@@ -169,17 +200,19 @@ function situationOf(row: GradeImportRow, keepAgenda: boolean): { label: string;
     case "newer_in_agenda":
       return keepAgenda ? { label: "Fica a da Agenda", tone: "keep" } : { label: "Muda", tone: "chg" };
     default:
-      return { label: rowKindLabel(row), tone: "bad" };
+      return { label: situationLabel(row), tone: "bad" };
   }
 }
 
 /** A nota da linha: a nova, ou a de antes riscada e a nova; a que fica de fora aparece apagada. */
 function RowValue({ keepAgenda, row }: { keepAgenda: boolean; row: GradeImportRow }) {
-  const to = row.scoreText ?? "";
+  const to = nextText(row);
   const from = previousText(row);
   if (rejectedKinds.includes(row.kind)) {
     const raw = (row.rawScore ?? "").trim();
-    return <p className="notas-docente-ck-val is-off">{raw && !/^[-–—]$/.test(raw) ? raw : "sem nota"}</p>;
+    const both = scoreAndStatus(raw);
+    const shown = both ? `${both.score} e ${both.status}` : raw;
+    return <p className="notas-docente-ck-val is-off">{raw && !/^[-–—]$/.test(raw) ? shown : "sem nota"}</p>;
   }
   if (row.kind === "same") {
     return <p className="notas-docente-ck-val is-same">{to}</p>;
@@ -193,18 +226,26 @@ function RowValue({ keepAgenda, row }: { keepAgenda: boolean; row: GradeImportRo
     );
   }
   if ((row.kind === "changed" || row.kind === "newer_in_agenda") && from) {
-    return (
-      <p className="notas-docente-ck-val">
-        <span className="sr-only">{`de ${from} para ${to}`}</span>
-        <span aria-hidden className="inline-flex items-center gap-1">
-          <s>{from}</s>
-          <ArrowRight className="h-3.5 w-3.5 text-muted" />
-          {to}
-        </span>
-      </p>
-    );
+    return <ValueChange from={from} to={to} />;
   }
   return <p className="notas-docente-ck-val">{to}</p>;
+}
+
+/**
+ * "de 7,5 para 8": o valor de antes riscado, a seta e o novo. Usado na conferência da importação e na revisão
+ * da planilha de notas (grades-sheet.tsx). `tone` "off" pinta o novo de vermelho (nota apagada).
+ */
+export function ValueChange({ from, to, tone }: { from: string; to: string; tone?: "off" }) {
+  return (
+    <p className={cx("notas-docente-ck-val", tone === "off" && "is-cleared")}>
+      <span className="sr-only">{`de ${from} para ${to}`}</span>
+      <span aria-hidden className="inline-flex items-center gap-1">
+        {from ? <s>{from}</s> : <span className="notas-docente-ck-none-v">sem nota</span>}
+        <ArrowRight className="h-3.5 w-3.5 text-muted" />
+        {to}
+      </span>
+    </p>
+  );
 }
 
 function CheckRow({
@@ -368,7 +409,7 @@ export function GradeImportPreview({
               />
             </Segmented>
             {bad.length ? (
-              <button className="link min-h-6 text-[13.5px]" onClick={onDownloadRejected} type="button">
+              <button className="link min-h-6 text-[14px] max-md:min-h-11 pointer-coarse:min-h-11" onClick={onDownloadRejected} type="button">
                 <Download className="h-4 w-4" aria-hidden />
                 Baixar as linhas com problema
               </button>

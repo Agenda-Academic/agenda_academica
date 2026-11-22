@@ -12,9 +12,9 @@
 .admin-duo,
 .admin-panel,
 .admin-pend-list {
-  --admin-amber-bg: #fff8e6;
-  --admin-amber-line: #f3dca4;
-  --admin-amber-ink: #92400e;
+  --admin-amber-bg: var(--amber-bg);
+  --admin-amber-line: var(--amber-line);
+  --admin-amber-ink: var(--amber);
 }
 
 /* Alvos de no mínimo 24 px (WCAG 2.5.8): os links de texto ("Ver todas (N)", "Arquivadas (N)", "Importar
@@ -27,6 +27,14 @@
   display: inline-flex;
   align-items: center;
   min-height: 24px;
+}
+/* toque e telas abaixo de 768 px: os links soltos destas telas com 44 px de altura (decisão 2 da rodada 8) */
+@media (pointer: coarse), (max-width: 767px) {
+  .admin-duo .link,
+  .admin-panel .link,
+  .admin-dash .link {
+    min-height: 44px;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -57,64 +65,26 @@
 .admin-duo > .duo-side {
   flex-basis: 360px;
 }
-/* o card Disciplinas (coluna de apoio) fica do tamanho do conteúdo e parado no alto ao rolar: com menos disciplinas
-   que turmas, nada de card esticado com um buraco embaixo da lista (o tamanho da página já acompanha o card Turmas).
-   Só lado a lado (a partir de 1280 px, onde o ux.css fixa a largura do .duo-side): com os cards empilhados, o card
-   parado cobriria o card Turmas quando a busca põe Disciplinas primeiro */
-@media (min-width: 1280px) {
-  /* o card Turmas também fica do tamanho do conteúdo: nada de card esticado com um buraco embaixo da última turma */
+/* Os cards Turmas e Disciplinas terminam na altura do próprio conteúdo (a exceção da regra das colunas): o número de
+   turmas e o de disciplinas não batem, e esticar um card deixaria um buraco dentro dele. A ação de criar fica só no
+   botão do cabeçalho. Empilhados abaixo de 1360 px: a 1280 o card Turmas teria 556 px (a tabela vira lista) e o
+   card Disciplinas ficaria espremido em 360 px. Empilhados, cada card ocupa a largura toda, como a 1024 */
+@media (min-width: 1280px) and (max-width: 1359px) {
+  html .duo.admin-duo > .card {
+    flex: 1 1 100%;
+  }
+}
+/* lado a lado: o card Disciplinas (coluna de apoio) fica parado no alto ao rolar, ao lado de uma lista de turmas
+   mais longa. Com os cards empilhados, o card parado cobriria o card Turmas quando a busca põe Disciplinas primeiro */
+@media (min-width: 1360px) {
   html .duo.admin-duo {
     align-items: flex-start;
-  }
-  /* sem turma na lista (nenhuma arquivada, filtro sem resultado): o card Turmas vai até o fim do card Disciplinas e
-     o aviso cresce junto, com o texto no meio (um aviso maior, não um buraco embaixo dele) */
-  html .duo.admin-duo > .admin-turmas.is-empty {
-    align-self: stretch;
-  }
-  .admin-turmas.is-empty > .admin-rows-pad {
-    display: flex;
-    flex: 1 1 auto;
-  }
-  .admin-turmas.is-empty > .admin-rows-pad > .empty-inline {
-    flex: 1 1 auto;
   }
   .admin-duo > .admin-disc {
     align-self: flex-start;
     position: sticky;
     top: 20px;
     z-index: 1;
-  }
-}
-
-/* linha "Nova turma" no fim da lista de turmas, do jeito das linhas da lista, com o texto azul de ação. Só lado a
-   lado e com o card Turmas largo (filtros numa linha só, turmas em uma linha): aí a lista curta deixaria o card Turmas
-   bem mais baixo que o card Disciplinas e a linha completa a coluna. Com os cards empilhados, o botão do cabeçalho
-   fica logo acima e a linha não aparece */
-.admin-addrow {
-  display: none;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 64px;
-  padding: 14px 24px;
-  border-top: 1px solid var(--line-2);
-  font-size: 14px;
-  font-weight: 650;
-  color: var(--brand-600);
-  text-align: left;
-  transition: background-color 0.16s ease;
-}
-/* o anel de foco por dentro: o card corta o que passa da borda (overflow hidden). O !important vence a regra global
-   "button:focus-visible", que fica fora das camadas (@layer) no globals.css */
-html .admin-turmas .admin-addrow:focus-visible {
-  outline-offset: -3px !important;
-  border-radius: 0 0 19px 19px;
-}
-@media (min-width: 1280px) {
-  @container (min-width: 660px) {
-    .admin-addrow {
-      display: flex;
-    }
   }
 }
 
@@ -131,32 +101,38 @@ html .admin-turmas .admin-addrow:focus-visible {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 0 24px 20px;
 }
-.admin-filters select.input {
-  width: auto;
-  /* sem isso, o nome de curso mais comprido vira a largura mínima e o campo passa da borda em 390 px */
+/* os filtros em pílula (Select variant="filter"): não passam da borda no celular */
+.admin-filters > .select {
   min-width: 0;
-  flex: 1 1 190px;
-  max-width: 240px;
-  /* nome de curso comprido: corta no fim com reticências (o nome inteiro vai na dica do campo) */
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  max-width: 100%;
+}
+/* "Curso: Todos" e "Semestre: Todos" cabem lado a lado em 360 px */
+.admin-filters .select-btn.is-filter {
+  gap: 5px;
+  padding-inline: 8px 9px;
+}
+/* 360 px: as duas pílulas somam 295 px numa área de 294; com 6 px entre elas, cabem */
+@media (max-width: 379px) {
+  .admin-filters {
+    column-gap: 6px;
+  }
 }
 .admin-clear {
   min-height: 36px;
   padding: 0 4px;
 }
+/* Ativas / Arquivadas: o mesmo controle nos dois cards. Compacto (largura do texto) em tela larga, à direita dos
+   filtros no card Turmas e logo abaixo do título no card Disciplinas; no celular, na largura do card, com as duas
+   metades iguais. Pela largura da tela, não do card: lado a lado, o card Disciplinas (360 px) não pode mudar o
+   desenho sozinho */
 .admin-seg {
   margin-left: auto;
   max-width: 100%;
 }
-@container (max-width: 599px) {
-  .admin-filters select.input {
-    max-width: none;
-  }
+@media (max-width: 639px) {
   .admin-seg {
     margin-left: 0;
     width: 100%;
@@ -166,11 +142,27 @@ html .admin-turmas .admin-addrow:focus-visible {
     width: 100%;
   }
   .admin-seg .seg button {
-    flex: 1 1 auto;
+    flex: 1 1 0;
   }
 }
 .admin-rows-pad {
   padding: 0 24px 24px;
+}
+/* celular: o recuo do .pad cai para 16 px (amostra A); o card Turmas acompanha o card Disciplinas */
+@media (max-width: 639px) {
+  .admin-card-head {
+    padding: 16px 16px 14px;
+  }
+  .admin-filters {
+    padding: 0 16px 16px;
+  }
+  .admin-rows-pad {
+    padding: 0 16px 16px;
+  }
+  .admin-turmas .admin-row {
+    padding-left: 16px;
+    padding-right: 12px;
+  }
 }
 
 /* lista de turmas: cabeçalho e linhas na mesma grade; no card estreito, uma coluna só */
@@ -222,8 +214,8 @@ html .admin-turmas .admin-addrow:focus-visible {
 /* número de alunos em destaque, como o da tela da docente (.docente-turma-row .docente-num) */
 .admin-c-num .admin-t {
   font-family: var(--disp);
-  font-size: 20px;
-  font-weight: 750;
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
@@ -238,7 +230,7 @@ html .admin-turmas .admin-addrow:focus-visible {
   gap: 6px 8px;
 }
 .admin-t {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
 }
 .admin-t-line .admin-t {
@@ -311,7 +303,7 @@ html .admin-turmas .admin-addrow:focus-visible {
 /* número das abas Ativas e Arquivadas: menor e cinza, ao lado do nome ("Ativas 2") */
 .admin-n {
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -321,18 +313,9 @@ html .admin-turmas .admin-addrow:focus-visible {
   margin-top: auto;
   padding-top: 8px;
 }
-/* abas Ativas / Arquivadas do card Disciplinas: as mesmas do card Turmas, na largura do card estreito */
+/* abas Ativas / Arquivadas do card Disciplinas: as mesmas do card Turmas (.admin-seg), alinhadas à esquerda */
 .admin-disc-seg {
   margin: 14px 0 0;
-  width: 100%;
-}
-.admin-disc-seg .seg {
-  display: flex;
-  width: 100%;
-}
-.admin-disc-seg .seg button {
-  flex: 1 1 0;
-  justify-content: center;
 }
 /* subtítulo do card Disciplinas: "5 ativas" e o "Ver arquivadas (0)" na mesma linha */
 .admin-sub-line {
@@ -342,27 +325,30 @@ html .admin-turmas .admin-addrow:focus-visible {
   gap: 2px 12px;
 }
 .admin-sub-link {
-  font-size: 13.5px;
+  font-size: 13px;
   white-space: nowrap;
 }
 .admin-dlist .admin-code {
   height: 20px;
 }
-/* no card estreito (Disciplinas), a paginação cabe numa linha: só as setas e os números, e o "Mostrando" embaixo */
-.admin-disc .pager {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-}
-.admin-disc .pager-info {
-  order: 2;
-  font-size: 13px;
-}
-.admin-disc .pager-arrow-t {
-  display: none;
-}
-.admin-disc .pager-btns {
-  gap: 4px;
+/* no card estreito (Disciplinas, 360 px ao lado de Turmas), a paginação cabe numa linha: só as setas e os
+   números, e o "Mostrando" embaixo. Empilhado (abaixo de 1360 px), o card usa a mesma paginação do card Turmas */
+@media (min-width: 1360px) {
+  .admin-disc .pager {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .admin-disc .pager-info {
+    order: 2;
+    font-size: 13px;
+  }
+  .admin-disc .pager-arrow-t {
+    display: none;
+  }
+  .admin-disc .pager-btns {
+    gap: 4px;
+  }
 }
 
 /* turma de cada aluno achado pela busca do menu */
@@ -401,8 +387,8 @@ html .admin-turmas .admin-addrow:focus-visible {
 }
 .admin-d-t {
   display: block;
-  font-size: 14.5px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
@@ -412,7 +398,7 @@ html .admin-turmas .admin-addrow:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 8px;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--muted);
 }
 .admin-d-s.none {
@@ -425,7 +411,7 @@ html .admin-turmas .admin-addrow:focus-visible {
   color: var(--ink);
 }
 
-/* código da disciplina e da matrícula (fonte mono, como na amostra) */
+/* código da disciplina ("BD-401"): a mesma família do resto (direção A), com números tabulares */
 .admin-code {
   display: inline-flex;
   align-items: center;
@@ -434,17 +420,20 @@ html .admin-turmas .admin-addrow:focus-visible {
   border-radius: 7px;
   background: var(--neutral-tint);
   color: var(--ink-3);
-  font-family: var(--mono);
-  font-size: 11.5px;
-  font-weight: 500;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 .admin-code.wt {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
 }
+/* campo de código e e-mail recusado: a mesma família, com números tabulares (direção A, uma família só) */
 .admin-mono {
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -452,9 +441,6 @@ html .admin-turmas .admin-addrow:focus-visible {
   .admin-drow:hover,
   .admin-srow:hover {
     background: var(--surface-2);
-  }
-  .admin-addrow:hover {
-    background: var(--brand-50);
   }
   .admin-row:hover .admin-go,
   .admin-drow:hover .admin-go,
@@ -512,7 +498,7 @@ html .admin-turmas .admin-addrow:focus-visible {
   border-radius: 10px;
   background: var(--neutral-tint);
   color: var(--ink-3);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -525,7 +511,7 @@ html .admin-turmas .admin-addrow:focus-visible {
   border-radius: 8px;
   background: var(--bebe-botao);
   color: var(--bebe-ink);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -537,7 +523,7 @@ html .admin-turmas .admin-addrow:focus-visible {
 }
 .admin-s-name {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .admin-s-mail {
@@ -547,8 +533,8 @@ html .admin-turmas .admin-addrow:focus-visible {
   overflow-wrap: anywhere;
 }
 .admin-s-reg {
-  font-family: var(--mono);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -576,7 +562,7 @@ html .admin-turmas .admin-addrow:focus-visible {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
 }
@@ -624,16 +610,16 @@ html .admin-turmas .admin-addrow:focus-visible {
   gap: 10px 12px;
   margin-bottom: 14px;
 }
-/* título de seção do painel lateral: o mesmo em todos os painéis (700 16.5px/1.3 na fonte de título) */
+/* título de seção do painel lateral: o mesmo em todos os painéis (700 16px/1.3 na fonte de título) */
 .admin-sec-t {
   font-family: var(--disp);
-  font-size: 16.5px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.3;
 }
 .admin-sec-s {
   margin-top: 2px;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
 }
@@ -665,31 +651,6 @@ html .admin-turmas .admin-addrow:focus-visible {
     grid-column: span 3;
   }
 }
-.admin-annual {
-  display: flex;
-  align-items: center;
-  min-height: 46px;
-  padding: 0 12px;
-  border-radius: 12px;
-  border: 1px dashed var(--line-strong);
-  background: var(--surface-2);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--ink-3);
-  white-space: nowrap;
-}
-/* campo com sugestões (Período do curso): a mesma seta dos selects, no lugar do triângulo do navegador */
-.admin-panel input.input[list] {
-  padding-right: 40px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-}
-.admin-panel input.input[list]::-webkit-calendar-picker-indicator {
-  opacity: 0;
-  cursor: pointer;
-}
 /* resumo dos dados da turma (o formulário abre em "Editar dados") */
 .admin-facts {
   display: grid;
@@ -701,14 +662,14 @@ html .admin-turmas .admin-addrow:focus-visible {
   background: var(--surface-2);
 }
 .admin-facts dt {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted);
 }
 .admin-facts dd {
   margin-top: 2px;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
   overflow-wrap: anywhere;
 }
@@ -726,30 +687,6 @@ html .admin-turmas .admin-addrow:focus-visible {
 }
 .admin-uses .admin-srow {
   min-height: 56px;
-}
-
-/* "Novo curso" dentro do campo Curso */
-.admin-subform {
-  margin-top: 12px;
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--surface-2);
-}
-.admin-subform-t {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink-2);
-}
-.admin-subform-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.admin-subform-row > * {
-  flex: 1 1 160px;
 }
 
 /* disciplinas e docentes */
@@ -782,8 +719,8 @@ html .admin-turmas .admin-addrow:focus-visible {
   gap: 6px 8px;
 }
 .admin-of-name b {
-  font-size: 14.5px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .admin-docs {
@@ -795,7 +732,7 @@ html .admin-turmas .admin-addrow:focus-visible {
 .admin-docs.warn {
   align-items: center;
   gap: 6px 10px;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--admin-amber-ink);
 }
 .admin-doc {
@@ -803,25 +740,23 @@ html .admin-turmas .admin-addrow:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink-2);
 }
 .admin-pill-wt {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   color: var(--ink-3);
 }
 .admin-pill-warn {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--admin-amber-line);
   color: var(--admin-amber-ink);
 }
-.admin-role-select.input {
-  width: auto;
-  min-height: 38px;
-  padding-left: 10px;
-  font-size: 13.5px;
+/* Titular ou Substituto: o Select pequeno, do tamanho do texto */
+.admin-irow > .admin-role {
+  flex: none;
 }
 
 /* alunos */
@@ -869,7 +804,7 @@ html .admin-turmas .admin-addrow:focus-visible {
   align-items: center;
   gap: 10px;
   min-height: 36px;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink-2);
   cursor: pointer;
@@ -892,11 +827,16 @@ html .admin-turmas .admin-addrow:focus-visible {
   border-radius: 8px;
   cursor: pointer;
 }
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 767px) {
   .admin-ck-hit {
     min-width: 44px;
     min-height: 44px;
     margin: -13px;
+  }
+  /* "Selecionar todos" dos pedidos e o link "Limpar filtros" do card Turmas */
+  .admin-ck,
+  .admin-clear {
+    min-height: 44px;
   }
 }
 .admin-prow {
@@ -916,7 +856,7 @@ html .admin-turmas .admin-addrow:focus-visible {
 }
 .admin-p-name {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .admin-p-sub {
@@ -974,7 +914,7 @@ html .admin-turmas .admin-addrow:focus-visible {
   margin-top: 8px;
   display: grid;
   gap: 4px;
-  font-size: 13.5px;
+  font-size: 13px;
 }
 
 /* formulário de uma linha (matrícula escolar, motivo do bloqueio) */
@@ -1022,7 +962,7 @@ html .admin-turmas .admin-addrow:focus-visible {
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 1px 3px rgb(var(--shadow-rgb) / 0.25);
   transition: transform 0.16s ease;
 }
@@ -1040,8 +980,8 @@ html .admin-turmas .admin-addrow:focus-visible {
   opacity: 0.55;
 }
 .admin-switch-label {
-  font-size: 14.5px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--ink-2);
 }
 @media (forced-colors: active) {
@@ -1070,7 +1010,7 @@ html .admin-turmas .admin-addrow:focus-visible {
   border-color: var(--admin-amber-line);
 }
 .admin-guard.muted {
-  background: #fff;
+  background: var(--surface);
 }
 .admin-guard-top {
   display: flex;
@@ -1079,7 +1019,7 @@ html .admin-turmas .admin-addrow:focus-visible {
 }
 .admin-guard-meta {
   margin-top: 6px;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -1101,6 +1041,12 @@ html .admin-turmas .admin-addrow:focus-visible {
   flex-direction: column;
   gap: 8px;
 }
+/* erro ao carregar as pendências: o estado vazio único, com o círculo do ícone em vermelho claro */
+html .empty-inline .empty-ico.admin-ico-error,
+html .empty-inline.compact .empty-ico.admin-ico-error {
+  background: var(--red-bg);
+  color: var(--red);
+}
 /* no Painel o card fica na largura toda, acima das colunas: com espaço, os itens dividem a largura em colunas de
    pelo menos 340 px (um item sozinho ocupa a linha toda, sem deixar meia linha vazia ao lado) */
 @container (min-width: 640px) {
@@ -1121,8 +1067,8 @@ html .admin-turmas .admin-addrow:focus-visible {
   color: var(--admin-amber-ink);
 }
 .admin-mini-blue .mini-ico {
-  background: #eaf1fe;
-  border-color: #c9d8f5;
+  background: var(--brand-50);
+  border-color: var(--brand-200);
   color: var(--night);
 }
 
@@ -1160,4 +1106,630 @@ html .admin-turmas .admin-addrow:focus-visible {
 /* título do destaque: duas linhas parecidas ("Visão institucional / do semestre 2026/2"), sem o período sozinho */
 .hero .hero-title.admin-hero-title {
   text-wrap: balance;
+}
+
+/* ------------------------------------------------------------------ */
+/* Cadastro de turma em passos e formulário da turma (amostra A)        */
+/* ------------------------------------------------------------------ */
+
+.admin-foot-left {
+  margin-right: auto;
+}
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.admin-block {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+.admin-block > .field-error {
+  margin-top: 0;
+}
+/* Ano e Semestre lado a lado (no celular, um embaixo do outro) */
+.admin-row2 {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 16px;
+}
+@media (max-width: 479px) {
+  .admin-row2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.admin-annual {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  font-size: var(--fs-14);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* ano com setas: ‹ 2026 › */
+.admin-year {
+  display: flex;
+  align-items: stretch;
+  height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.admin-year:focus-within {
+  border-color: var(--brand);
+  box-shadow: var(--ring);
+}
+.admin-year.is-invalid {
+  border-color: var(--red);
+}
+.admin-year button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  flex: none;
+  color: var(--ink-3);
+  background: var(--surface);
+}
+.admin-year button:hover:not(:disabled) {
+  background: var(--fill);
+  color: var(--ink);
+}
+.admin-year button:disabled {
+  color: var(--faint);
+}
+.admin-year input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  background: transparent;
+  text-align: center;
+  font-size: var(--fs-15);
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+html .admin-year button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+/* toque e telas estreitas: as setas e o campo com 44 px por dentro da borda de 1 px (decisão 2 da rodada 8) */
+@media (pointer: coarse), (max-width: 767px) {
+  .admin-year {
+    height: 46px;
+  }
+  .admin-year button {
+    width: 44px;
+    min-height: 44px;
+  }
+  .admin-year input {
+    min-height: 44px;
+  }
+}
+
+/* semestre em segmentos e período em chips: rádios de verdade (setas do teclado), no visual da amostra */
+.admin-segs {
+  display: flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: var(--r-md);
+  background: var(--seg-bg);
+}
+.admin-segs label {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-14);
+  font-weight: 500;
+  color: var(--ink-3);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+.admin-segs label:hover {
+  color: var(--ink);
+}
+.admin-segs label.on {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--sh-btn), 0 0 0 1px var(--line);
+}
+.admin-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-chips label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: var(--fs-14);
+  font-weight: 500;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+}
+.admin-chips label:hover {
+  border-color: var(--line-hover);
+}
+.admin-chips label.on {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--surface);
+  font-weight: 600;
+}
+.admin-segs label:has(input:focus-visible),
+.admin-chips label:has(input:focus-visible),
+.admin-course:has(input:focus-visible) {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+[role="radiogroup"][aria-invalid="true"].admin-chips label:not(.on),
+[role="radiogroup"][aria-invalid="true"].admin-courses .admin-course {
+  border-color: var(--red-line);
+}
+[role="radiogroup"][aria-invalid="true"].admin-segs {
+  box-shadow: inset 0 0 0 1px var(--red-line);
+}
+/* toque e telas abaixo de 768 px: alvos de 44 px (decisão 2 da rodada 8) */
+@media (pointer: coarse), (max-width: 767px) {
+  .admin-chips label,
+  .admin-segs label {
+    min-height: 44px;
+  }
+  /* a caixa tem borda de 1 px em cima e embaixo: com 46 px, as setas e o campo ficam com 44 px por dentro */
+  .admin-year {
+    height: auto;
+    min-height: 46px;
+  }
+  .admin-chips label {
+    min-width: 44px;
+  }
+  .admin-year button {
+    width: 44px;
+  }
+}
+
+/* cursos em cartões de escolha (e o modo do curso novo) */
+.admin-courses,
+.admin-modes {
+  display: grid;
+  gap: 8px;
+}
+.admin-course {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.admin-course:hover {
+  border-color: var(--line-hover);
+}
+.admin-course.on {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+.admin-radio {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface);
+  transition: border 0.16s ease;
+}
+.admin-course.on .admin-radio {
+  border: 5px solid var(--brand);
+}
+.admin-course-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-course-main > b {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.admin-course-main > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.admin-course-main .admin-code,
+.admin-step .admin-code {
+  height: 20px;
+  font-family: var(--font);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--fill);
+}
+.admin-course-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  width: 100%;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--link);
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+.admin-course-new:hover {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+}
+.admin-course-none {
+  font-size: var(--fs-14);
+  color: var(--muted);
+}
+
+/* passos: o feito (check verde e Alterar), o atual (contorno azul) e os que vêm (cinza) */
+.admin-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+.admin-step {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.admin-step.is-done {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 12px 12px 16px;
+}
+.admin-step.is-done small {
+  display: block;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--muted);
+}
+.admin-step.is-done b {
+  display: block;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.admin-step-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 3px;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.admin-step-ck {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--green-line);
+  background: var(--green-bg);
+  color: var(--green);
+}
+.admin-step-edit {
+  flex: none;
+  min-height: 44px;
+}
+.admin-step.is-cur {
+  padding: 18px 18px 20px;
+  border-color: var(--brand-200);
+  box-shadow: 0 0 0 4px rgb(var(--brand-rgb) / 0.06), var(--sh-card);
+}
+.admin-step-h {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.admin-step-no {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-size: var(--fs-13);
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.admin-step-no.is-on {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--surface);
+}
+.admin-step-t {
+  font-size: var(--fs-16);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.admin-step-t:focus {
+  outline: none;
+}
+.admin-step-t:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.admin-step-s {
+  display: block;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.admin-step-body {
+  margin-top: 18px;
+  padding-left: 40px;
+}
+@media (max-width: 479px) {
+  .admin-step.is-cur {
+    padding: 16px 14px 18px;
+  }
+  .admin-step-body {
+    padding-left: 0;
+  }
+}
+.admin-step.is-next {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+}
+.admin-step.is-next b {
+  display: block;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.admin-step.is-next span:not(.admin-step-no):not(.sr-only) {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+
+/* barra de 3 partes no cabeçalho do painel: o bloco do título vai até o X, para a barra ter a largura do painel */
+.drawer-head-row > .min-w-0:has(.admin-prog3) {
+  flex: 1 1 auto;
+}
+.admin-prog3 {
+  /* passa por baixo do X (12 px de espaço + 34 px do botão): termina junto com os cartões dos passos */
+  --prog3-under-x: 46px;
+  flex-basis: calc(100% + var(--prog3-under-x));
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 12px;
+  margin-inline-end: calc(-1 * var(--prog3-under-x));
+}
+@media (any-pointer: coarse) {
+  /* no toque o X tem 44 px e avança 3 px para a direita */
+  .admin-prog3 {
+    --prog3-under-x: 53px;
+  }
+}
+.admin-prog3 i {
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--fill);
+}
+.admin-prog3 i.done {
+  background: var(--green-bar);
+}
+.admin-prog3 i.cur {
+  background: var(--brand);
+}
+
+/* "Sugerido" abaixo do nome e da sigla */
+.admin-suggested {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 8px;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.admin-code-input {
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+/* o exemplo ("Ex.: TADS") fica como foi escrito */
+.admin-code-input::placeholder {
+  text-transform: none;
+}
+
+/* como a turma vai aparecer na lista */
+.admin-preview {
+  padding: 14px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+}
+.admin-preview small {
+  display: block;
+  margin-bottom: 8px;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--muted);
+}
+.admin-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.admin-preview-row + .admin-preview-row {
+  margin-top: 2px;
+}
+.admin-preview-row b {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  color: var(--ink);
+}
+.admin-preview-row b.is-empty {
+  color: var(--faint);
+  font-weight: 500;
+}
+
+/* turma criada: o que fazer em seguida */
+.admin-done {
+  padding-top: 8px;
+}
+.admin-done-ico {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--green-line);
+  background: var(--green-bg);
+  color: var(--green);
+}
+.admin-done-t {
+  margin-top: 14px;
+  font-size: var(--fs-22);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.admin-done-t:focus {
+  outline: none;
+}
+.admin-done-t:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.admin-done-s {
+  margin-top: 4px;
+  font-size: var(--fs-14);
+  color: var(--ink-3);
+}
+.admin-done-next {
+  margin-top: 24px;
+  margin-bottom: 10px;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink);
+}
+.admin-next {
+  display: grid;
+  gap: 8px;
+}
+.admin-next-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 14px 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  text-align: left;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.admin-next-btn:hover {
+  border-color: var(--line-hover);
+  box-shadow: var(--sh-card);
+}
+.admin-next-btn b {
+  display: block;
+  font-size: var(--fs-15);
+  font-weight: 600;
+  color: var(--ink);
+}
+.admin-next-btn span span {
+  display: block;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.admin-next-ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--brand-50);
+  color: var(--brand);
+}
+
+/* linha do curso na lista de cursos: sigla e ritmo */
+.admin-course-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 3px;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.admin-course-line .admin-code {
+  height: 20px;
+  font-family: var(--font);
+  font-size: var(--fs-12);
+  font-weight: 600;
+}
+
+/* Select do painel na mesma medida dos campos de texto (40 px no mouse, 44 no toque) e com o rótulo na mesma
+   altura do rótulo dos campos (.lbl): lado a lado, os dois começam e terminam na mesma linha */
+.admin-panel .select-label {
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+@media (pointer: fine) {
+  .admin-panel .select-btn:not(.sm) {
+    height: 40px;
+  }
 }

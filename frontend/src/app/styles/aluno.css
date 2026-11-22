@@ -15,12 +15,12 @@
 /* Card "Entrar em uma turma" (amostra aluno-entrar-turma)             */
 /* ------------------------------------------------------------------ */
 
-/* o destaque do Painel enquanto o aluno não tem turma: bloco verde à esquerda, título, campo e,
-   embaixo na largura toda, o status dos pedidos */
+/* o destaque do Painel enquanto o aluno não tem turma: ícone pequeno em fundo claro (amostra A) ao lado do título,
+   o campo e, embaixo na largura toda, o status dos pedidos */
 .hero.aluno-join {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  column-gap: 28px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  column-gap: 16px;
   row-gap: 22px;
   align-items: start;
   align-content: start;
@@ -29,17 +29,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 112px;
-  height: 132px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
-  border-radius: 18px;
-  background: var(--brand);
-  color: #fff;
+  border-radius: var(--r-lg);
+  background: var(--brand-50);
+  color: var(--brand);
 }
 .aluno-join-ico svg {
-  width: 46px;
-  height: 46px;
-  stroke-width: 1.7;
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.8;
 }
 .aluno-join-body {
   min-width: 0;
@@ -77,7 +77,7 @@
 }
 .input.aluno-code-input::placeholder {
   font-family: var(--font);
-  font-size: 14.5px;
+  font-size: var(--fs-14);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -128,7 +128,7 @@
 .callout.aluno-pending.compact {
   align-items: flex-start;
   padding: 10px 12px;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
 }
 .aluno-pending.compact .aluno-pending-ico {
   width: 30px;
@@ -137,7 +137,7 @@
 }
 
 @media (max-width: 639px) {
-  /* celular: sem o bloco verde, o título e o campo na largura toda */
+  /* celular: sem o ícone, o título e o campo na largura toda */
   .hero.aluno-join {
     grid-template-columns: minmax(0, 1fr);
     row-gap: 16px;
@@ -218,7 +218,7 @@
 }
 .aluno-class-meta {
   margin-top: 1px;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
   color: var(--ink-3);
   line-height: 18px;
 }
@@ -292,7 +292,7 @@
   scroll-margin-top: 16px;
 }
 .aluno-sec-t {
-  font-size: 17px;
+  font-size: var(--fs-18);
   font-weight: 700;
   line-height: 1.3;
   color: var(--ink);
@@ -314,7 +314,7 @@
 .link.aluno-sec-link {
   min-height: 24px;
   margin-top: 6px;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
 }
 
 /* um quadro por responsável: nome, parentesco, status e ações; embaixo, a chave das notas */
@@ -365,7 +365,7 @@
 }
 .aluno-g-meta {
   margin-top: 2px;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
   color: var(--muted);
 }
 .aluno-g-acts {
@@ -392,7 +392,7 @@
 }
 .aluno-g-share-t {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.4;
   color: var(--ink);
 }
@@ -466,7 +466,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 4px 10px;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
 }
 .aluno-cb-top b {
   font-weight: 700;
@@ -504,7 +504,7 @@
   align-items: flex-start;
   gap: 6px;
   margin-top: 4px;
-  font-weight: 650;
+  font-weight: 600;
 }
 .aluno-cb-minor svg {
   margin-top: 3px;
@@ -525,7 +525,7 @@
   border: 0;
   background: none;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--danger);
   cursor: pointer;
 }
@@ -539,7 +539,7 @@
 }
 .aluno-codes-t {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink-2);
 }
 .aluno-codes-list {
@@ -556,7 +556,7 @@
   border-radius: 14px;
   border: 1px solid var(--line-2);
   background: var(--surface-2);
-  font-size: 13.5px;
+  font-size: var(--fs-13);
   line-height: 1.45;
 }
 .aluno-code-ico {
@@ -590,17 +590,91 @@
   }
 }
 
-/* Painel sem turma: o card de entrar estica até a altura dos lembretes ao lado; o conteúdo fica no meio */
+/* Painel sem turma: o card de entrar estica até a altura dos lembretes ao lado; o conteúdo fica no alto, junto
+   do título (sem um vão em cima) */
 .hero.aluno-join.duo-fill {
-  align-content: center;
+  align-content: start;
 }
-/* no celular e no tablet (um card embaixo do outro), as datas da instituição vêm antes dos lembretes, que
-   sem turma costumam estar vazios: a linha das duas colunas some (contents) e os lembretes vão para o fim */
-@media (max-width: 1279px) {
-  .pnl-noclass > .duo {
-    display: contents;
-  }
-  .pnl-noclass > .duo > .duo-side {
-    order: 1;
+/* no celular e no tablet (um card embaixo do outro), as datas da instituição vêm antes dos lembretes: a ordem
+   vem do JSX (dashboard-student.tsx, useWideLayout), sem order no CSS, e o foco do teclado segue a tela */
+
+/* escala A: o título do aviso (AvisosCard) em 14 px e 600 (o globals.css vem com 14,5 e 650) */
+html .aviso-t {
+  font-size: var(--fs-14);
+  font-weight: 600;
+}
+
+/* ---------- Painel do aluno: card "Próximos lembretes" (as linhas da tela Lembretes, em versão de coluna) ---------- */
+.al-rems {
+  display: grid;
+  margin-top: 12px;
+}
+.al-rems > li + li {
+  border-top: 1px solid var(--line-2);
+}
+.al-rem {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  margin: 0 -8px;
+  width: calc(100% + 16px);
+  padding: 8px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.al-rem:hover {
+  background: var(--surface-2);
+}
+.al-rem:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 0;
+}
+/* o selo vem da tela Lembretes (.lb-date, com área de grade própria): aqui ele fica na primeira coluna */
+html .al-rem > .dbadge {
+  grid-area: auto;
+}
+html .al-rem .dbadge small {
+  text-transform: uppercase;
+}
+.al-rem-t {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.al-rem:hover .al-rem-t {
+  color: var(--brand-h);
+}
+.al-rem-s {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-13);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.al-rem-s b {
+  font-weight: 600;
+  color: var(--brand-h);
+}
+/* o vazio do card segue o estado vazio único (.empty-inline.compact do ux.css); só a distância do título */
+html .al-rem-empty {
+  margin-top: 4px;
+}
+html .al-rem-many {
+  margin-top: 14px;
+  align-self: flex-start;
+}
+@media (pointer: coarse) {
+  html .al-rem-many {
+    min-height: 44px;
   }
 }

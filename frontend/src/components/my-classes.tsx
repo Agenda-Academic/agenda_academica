@@ -68,11 +68,22 @@ export type MyClassesProps = {
   search: string;
   /** Turmas e pedidos de entrada carregados (para o número da aba). null enquanto carrega ou com erro. */
   onSummary?: (summary: MyClassesSummary | null) => void;
+  /**
+   * Erro da lista de turmas, separado do carregando: recebe o erro quando a primeira carga (ou o "Tentar de novo")
+   * falha, e null quando volta a carregar ou chega a lista. Com a lista na tela, uma recarga que falha não chama.
+   * Junto com onSummary(null), diz quem chama se é "carregando" (null) ou "erro" (o erro).
+   */
+  onLoadError?: (error: unknown) => void;
   /** Quantas turmas a busca do menu acha (undefined sem busca ou enquanto a lista não chegou). */
   onSearchCount?: (count: number | undefined) => void;
 };
 
-export type MyClassesSummary = { classes: number; pending: number };
+export type MyClassesSummary = {
+  classes: number;
+  pending: number;
+  /** Soma dos alunos ativos das turmas da docente (o 4º indicador da Gestão, "Alunos ativos"). */
+  activeStudents: number;
+};
 
 /** Alunos ativos por página no painel da turma (nada de "Ver todos" que despeja a turma inteira). */
 const STUDENTS_SHOWN = 8;
@@ -178,7 +189,7 @@ function focusWhenOnTop(target: () => HTMLElement | null | undefined) {
 /* Lista de turmas                                                     */
 /* ------------------------------------------------------------------ */
 
-export function MyClasses({ context, search, onSummary, onSearchCount }: MyClassesProps) {
+export function MyClasses({ context, search, onSummary, onLoadError, onSearchCount }: MyClassesProps) {
   const { token } = useAppActions();
   const headingId = useId();
   const [state, setState] = useState<ListState>({ status: "loading" });
@@ -221,10 +232,20 @@ export function MyClasses({ context, search, onSummary, onSearchCount }: MyClass
     }
     onSummary(
       classes
-        ? { classes: classes.length, pending: classes.reduce((sum, item) => sum + item.counts.pendingStudents, 0) }
+        ? {
+            classes: classes.length,
+            pending: classes.reduce((sum, item) => sum + item.counts.pendingStudents, 0),
+            activeStudents: classes.reduce((sum, item) => sum + item.counts.activeStudents, 0),
+          }
         : null
     );
   }, [classes, onSummary]);
+
+  // o erro avisado à parte (a Gestão não precisa de temporizador para saber que a lista não vem)
+  const loadError = state.status === "error" && !retrying ? state.error : null;
+  useEffect(() => {
+    onLoadError?.(loadError);
+  }, [loadError, onLoadError]);
 
   const mySubjects = mySubjectsByClass(context);
   const words = normalizeText(search).split(/\s+/).filter(Boolean);
@@ -287,7 +308,8 @@ export function MyClasses({ context, search, onSummary, onSearchCount }: MyClass
   const totalPending = (classes ?? []).reduce((sum, item) => sum + item.counts.pendingStudents, 0);
   let subline: ReactNode;
   if (!classes) {
-    subline = state.status === "error" ? "Não foi possível carregar agora." : <span className="skel inline-block h-4 w-48" />;
+    // com erro, o aviso do corpo basta: sem subtítulo repetindo a mesma coisa
+    subline = state.status === "error" ? null : <span className="skel inline-block h-4 w-48" />;
   } else if (term) {
     subline = `${shown.length} de ${countText(classes.length, "turma", "turmas")} para "${term}"`;
   } else if (classes.length) {
@@ -321,15 +343,15 @@ export function MyClasses({ context, search, onSummary, onSearchCount }: MyClass
       </div>
     );
   } else if (state.status === "error") {
+    // dentro do .card: a regra .card .empty-inline.is-error (ux.css) tira a borda (sem moldura dupla), e o
+    // subtítulo do card some no erro para o título não se repetir
     body = (
-      <div className="px-6 pb-6">
-        <ErrorState
-          title="Não foi possível carregar suas turmas."
-          text={errorMessage(state.error)}
-          retrying={retrying}
-          onRetry={retry}
-        />
-      </div>
+      <ErrorState
+        title="Não deu para carregar suas turmas"
+        text={errorMessage(state.error)}
+        retrying={retrying}
+        onRetry={retry}
+      />
     );
   } else if (!state.classes.length) {
     body = (
@@ -357,7 +379,7 @@ export function MyClasses({ context, search, onSummary, onSearchCount }: MyClass
         <div className="docente-turma-head" aria-hidden>
           <span>Turma</span>
           <span className="docente-turma-hsubj">Suas disciplinas</span>
-          <span>Período</span>
+          <span>Semestre</span>
           <span>Alunos</span>
           <span />
         </div>
@@ -439,17 +461,18 @@ export function MyClasses({ context, search, onSummary, onSearchCount }: MyClass
     );
   }
 
+  // card próprio (amostra A): a tela Gestão põe as abas Eventos e Minhas turmas acima, e cada aba traz o seu card
   return (
-    <div className="docente-turmas">
-      <div className="px-6 pb-5 pt-[18px]">
+    <section className="card docente-turmas min-w-0" aria-labelledby={headingId}>
+      <div className="docente-turmas-head">
         <h2 id={headingId} className="h2">
           Turmas em que você dá aula
         </h2>
-        <p className="sub">{subline}</p>
+        {subline ? <p className="sub">{subline}</p> : null}
       </div>
       {body}
       <ClassDrawer cls={openClass} onClose={() => setOpenId(null)} onCounts={patchCounts} />
-    </div>
+    </section>
   );
 }
 
@@ -1054,7 +1077,7 @@ function ClassPanelBody({
                       <b>{offer.subject?.name ?? "Disciplina"}</b>
                       {offer.subject?.code ? <span className="docente-code-chip">{offer.subject.code}</span> : null}
                     </span>
-                    {mine ? <span className="pill docente-pill-mine">Sua disciplina</span> : null}
+                    {mine ? <span className="pill stat blue docente-pill-mine">Sua disciplina</span> : null}
                   </div>
                   {offer.withoutTeacher ? (
                     <p className="docente-docs">
@@ -1071,7 +1094,7 @@ function ClassPanelBody({
                               {initials(teacher.fullName ?? "")}
                             </span>
                             <span>{you ? `${teacher.fullName} (você)` : teacher.fullName}</span>
-                            <span className="pill docente-pill-wt">
+                            <span className="pill stat">
                               {teachingRoleLabels[teacher.role] ?? teacher.role}
                             </span>
                           </li>

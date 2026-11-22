@@ -30,14 +30,15 @@ import { ApiError, type CalendarImportEventInput, type CalendarImportInput, type
 import { cx, errorMessage, formatOnDayAt, formatShortDate, formatShortDateTime, formatTime, monthGroupLabel, startOfDay } from "@/lib/format";
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, CalendarImport, Category } from "@/lib/types";
-import { useAppActions } from "./app-actions";
 import { delay, isOfficialDate, officialCategories } from "./dashboard-bits";
-import { MonthPagerFooter, MonthStrip, type MonthChip } from "./month-pager";
+import { MonthNeighbors, MonthPicker, nearestMonthWith } from "./month-pager";
 import { Pager, usePaged } from "./pager";
+import { Select } from "./select";
 import {
   ConfirmDialog,
   Drawer,
   EmptyState,
+  PageHeader,
   dangerButton,
   iconButton,
   primaryButton,
@@ -565,29 +566,43 @@ function dateBlock(start: Date, end: Date | null) {
     : { main: `${dayMonth(start)} a`, mainTo: dayMonth(last), sub: `${weekday} a ${weekdays[last.getDay()]}` };
 }
 
-const monthShort = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 /** Chave "2027-02" a partir do índice da faixa de meses (ano * 12 + mês). */
 function monthKeyOf(index: number) {
   return `${Math.floor(index / 12)}-${pad((index % 12) + 1)}`;
 }
 
-/** Faixa de meses ("jan 2", "fev 10") a partir dos grupos da lista. */
-function monthChips<T>(groups: MonthGroup<T>[], active: string | null, now: number): MonthChip[] {
-  const today = new Date(now);
-  return groups.map((group) => {
+/**
+ * Seletor de mês da lista (MonthPicker): a chave numérica (ano * 12 + mês) do mês aberto, quantas datas cada mês
+ * tem e os limites (primeiro e último mês com datas). A lista só abre meses com datas: escolher um mês vazio (no
+ * popover ou nas setas) leva ao mês com datas mais perto, na mesma direção.
+ */
+function monthPicker<T>(groups: MonthGroup<T>[], active: string | null, go: (key: string) => void) {
+  const counts = new Map<number, number>();
+  for (const group of groups) {
     const [year, month] = group.key.split("-").map(Number);
-    return {
-      index: year * 12 + month - 1,
-      year,
-      short: monthShort[month - 1],
-      count: group.items.length,
-      label: `${group.label}, ${datesLabel(group.items.length)}`,
-      dots: [],
-      active: group.key === active,
-      now: year === today.getFullYear() && month - 1 === today.getMonth(),
-    };
-  });
+    counts.set(year * 12 + month - 1, group.items.length);
+  }
+  const keys = [...counts.keys()];
+  const [ay, am] = (active ?? groups[0]?.key ?? "0-1").split("-").map(Number);
+  const value = ay * 12 + am - 1;
+  const min = Math.min(...keys);
+  const max = Math.max(...keys);
+  const onChange = (key: number) => {
+    if (counts.has(key)) {
+      go(monthKeyOf(key));
+      return;
+    }
+    const direction = key > value ? 1 : -1;
+    const near = nearestMonthWith(counts, key, direction, { min, max }) ?? nearestMonthWith(counts, key, direction === 1 ? -1 : 1, { min, max });
+    if (near !== null && near !== value) {
+      go(monthKeyOf(near));
+    }
+  };
+  // "Hoje" só quando o mês atual tem datas no arquivo (um PDF de outro ano não tem para onde ir)
+  const now = new Date();
+  const showToday = counts.has(now.getFullYear() * 12 + now.getMonth());
+  return { value, counts, min, max, onChange, showToday };
 }
 
 /** O primeiro dos dois que está à vista (a aba no computador, a lista de escolha no celular). */
@@ -621,7 +636,13 @@ function scrollerOf(element: HTMLElement) {
  * Troca de mês: o começo do mês novo vai para o alto da área que rola quando ficou acima da vista (ou sempre,
  * com `force`, quando a troca veio do pé da lista) e, com `focus`, o título do mês recebe o foco.
  */
-function useMonthReveal(key: string | null, sectionRef: RefObject<HTMLElement | null>, headRef: RefObject<HTMLElement | null>) {
+function useMonthReveal(
+  key: string | null,
+  sectionRef: RefObject<HTMLElement | null>,
+  headRef: RefObject<HTMLElement | null>,
+  /** O título do seletor de mês, quando ele existe: o nome do mês fica só nele, e o foco do pé da lista vai para lá. */
+  pickerRef?: RefObject<HTMLElement | null>
+) {
   const pending = useRef<{ force: boolean; focus: boolean } | null>(null);
   useLayoutEffect(() => {
     const ask = pending.current;
@@ -638,9 +659,9 @@ function useMonthReveal(key: string | null, sectionRef: RefObject<HTMLElement | 
       }
     }
     if (ask.focus) {
-      headRef.current?.focus({ preventScroll: true });
+      (pickerRef?.current ?? headRef.current)?.focus({ preventScroll: true });
     }
-  }, [key, sectionRef, headRef]);
+  }, [key, sectionRef, headRef, pickerRef]);
   return (ask: { force: boolean; focus: boolean }) => {
     pending.current = ask;
   };
@@ -678,7 +699,7 @@ function ImportTile({
   icon: LucideIcon;
   label: string;
   order: number;
-  /** Valor em palavra ("Hoje", "Em dia"): um pouco menor que o número, para caber numa linha. */
+  /** Valor em palavra ("Hoje", "Em dia"): no mesmo tamanho do número, mas pode quebrar a linha no celular. */
   text?: boolean;
   tone?: "ok" | "warn";
   unit?: string;
@@ -692,7 +713,8 @@ function ImportTile({
           <Icon className="h-[18px] w-[18px]" />
         </span>
       </div>
-      <p className={cx("kpi-val", text ? "imp-kpi-txt" : "imp-kpi-num")}>
+      {/* a escala única dos indicadores (.is-date do ux.css): 26 px, ou 22 abaixo de 480 px, igual nos quatro */}
+      <p className={cx("kpi-val is-date", text ? "imp-kpi-txt" : "imp-kpi-num")}>
         {value}
         {unit ? <small> {unit}</small> : null}
       </p>
@@ -785,6 +807,9 @@ const byStart = (a: AcademicEvent, b: AcademicEvent) => new Date(a.startsAt).get
 
 /** Importações por página no histórico. */
 const IMPORTS_PAGE = 8;
+
+/** Quanto tempo o "Leitura descartada" com Desfazer fica no card (o mesmo de um toast com botão). */
+const DISCARD_UNDO_MS = 10000;
 
 /** PDF de exemplo (Calendário Acadêmico 2027, Campus Três Lagoas), para ver a importação na demonstração. */
 const SAMPLE_PDF_URL = "/exemplos/calendario-academico-2027.pdf";
@@ -900,7 +925,23 @@ export function SyncView({
   const [resultFocus, setResultFocus] = useState(0);
   // horário de referência fixado na montagem (render precisa ser puro)
   const [now] = useState(() => Date.now());
-  const { toast } = useAppActions();
+  // "Descartar" com Desfazer: o aviso fica no card, no lugar da leitura, por 10 s (no celular, o toast cobria a lista
+  // de datas do painel que abrisse em seguida)
+  const [discarded, setDiscarded] = useState<{ undo: () => void } | null>(null);
+  const pendingConferRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!discarded) {
+      return;
+    }
+    // o Desfazer some com o aviso: se o foco estava nele, volta para o card (senão cairia no body)
+    const timer = window.setTimeout(() => {
+      if (cardRef.current?.contains(document.activeElement)) {
+        cardRef.current.focus();
+      }
+      setDiscarded(null);
+    }, DISCARD_UNDO_MS);
+    return () => window.clearTimeout(timer);
+  }, [discarded]);
 
   const [pdfReading, setPdfReading] = useState(false);
   // baixando o PDF de exemplo (depois a leitura segue como a de qualquer PDF)
@@ -914,8 +955,8 @@ export function SyncView({
   const resultRef = useRef<HTMLElement>(null);
   const filterChipRef = useRef<HTMLButtonElement>(null);
   const viewChipRef = useRef<HTMLButtonElement>(null);
-  const filterSelectRef = useRef<HTMLSelectElement>(null);
-  const viewSelectRef = useRef<HTMLSelectElement>(null);
+  const filterSelectRef = useRef<HTMLButtonElement>(null);
+  const viewSelectRef = useRef<HTMLButtonElement>(null);
   // foco de quando o painel abre: a aba escolhida; no celular as abas viram a lista de escolha
   const [reviewEntryRef] = useState(() => visibleOf(filterChipRef, filterSelectRef));
   const [viewEntryRef] = useState(() => visibleOf(viewChipRef, viewSelectRef));
@@ -926,6 +967,9 @@ export function SyncView({
   const reviewHeadRef = useRef<HTMLHeadingElement>(null);
   const viewSectionRef = useRef<HTMLElement>(null);
   const viewHeadRef = useRef<HTMLHeadingElement>(null);
+  // título do seletor de mês (MonthPicker) de cada lista; null quando a lista tem um mês só e o seletor não aparece
+  const reviewPickRef = useRef<HTMLElement | null>(null);
+  const viewPickRef = useRef<HTMLElement | null>(null);
   const markAllRef = useRef<HTMLButtonElement>(null);
   const unmarkAllRef = useRef<HTMLButtonElement>(null);
   // "Marcar todas" ou "Desmarcar todas" que acabou de sumir: o foco vai para o outro botão (ou para o filtro)
@@ -989,7 +1033,9 @@ export function SyncView({
     : (reviewAllGroups[0]?.key ?? null);
   const reviewGroups = reviewAllGroups.filter((group) => group.key === reviewMonthKey);
   const reviewPos = reviewAllGroups.findIndex((group) => group.key === reviewMonthKey);
-  const askReviewReveal = useMonthReveal(reviewMonthKey, reviewSectionRef, reviewHeadRef);
+  const askReviewReveal = useMonthReveal(reviewMonthKey, reviewSectionRef, reviewHeadRef, reviewPickRef);
+  // com o seletor de mês à vista, o cabeçalho da seção não repete "Fevereiro de 2027 / 4 datas" logo abaixo dele
+  const reviewPicker = reviewAllGroups.length > 1;
 
   // datas que a importação ainda tem no calendário
   const datesOf = (importId: number) => events.filter((event) => event.calendarImportId === importId).sort(byStart);
@@ -1067,7 +1113,8 @@ export function SyncView({
     : (viewAllGroups.find((group) => group.items.some((item) => !item.past))?.key ?? viewAllGroups[0]?.key ?? null);
   const viewGroups = viewAllGroups.filter((group) => group.key === viewMonthKey);
   const viewPos = viewAllGroups.findIndex((group) => group.key === viewMonthKey);
-  const askViewReveal = useMonthReveal(viewMonthKey, viewSectionRef, viewHeadRef);
+  const askViewReveal = useMonthReveal(viewMonthKey, viewSectionRef, viewHeadRef, viewPickRef);
+  const viewPicker = viewAllGroups.length > 1;
   const importsPaged = usePaged(imports, IMPORTS_PAGE);
 
   // filtros com contagem; um filtro que pega todas as datas some (seria a mesma lista de "Todas")
@@ -1133,8 +1180,9 @@ export function SyncView({
   function changeText(value: string) {
     setText(value);
     setSubmitError(null);
-    // leitura nova: o resultado da importação anterior sai da tela
+    // leitura nova: o resultado da importação anterior e o "Leitura descartada" saem da tela
     setLastResult(null);
+    setDiscarded(null);
   }
 
   /** Tira a leitura da tela (depois de importar ou quando a pessoa descarta). */
@@ -1149,15 +1197,17 @@ export function SyncView({
     setReviewMonth(null);
   }
 
-  /** "Descartar": a leitura sai da tela, o foco volta para o card e o aviso oferece Desfazer. */
+  /**
+   * "Descartar": a leitura sai da tela e, no lugar dela, o card diz "Leitura descartada. Nada foi gravado." com
+   * Desfazer (10 s). O foco volta para o card.
+   */
   function discardReading() {
     const snapshot = { text, picked, staffRows, readFile, filter, reviewQuery, reviewMonth };
     clearReading();
     queueMicrotask(() => cardRef.current?.focus());
-    toast("Leitura descartada. Nada foi gravado.", {
-      tone: "info",
-      key: "imp-leitura",
+    setDiscarded({
       undo: () => {
+        setDiscarded(null);
         setText(snapshot.text);
         setPicked(snapshot.picked);
         setStaffRows(snapshot.staffRows);
@@ -1165,6 +1215,8 @@ export function SyncView({
         setFilter(snapshot.filter);
         setReviewQuery(snapshot.reviewQuery);
         setReviewMonth(snapshot.reviewMonth);
+        // a leitura volta: o foco vai para o "Conferir datas" dela
+        window.requestAnimationFrame(() => pendingConferRef.current?.focus());
       },
     });
   }
@@ -1465,6 +1517,7 @@ export function SyncView({
 
   return (
     <div className="imp-page grid gap-5">
+      <PageHeader title="Importar calendário" subtitle="Datas oficiais da instituição, para todas as turmas." />
       <div className="kpis imp-kpis">
         <ImportTile icon={Landmark} label="Fonte" value="Reitoria" text hint="calendário letivo oficial" hintShort="calendário oficial" order={0} />
         <ImportTile
@@ -1614,11 +1667,34 @@ export function SyncView({
                 </span>
               </p>
               <div className="imp-pending-acts">
-                <button className={cx(primaryButton, "btn-sm")} aria-haspopup="dialog" onClick={() => setReviewOpen(true)} type="button">
+                <button
+                  ref={pendingConferRef}
+                  className={cx(primaryButton, "btn-sm")}
+                  aria-haspopup="dialog"
+                  onClick={() => setReviewOpen(true)}
+                  type="button"
+                >
                   Conferir datas
                 </button>
                 <button className={cx(secondaryButton, "btn-sm")} onClick={discardReading} type="button">
                   Descartar
+                </button>
+              </div>
+            </div>
+          ) : discarded && !reviewOpen ? (
+            // o aviso do Descartar fica aqui, onde estava a leitura, e não num toast por cima da tela
+            <div className="imp-pending is-discarded" role="status">
+              <span className="imp-pending-ico" aria-hidden>
+                <FileText className="h-5 w-5" />
+              </span>
+              <p className="imp-pending-text">
+                <b>Leitura descartada</b>
+                <span>Nada foi gravado.</span>
+              </p>
+              <div className="imp-pending-acts">
+                <button className={cx(secondaryButton, "btn-sm")} onClick={discarded.undo} type="button">
+                  <Undo2 className="h-4 w-4" aria-hidden />
+                  Desfazer
                 </button>
               </div>
             </div>
@@ -1769,7 +1845,8 @@ export function SyncView({
           <table className="tbl">
             <thead>
               <tr>
-                <th scope="col" className="px-3 @min-[400px]:px-4">
+                {/* a primeira e a última coluna alinham com o título do card (padding em importar.css) */}
+                <th scope="col" className="imp-hist-c1">
                   Fonte
                 </th>
                 <th scope="col" className="hidden whitespace-nowrap @min-[600px]:table-cell">
@@ -1784,7 +1861,7 @@ export function SyncView({
                 <th scope="col" className="hidden @min-[440px]:table-cell">
                   Situação
                 </th>
-                <th scope="col" className="w-10 px-3">
+                <th scope="col" className="imp-hist-cl w-10">
                   <span className="sr-only">Abrir</span>
                 </th>
               </tr>
@@ -1811,7 +1888,7 @@ export function SyncView({
                       }
                     }}
                   >
-                    <td className="px-3 @min-[400px]:px-4">
+                    <td className="imp-hist-c1">
                       <button
                         ref={(node) => {
                           if (node) {
@@ -1841,7 +1918,7 @@ export function SyncView({
                     <td className="hidden @min-[440px]:table-cell">
                       <span className={cx("pill", state.pill)}>{state.label}</span>
                     </td>
-                    <td className="px-3 text-right">
+                    <td className="imp-hist-cl text-right">
                       <ChevronRight className="imp-hist-chev ml-auto h-4 w-4" aria-hidden />
                     </td>
                   </tr>
@@ -1940,26 +2017,23 @@ export function SyncView({
                   );
                 })}
               </div>
-              <select
-                ref={filterSelectRef}
-                className="input imp-filter-select"
-                aria-label="Mostrar"
+              <Select
+                buttonRef={filterSelectRef}
+                className="imp-filter-select"
+                ariaLabel="Mostrar"
                 value={filter}
-                onChange={(event) => chooseFilter(event.target.value as ReviewFilter)}
-              >
-                {reviewFilterList.map(({ id, label, count }) => (
-                  <option key={id} value={id}>
-                    {`${label} ${count}`}
-                  </option>
-                ))}
-              </select>
+                searchable={false}
+                options={reviewFilterList.map(({ id, label, count }) => ({ value: id, label, count }))}
+                onChange={(value) => chooseFilter(value as ReviewFilter)}
+              />
               <DateSearch value={reviewQuery} onChange={changeReviewQuery} />
             </div>
-            {reviewAllGroups.length > 1 ? (
+            {reviewPicker ? (
               <div className="imp-months">
-                <MonthStrip
-                  chips={monthChips(reviewAllGroups, reviewMonthKey, now)}
-                  onPick={(index) => goReviewMonth(monthKeyOf(index), false)}
+                <MonthPicker
+                  {...monthPicker(reviewAllGroups, reviewMonthKey, (key) => goReviewMonth(key, false))}
+                  titleRef={reviewPickRef}
+                  noun={["data", "datas", "nenhuma data"]}
                 />
               </div>
             ) : null}
@@ -2091,8 +2165,20 @@ export function SyncView({
                           disabled={busy || !pickRows.length}
                           onChange={(value) => setMany(group.items, value)}
                         />
+                        {reviewPicker ? (
+                          <span className="imp-month-all" aria-hidden>
+                            Todas do mês
+                          </span>
+                        ) : null}
                       </label>
-                      <h3 ref={reviewHeadRef} className="imp-month-name drawer-h3" id={headId} tabIndex={-1}>
+                      {/* com o seletor de mês logo acima, o nome do mês fica só para o leitor de tela; à vista,
+                          a caixa do mês ganha um rótulo curto */}
+                      <h3
+                        ref={reviewHeadRef}
+                        className={cx("imp-month-name", reviewPicker ? "sr-only" : "drawer-h3")}
+                        id={headId}
+                        tabIndex={-1}
+                      >
                         {group.label}
                       </h3>
                       <span className="imp-month-n">
@@ -2195,7 +2281,7 @@ export function SyncView({
             )}
 
             {reviewAllGroups.length > 1 ? (
-              <MonthPagerFooter
+              <MonthNeighbors
                 main="next"
                 prev={reviewPos > 0 ? pagerTarget(reviewAllGroups[reviewPos - 1], (key) => goReviewMonth(key, true)) : null}
                 next={
@@ -2294,26 +2380,23 @@ export function SyncView({
                     );
                   })}
                 </div>
-                <select
-                  ref={viewSelectRef}
-                  className="input imp-filter-select"
-                  aria-label="Mostrar"
+                <Select
+                  buttonRef={viewSelectRef}
+                  className="imp-filter-select"
+                  ariaLabel="Mostrar"
                   value={viewFilter}
-                  onChange={(event) => chooseViewFilter(event.target.value as ViewFilter)}
-                >
-                  {viewFilterList.map(({ id, label, count }) => (
-                    <option key={id} value={id}>
-                      {`${label} ${count}`}
-                    </option>
-                  ))}
-                </select>
+                  searchable={false}
+                  options={viewFilterList.map(({ id, label, count }) => ({ value: id, label, count }))}
+                  onChange={(value) => chooseViewFilter(value as ViewFilter)}
+                />
                 <DateSearch value={viewQuery} onChange={changeViewQuery} />
               </div>
-              {viewAllGroups.length > 1 ? (
+              {viewPicker ? (
                 <div className="imp-months">
-                  <MonthStrip
-                    chips={monthChips(viewAllGroups, viewMonthKey, now)}
-                    onPick={(index) => goViewMonth(monthKeyOf(index), false)}
+                  <MonthPicker
+                    {...monthPicker(viewAllGroups, viewMonthKey, (key) => goViewMonth(key, false))}
+                    titleRef={viewPickRef}
+                    noun={["data", "datas", "nenhuma data"]}
                   />
                 </div>
               ) : null}
@@ -2331,12 +2414,20 @@ export function SyncView({
                 const headId = `${baseId}-ver-${group.key}`;
                 return (
                   <section key={group.key} ref={viewSectionRef} className="imp-month" aria-labelledby={headId}>
-                    <div className="imp-month-head">
-                      <h3 ref={viewHeadRef} className="imp-month-name drawer-h3" id={headId} tabIndex={-1}>
+                    {/* com o seletor de mês logo acima ("Janeiro de 2027 / 2 datas"), o cabeçalho não se repete: o
+                        nome do mês fica só para o leitor de tela */}
+                    {viewPicker ? (
+                      <h3 ref={viewHeadRef} className="imp-month-name sr-only" id={headId} tabIndex={-1}>
                         {group.label}
                       </h3>
-                      <span className="imp-month-n">{datesLabel(group.items.length)}</span>
-                    </div>
+                    ) : (
+                      <div className="imp-month-head">
+                        <h3 ref={viewHeadRef} className="imp-month-name drawer-h3" id={headId} tabIndex={-1}>
+                          {group.label}
+                        </h3>
+                        <span className="imp-month-n">{datesLabel(group.items.length)}</span>
+                      </div>
+                    )}
                     <ul className="imp-rows">
                       {group.items.map(({ event, start, end, past }) => {
                         const meta = categoryMeta[event.category];
@@ -2407,7 +2498,7 @@ export function SyncView({
             )}
 
             {viewAllGroups.length > 1 ? (
-              <MonthPagerFooter
+              <MonthNeighbors
                 main="next"
                 prev={viewPos > 0 ? pagerTarget(viewAllGroups[viewPos - 1], (key) => goViewMonth(key, true)) : null}
                 next={

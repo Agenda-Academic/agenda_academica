@@ -1,15 +1,13 @@
 "use client";
 
 import {
-  Award,
   Bell,
   BellOff,
   BookOpen,
-  CalendarDays,
-  Check,
   CheckCircle2,
   Clock,
   Edit3,
+  Hash,
   Loader2,
   MapPin,
   PanelRightOpen,
@@ -20,13 +18,13 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { cx, dateParts, daysUntil, formatTime, isAllDay, normalizeText, relativeDue, startOfDay, yearSuffix } from "@/lib/format";
+import { cx, dateParts, daysUntil, formatRelativeWhen, formatTime, isAllDay, normalizeText, relativeDue, startOfDay, yearSuffix } from "@/lib/format";
 import { adminOnlyCategories, categoryMeta, reminderChips, reminderShortLabel, showsOfficialPill, sourceText, statusMeta } from "@/lib/meta";
 import type { AcademicEvent } from "@/lib/types";
 import { RowMenu, type RowMenuItem } from "./gestao-row-menu";
-import { InfoLine, isOnTopLayer } from "./ui";
+import { isOnTopLayer } from "./ui";
 
 /* ------------------------------------------------------------------ */
 /* Datas curtas do detalhe e das linhas                                */
@@ -65,11 +63,13 @@ export function onDay(date: Date) {
 }
 
 /**
- * "na quarta, 04/11, às 19:00" ou "no domingo, 08/11, às 19:00". À meia-noite (o aviso de um evento de dia todo,
- * que começa às 00:00), "na quinta, 31/12, logo no início do dia": "às 00:00" parecia um horário marcado.
+ * Quando o aviso chega, no mesmo formato do toast e dos Lembretes (formatRelativeWhen): "hoje às 18:00",
+ * "amanhã às 18:00" ou "qui, 26/11, às 18:00". À meia-noite (o aviso de um evento de dia todo, que começa às
+ * 00:00), "qui, 31/12, logo no início do dia": "às 00:00" parecia um horário marcado.
  */
 function onNotice(date: Date) {
-  return atMidnight(date) ? `${onDay(date)}, logo no início do dia` : `${onDay(date)}, às ${clock(date)}`;
+  const text = formatRelativeWhen(date.toISOString());
+  return atMidnight(date) ? text.replace(/,? às 00:00$/, ", logo no início do dia") : text;
 }
 
 function atMidnight(date: Date) {
@@ -446,7 +446,7 @@ export function EventRow({
     !hideClass ? event.academicClass?.name : null,
     showTeacher ? event.teacher?.fullName : null,
     event.location,
-    event.points !== null ? `${event.points} pts` : null,
+    event.points !== null ? `${event.points}\u00a0pts` : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -562,21 +562,90 @@ function focusWhenFree(getTarget: () => HTMLElement | null, tries = 40) {
   }
 }
 
-/**
- * Vão (px) entre o fim da lista e o do painel ao lado a partir do qual o lembrete vem aberto. Aberto, ele
- * soma uns 220 px: acima da metade disso, aberto deixa as colunas mais perto de terminar juntas.
- */
-const REMINDER_OPEN_GAP = 110;
+/** "Segunda, 23 de novembro" (com o ano fora do ano corrente). */
+function longDay(date: Date, withWeekday = true) {
+  const day = `${date.getDate()} de ${monthNamesLong[date.getMonth()]}${yearSuffixLong(date)}`;
+  return withWeekday ? `${capitalize(weekdayNames[date.getDay()])}, ${day}` : day;
+}
 
-/** Opções do "Mais ações" do rodapé do detalhe (Modal): Concluir ou Reativar, Cancelar evento e Excluir. */
+function yearSuffixLong(date: Date) {
+  return date.getFullYear() === new Date().getFullYear() ? "" : ` de ${date.getFullYear()}`;
+}
+
+/** "16 a 18 de novembro" ou "30 de novembro a 2 de dezembro" (com o ano no fim, fora do ano corrente). */
+function longRange(start: Date, last: Date) {
+  if (start.getFullYear() !== last.getFullYear()) {
+    return `${longDay(start, false)} a ${longDay(last, false)}`;
+  }
+  const head = start.getMonth() === last.getMonth() ? `${start.getDate()}` : `${start.getDate()} de ${monthNamesLong[start.getMonth()]}`;
+  return `${head} a ${longDay(last, false)}`;
+}
+
+/**
+ * Quando é o evento, por extenso, na linha do alto do detalhe: "Segunda, 23 de novembro, 18:00",
+ * "Segunda, 23 de novembro, 18:00 às 20:00", "16 a 18 de novembro, dia todo" ou "Quinta, 31 de dezembro, dia todo".
+ */
+export function eventWhenLong(event: AcademicEvent) {
+  const start = new Date(event.startsAt);
+  const last = eventLastDay(event);
+  const multi = last.getTime() > startOfDay(start).getTime();
+  if (isWholeDay(event)) {
+    return multi ? `${longRange(start, last)}, dia todo` : `${longDay(start)}, dia todo`;
+  }
+  const end = event.endsAt ? new Date(event.endsAt) : null;
+  if (!end || end <= start) {
+    return `${longDay(start)}, ${clock(start)}`;
+  }
+  return multi ? `${longDay(start, false)}, ${clock(start)} a ${longDay(end, false)}, ${clock(end)}` : `${longDay(start)}, ${clock(start)} às ${clock(end)}`;
+}
+
+/** Selo ao lado da data no detalhe: "Amanhã" (âmbar), "Em 4 dias" (azul), "Em andamento" ou "Já passou" (cinza). */
+function whenStat(event: AcademicEvent, now: number): { text: string; tone: "amber" | "blue" | "gray" } | null {
+  const summary = eventWhenSummary(event, now);
+  if (!summary) {
+    return null;
+  }
+  if (summary.tone === "past") {
+    return { text: "Já passou", tone: "gray" };
+  }
+  if (new Date(event.startsAt).getTime() <= now) {
+    return { text: summary.head === "Hoje, dia todo" ? "Hoje" : summary.head, tone: "amber" };
+  }
+  const days = daysUntil(event.startsAt);
+  if (days <= 0) {
+    return { text: "Hoje", tone: "amber" };
+  }
+  if (days === 1) {
+    return { text: "Amanhã", tone: "amber" };
+  }
+  return { text: capitalize(relativeDue(event.startsAt)), tone: "blue" };
+}
+
+/** Linha do detalhe: ícone, rótulo e valor (o dt e o dd juntos num div, que o dl aceita). */
+function DetailRow({ children, icon: Icon, label }: { children: ReactNode; icon: typeof Users; label: string }) {
+  return (
+    <div className="evd-row">
+      <Icon className="evd-row-ico" aria-hidden />
+      <dt>{label}</dt>
+      {/* disciplina, turma e local vêm de quem cadastrou: uma palavra longa quebra na coluna */}
+      <dd className="min-w-0 wrap-anywhere">{children}</dd>
+    </div>
+  );
+}
+
+/** Opções do "Mais ações" do detalhe: Concluir ou Reativar, Cancelar evento e Excluir. */
 type MoreAction = "status" | "cancelled" | "delete";
 
+/**
+ * Detalhe do evento (amostra A): a categoria, o título, a data por extenso com o selo de quando é, os dados em
+ * linhas com ícone, a descrição, o lembrete pessoal num interruptor (um clique liga ou desliga) e as ações de
+ * quem gerencia. Serve ao painel ao lado da Agenda e ao Modal (celular, tablet e Calendário).
+ */
 export function EventDetailContent({
   canManage,
   cornerSpace,
   event,
   footerSlot,
-  panelGap,
   reminderOffset,
   saving,
   setReminderOffset,
@@ -593,15 +662,9 @@ export function EventDetailContent({
   event: AcademicEvent;
   /**
    * Rodapé fixo do Modal (celular, tablet e Calendário). Com ele (mesmo ainda null, antes de o Modal montar),
-   * a ação principal sai do corpo e vai para o rodapé, sempre à vista sem rolar: "Editar" e o "Mais ações"
-   * (Concluir, Cancelar evento, Excluir) para quem gerencia; o botão do lembrete para quem só lê.
+   * as ações de quem gerencia ("Editar" e o "Mais ações") saem do corpo e vão para o rodapé, sempre à vista.
    */
   footerSlot?: HTMLElement | null;
-  /**
-   * Painel ao lado: quanto a lista ao lado passa do fim do painel, em px (negativo, o painel é que passa).
-   * Com a lista bem mais alta, o lembrete já vem aberto (a antecedência à vista) e as colunas terminam juntas.
-   */
-  panelGap?: (panel: HTMLElement) => number | null;
   reminderOffset: string;
   saving: boolean;
   setReminderOffset: (value: string) => void;
@@ -616,7 +679,6 @@ export function EventDetailContent({
   const meta = categoryMeta[event.category];
   const cancelled = event.status === "cancelled";
   const active = event.status === "scheduled" || event.status === "changed";
-  const official = event.source !== "teacher";
   const ids = useId();
 
   // horário de referência (render precisa ser puro); atualiza a cada 30 s
@@ -637,33 +699,16 @@ export function EventDetailContent({
   const removeButtonRef = useRef<HTMLButtonElement>(null);
   // ações no rodapé do Modal (a prop veio, mesmo que o rodapé ainda não tenha montado)
   const inFooter = footerSlot !== undefined;
-  // painel ao lado (Agenda no computador): ações numa linha e o lembrete recolhido, para o painel não ficar
-  // muito mais alto que a lista num mês curto
+  // painel ao lado (Agenda no computador): as seções ganham o recuo do card
   const side = Boolean(cornerSpace) && !inFooter;
-  // lembrete do painel ao lado: a antecedência só abre depois do "Ativar lembrete" ou do "Alterar"
+  // antecedência do lembrete: fica recolhida até o "Mudar antecedência"
   const [reminderOpen, setReminderOpen] = useState(false);
-  // lista ao lado bem mais alta que o painel (as datas da instituição, sem local nem disciplina, deixavam um
-  // vão de 170 a 230 px): o lembrete vem aberto, o que soma uns 220 px. Medido uma vez, antes de pintar
-  // (o detalhe é montado de novo a cada evento)
-  const [roomy, setRoomy] = useState(false);
-  const measureRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (!node || !side || !panelGap) {
-        return;
-      }
-      const gap = panelGap(node);
-      if (gap !== null && gap > REMINDER_OPEN_GAP) {
-        setRoomy(true);
-      }
-    },
-    [side, panelGap]
-  );
   const offsetsRef = useRef<HTMLDivElement>(null);
   const focusOffsets = useRef(false);
   useEffect(() => {
     if (reminderOpen && focusOffsets.current) {
       focusOffsets.current = false;
-      // o botão clicado some: o foco vai para a antecedência escolhida
+      // o link clicado some: o foco vai para a antecedência escolhida
       offsetsRef.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
     }
   }, [reminderOpen]);
@@ -699,13 +744,14 @@ export function EventDetailContent({
   }, [autoPick, largestValid, setReminderOffset]);
 
   const savedId = saved?.id ?? null;
+  const savedOffset = saved?.offsetMinutes ?? null;
   useEffect(() => {
     const request = focusRequest.current;
     if (request?.kind === "reminder" && performance.now() - request.at < 20000) {
       focusRequest.current = null;
       focusWhenFree(() => reminderButtonRef.current ?? removeButtonRef.current ?? titleRef?.current ?? null);
     }
-  }, [savedId, titleRef]);
+  }, [savedId, savedOffset, titleRef]);
 
   function changeStatus(status: EventStatusChange) {
     if (saving) {
@@ -715,11 +761,14 @@ export function EventDetailContent({
     onSetStatus(event, status);
   }
 
-  function saveReminder() {
+  function saveReminder(at?: number) {
     if (saving || (saved && !dirty)) {
       return;
     }
     setBusyKey("save");
+    if (at !== undefined) {
+      focusRequest.current = { kind: "reminder", at };
+    }
     onSaveReminder();
   }
 
@@ -740,90 +789,8 @@ export function EventDetailContent({
     window.requestAnimationFrame(() => reminderButtonRef.current?.focus());
   }
 
-  // dados na ordem do Figma; evento oficial sem local não ganha "Não informado" (feriado não tem sala)
-  const when = eventWhenSummary(event, now);
-  const endLabel = eventEndLabel(event);
-  const location = event.location ?? (official ? null : "Não informado");
-
-  // no rodapé, o mesmo tamanho dos outros botões dele (contornado); no corpo, o botão discreto
-  const removeButton = (
-    <button
-      key="remove"
-      ref={removeButtonRef}
-      aria-busy={busy === "remove" || undefined}
-      aria-disabled={saving || undefined}
-      className={cx(
-        inFooter && !canManage ? "btn btn-s text-[var(--danger)]" : "btn btn-sm text-[var(--danger)] hover:bg-surface-2",
-        softOff
-      )}
-      onClick={(click) => removeReminder(click.timeStamp)}
-      type="button"
-    >
-      {busy === "remove" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <BellOff className="h-4 w-4" aria-hidden />}
-      Remover lembrete
-    </button>
-  );
-
-  // quem só lê: o botão do lembrete vai para o rodapé do Modal (quem gerencia tem o "Editar" lá)
-  const reminderFooter = inFooter && !canManage;
+  const stat = whenStat(event, now);
   const noReminderTime = validOffsets.length === 0;
-
-  /**
-   * Botões do lembrete. No corpo, o principal vem primeiro e ocupa a linha; no rodapé, a ordem do rodapé
-   * (o secundário antes, o principal no fim) e, com o lembrete já salvo e sem mudança, só o "Remover".
-   */
-  function reminderActions(footer = false) {
-    // quem gerencia (no Modal e no painel ao lado): o "Editar" é o único azul; o lembrete pessoal fica secundário
-    const reminderTone = canManage ? "btn btn-s" : "btn btn-p";
-    const primary =
-      !saved || dirty ? (
-        <button
-          key="primary"
-          ref={reminderButtonRef}
-          aria-busy={busy === "save" || undefined}
-          aria-disabled={saving || undefined}
-          className={cx(reminderTone, !footer && "flex-1", softOff)}
-          onClick={saveReminder}
-          type="button"
-        >
-          {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Bell className="h-4 w-4" aria-hidden />}
-          {saved ? "Salvar alteração" : "Ativar lembrete"}
-        </button>
-      ) : footer ? null : (
-        <button
-          key="primary"
-          ref={reminderButtonRef}
-          aria-disabled="true"
-          className={cx(reminderTone, "flex-1", softOff)}
-          onClick={saveReminder}
-          title="Escolha outra antecedência para atualizar"
-          type="button"
-        >
-          <Bell className="h-4 w-4" aria-hidden />
-          Atualizar lembrete
-        </button>
-      );
-    const discard =
-      saved && dirty ? (
-        <button key="discard" className="btn btn-s" onClick={discardChange} type="button">
-          Descartar
-        </button>
-      ) : null;
-    const remove = saved && !dirty ? removeButton : null;
-    return footer ? (
-      <>
-        {discard}
-        {remove}
-        {primary}
-      </>
-    ) : (
-      <>
-        {primary}
-        {discard}
-        {remove}
-      </>
-    );
-  }
 
   /**
    * Ações de quem gerencia: "Editar" e o "Mais ações" (Concluir ou Reativar, Cancelar evento, Excluir).
@@ -863,21 +830,10 @@ export function EventDetailContent({
     const edit = (
       <button key="edit" className="btn btn-p" onClick={() => onEdit(event)} type="button">
         <Edit3 className="h-4 w-4" aria-hidden />
-        Editar
+        {inFooter ? "Editar" : "Editar evento"}
       </button>
     );
-    return side ? [edit, menu] : [menu, edit];
-  }
-
-  /** Rodapé fixo do Modal: a ação principal à vista sem rolar. Vazio, o rodapé some (cronograma.css). */
-  function footerActions() {
-    if (canManage) {
-      return managerActions();
-    }
-    if (closed || (noReminderTime && !saved)) {
-      return null;
-    }
-    return reminderActions(true);
+    return inFooter ? [menu, edit] : [edit, menu];
   }
 
   function reminderBox() {
@@ -886,8 +842,8 @@ export function EventDetailContent({
         return null;
       }
       return (
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-2 p-4">
-          <p className="min-w-0 flex-1 text-sm leading-5 text-ink-3">
+        <section className="evd-sec evd-remind is-closed" aria-label="Lembrete para você">
+          <p className="evd-remind-h">
             {cancelled
               ? "O evento foi cancelado. Seu lembrete não vale mais."
               : event.status === "completed"
@@ -896,92 +852,77 @@ export function EventDetailContent({
                   ? "O evento já passou. Seu lembrete não vale mais."
                   : "O evento já começou. Seu lembrete não vale mais."}
           </p>
-          {removeButton}
-        </div>
-      );
-    }
-
-    const noTime = noReminderTime;
-    // sem lembrete e com o "Ativar lembrete" à vista (no corpo ou no rodapé do Modal), o selo "Sem lembrete"
-    // repetia o botão: ele fica só quando já não dá para agendar
-    const statePill = !saved ? (
-      noTime ? (
-        <span className="pill stat">
-          <BellOff className="h-3 w-3" aria-hidden />
-          Sem lembrete
-        </span>
-      ) : null
-    ) : dirty ? (
-      <span className="pill stat stat-alt">
-        <Pencil className="h-3 w-3" aria-hidden />
-        Alteração não salva
-      </span>
-    ) : (
-      <span className="pill stat stat-conc">
-        <Check className="h-3 w-3" aria-hidden />
-        Ativo
-      </span>
-    );
-
-    let stateText: string;
-    if (!saved || !savedAt) {
-      stateText = noTime
-        ? `Começa em ${minutesToStart} min. Não dá mais para agendar aviso.`
-        : `O aviso apareceria ${onNotice(chosenAt)}.`;
-    } else if (dirty) {
-      stateText = `Com ${reminderShortLabel(chosen)} de antecedência, o aviso passa a ser ${onNotice(chosenAt)}.`;
-    } else {
-      stateText =
-        savedAt.getTime() > now
-          ? `Lembrete ativo: aviso ${onNotice(savedAt)}, aqui no sistema.`
-          : `Lembrete ativo: o aviso já apareceu ${onNotice(savedAt)}.`;
-    }
-
-    // painel ao lado: recolhido numa linha (título, selo do ativo e o botão que abre a antecedência).
-    // Sem lembrete, o próprio botão diz isso ("Ativar lembrete") e o selo "Sem lembrete" sairia repetido
-    if (side && !roomy && !reminderOpen && !noTime && !dirty) {
-      // quem gerencia tem o "Editar" azul logo acima; para quem só lê, o lembrete é a ação principal
-      const openTone = canManage || saved ? "btn btn-s btn-sm" : "btn btn-p btn-sm";
-      return (
-        <section className="ev-remind mt-5 rounded-2xl bg-surface-2 p-4" aria-labelledby={`${ids}-lembrete`}>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 id={`${ids}-lembrete`} className="drawer-h3 mr-auto">
-              Lembrete pessoal
-            </h3>
-            {saved ? statePill : null}
-            <button
-              className={openTone}
-              aria-expanded={false}
-              onClick={() => {
-                focusOffsets.current = true;
-                setReminderOpen(true);
-              }}
-              type="button"
-            >
-              {saved ? <Pencil className="h-4 w-4" aria-hidden /> : <Bell className="h-4 w-4" aria-hidden />}
-              {saved ? "Alterar" : "Ativar lembrete"}
-            </button>
-          </div>
-          {/* sem lembrete, uma linha diz o que o botão faz (e o painel não fica muito mais curto que a lista) */}
-          <p className="field-help mt-2" role="status">
-            {saved ? stateText : "O aviso chega aqui no sistema e no seu e-mail, com a antecedência que você escolher."}
-          </p>
+          <button
+            ref={removeButtonRef}
+            aria-busy={busy === "remove" || undefined}
+            aria-disabled={saving || undefined}
+            className={cx("btn btn-g btn-sm text-[var(--danger)]", softOff)}
+            onClick={(click) => removeReminder(click.timeStamp)}
+            type="button"
+          >
+            {busy === "remove" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <BellOff className="h-4 w-4" aria-hidden />}
+            Remover lembrete
+          </button>
         </section>
       );
     }
 
+    let hint: string;
+    if (!saved || !savedAt) {
+      hint = noReminderTime
+        ? `Começa em ${minutesToStart} min. Não dá mais para agendar aviso.`
+        : `Desligado. Ao ligar, o aviso chega ${onNotice(chosenAt)}, aqui e no seu e-mail.`;
+    } else if (dirty) {
+      hint = `Com ${reminderShortLabel(chosen)} de antecedência, o aviso passa a ser ${onNotice(chosenAt)}.`;
+    } else {
+      hint =
+        savedAt.getTime() > now
+          ? `Aviso ${onNotice(savedAt)}, ${reminderShortLabel(saved.offsetMinutes)} antes.`
+          : `O aviso já apareceu ${onNotice(savedAt)}.`;
+    }
+    const off = saving || (!saved && noReminderTime);
+    const showOffsets = !noReminderTime && (reminderOpen || dirty);
+
     return (
-      <section className="ev-remind mt-5 rounded-2xl bg-surface-2 p-4" aria-labelledby={`${ids}-lembrete`}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 id={`${ids}-lembrete`} className="drawer-h3">
-            Lembrete pessoal
-          </h3>
-          {statePill}
+      <section className="evd-sec evd-remind" aria-labelledby={`${ids}-lembrete`}>
+        <div className="evd-remind-row">
+          <div className="min-w-0 flex-1">
+            <h3 id={`${ids}-lembrete`} className="evd-remind-t">
+              Lembrete para você
+            </h3>
+            <p id={`${ids}-aviso`} className="evd-remind-h" role="status">
+              {hint}
+            </p>
+          </div>
+          {/* um clique liga (com a antecedência escolhida) ou desliga o lembrete */}
+          <button
+            ref={reminderButtonRef}
+            aria-busy={busy === "save" || busy === "remove" || undefined}
+            aria-checked={Boolean(saved)}
+            aria-describedby={`${ids}-aviso`}
+            aria-disabled={off || undefined}
+            aria-labelledby={`${ids}-lembrete`}
+            className={cx("sw evd-sw", saved && "on", softOff)}
+            onClick={(click) => {
+              if (off) {
+                return;
+              }
+              if (saved) {
+                removeReminder(click.timeStamp);
+              } else {
+                saveReminder(click.timeStamp);
+              }
+            }}
+            role="switch"
+            type="button"
+          >
+            <i aria-hidden />
+          </button>
         </div>
 
-        {noTime ? null : (
-          <>
-            <p id={`${ids}-antecedencia`} className="lbl mt-4 mb-2">
+        {showOffsets ? (
+          <div className="evd-offsets">
+            <p id={`${ids}-antecedencia`} className="lbl">
               Antecedência
             </p>
             <div ref={offsetsRef} className="chips ev-offsets" role="group" aria-labelledby={`${ids}-antecedencia`}>
@@ -993,7 +934,7 @@ export function EventDetailContent({
                     key={minutes}
                     aria-disabled={!valid || undefined}
                     aria-pressed={on}
-                    className={cx("chip", on && "all", !valid && !on && "lock")}
+                    className={cx("chip", on && "on", !valid && !on && "lock")}
                     onClick={() => {
                       if (valid && !saving) {
                         setReminderOffset(String(minutes));
@@ -1008,101 +949,120 @@ export function EventDetailContent({
                 );
               })}
             </div>
-          </>
+            {dirty ? (
+              <div className="evd-remind-acts">
+                <button
+                  aria-busy={busy === "save" || undefined}
+                  aria-disabled={saving || undefined}
+                  className={cx("btn btn-p btn-sm", softOff)}
+                  onClick={(click) => saveReminder(click.timeStamp)}
+                  type="button"
+                >
+                  {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Bell className="h-4 w-4" aria-hidden />}
+                  Salvar alteração
+                </button>
+                <button className="btn btn-g btn-sm" onClick={discardChange} type="button">
+                  Descartar
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : noReminderTime ? null : (
+          <button
+            className="link evd-remind-more"
+            aria-expanded={false}
+            onClick={() => {
+              focusOffsets.current = true;
+              setReminderOpen(true);
+            }}
+            type="button"
+          >
+            Mudar antecedência ({reminderShortLabel(chosen)})
+          </button>
         )}
-
-        <p className="field-help mt-3" role="status">
-          {stateText}
-        </p>
-
-        {noTime && !saved ? null : reminderFooter ? null : (
-          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">{reminderActions()}</div>
-        )}
-
-        <p className="field-help mt-3">
-          O aviso aparece aqui no sistema e também chega no seu <span className="whitespace-nowrap">e-mail</span>.
-        </p>
       </section>
     );
   }
 
-  const foot = footerSlot ? footerActions() : null;
+  const foot = footerSlot && canManage ? managerActions() : null;
 
-  // ordem do Figma (Cronograma, agenda e detalhe; Mobile, detalhe): situação, quando, os dados,
-  // a descrição e, por último, o lembrete. As ações de quem gerencia ficam entre os dados e o lembrete.
+  // ordem da amostra A: categoria, título e quando; os dados; a descrição; o lembrete; as ações
   return (
-    <div ref={measureRef}>
-      <div className={cx("flex flex-wrap items-center gap-2", cornerSpace && "min-h-[38px] pr-12")}>
-        <span className={cx("pill", meta.tint)}>{meta.short}</span>
-        <StatusPill event={event} showScheduled />
-        {showsOfficialPill(event) ? <OfficialPill /> : null}
+    <div className={cx("evd", side && "is-side")}>
+      <div className={cx("evd-top", cornerSpace && "has-x")}>
+        <div className="evd-tags">
+          <span className={cx("cat", meta.tint)}>{meta.short}</span>
+          <StatusPill event={event} />
+          {showsOfficialPill(event) ? <OfficialPill /> : null}
+        </div>
+        {/* wrap-anywhere: palavra ou link sem espaço quebra na largura do detalhe, sem alargar o painel */}
+        <h2
+          ref={titleRef}
+          tabIndex={-1}
+          className={cx("evd-title wrap-anywhere", event.title.length > 70 && "is-long", cancelled && "is-cancel")}
+        >
+          {event.title}
+        </h2>
+        <p className="evd-when">
+          <Clock className="evd-when-ico" aria-hidden />
+          <span className="tnum">{eventWhenLong(event)}</span>
+          {stat ? <span className={cx("stat", stat.tone)}>{stat.text}</span> : null}
+        </p>
+        <p className="evd-src wrap-anywhere">{sourceText(event)}</p>
       </div>
-      {/* wrap-anywhere: palavra ou link sem espaço quebra na largura do detalhe, sem alargar o painel */}
-      <h2
-        ref={titleRef}
-        tabIndex={-1}
-        className={cx(
-          "disp mt-3 font-bold wrap-anywhere",
-          // nomes longos do calendário oficial: a fonte diminui para a data e o "quando" aparecerem logo
-          event.title.length > 70
-            ? "text-[21px] leading-snug"
-            : event.title.length > 40
-              ? "text-[23px] leading-snug"
-              : "text-[26px] leading-tight",
-          cancelled && "text-muted line-through"
-        )}
-      >
-        {event.title}
-      </h2>
-      <p className="sub wrap-anywhere">{sourceText(event)}</p>
 
       {cancelled ? (
-        <p className="callout rose mt-4">
-          <X className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          Evento cancelado. Ele continua aqui só para consulta.
-        </p>
+        <div className="evd-sec">
+          <p className="callout rose">
+            <X className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            Evento cancelado. Ele continua aqui só para consulta.
+          </p>
+        </div>
       ) : null}
       {event.status === "changed" ? (
-        <p className="callout amber mt-4">
-          <Pencil className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          Evento alterado depois de publicado. Confira a data, o horário e o local.
-        </p>
-      ) : null}
-      {when ? (
-        <p className={cx("callout mt-4 items-center", when.tone)}>
-          <Clock className="h-4 w-4 shrink-0" aria-hidden />
-          <span>
-            <b className="font-bold">{when.head}</b>
-            {when.tail ? `, ${when.tail}` : null}
-          </span>
-        </p>
+        <div className="evd-sec">
+          <p className="callout amber">
+            <Pencil className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            Evento alterado depois de publicado. Confira a data, o horário e o local.
+          </p>
+        </div>
       ) : null}
 
-      <dl className="info mt-5">
-        <InfoLine icon={CalendarDays} label="Início" value={eventStartLabel(event)} />
-        {endLabel ? <InfoLine icon={Clock} label="Término" value={endLabel} /> : null}
-        {/* o dd do InfoLine (ui.tsx) já quebra palavra longa; o span do Local repete, sem break-words, que o anularia */}
-        {location ? <InfoLine icon={MapPin} label="Local" value={<span className="wrap-anywhere">{location}</span>} /> : null}
-        {event.subject?.name ? <InfoLine icon={BookOpen} label="Disciplina" value={event.subject.name} /> : null}
-        <InfoLine icon={Users} label="Turma" value={event.academicClass?.name ?? "Toda a instituição"} />
-        {/* quem publicou fica só no subtítulo ("Publicado por Profa. Maraísa"): a linha "Responsável" repetia isso
-            e, na conta do responsável pelo aluno, parecia dizer que outra pessoa era a responsável */}
+      <dl className="evd-sec evd-dl">
+        <DetailRow icon={Users} label="Turma">
+          {event.academicClass?.name ?? "Toda a instituição"}
+        </DetailRow>
+        {event.subject?.name ? (
+          <DetailRow icon={BookOpen} label="Disciplina">
+            {event.subject.name}
+          </DetailRow>
+        ) : null}
+        {event.location ? (
+          <DetailRow icon={MapPin} label="Local">
+            {event.location}
+          </DetailRow>
+        ) : null}
         {event.points !== null ? (
-          <InfoLine icon={Award} label="Pontuação" value={`${event.points.toLocaleString("pt-BR")} pts (informativa)`} />
+          <DetailRow icon={Hash} label="Pontuação">
+            <span className="tnum">{event.points.toLocaleString("pt-BR")} pontos</span> <small>informativa</small>
+          </DetailRow>
         ) : null}
       </dl>
 
-      {event.description ? <p className="callout past mt-5 whitespace-pre-line wrap-anywhere">{event.description}</p> : null}
-
-      {/* painel ao lado: as mesmas ações do rodapé do Modal, numa linha ("Editar" e o "Mais ações"), no lugar
-          da grade de 4 botões */}
-      {canManage && !inFooter ? (
-        <div className="ev-foot-in ev-side-act mt-5" role="group" aria-label="Ações do evento">
-          {managerActions()}
+      {event.description ? (
+        <div className="evd-sec">
+          <p className="evd-desc whitespace-pre-line wrap-anywhere">{event.description}</p>
         </div>
       ) : null}
 
       {reminderBox()}
+
+      {/* painel ao lado: "Editar evento" ocupa a linha e o "Mais ações" fica no fim */}
+      {canManage && !inFooter ? (
+        <div className="evd-acts" role="group" aria-label="Ações do evento">
+          {managerActions()}
+        </div>
+      ) : null}
 
       {footerSlot && foot ? createPortal(<div className="ev-foot-in" role="group" aria-label="Ações do evento">{foot}</div>, footerSlot) : null}
     </div>
@@ -1115,7 +1075,7 @@ export function EmptyDetail() {
       <span className="empty-ico">
         <PanelRightOpen className="h-6 w-6" aria-hidden />
       </span>
-      <p className="mt-2 text-[15px] font-bold">Selecione um evento</p>
+      <p className="mt-2 text-[15px] font-semibold text-ink">Selecione um evento</p>
       <p className="max-w-[240px] text-[13px] leading-5 text-muted">
         Os detalhes, o lembrete pessoal e as ações aparecem aqui.
       </p>

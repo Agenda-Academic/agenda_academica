@@ -57,6 +57,7 @@ import {
   useRemote,
   type PanelApi,
 } from "./classes-shared";
+import { Select } from "./select";
 import { EmptyState, ErrorState, Field, primaryButton, secondaryButton } from "./ui";
 
 const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
@@ -977,25 +978,18 @@ function LinkByEmailBlock({ first, headingId, studentId, working, onChanged, onR
             </Field>
           </div>
           <div className="admin-span2">
-            <Field label="Parentesco" error={errors.relationship}>
-              <select
-                className="input"
-                value={relationship}
-                onChange={(event) => {
-                  setRelationship(event.target.value as GuardianRelationship);
-                  setErrors((current) => ({ ...current, relationship: "" }));
-                }}
-              >
-                <option value="" disabled>
-                  Escolha
-                </option>
-                {relationshipOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <Select
+              label="Parentesco"
+              menuMinWidth={240}
+              error={errors.relationship || undefined}
+              placeholder="Escolha"
+              value={relationship}
+              onChange={(value) => {
+                setRelationship(value as GuardianRelationship);
+                setErrors((current) => ({ ...current, relationship: "" }));
+              }}
+              options={relationshipOptions.map((option) => ({ value: option.value, label: option.label }))}
+            />
           </div>
         </div>
         {blocked ? (

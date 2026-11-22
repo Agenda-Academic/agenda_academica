@@ -42,7 +42,7 @@
 }
 .notas-docente-tabs .n {
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
 }
 /* rodapé do painel com as notas (Fechar, Voltar e os botões da importação): como o .drawer-foot, e no celular
@@ -51,6 +51,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   width: 100%;
 }
@@ -71,8 +72,8 @@
   height: 20px;
   padding: 0 8px;
   border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
   background: var(--neutral-tint);
   color: var(--ink-3);
@@ -98,7 +99,7 @@
   align-items: center;
   gap: 4px 8px;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.4;
 }
 .notas-docente-imp-s {
@@ -117,109 +118,6 @@
   color: var(--ink-3);
 }
 
-/* ---------- lista de alunos: lançar à mão ---------- */
-.notas-docente-grades {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  overflow: hidden;
-}
-.notas-docente-grade {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px 12px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--line-2);
-}
-.notas-docente-grade:first-child {
-  border-top: 0;
-}
-.notas-docente-grade.is-bad {
-  background: #fff8f9;
-}
-.notas-docente-grade-who {
-  min-width: 0;
-}
-.notas-docente-grade-name {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1.4;
-  color: var(--ink);
-}
-.notas-docente-grade-meta {
-  margin-top: 2px;
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--muted);
-}
-.notas-docente-grade-ctrl {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.notas-docente-grade-err {
-  grid-column: 1 / -1;
-  margin-top: 0;
-}
-.notas-docente-score-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-.input.notas-docente-score {
-  width: 7.25rem;
-  min-height: 40px;
-  padding: 0 52px 0 12px;
-  text-align: right;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-.notas-docente-of {
-  position: absolute;
-  right: 12px;
-  font-size: 12.5px;
-  color: var(--muted);
-  pointer-events: none;
-}
-.input.notas-docente-score:disabled {
-  padding-right: 12px;
-  background: var(--surface-2);
-  color: var(--muted);
-  cursor: not-allowed;
-}
-.input.notas-docente-score:disabled + .notas-docente-of {
-  display: none;
-}
-.input.notas-docente-score[readonly] {
-  background: var(--surface-2);
-}
-.input.notas-docente-status {
-  width: 7.5rem;
-  min-height: 40px;
-  padding-left: 12px;
-  font-size: 14px;
-}
-.input.notas-docente-status:disabled {
-  background-color: var(--surface-2);
-  color: var(--muted);
-  cursor: not-allowed;
-}
-.notas-docente-state {
-  display: inline-flex;
-  width: 16px;
-  flex-shrink: 0;
-}
-/* celular: o nome em cima e os campos embaixo */
-@media (max-width: 479px) {
-  .notas-docente-grade {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 /* ---------- passos da importação (amostra docente-importar-previa) ---------- */
 .notas-docente-steps {
   display: flex;
@@ -233,7 +131,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
   color: var(--muted);
@@ -262,7 +160,7 @@
   border-radius: 999px;
   border: 1.5px solid var(--line-strong);
   background: #fff;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--muted);
 }
@@ -319,13 +217,13 @@
 }
 .notas-docente-file-t {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 .notas-docente-file-s {
   margin-top: 2px;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -350,8 +248,8 @@
   border-radius: 999px;
   background: var(--brand-50);
   color: var(--brand-ink);
-  font-size: 13.5px;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 700;
 }
 .notas-docente-stage-main {
   flex: 1;
@@ -364,7 +262,7 @@
   color: var(--ink);
 }
 .notas-docente-stage-s {
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
   color: var(--ink-3);
 }
@@ -417,12 +315,12 @@
 }
 .notas-docente-drop-t {
   font-size: 15px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.45;
   color: var(--ink);
 }
 .notas-docente-drop-s {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
 }
@@ -474,7 +372,7 @@
 }
 .notas-docente-proc-t {
   font-family: var(--disp);
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
   line-height: 1.3;
   color: var(--ink);
@@ -545,15 +443,15 @@
 }
 .notas-docente-stat b {
   font-family: var(--disp);
-  font-size: 32px;
-  font-weight: 800;
+  font-size: 26px;
+  font-weight: 700;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
 .notas-docente-stat span {
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.35;
   color: var(--ink-3);
 }
@@ -591,7 +489,7 @@
     font-size: 26px;
   }
   .notas-docente-stat span {
-    font-size: 12.5px;
+    font-size: 13px;
   }
 }
 .notas-docente-src {
@@ -667,7 +565,7 @@
 }
 .notas-docente-ck-name {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.4;
   color: var(--ink);
   overflow-wrap: anywhere;
@@ -683,7 +581,7 @@
 }
 .notas-docente-ck-sub {
   margin-top: 2px;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -696,7 +594,7 @@
 }
 .notas-docente-ck-val {
   font-size: 15px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.35;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -735,7 +633,7 @@
   padding: 14px;
   border-radius: 14px;
   border: 1px solid var(--line);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
   color: var(--ink-3);
 }
@@ -784,7 +682,7 @@
 }
 .notas-docente-r-t {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -798,7 +696,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
 }
@@ -876,8 +774,8 @@
 }
 .notas-docente-done-n {
   display: block;
-  font-size: 48px;
-  font-weight: 800;
+  font-size: 26px;
+  font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
   color: #1f7a52;
@@ -901,8 +799,8 @@
   height: 28px;
   padding: 0 11px;
   border-radius: 999px;
-  font-size: 12.5px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 600;
   background: #fff;
   color: var(--ink-3);
   box-shadow: inset 0 0 0 1px var(--line);
@@ -954,29 +852,30 @@
 }
 .notas-docente-vis-s {
   margin-top: 2px;
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
   color: var(--ink-3);
 }
 
-/* ---------- tela Notas da docente e da administração ---------- */
-.notas-docente-card-head {
+/* ---------- tela Notas da docente e da administração (direção A) ----------
+   Cabeçalho da tela (PageHeader), a barra com as abas e o filtro de disciplina (Select em pílula) e o card com os
+   meses e as avaliações. */
+.notas-docente-page {
+  display: grid;
+  gap: 20px;
+}
+.notas-docente-bar {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px 16px;
-  padding: 24px 24px 18px;
+  align-items: center;
+  gap: 10px 12px;
 }
-.notas-docente-card-head > .min-w-0 {
-  flex: 1 1 260px;
-}
-/* abas Pendentes, Passadas, Próximas e Todas: o nome e a contagem menor e cinza ao lado ("Pendentes 2") */
+/* abas Pendentes, Próximas, Passadas e Todas: o nome e a contagem menor e cinza ao lado ("Pendentes 2") */
 .notas-docente-tabs-seg button {
   gap: 6px;
 }
 .notas-docente-tabs-seg .n {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
@@ -984,36 +883,14 @@
 .notas-docente-tabs-seg .on .n {
   color: var(--ink-3);
 }
-/* filtro por turma e disciplina (quando a pessoa tem mais de uma) */
-.notas-docente-filter {
-  padding: 0 24px 14px;
+html .notas-docente-card {
+  overflow: hidden;
 }
-.notas-docente-filter .chips {
-  gap: 4px 6px;
+html .notas-docente-card > .notas-docente-busca:first-child {
+  padding-top: 16px;
 }
-.notas-docente-filter .chip {
-  max-width: 100%;
-  text-align: left;
-}
-.notas-docente-filter-sel {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  font-size: 14px;
-  font-weight: 650;
-  color: var(--ink-3);
-}
-.notas-docente-filter-sel .input {
-  width: auto;
-  min-width: 0;
-  max-width: 100%;
-  flex: 0 1 360px;
-  min-height: 40px;
-}
-/* poucas opções: botões no computador; a lista de escolha fica para o celular */
-.notas-docente-filter.has-chips .notas-docente-filter-sel {
-  display: none;
+html .notas-docente-card > .notas-docente-searchnote:first-child {
+  margin-top: 16px;
 }
 /* a avaliação pedida pelo link aparece mesmo escondida pela busca do menu: o aviso e "Limpar busca" */
 .notas-docente-busca {
@@ -1075,33 +952,36 @@
 /* cabeçalho do mês ("Novembro 2 avaliações", "Dezembro de 2025"), igual ao da Gestão (.gestao-month-row):
    o nome do mês na fonte de título e, ao lado, quantas avaliações ele tem */
 .notas-docente-month {
-  padding: 18px 24px 8px;
+  padding: 16px 20px 12px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line-2);
-  background: #fff;
-  font-family: var(--disp);
-  font-size: 15px;
+  background: var(--surface);
+  font-family: var(--font);
+  font-size: var(--fs-15);
   font-weight: 700;
   line-height: 1.4;
   color: var(--ink);
 }
+.notas-docente-list > .notas-docente-month:first-child {
+  border-top: 0;
+}
 .notas-docente-month .n {
   margin-left: 10px;
-  font-family: var(--font-sans, inherit);
+  font-family: var(--font);
   font-size: 13px;
   font-weight: 600;
   color: var(--muted);
 }
 .notas-docente-ev {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
+  grid-template-columns: 48px minmax(0, 1fr);
   grid-template-areas:
     "date body"
     ". status"
     ". acts";
   align-items: center;
   gap: 10px 16px;
-  padding: 14px 24px;
+  padding: 14px 20px;
   border-top: 1px solid var(--line-2);
   transition: background-color 0.16s ease;
 }
@@ -1115,7 +995,7 @@
   background: var(--brand-50);
   box-shadow: inset 3px 0 0 var(--brand);
 }
-.notas-docente-ev > .ev-date {
+.notas-docente-ev > .dbadge {
   grid-area: date;
   align-self: start;
 }
@@ -1176,7 +1056,7 @@
   background: var(--brand);
 }
 .notas-docente-prog.is-full .notas-docente-prog-bar > span {
-  background: var(--accent);
+  background: var(--green-bar);
 }
 .notas-docente-prog-t {
   font-size: 13px;
@@ -1189,13 +1069,13 @@
 }
 /* paginação embaixo da lista: "Mostrando 1 a 8 de 43 avaliações" e as páginas */
 .notas-docente-pager {
-  padding: 14px 24px 18px;
+  padding: 14px 20px 16px;
   border-top: 1px solid var(--line);
 }
 /* card médio (1024 px, tablet): a situação e os botões dividem a segunda linha, em vez de três andares */
 @container (min-width: 520px) and (max-width: 759px) {
   .notas-docente-ev {
-    grid-template-columns: 54px minmax(0, 1fr) auto;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
     grid-template-areas:
       "date body body"
       "date status acts";
@@ -1208,10 +1088,10 @@
 /* card largo: uma linha por avaliação (data, avaliação, situação e ações), como a tabela da Gestão */
 @container (min-width: 760px) {
   .notas-docente-ev {
-    grid-template-columns: 54px minmax(0, 1fr) 230px auto;
+    grid-template-columns: 48px minmax(0, 1fr) 250px auto;
     grid-template-areas: "date body status acts";
   }
-  .notas-docente-ev > .ev-date {
+  .notas-docente-ev > .dbadge {
     align-self: center;
   }
   .notas-docente-ev-acts {
@@ -1220,54 +1100,40 @@
 }
 /* celular: menos respiro nas bordas, e as quatro abas dividem a largura (o nome em cima e a contagem embaixo),
    em vez de uma aba sozinha na segunda linha */
-@container (max-width: 520px) {
-  .notas-docente-card-head {
-    padding: 20px 16px 14px;
-  }
-  .notas-docente-card-head > .min-w-0 {
-    flex-basis: 100%;
-  }
-  /* duas classes: vence o .seg do globals.css (que vem depois na mesma camada) */
-  .seg.notas-docente-tabs-seg {
+/* celular: as quatro abas dividem a largura (o nome em cima e a contagem embaixo), em vez de uma aba sozinha na
+   segunda linha; o filtro de disciplina fica embaixo, na largura toda */
+@media (max-width: 639px) {
+  html .seg.notas-docente-tabs-seg {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     width: 100%;
     gap: 0;
     overflow: visible;
   }
-  .seg.notas-docente-tabs-seg button {
-    flex-direction: column;
-    gap: 0;
-    height: auto;
-    min-height: 50px;
-    padding: 6px 2px;
-    line-height: 1.2;
+  /* a contagem fica ao lado do rótulo ("Pendentes 2"), como no Cronograma e na Gestão */
+  html .seg.notas-docente-tabs-seg button {
+    flex-direction: row;
+    gap: 6px;
+    min-width: 0;
+    height: 44px;
+    padding: 0 6px;
+    white-space: nowrap;
   }
-  .notas-docente-tabs-seg .t {
-    font-size: 13px;
-  }
+  .notas-docente-tabs-seg .t,
   .notas-docente-tabs-seg .n {
     font-size: 13px;
   }
-  .notas-docente-filter {
-    padding: 0 16px 12px;
+  html .notas-docente-offer {
+    width: 100%;
   }
-  .notas-docente-filter.has-chips .notas-docente-filter-sel {
-    display: flex;
+}
+/* celular: 4 abas em 2 x 2 (como a Gestão), para o rótulo e a contagem caberem na mesma linha */
+@media (max-width: 519px) {
+  html .seg.notas-docente-tabs-seg {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .notas-docente-filter.has-chips .chips {
-    display: none;
-  }
-  /* o nome em cima e a lista de escolha na largura toda: "Todas as turmas (25)" cabe sem cortar */
-  .notas-docente-filter-sel {
-    gap: 6px;
-  }
-  .notas-docente-filter-sel > span {
-    flex-basis: 100%;
-  }
-  .notas-docente-filter-sel .input {
-    flex: 1 1 100%;
-  }
+}
+@container (max-width: 520px) {
   .notas-docente-month {
     padding: 14px 16px 8px;
   }
@@ -1285,21 +1151,1090 @@
 /* tela de toque: "Abrir notas" (a ação principal de cada linha) e a lista de escolha do filtro com 44 px, a altura
    do botão do cronograma ao lado */
 @media (pointer: coarse) {
-  .btn.notas-docente-open,
-  .notas-docente-filter-sel .input,
-  .input.notas-docente-score,
-  .input.notas-docente-status {
+  .btn.notas-docente-open {
     min-height: 44px;
   }
 }
-/* um só jeito de dizer "escolhido" no filtro de disciplina (como nas categorias do Cronograma): "Todas" e a
-   disciplina escolhida com o mesmo fundo, sem sublinhado de aba nem contorno */
-html .notas-docente-filter .chip.all,
-html .notas-docente-filter .chip.picked {
-  border: 0;
-  border-radius: 10px;
-  background: var(--surface-2);
-  box-shadow: none;
+/* ==================================================================
+   Planilha de notas (rodada 7, direção A, amostra notas.html): grades-sheet.tsx e event-grades-drawer.tsx.
+   Classes .nd-* ("notas docente"). Prefixo html: as regras de base (visual-novo.css, ux.css) vêm depois na
+   mesma camada e ganhariam no empate.
+   ================================================================== */
+
+/* a largura do painel na aba Notas vem do Drawer size="wide" (event-editor.tsx) */
+html .nd-pane {
+  display: grid;
+  gap: 16px;
+}
+html .nd-draft {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- faixa de situação: etiqueta, progresso e média, menor e maior ---------- */
+html .nd-strip {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+html .nd-strip-vis {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+html .nd-strip-vis small {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+html .nd-stat-btn {
+  height: 28px;
+  padding: 0 8px 0 10px;
+  font-size: var(--fs-13);
+  cursor: pointer;
+}
+html .nd-stat-btn:hover,
+html .nd-stat-btn.on {
+  border-color: var(--green-bar);
+}
+html .nd-prog {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: 170px;
+  max-width: 240px;
+}
+html .nd-prog-l {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--fs-13);
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+html .nd-prog-l b {
+  font-weight: 600;
   color: var(--ink);
+}
+html .nd-bar {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--r-full);
+  background: var(--fill);
+}
+html .nd-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green-bar);
+}
+html .nd-nums {
+  display: flex;
+  gap: 22px;
+  margin: 0 0 0 auto;
+}
+html .nd-nums div {
+  text-align: right;
+}
+html .nd-nums dt {
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+html .nd-nums dd {
+  font-size: var(--fs-16);
   font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- cartão "1 Baixe, 2 Preencha, 3 Importe" (nenhuma nota ainda) ---------- */
+html .nd-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 12px 6px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  list-style: none;
+}
+html .nd-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 14px;
+}
+html .nd-steps li + li {
+  border-left: 1px solid var(--line);
+}
+html .nd-steps-n {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--brand-50);
+  color: var(--brand-h);
+  font-size: var(--fs-12);
+  font-weight: 700;
+}
+html .nd-steps b {
+  display: block;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink);
+}
+html .nd-steps b + span {
+  display: block;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+
+/* ---------- barra: Todos / Sem nota / Alteradas, busca e a planilha ---------- */
+html .nd-sheet {
+  position: relative;
+  display: grid;
+  gap: 14px;
+}
+html .nd-tbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+html .nd-seg button {
+  white-space: nowrap;
+}
+html .nd-seg button .n.nd-n-amb {
+  color: var(--amber);
+}
+html .nd-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 176px;
+  height: 38px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--muted);
+}
+html .nd-search:focus-within {
+  border-color: var(--brand);
+  box-shadow: var(--ring);
+}
+html .nd-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: var(--fs-14);
+  color: var(--ink);
+}
+html .nd-search-input::placeholder {
+  color: var(--faint);
+}
+html .nd-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+html .nd-search-x {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+html .nd-search-x:hover {
+  background: var(--fill);
+  color: var(--ink);
+}
+html .nd-tbar-files {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  margin-left: auto;
+}
+html .nd-tbar-files .btn {
+  height: 38px;
+  padding-inline: 12px;
+}
+/* rótulo longo na tela larga, curto no celular (o nome inteiro fica no aria-label do botão) */
+html .nd-lbl-short {
+  display: none;
+}
+
+/* legenda dos atalhos e o histórico de importações, um link discreto à direita */
+html .nd-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -2px;
+  font-size: var(--fs-13);
+  line-height: 1.5;
+  color: var(--muted);
+}
+html .nd-legend > p {
+  flex: 1;
+}
+html .nd-legend .kbd {
+  margin: 0 2px;
+}
+html .nd-legend-touch {
+  display: none;
+}
+html .nd-legend-ico {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-top: -2px;
+  padding: 0 1px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  vertical-align: middle;
+  color: var(--ink-3);
+}
+@media (pointer: coarse) {
+  html .nd-legend-keys {
+    display: none;
+  }
+  html .nd-legend-touch {
+    display: inline;
+  }
+}
+html .nd-hist {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 4px;
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+html .nd-hist:hover {
+  color: var(--ink);
+}
+html .nd-hist .badge {
+  height: 18px;
+  min-width: 18px;
+}
+
+/* ---------- a grade ---------- */
+html .nd-tablewrap {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+html .nd-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-14);
+}
+/* cabeçalho preso no alto do corpo do painel (que rola) */
+html .nd-table thead th {
+  position: sticky;
+  top: -20px;
+  z-index: 2;
+  height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  text-align: left;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+html .nd-table thead th:first-child {
+  border-top-left-radius: 11px;
+}
+html .nd-table thead th:last-child {
+  border-top-right-radius: 11px;
+}
+html .nd-table td {
+  height: 48px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: middle;
+}
+html .nd-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+html .nd-table tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 11px;
+}
+html .nd-table tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 11px;
+}
+html .nd-table .nd-c-no {
+  width: 44px;
+  font-size: var(--fs-13);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+html .nd-table thead .nd-c-no {
+  color: var(--ink-3);
+}
+html .nd-table .nd-c-cell {
+  width: 124px;
+  text-align: right;
+}
+html .nd-table .nd-c-before {
+  width: 92px;
+  text-align: right;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+html .nd-table .nd-c-before s {
+  text-decoration-color: var(--red-bar);
+  text-decoration-thickness: 1.5px;
+}
+html .nd-before-none {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+html .nd-table .nd-c-ico {
+  width: 40px;
+  padding: 0;
+  text-align: center;
+}
+html .nd-table .nd-c-ico svg {
+  display: inline-block;
+}
+html .nd-table .nd-c-act {
+  width: 88px;
+  padding-left: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+html .nd-acts {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 2px;
+}
+html .nd-acts .ib {
+  color: var(--ink-3);
+}
+html .nd-nm {
+  font-weight: 600;
+  color: var(--ink);
+}
+html .nd-em {
+  margin-left: 8px;
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+html .nd-before-m {
+  display: none;
+}
+html .nd-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: var(--r-full);
+  background: var(--fill);
+  vertical-align: 1px;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+html .nd-tag.is-new {
+  background: color-mix(in srgb, var(--amber-bar) 22%, var(--surface));
+  color: var(--amber);
+}
+
+/* linha mudada: fundo âmbar claro e faixa de 3 px; com erro, vermelho; salva, pisca em verde */
+html .nd-row.is-pend td {
+  background: var(--amber-bg);
+}
+html .nd-row.is-pend td:first-child {
+  box-shadow: inset 3px 0 0 var(--amber-bar);
+}
+html .nd-row.is-bad td {
+  background: var(--red-bg);
+}
+html .nd-row.is-bad td:first-child {
+  box-shadow: inset 3px 0 0 var(--red-bar);
+}
+html .nd-row.is-saved td {
+  animation: nd-saved 2.2s ease-out;
+}
+@keyframes nd-saved {
+  0%,
+  45% {
+    background: var(--green-bg);
+  }
+  100% {
+    background: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html .nd-row.is-saved td {
+    animation: none;
+  }
+}
+
+/* célula da nota */
+html .nd-cell {
+  position: relative;
+  width: 88px;
+  margin-left: auto;
+}
+html .nd-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  outline: none;
+  background: var(--surface);
+  text-align: right;
+  font-family: var(--font);
+  font-size: var(--fs-15);
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  /* ao andar com Enter e setas, a célula para abaixo do cabeçalho preso e com lugar para o balão embaixo */
+  scroll-margin: 52px 0 72px;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+html .nd-input:hover {
+  border-color: var(--line-strong);
+}
+html .nd-input:focus {
+  border-color: var(--brand);
+  box-shadow: var(--ring);
+}
+html .nd-input:focus::placeholder {
+  color: transparent;
+}
+html .nd-input[readonly] {
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+html .nd-cell.is-empty .nd-input {
+  border-style: dashed;
+  background: var(--surface-2);
+  text-align: center;
+}
+html .nd-cell.is-empty .nd-input::placeholder {
+  font-size: var(--fs-13);
+  font-weight: 400;
+  color: var(--faint);
+}
+html .nd-cell.is-empty .nd-input:focus {
+  border-style: solid;
+  background: var(--surface);
+}
+html .nd-cell.is-f .nd-input {
+  border-color: var(--red-line);
+  background: var(--red-bg);
+  text-align: center;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--red);
+}
+html .nd-cell.is-d .nd-input {
+  border-color: var(--line);
+  background: var(--fill);
+  text-align: center;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+html .nd-cell.is-chg .nd-input {
+  border-color: var(--amber-bar);
+}
+html .nd-cell.is-chg:not(.is-f, .is-d) .nd-input {
+  font-weight: 700;
+  background: var(--surface);
+}
+html .nd-cell.is-clear .nd-input {
+  border-color: var(--red-bar);
+  background: var(--surface);
+}
+html .nd-cell.is-clear .nd-input::placeholder {
+  font-weight: 600;
+  color: var(--red);
+}
+html .nd-cell.is-chg .nd-input:focus {
+  border-color: var(--brand);
+}
+html .nd-cell.is-err .nd-input,
+html .nd-cell.is-err .nd-input:focus {
+  border: 2px solid var(--red-bar);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red-bar) 15%, transparent);
+  font-weight: 700;
+  color: var(--red);
+}
+/* balão do erro, preso à célula: nada empurra a lista */
+html .nd-balloon {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: -2px;
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--red);
+  box-shadow: var(--sh-pop);
+  text-align: left;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--surface);
+  white-space: normal;
+}
+html .nd-balloon svg {
+  margin-top: 1px;
+}
+html .nd-balloon::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: 30px;
+  width: 10px;
+  height: 10px;
+  background: var(--red);
+  transform: rotate(45deg);
+}
+
+/* camada ao arrastar uma planilha sobre a grade */
+html .nd-drop {
+  position: absolute;
+  inset: -6px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 2px dashed var(--brand);
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--brand-50) 92%, transparent);
+  font-size: var(--fs-15);
+  font-weight: 600;
+  color: var(--brand-h);
+  pointer-events: none;
+}
+
+/* menu pequeno (três pontos da linha, etiqueta Publicadas) */
+html .nd-menu {
+  position: fixed;
+  z-index: 75;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-pop);
+}
+html .nd-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  font-size: var(--fs-14);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+html .nd-menu-item svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--muted);
+}
+html .nd-menu-item:hover,
+html .nd-menu-item:focus-visible,
+html .nd-menu-item:focus {
+  outline: none;
+  background: var(--fill);
+  color: var(--ink);
+}
+html .nd-menu-item[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+html .nd-menu-hint {
+  display: block;
+  font-size: var(--fs-12);
+  font-weight: 400;
+  color: var(--muted);
+}
+@media (pointer: coarse) {
+  html .nd-menu-item {
+    min-height: 44px;
+  }
+}
+
+/* ---------- rodapé: "3 alterações não salvas", Descartar e Revisar e salvar ---------- */
+html .nd-pending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-right: auto;
+  font-size: var(--fs-14);
+  color: var(--ink-2);
+}
+html .nd-pending-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber-bar);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber-bar) 22%, transparent);
+}
+html .nd-pending b {
+  font-weight: 600;
+  color: var(--ink);
+}
+html .nd-pending-err {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--red);
+}
+html .nd-pending-hint {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+html .kbd.nd-kbd-on {
+  margin-left: 2px;
+  border-color: rgb(255 255 255 / 0.3);
+  background: rgb(255 255 255 / 0.15);
+  color: var(--surface);
+}
+html .nd-foot-hint {
+  margin-right: auto;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+@media (pointer: coarse) {
+  html .kbd.nd-kbd-on {
+    display: none;
+  }
+}
+
+/* ---------- revisão antes de salvar ---------- */
+html .nd-review {
+  display: grid;
+  gap: 16px;
+}
+html .nd-rv-group {
+  display: grid;
+  gap: 8px;
+}
+html .nd-rv-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+html .nd-rv-list {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+html .nd-rv-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line-2);
+}
+html .nd-rv-list li:first-child {
+  border-top: 0;
+}
+html .nd-rv-name {
+  min-width: 0;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+html .notas-docente-ck-val.is-cleared {
+  color: var(--red);
+}
+html .notas-docente-ck-none-v {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--muted);
+}
+html .nd-rv-pub {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  cursor: pointer;
+}
+html .nd-rv-pub:has(input:focus-visible) {
+  border-color: var(--brand);
+  box-shadow: var(--ring);
+}
+html .nd-rv-pub input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--brand);
+}
+html .nd-rv-pub b {
+  display: block;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink);
+}
+html .nd-rv-pub b + span {
+  display: block;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+
+/* toque (tablet e computador com tela de toque) e abaixo de 768 px de largura: a etiqueta das notas publicadas (o único
+   caminho para "Ocultar as notas de novo"), a busca e o campo da nota com 44 px */
+@media (pointer: coarse), (max-width: 767px) {
+  html .nd-stat-btn {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+  html .nd-search {
+    height: 44px;
+  }
+  /* o campo ocupa a caixa toda, borda inclusive: 44 px de toque (a caixa é o label do campo) */
+  html .nd-search-input {
+    height: calc(100% + 2px);
+    margin-block: -1px;
+  }
+  html .nd-input {
+    height: 44px;
+  }
+  html .nd-hist {
+    min-height: 44px;
+  }
+}
+
+/* ---------- celular e tablet estreito (até 767 px, a gaveta ocupa a tela toda): lista compacta (nome à
+   esquerda, célula de 72 px e o menu à direita) ---------- */
+@media (max-width: 767px) {
+  /* o primeiro aluno sobe: a faixa vira duas linhas (etiqueta e números; progresso), a barra junta busca e
+     planilha numa linha só e a legenda fica numa linha com o Histórico ao lado */
+  html .nd-pane {
+    gap: 12px;
+  }
+  html .nd-strip {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 10px 12px 12px;
+  }
+  html .nd-strip-vis {
+    flex: 1 1 auto;
+  }
+  html .nd-strip-vis small {
+    display: none;
+  }
+  /* a etiqueta é o único caminho para "Ocultar as notas de novo": 44 px de toque */
+  html .nd-stat-btn {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+  html .nd-prog {
+    order: 3;
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  html .nd-nums {
+    gap: 14px;
+  }
+  html .nd-nums dt {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+  html .nd-nums dd {
+    font-size: var(--fs-15);
+    line-height: 1.3;
+  }
+  html .nd-sheet {
+    gap: 10px;
+  }
+  html .nd-tbar {
+    gap: 8px;
+  }
+  html .nd-tbar-files {
+    gap: 6px;
+  }
+  html .nd-steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px 4px;
+  }
+  html .nd-steps li + li {
+    border-left: 0;
+  }
+  html .nd-tbar {
+    gap: 10px;
+  }
+  html .nd-seg {
+    width: 100%;
+  }
+  html .nd-seg button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 8px;
+  }
+  /* busca e os dois botões da planilha na mesma linha; os botões com rótulo curto (Baixar, Importar) */
+  html .nd-search {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    height: 44px;
+    gap: 6px;
+    padding: 0 6px 0 10px;
+  }
+  html .nd-tbar-files {
+    margin-left: 0;
+  }
+  html .nd-tbar-files .btn {
+    height: 44px;
+    padding-inline: 10px;
+  }
+  html .nd-lbl-long {
+    display: none;
+  }
+  html .nd-lbl-short {
+    display: inline;
+  }
+  html .nd-legend {
+    gap: 6px;
+    margin-top: -4px;
+    font-size: var(--fs-12);
+    line-height: 1.35;
+  }
+  html .nd-hist {
+    min-height: 44px;
+    margin: -6px -4px -10px 0;
+    padding: 0 4px;
+  }
+  /* a tabela vira lista: o cabeçalho fica só para o leitor de tela */
+  html .nd-table,
+  html .nd-table tbody {
+    display: block;
+  }
+  html .nd-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  html .nd-table tr.nd-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 6px;
+    min-height: 56px;
+    padding: 6px 4px 6px 12px;
+    border-bottom: 1px solid var(--line-2);
+  }
+  html .nd-table tbody tr.nd-row:last-child {
+    border-bottom: 0;
+  }
+  html .nd-table td,
+  html .nd-row.is-pend td,
+  html .nd-row.is-bad td {
+    display: block;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html .nd-table td.nd-c-no,
+  html .nd-table td.nd-c-before,
+  html .nd-table td.nd-c-ico {
+    display: none;
+  }
+  html .nd-table td.nd-c-act {
+    width: auto;
+  }
+  html .nd-row.is-pend {
+    background: var(--amber-bg);
+    box-shadow: inset 3px 0 0 var(--amber-bar);
+  }
+  html .nd-row.is-bad {
+    background: var(--red-bg);
+    box-shadow: inset 3px 0 0 var(--red-bar);
+  }
+  html .nd-table tbody tr.nd-row:last-child {
+    border-radius: 0 0 11px 11px;
+  }
+  html .nd-table tbody tr.nd-row:first-child {
+    border-radius: 11px 11px 0 0;
+  }
+  html .nd-row.is-saved {
+    animation: nd-saved 2.2s ease-out;
+  }
+  html .nd-row.is-saved td {
+    animation: none;
+  }
+  html .nd-c-st {
+    min-width: 0;
+  }
+  /* nome em até 2 linhas, de 360 a 767 px; o nome completo fica no title e no rótulo do campo da nota */
+  html .nd-nm {
+    display: -webkit-box;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  html .nd-em {
+    display: none;
+  }
+  html .nd-tag {
+    margin: 4px 6px 0 0;
+  }
+  html .nd-before-m {
+    display: inline-block;
+    margin-top: 2px;
+    font-size: var(--fs-12);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  /* nome, nota e "..." na 1ª linha; o balão do erro numa linha própria embaixo, sem cobrir o "antes" */
+  html .nd-table td.nd-c-cell,
+  html .nd-cell {
+    display: contents;
+  }
+  html .nd-table td.nd-c-st {
+    grid-row: 1;
+    grid-column: 1;
+  }
+  html .nd-input {
+    grid-row: 1;
+    grid-column: 2;
+    width: 72px;
+    height: 44px;
+    font-size: var(--fs-16);
+  }
+  html .nd-table td.nd-c-act {
+    grid-row: 1;
+    grid-column: 3;
+  }
+  html .nd-cell:is(.is-f, .is-d) .nd-input {
+    padding: 0 4px;
+  }
+  /* o desfazer fica no menu "..." da linha, para o nome caber em até 2 linhas */
+  html .nd-acts .nd-undo {
+    display: none;
+  }
+  html .nd-acts .ib {
+    width: 40px;
+    height: 44px;
+  }
+  html .nd-balloon {
+    position: relative;
+    top: auto;
+    right: auto;
+    grid-row: 2;
+    grid-column: 1 / -1;
+    width: auto;
+    max-width: none;
+    margin-top: 8px;
+  }
+  /* a seta aponta para o meio do campo da nota (72 px), que fica antes do "..." de 40 px */
+  html .nd-balloon::before {
+    right: 80px;
+  }
+  html .nd-pending,
+  html .nd-foot-hint {
+    flex-basis: 100%;
+  }
+  /* só o Fechar no rodapé: a dica fica ao lado dele, não numa linha própria */
+  html .nd-foot-hint:has(+ .btn:last-child) {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: var(--fs-12);
+    line-height: 1.35;
+  }
+  html .notas-docente-foot > .nd-foot-hint + .btn:last-child {
+    flex: 0 0 auto;
+    padding-inline: 22px;
+  }
+  html .kbd.nd-kbd-on {
+    display: none;
+  }
+  html .nd-rv-list li {
+    padding: 8px 12px;
+  }
+}
+
+/* telefone estreito: a etiqueta perde o olho para caber ao lado de média, menor e maior */
+@media (max-width: 379px) {
+  html .nd-stat-btn > svg:first-child {
+    display: none;
+  }
+  html .nd-nums {
+    gap: 10px;
+  }
+  html .nd-tbar-files .btn {
+    gap: 6px;
+    padding-inline: 8px;
+  }
+  html .nd-nm {
+    font-size: var(--fs-14);
+  }
+}
+
+/* tablet (768 a 1023 px, a gaveta quase na largura da tela): o e-mail vai para a linha de baixo, inteiro, em vez
+   de empurrar o nome para 2 linhas; o nome fica em até 2 linhas */
+@media (min-width: 768px) and (max-width: 1023px) {
+  html .nd-nm {
+    display: -webkit-box;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  html .nd-em {
+    display: block;
+    margin-left: 0;
+    line-height: 1.3;
+  }
 }

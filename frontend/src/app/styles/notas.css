@@ -12,58 +12,61 @@
    ================================================================== */
 
 /* ---------- indicadores do topo (amostra notas-aluno) ---------- */
-/* celular e telas médias: dois lado a lado e a "Próxima avaliação" na largura toda; a partir de 1100px, três */
+/* celular: dois lado a lado e a "Próxima avaliação" na largura toda; a partir de 900 px, três (os valores cabem) */
 .notas-kpis {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
 }
-.notas-kpis > .notas-kpi-next,
+.notas-kpis > .notas-kpi-prox,
 .notas-kpis > .notas-kpi-wide {
   grid-column: 1 / -1;
 }
-@media (min-width: 1100px) {
+@media (min-width: 900px) {
   .notas-kpis {
     gap: 20px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .notas-kpis > .notas-kpi-next,
+  .notas-kpis > .notas-kpi-prox,
   .notas-kpis > .notas-kpi-wide {
     grid-column: auto;
   }
 }
 @media (max-width: 767px) {
-  .notas-kpis .kpi {
-    padding: 18px;
-  }
-  .notas-kpis .kpi-val {
-    font-size: 36px;
+  html .notas-kpis .kpi {
+    padding: 16px;
   }
 }
-.kpi-ico.notas-ico-blue {
-  background: #e0f2fe;
-  color: #0369a1;
+html .kpi-ico.notas-ico-blue {
+  background: none;
+  color: var(--brand);
 }
-/* "Próxima avaliação": as cores (azul bebê) vêm do visual-novo.css; aqui só o "Nenhuma" menor e o caminho
-   "Ver no cronograma", que mostra que o card inteiro é clicável */
-.notas-kpi-next .kpi-val.notas-kpi-none {
-  font-size: 30px;
+/* "Próxima avaliação" (amostra A): card branco como os outros; o card inteiro é clicável (kpi-hit), então ele
+   ganha a borda mais forte no hover e o caminho "Ver no cronograma" em azul */
+html .notas-kpi-prox .kpi-val.notas-kpi-none {
+  font-size: var(--fs-22);
+  color: var(--muted);
 }
 .notas-kpi-go {
-  margin-top: 10px;
+  margin-top: 8px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--bebe-ink);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--link);
 }
 .notas-kpi-go svg {
+  width: 16px;
+  height: 16px;
   transition: transform 0.16s ease;
 }
 @media (hover: hover) and (pointer: fine) {
-  .kpi.notas-kpi-next.is-link:hover .notas-kpi-go svg {
+  html .kpi.notas-kpi-prox.is-link:hover {
+    border-color: var(--line-hover);
+  }
+  html .kpi.notas-kpi-prox.is-link:hover .notas-kpi-go svg {
     transform: translateX(3px);
   }
 }
@@ -138,8 +141,8 @@
 }
 .notas-g-title {
   grid-area: t;
-  font-size: 15.5px;
-  font-weight: 650;
+  font-size: var(--fs-15);
+  font-weight: 600;
   line-height: 1.4;
 }
 .notas-g-meta {
@@ -158,7 +161,7 @@
   display: flex;
   align-items: flex-start;
   gap: 7px;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
   line-height: 1.45;
   color: var(--muted);
 }
@@ -216,7 +219,7 @@
     padding-bottom: 14px;
   }
   .notas-disc-head .h2 {
-    font-size: 20px;
+    font-size: var(--fs-18);
   }
   .notas-disc-ico {
     width: 40px;
@@ -245,7 +248,7 @@
     align-self: start;
   }
   .notas-g-score .score-n {
-    font-size: 24px;
+    font-size: var(--fs-22);
   }
   .notas-grade.is-wait {
     grid-template-columns: minmax(0, 1fr);
@@ -324,11 +327,47 @@
     top: 20px;
   }
 }
+/* aluno: lado a lado só a partir de 1366 px (NotasColumns, wideFrom). Entre 1200 e 1365 px a lateral dele não tem
+   lista que cresça e terminaria bem acima das disciplinas: uma coluna só, como abaixo de 1200 px, e os indicadores
+   em três partes iguais */
+@media (min-width: 1200px) and (max-width: 1365px) {
+  .notas-aluno .notas-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .notas-aluno .notas-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .notas-aluno .notas-side {
+    position: static;
+  }
+}
 @media (max-width: 767px) {
   .notas-layout,
   .notas-main,
   .notas-side {
     gap: 14px;
+  }
+}
+/* os cards das duas colunas em coluna flexível: com as colunas quase iguais (NotasColumns, .is-even), o último card
+   da coluna mais baixa cresce a pequena sobra no espaçador .notas-fill, e as duas terminam na mesma linha */
+.notas-main > .card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.notas-fill {
+  flex: 1 1 0;
+  min-height: 0;
+}
+@media (min-width: 1200px) {
+  .notas-layout.is-even {
+    align-items: stretch;
+  }
+  .notas-layout.is-even > .notas-side {
+    position: static;
+  }
+  .notas-layout.is-even > div > .card:last-child {
+    flex: 1 1 auto;
   }
 }
 
@@ -361,8 +400,8 @@
 }
 .notas-up-t {
   display: block;
-  font-size: 14.5px;
-  font-weight: 650;
+  font-size: var(--fs-14);
+  font-weight: 600;
   line-height: 1.35;
   color: var(--ink);
 }
@@ -420,34 +459,36 @@
   flex-direction: column;
   min-width: 0;
 }
-/* sem nenhuma avaliação: o card de apoio na mesma largura da coluna de apoio das outras telas de Notas (assim
-   o texto dele ocupa a altura do card ao lado, sem um vão no meio) */
-@media (min-width: 1200px) {
-  .notas-pair.notas-empty-pair {
-    grid-template-columns: minmax(0, 1fr) var(--side-w);
-  }
+/* sem nenhuma avaliação: o vazio num card do tamanho dele e o card de apoio embaixo, na largura toda (sem colunas
+   de alturas diferentes e sem caixa esticada) */
+.notas-stack {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
 }
-/* sem nenhuma avaliação: cada card na altura dele, alinhados no alto ("Quem vê suas notas" esticado abria um buraco
-   antes de "Alterar no perfil"); a diferença entre os dois fica bem abaixo de 80px (decisão 5) */
-.notas-pair.notas-empty-pair {
-  align-items: start;
-}
-/* o card do vazio acompanha a coluna ao lado (o de apoio continua na altura dele): a caixa do vazio, com fundo,
-   cresce e centraliza o texto, então não sobra buraco dentro do card e as duas colunas terminam juntas */
-.notas-pair.notas-empty-pair > .notas-empty-card {
-  align-self: stretch;
-}
-/* sem nenhuma avaliação: o vazio fica no meio do card principal */
-.notas-empty-body {
-  flex: 1;
+.notas-stack > .card {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  margin-top: 20px;
+  min-width: 0;
 }
-.notas-empty-body > .empty-inline {
-  flex: 1 1 auto;
-  justify-content: center;
+.notas-empty-body {
+  margin-top: 16px;
+}
+/* "O que você vê" na largura toda: as linhas em duas colunas quando o card é largo */
+@container (min-width: 720px) {
+  .notas-stack .notas-sees {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 32px;
+  }
+  .notas-stack .notas-sees li:nth-child(2) {
+    border-top: 0;
+  }
+}
+@media (max-width: 767px) {
+  .notas-stack {
+    gap: 14px;
+  }
 }
 
 /* busca do menu na tela Notas (decisão 14): "Busca: termo", quantas achou e "Limpar busca" */
@@ -503,12 +544,12 @@
   flex-shrink: 0;
 }
 .notas-who-n {
-  font-size: 14.5px;
-  font-weight: 650;
+  font-size: var(--fs-14);
+  font-weight: 600;
 }
 .notas-who-s {
   margin-top: 2px;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
   color: var(--muted);
 }
 @media (max-width: 767px) {
@@ -547,7 +588,7 @@
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px solid var(--line-2);
-  font-size: 13.5px;
+  font-size: var(--fs-13);
   line-height: 1.5;
   color: var(--muted);
 }
@@ -611,7 +652,7 @@
 }
 .notas-stage-t {
   margin-top: 16px;
-  font-size: 20px;
+  font-size: var(--fs-22);
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.3;
@@ -619,7 +660,7 @@
 .notas-stage-s {
   margin-top: 8px;
   max-width: 520px;
-  font-size: 14.5px;
+  font-size: var(--fs-14);
   line-height: 1.6;
   color: var(--ink-3);
 }
@@ -700,4 +741,65 @@
 }
 .notas-last-skel + .notas-last-skel {
   border-top: 1px solid var(--line-2);
+}
+/* erro ao carregar (LatestGradesCard): o estado vazio único, com o círculo do ícone em vermelho claro */
+html .empty-inline.compact.notas-last-err .empty-ico {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+/* "Alterar no perfil" (Quem vê suas notas): largura toda na coluna de apoio e no celular; na largura toda da tela
+   (sem disciplinas, o card fica embaixo do vazio), do tamanho do texto, sem um botão de 1000 px */
+.notas-side .notas-who-btn {
+  width: 100%;
+}
+@media (max-width: 639px) {
+  .notas-who-btn {
+    width: 100%;
+  }
+}
+
+/* "Próxima avaliação": o rótulo é o botão do card (kpi-hit, a área dele cobre o card todo). No toque e no celular,
+   o próprio botão também tem 44 px de altura; a margem negativa devolve a sobra, e o rótulo não sai do lugar */
+.notas-kpi-prox .kpi-hit {
+  min-height: 24px;
+}
+@media (pointer: coarse), (max-width: 767px) {
+  html .notas-kpi-prox .kpi-top .kpi-hit {
+    min-height: 44px;
+    margin-block: -10px;
+  }
+}
+
+/* escala A: o "de 10" ao lado da nota em 500 (o .score-n small do ux.css vem em 650) */
+html .score-n small {
+  font-weight: 500;
+}
+/* os três indicadores com o cabeçalho da mesma altura (o terceiro tem o rótulo clicável de 24 px): os valores
+   ficam na mesma linha */
+html .notas-kpis .kpi-top {
+  min-height: 24px;
+  align-items: center;
+}
+
+/* toque e celular: os links soltos com 44 px de altura (decisão 2), também o "Ver todas" do subtítulo */
+@media (pointer: coarse), (max-width: 767px) {
+  html .notas-up-more {
+    min-height: 44px;
+    vertical-align: middle;
+  }
+  html .notas-up-foot .link,
+  html .notas-soon .link,
+  html .notas-layout .card-foot .link {
+    min-height: 44px;
+  }
+}
+
+/* celular e telas médias (até 1099 px, onde "Aguardando publicação" quebra em duas linhas): o rótulo com a altura
+   de duas linhas reservada, e os números dos indicadores lado a lado na mesma linha */
+@media (max-width: 1099px) {
+  html .notas-kpis .kpi-top {
+    min-height: 2.8em;
+    align-items: flex-start;
+  }
 }

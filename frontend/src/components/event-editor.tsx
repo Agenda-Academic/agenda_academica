@@ -3,12 +3,15 @@
 import {
   BookOpen,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
   CircleAlert,
   Eye,
   Info,
   Loader2,
   Lock,
+  MoreHorizontal,
+  Plus,
   MapPin,
   RotateCcw,
   Save,
@@ -21,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  Fragment,
   useEffect,
   useId,
   useLayoutEffect,
@@ -51,6 +55,8 @@ import type { AcademicClass, AcademicContext, AcademicEvent, Category, Subject, 
 import { useOptionalAppActions } from "./app-actions";
 import { StatusPill, eventLastDay, onDay, reactivatedStatus, type EventStatusChange } from "./event-bits";
 import { EventGradesTab, subscribeGradesChanged, type GradesTabControl, type GradesTabState } from "./event-grades-drawer";
+import { MenuButton, type RowMenuItem } from "./gestao-row-menu";
+import { Select } from "./select";
 import { ConfirmDialog, Drawer, isOnTopLayer, type ConfirmState } from "./ui";
 
 /* ------------------------------------------------------------------ */
@@ -647,6 +653,28 @@ function nextSaveTrack(track: SaveTrack, key: SaveTrack["key"], saving: boolean,
 
 const invalidInput = "aria-[invalid=true]:border-[var(--danger)]";
 
+/**
+ * Início e Término continuam datetime-local (validação, teclado e o seletor do sistema), com o visual dos outros
+ * campos: o ícone preto do navegador fica invisível, mas clicável, por baixo de um ícone na cor dos outros
+ * (DateTimeIcon). No Firefox, que não tem esse pseudo-elemento, fica o ícone dele.
+ */
+const dateTimeInput = cx(
+  "relative w-full !pr-10",
+  "[&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-y-0",
+  "[&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:m-0",
+  "[&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-10",
+  "[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0"
+);
+
+function DateTimeIcon() {
+  return (
+    <CalendarDays
+      className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-[var(--muted)] [@supports(-moz-appearance:none)]:hidden"
+      aria-hidden
+    />
+  );
+}
+
 function describedBy(...ids: Array<string | false | null | undefined>) {
   const list = ids.filter(Boolean);
   return list.length ? list.join(" ") : undefined;
@@ -773,6 +801,105 @@ function CategoryPicker({
 }
 
 /**
+ * Disciplina e turma da docente em cartões de escolha (até 6 ofertas): "Matemática" com "TADS 5, Noturno" embaixo.
+ * Um grupo de rádio: uma parada de Tab, setas, Home e End mudam a escolha (como a categoria).
+ */
+function PairPicker({
+  id,
+  buttonRef,
+  pairs,
+  value,
+  error,
+  onChange,
+}: {
+  id: string;
+  buttonRef: RefObject<HTMLButtonElement | null>;
+  pairs: Array<{ value: string; label: string; title?: string; description?: string }>;
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  const buttons = useRef(new Map<string, HTMLButtonElement>());
+  const tabStop = pairs.some((pair) => pair.value === value) ? value : (pairs[0]?.value ?? "");
+
+  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: string) {
+    const index = pairs.findIndex((pair) => pair.value === current);
+    const last = pairs.length - 1;
+    let next: string | undefined;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      next = pairs[index >= last ? 0 : index + 1]?.value;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      next = pairs[index <= 0 ? last : index - 1]?.value;
+    } else if (event.key === "Home") {
+      next = pairs[0]?.value;
+    } else if (event.key === "End") {
+      next = pairs[last]?.value;
+    }
+    if (next === undefined) {
+      return;
+    }
+    event.preventDefault();
+    onChange(next);
+    buttons.current.get(next)?.focus();
+  }
+
+  return (
+    <div className="grid min-w-0 gap-2" data-field="">
+      <span className="lbl" id={`${id}-rotulo`}>
+        Disciplina e turma
+      </span>
+      {pairs.length ? (
+        <div
+          className="ed-pairs"
+          role="radiogroup"
+          aria-labelledby={`${id}-rotulo`}
+          aria-describedby={error ? `${id}-erro` : undefined}
+          aria-invalid={error ? true : undefined}
+        >
+          {pairs.map((pair) => {
+            const picked = pair.value === value;
+            return (
+              <button
+                key={pair.value}
+                ref={(node) => {
+                  if (node) {
+                    buttons.current.set(pair.value, node);
+                  } else {
+                    buttons.current.delete(pair.value);
+                  }
+                  if (pair.value === tabStop) {
+                    buttonRef.current = node;
+                  }
+                }}
+                className={cx("ed-pair", picked && "on", error && "bad")}
+                role="radio"
+                aria-checked={picked}
+                tabIndex={pair.value === tabStop ? 0 : -1}
+                onClick={() => onChange(pair.value)}
+                onKeyDown={(event) => onKeyDown(event, pair.value)}
+                type="button"
+              >
+                <span className="ed-pair-dot" aria-hidden />
+                <span className="min-w-0">
+                  <b>{pair.title ?? pair.label}</b>
+                  {pair.description ? <span>{pair.description}</span> : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {error ? (
+        <p id={`${id}-erro`} className="field-error flex items-start gap-1.5 text-[13px] font-semibold leading-5 text-[var(--danger)]">
+          <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Prévia fiel do evento como aparece na agenda de quem recebe. Título, turma, local e descrição vêm de
  * quem escreve: wrap-anywhere faz uma palavra ou um link sem espaço quebrar na largura da prévia, sem
  * alargar o painel (break-words quebra, mas não reduz a largura mínima).
@@ -814,7 +941,7 @@ function EventPreview({
         <div className="min-w-0 flex-1">
           <p
             className={cx(
-              "text-[15px] font-[650] leading-[1.3] wrap-anywhere",
+              "text-[15px] font-semibold leading-[1.3] wrap-anywhere",
               status === "cancelled" && "text-muted line-through",
               !form.title.trim() && "text-muted"
             )}
@@ -834,7 +961,7 @@ function EventPreview({
             ) : null}
             {past ? <span className="pill stat stat-alt">Data no passado</span> : null}
           </div>
-          <ul className="mt-2.5 grid gap-1 text-[13.5px] leading-5 text-ink-3">
+          <ul className="mt-2.5 grid gap-1 text-[13px] leading-5 text-ink-3">
             <li className="flex items-start gap-2">
               <BookOpen className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
               <span className="min-w-0 wrap-anywhere">{audience}</span>
@@ -876,7 +1003,7 @@ export function NoAssignmentsNotice({ heading: Heading = "h3" }: { heading?: "h2
       <span className="empty-ico">
         <Users className="h-6 w-6" aria-hidden />
       </span>
-      <Heading className="text-[19px] font-bold leading-tight text-ink">Você ainda não tem turmas vinculadas</Heading>
+      <Heading className="text-[18px] font-bold leading-tight text-ink">Você ainda não tem turmas vinculadas</Heading>
       <p className="max-w-xl text-sm leading-6 text-ink-3">
         Peça à administração para vincular suas disciplinas e turmas. Depois disso você poderá publicar provas e
         trabalhos para a turma.
@@ -913,6 +1040,8 @@ export type EventEditorProps = {
   /** Resultado da mudança de situação feita pelo painel, com o Desfazer ao alcance do teclado. */
   statusNotice?: StatusNotice | null;
   dirty: boolean;
+  /** Novo evento aberto pelo "Duplicar": o cabeçalho diz "Duplicar evento", para não publicar uma cópia sem perceber. */
+  duplicating?: boolean;
   /**
    * Aba aberta numa prova ou trabalho de turma (com `onTabChange`): "Notas" pela ação Notas da Gestão e da tela
    * Notas, "Dados do evento" pelo Editar. Trocar de aba não fecha o painel nem perde o rascunho.
@@ -922,7 +1051,8 @@ export type EventEditorProps = {
   /** Preenchido pelo painel: o Voltar do navegador passa pela aba Notas antes de fechar (ver EditorBack). */
   backRef?: { current: EditorBack | null };
   onSubmit: () => void;
-  onClose: () => void;
+  /** Fecha o painel; `guard` (notas não salvas na grade) pergunta por último, depois do rascunho do evento. */
+  onClose: (guard?: (close: () => void) => void) => void;
   onDelete?: (event: AcademicEvent) => void;
   onSetStatus?: (event: AcademicEvent, status: EventStatusChange) => void;
 };
@@ -969,6 +1099,52 @@ function audienceOf(form: EventFormState, context: AcademicContext | null, isAdm
   };
 }
 
+/**
+ * Linha do cabeçalho de um evento aberto: "Matemática, TADS 5, qui, 05/11, 18:00, vale 10 pontos". Usa o evento
+ * salvo (não o rascunho), com a disciplina e a turma que a API manda junto.
+ */
+function eventLine(event: AcademicEvent, context: AcademicContext | null, isAdmin: boolean) {
+  const own = [event.subject?.name, event.academicClass?.name].filter(Boolean).join(", ");
+  const who = event.academicClassId
+    ? own || audienceOf(eventToForm(event), context, isAdmin).label
+    : event.subject?.name
+      ? `${event.subject.name}, toda a instituição`
+      : "Toda a instituição";
+  const points =
+    event.points !== null && event.points > 0
+      ? `vale ${event.points.toLocaleString("pt-BR")} ${event.points === 1 ? "ponto" : "pontos"}`
+      : null;
+  const { day, time } = eventWhen(event.startsAt, event.endsAt, { year: true });
+  const when = [day, time === "Dia todo" ? "dia todo" : time].filter(Boolean);
+  // no celular, a disciplina e a turma ficam na 1ª linha (com reticência só nelas, se faltar espaço) e o dia, o
+  // horário e a pontuação vão sempre inteiros na 2ª; cada um não quebra por dentro (nunca "vale 1...")
+  const rest = [...when, points].filter(Boolean);
+  return (
+    <span className="min-w-0 max-sm:w-full">
+      <span className="max-sm:block max-sm:truncate">
+        {who}
+        {rest.length ? "," : null}
+      </span>
+      {rest.length ? (
+        <>
+          {" "}
+          <span className="max-sm:block">
+            {rest.map((part, index) => (
+              <Fragment key={index}>
+                {index ? " " : null}
+                <span className="whitespace-nowrap">
+                  {part}
+                  {index < rest.length - 1 ? "," : null}
+                </span>
+              </Fragment>
+            ))}
+          </span>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 export function EventEditor({
   open,
   editingEvent,
@@ -982,6 +1158,7 @@ export function EventEditor({
   statusBusy = false,
   statusNotice = null,
   dirty,
+  duplicating = false,
   tab = "details",
   onTabChange,
   backRef,
@@ -1024,6 +1201,8 @@ export function EventEditor({
   const gradesControl = useRef<GradesTabControl | null>(null);
   const [gradesFoot, setGradesFoot] = useState<HTMLDivElement | null>(null);
   const importing = activeTab === "grades" && gradesInfo?.view === "import";
+  // notas digitadas na grade e ainda não salvas (contam também com a aba Dados à vista)
+  const gradesPending = (gradesInfo?.pending ?? 0) > 0;
   const assignments = activeAssignments(context);
   // docente sem vínculo (em vigor, de turma e disciplina não arquivadas) não tem para quem publicar
   const blocked = !isAdmin && !editingEvent && context !== null && assignments.length === 0;
@@ -1164,37 +1343,37 @@ export function EventEditor({
     });
   }, [sessionKey, statusFocus, statusSnapshot, canUndo]);
 
+  // evento aberto (amostra notas.html): a categoria acima, o nome do evento no título e, abaixo, para quem é,
+  // quando e quanto vale. A situação das notas fica na faixa da grade, não no cabeçalho
   const title = importing
     ? "Importar notas"
     : editingEvent
-      ? activeTab === "grades"
-        ? "Notas da avaliação"
-        : "Editar evento"
-      : isAdmin
-        ? "Novo evento oficial"
-        : "Novo evento";
+      ? editingEvent.title
+      : duplicating
+        ? isAdmin
+          ? "Duplicar evento oficial"
+          : "Duplicar evento"
+        : isAdmin
+          ? "Novo evento oficial"
+          : "Novo evento";
   // situações (etiqueta com fundo, .pill.stat), como na gaveta de notas: nunca ponto + palavra de categoria
   const dirtyPill = changed ? <span className="pill stat stat-alt">Alterações não salvas</span> : null;
-  // situação das notas da prova ou do trabalho, ao lado da situação do evento (amostra: "Concluído", "Notas ocultas")
-  const gradesPublished = gradesInfo ? gradesInfo.published : Boolean(editingEvent?.gradesPublishedAt);
-  const gradesPill = !gradesTab ? null : gradesPublished ? (
-    <span className="pill stat stat-conc">Notas publicadas</span>
-  ) : gradesInfo?.launched ? (
-    <span className="pill stat stat-alt">Notas ocultas</span>
-  ) : null;
-  // min-w-0: no cabeçalho (uma linha flexível), o título comprido corta com reticência em vez de passar do X
+  const eyebrow = editingEvent ? (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className={cx("cat", categoryMeta[editingEvent.category].tint)}>
+        {categoryMeta[editingEvent.category].short}
+      </span>
+      {/* cancelado muda o sentido do painel; concluído e alterado ficam no rodapé (Mais) */}
+      {editingEvent.status === "cancelled" ? <StatusPill event={editingEvent} /> : null}
+      {dirtyPill}
+    </span>
+  ) : undefined;
+  // min-w-0: no cabeçalho (uma linha flexível), a linha comprida quebra em vez de passar do X; no celular são 2
+  // linhas fixas: quem (cortada com reticência se for longa) e quando/quanto vale (sempre inteiros)
   const subtitle = importing ? (
     <span className="min-w-0 wrap-anywhere">{gradesInfo?.importSubtitle}</span>
   ) : editingEvent ? (
-    <span className="block min-w-0">
-      <span className="block truncate font-semibold text-ink-2">{editingEvent.title}</span>
-      <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span>{eventWhenLabel(editingEvent.startsAt, editingEvent.endsAt)}</span>
-        <StatusPill event={editingEvent} />
-        {gradesPill}
-        {dirtyPill}
-      </span>
-    </span>
+    eventLine(editingEvent, context, isAdmin)
   ) : (audience.label && !blocked) || dirtyPill ? (
     <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
       {audience.label && !blocked ? <span className="min-w-0 wrap-anywhere">{audience.label}</span> : null}
@@ -1279,6 +1458,34 @@ export function EventEditor({
       </>
     ) : null;
 
+  // a partir de 640px, a situação e a exclusão ficam no menu "Mais" à esquerda do rodapé (uma faixa só); no celular,
+  // continuam no fim do painel (phoneActions)
+  type MoreId = "completed" | "cancelled" | "reactivate" | "delete";
+  const moreItems: RowMenuItem<MoreId>[] = [];
+  if (editingEvent && onSetStatus) {
+    if (eventOpen) {
+      if (!campusDate) {
+        moreItems.push({ id: "completed", label: "Concluir", icon: CheckCircle2, disabled: waiting });
+      }
+      moreItems.push({ id: "cancelled", label: "Cancelar evento", icon: X, disabled: waiting });
+    } else {
+      moreItems.push({ id: "reactivate", label: "Reativar", icon: RotateCcw, disabled: waiting });
+    }
+  }
+  if (editingEvent && onDelete) {
+    moreItems.push({ id: "delete", label: "Excluir", icon: Trash2, tone: "danger", disabled: waiting });
+  }
+  function runMore(id: MoreId) {
+    if (!editingEvent || waiting) {
+      return;
+    }
+    if (id === "delete") {
+      onDelete?.(editingEvent);
+    } else {
+      askStatus(id === "reactivate" ? reactivatedStatus(editingEvent) : id);
+    }
+  }
+
   // faixa com o resultado da mudança de situação; o Desfazer fica no próprio painel, ao alcance do Tab
   const undoSpinning = statusBusy && pendingStatus === "undo";
   const notice = statusNotice ? (
@@ -1309,38 +1516,82 @@ export function EventEditor({
   ) : null;
 
   // ao lado do Salvar apagado: por que está apagado (a situação muda na hora, sem salvar)
-  const hint =
-    editingEvent && !changed && !statusNotice ? (statusMoved ? "A situação já foi salva" : "Nada mudou ainda") : null;
+  // notas digitadas na grade e não salvas: o rodapé da aba Dados diz isso (e leva à aba), nunca "Nada mudou ainda"
+  const pendingGradesText =
+    gradesPending && activeTab === "details"
+      ? `${countText(gradesInfo?.pending ?? 0, "nota não salva", "notas não salvas")} na aba Notas`
+      : null;
+  const hint = pendingGradesText
+    ? pendingGradesText
+    : editingEvent && !changed && !statusNotice
+      ? statusMoved
+        ? "A situação já foi salva"
+        : "Nada mudou ainda"
+      : null;
 
   const footer = blocked ? (
-    <button className="btn btn-s max-sm:flex-1" onClick={onClose} type="button">
+    <button className="btn btn-s max-sm:flex-1" onClick={() => onClose()} type="button">
       Fechar
     </button>
   ) : (
     <div ref={footRef} className="grid w-full gap-3">
       {notice}
-      {eventActions ? (
-        <div className="ed-status hidden sm:flex" role="group" aria-labelledby={statusLabelId}>
-          <span id={statusLabelId} className="ed-status-l">
-            Situação do evento
-          </span>
-          {eventActions}
-        </div>
-      ) : null}
+
       {/* convenção dos painéis: à direita o secundário e depois o principal; a dica ("Nada mudou ainda") à esquerda,
           e no celular numa linha própria acima dos dois botões */}
       <div className="ed-save flex flex-wrap items-center justify-end gap-2.5">
-        {hint ? (
-          <span id={hintId} className="mr-auto text-[13px] text-muted max-sm:basis-full">
+        {moreItems.length ? (
+          <span className="ed-more hidden sm:inline-flex" role="group" aria-labelledby={statusLabelId}>
+            <span id={statusLabelId} className="sr-only">
+              Situação do evento
+            </span>
+            <MenuButton
+              label={`Mais ações de ${editingEvent?.title ?? "evento"}`}
+              title="Concluir, cancelar ou excluir"
+              align="start"
+              triggerClassName={cx("btn btn-s", waiting && "opacity-60")}
+              trigger={
+                <>
+                  {statusBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <MoreHorizontal className="h-4 w-4" aria-hidden />}
+                  Mais
+                </>
+              }
+              items={moreItems}
+              onSelect={runMore}
+            />
+          </span>
+        ) : null}
+        {pendingGradesText ? (
+          <span className="ed-hint mr-auto flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 max-sm:basis-full">
+            <span id={hintId} className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-ink-2">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--amber-bar)]" aria-hidden />
+              {pendingGradesText}
+            </span>
+            <button
+              className="btn btn-s btn-sm"
+              onClick={() => {
+                chooseTab("grades");
+                // o botão sai com o rodapé da aba Dados: o foco vai para a própria aba Notas
+                tabsRef.current?.querySelector<HTMLElement>('[data-tab="grades"]')?.focus();
+              }}
+              type="button"
+            >
+              Ir para Notas
+            </button>
+          </span>
+        ) : hint ? (
+          <span id={hintId} className="ed-hint mr-auto text-[13px] text-muted max-sm:basis-full">
             {hint}
           </span>
+        ) : moreItems.length ? (
+          <span className="mr-auto hidden sm:block" />
         ) : null}
         <button
           className={cx("btn btn-s max-sm:flex-1", quiet)}
           aria-disabled={saving || undefined}
           onClick={() => {
             if (!saving) {
-              onClose();
+              closePanel();
             }
           }}
           type="button"
@@ -1350,7 +1601,7 @@ export function EventEditor({
           {editingEvent ? (changed ? "Descartar alterações" : "Fechar") : "Cancelar"}
         </button>
         <button
-          className={cx("btn btn-p max-sm:flex-1", quiet)}
+          className={cx("btn btn-p max-sm:flex-1", quiet, lockedSave && !saving && "ed-save-off")}
           form={formId}
           type="submit"
           aria-disabled={lockedSave || undefined}
@@ -1404,24 +1655,50 @@ export function EventEditor({
     </div>
   );
 
-  /** X, Esc e Fechar: na aba Notas, a importação com arquivo ainda não enviado pergunta antes. */
+  /**
+   * X, Esc e Fechar: na aba Notas, a importação com arquivo ainda não enviado pergunta antes. Notas digitadas e não
+   * salvas na grade perguntam também quando o painel fecha pela aba Dados (a grade continua montada por trás).
+   */
   function closePanel() {
-    const control = activeTab === "grades" ? gradesControl.current : null;
+    const control = activeTab === "grades" || gradesPending ? gradesControl.current : null;
     if (control) {
-      control.guardLeave(onClose);
+      onClose((close) => control.guardLeave(close));
     } else {
       onClose();
     }
   }
 
-  // Voltar do navegador: a aba Notas numa parte de dentro volta para o resumo dela antes de fechar o painel
+  /** Salvar na aba Dados fecha o painel: com notas digitadas e não salvas na grade, pergunta antes (como o X). */
+  function submitDetails() {
+    const control = gradesPending ? gradesControl.current : null;
+    if (control) {
+      control.guardLeave(onSubmit);
+    } else {
+      onSubmit();
+    }
+  }
+
+  // Voltar do navegador: a aba Notas numa parte de dentro volta para o resumo dela antes de fechar o painel; na aba
+  // Dados, notas não salvas na grade perguntam antes de fechar
   useLayoutEffect(() => {
     if (!backRef) {
       return;
     }
     const handler: EditorBack = {
-      pending: () => activeTab === "grades" && Boolean(gradesControl.current?.inSubView()),
-      go: () => gradesControl.current?.back(),
+      pending: () => (activeTab === "grades" && Boolean(gradesControl.current?.inSubView())) || gradesPending,
+      go: () => {
+        const control = gradesControl.current;
+        if (activeTab === "grades" && gradesInfo?.view !== "sheet") {
+          // revisão, histórico ou importação: volta para a grade
+          control?.back();
+        } else if (control) {
+          // na grade (com notas pendentes) ou na aba Dados, o Voltar fecha o painel: pergunta primeiro do rascunho
+          // do evento e só no fim das notas, sem descartar nada antes da última resposta
+          onClose((close) => control.guardLeave(close));
+        } else {
+          onClose();
+        }
+      },
     };
     backRef.current = handler;
     return () => {
@@ -1434,8 +1711,8 @@ export function EventEditor({
   function chooseTab(next: EditorTab) {
     if (next !== activeTab) {
       onTabChange?.(next);
-      // a outra aba começa do alto (as duas dividem a rolagem do corpo do painel)
-      tabsRef.current?.closest(".drawer-body")?.scrollTo({ top: 0 });
+      // a outra aba começa do alto (as duas dividem a rolagem do corpo do painel; as abas ficam no cabeçalho)
+      tabsRef.current?.closest(".drawer")?.querySelector(".drawer-body")?.scrollTo({ top: 0 });
     }
   }
 
@@ -1460,13 +1737,21 @@ export function EventEditor({
   }
 
   const launched = gradesInfo?.launched ?? null;
-  // durante a importação o conteúdo troca pelos passos (com Voltar no rodapé) e as abas saem de cena
+  // abas sublinhadas no cabeçalho fixo (amostra notas.html). Durante a importação o conteúdo troca pelos passos
+  // (com Voltar no rodapé) e as abas saem de cena
+  const notasLabel = [
+    "Notas",
+    launched === null ? null : countText(launched, "nota lançada", "notas lançadas"),
+    gradesPending ? "com notas não salvas" : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
   const tabBar =
     gradesTab && !importing ? (
-      <div ref={tabsRef} className="seg notas-docente-tabs" role="tablist" aria-label="Partes do evento">
+      <div ref={tabsRef} className="tabs" role="tablist" aria-label="Partes do evento">
         <button
           id={`${tabsId}-dados`}
-          className={cx(activeTab === "details" && "on")}
+          className={cx("tab", activeTab === "details" && "on")}
           data-tab="details"
           role="tab"
           aria-controls={`${tabsId}-dados-painel`}
@@ -1480,19 +1765,24 @@ export function EventEditor({
         </button>
         <button
           id={`${tabsId}-notas`}
-          className={cx(activeTab === "grades" && "on")}
+          className={cx("tab", activeTab === "grades" && "on")}
           data-tab="grades"
           role="tab"
           aria-controls={`${tabsId}-notas-painel`}
-          aria-label={launched === null ? "Notas" : `Notas, ${countText(launched, "nota lançada", "notas lançadas")}`}
+          aria-label={notasLabel}
           aria-selected={activeTab === "grades"}
           tabIndex={activeTab === "grades" ? 0 : -1}
           onClick={() => chooseTab("grades")}
           onKeyDown={tabKeyDown}
+          title={gradesPending ? "Há notas digitadas e ainda não salvas" : undefined}
           type="button"
         >
           Notas
           {launched === null ? null : <span className="n">{launched}</span>}
+          {/* ponto âmbar: notas digitadas na grade e ainda não salvas */}
+          {gradesPending ? (
+            <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--amber-bar)]" data-grades-pending="" aria-hidden />
+          ) : null}
         </button>
       </div>
     ) : null;
@@ -1505,7 +1795,11 @@ export function EventEditor({
     <Drawer
       open={open}
       title={title}
+      eyebrow={eyebrow}
       subtitle={subtitle}
+      headerExtra={blocked ? null : tabBar}
+      // evento com a aba Notas: o painel largo nas duas abas (a largura não pula ao trocar de aba)
+      size={gradesTab ? "wide" : undefined}
       onClose={closePanel}
       footer={panelFooter}
       initialFocusRef={entryRef}
@@ -1516,7 +1810,6 @@ export function EventEditor({
         <NoAssignmentsNotice />
       ) : (
         <>
-          {tabBar}
           {/* a aba Dados fica montada (só escondida) na aba Notas: o rascunho e o que foi conferido continuam */}
           <div
             id={`${tabsId}-dados-painel`}
@@ -1540,7 +1833,7 @@ export function EventEditor({
               audience={audience}
               gradeRules={gradeRules}
               phoneActions={eventActions}
-              onSubmit={onSubmit}
+              onSubmit={submitDetails}
             />
           </div>
           {gradesTab && editingEvent ? (
@@ -1613,13 +1906,15 @@ function EditorForm({
   const [submitted, setSubmitted] = useState(false);
   const [pointsUnreadable, setPointsUnreadable] = useState(false);
   const [confirmPast, setConfirmPast] = useState(false);
+  // o término só aparece quando a pessoa pede (ou o evento já tem um): nada de "dd/mm/aaaa --:--" vazio à vista
+  const [showEnd, setShowEnd] = useState(Boolean(form.endsAt));
   const summaryRef = useRef<HTMLDivElement>(null);
   const categoryRef = useRef<HTMLDivElement>(null);
   const startsRef = useRef<HTMLInputElement>(null);
   const endsRef = useRef<HTMLInputElement>(null);
-  const pairRef = useRef<HTMLSelectElement>(null);
-  const classRef = useRef<HTMLSelectElement>(null);
-  const subjectRef = useRef<HTMLSelectElement>(null);
+  const pairRef = useRef<HTMLButtonElement>(null);
+  const classRef = useRef<HTMLButtonElement>(null);
+  const subjectRef = useRef<HTMLButtonElement>(null);
   const locationRef = useRef<HTMLInputElement>(null);
   const pointsRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -1781,13 +2076,22 @@ function EditorForm({
 
   // opções de vínculo do docente ("Matemática, TADS 5, 2026/2"; turma anual: "INF 3A, 2026", nunca "/0"): só as
   // ofertas com vínculo em vigor, sem turma nem disciplina arquivada (activeAssignments)
-  const pairs: Array<{ value: string; label: string }> = [];
+  const pairs: Array<{ value: string; label: string; title?: string; description?: string }> = [];
   for (const assignment of assignments) {
     const value = `${assignment.academicClassId}:${assignment.subjectId}`;
     if (!pairs.some((pair) => pair.value === value)) {
       pairs.push({
         value,
         label: [assignment.subject?.name, assignment.academicClass ? classLabel(assignment.academicClass) : null]
+          .filter(Boolean)
+          .join(", "),
+        title: assignment.subject?.name ?? "Disciplina",
+        description: [
+          assignment.academicClass ? classLabel(assignment.academicClass) : null,
+          assignment.academicClass?.shift
+            ? assignment.academicClass.shift.charAt(0).toUpperCase() + assignment.academicClass.shift.slice(1)
+            : null,
+        ]
           .filter(Boolean)
           .join(", "),
       });
@@ -1917,6 +2221,7 @@ function EditorForm({
             </p>
           ) : null}
 
+          <h3 className="drawer-h3 ed-sec">O que</h3>
           <FormField
             id={fid("titulo")}
             label="Título"
@@ -1973,39 +2278,62 @@ function EditorForm({
             ) : null}
           </div>
 
+          <h3 className="drawer-h3 ed-sec">Quando</h3>
           <div>
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField id={fid("inicio")} label="Início" error={startsError}>
-                <input
-                  ref={startsRef}
-                  id={fid("inicio")}
-                  name="startsAt"
-                  className={cx("input", invalidInput)}
-                  type="datetime-local"
-                  step={300}
-                  value={form.startsAt}
-                  onChange={(event) => changeStart(event.target.value)}
-                  onBlur={() => markTouched("startsAt")}
-                  aria-invalid={startsError ? true : undefined}
-                  aria-describedby={describedBy(startsError && `${fid("inicio")}-erro`, startIsPast && fid("passado"))}
-                />
+                <span className="relative block min-w-0">
+                  <input
+                    ref={startsRef}
+                    id={fid("inicio")}
+                    name="startsAt"
+                    className={cx("input", dateTimeInput, invalidInput)}
+                    type="datetime-local"
+                    step={300}
+                    value={form.startsAt}
+                    onChange={(event) => changeStart(event.target.value)}
+                    onBlur={() => markTouched("startsAt")}
+                    aria-invalid={startsError ? true : undefined}
+                    aria-describedby={describedBy(startsError && `${fid("inicio")}-erro`, startIsPast && fid("passado"))}
+                  />
+                  <DateTimeIcon />
+                </span>
               </FormField>
+              {showEnd || endsError || form.endsAt ? (
               <FormField id={fid("termino")} label="Término" hint="opcional" error={endsError}>
-                <input
-                  ref={endsRef}
-                  id={fid("termino")}
-                  name="endsAt"
-                  className={cx("input", invalidInput)}
-                  type="datetime-local"
-                  step={300}
-                  min={form.startsAt || undefined}
-                  value={form.endsAt}
-                  onChange={(event) => change({ endsAt: event.target.value })}
-                  onBlur={() => markTouched("endsAt")}
-                  aria-invalid={endsError ? true : undefined}
-                  aria-describedby={describedBy(endsError && `${fid("termino")}-erro`)}
-                />
+                <span className="relative block min-w-0">
+                  <input
+                    ref={endsRef}
+                    id={fid("termino")}
+                    name="endsAt"
+                    className={cx("input", dateTimeInput, invalidInput)}
+                    type="datetime-local"
+                    step={300}
+                    min={form.startsAt || undefined}
+                    value={form.endsAt}
+                    onChange={(event) => change({ endsAt: event.target.value })}
+                    onBlur={() => markTouched("endsAt")}
+                    aria-invalid={endsError ? true : undefined}
+                    aria-describedby={describedBy(endsError && `${fid("termino")}-erro`)}
+                  />
+                  <DateTimeIcon />
+                </span>
               </FormField>
+              ) : (
+                <div className="grid content-end">
+                  <button
+                    className="btn btn-g btn-sm ed-add-end"
+                    onClick={() => {
+                      setShowEnd(true);
+                      window.setTimeout(() => endsRef.current?.focus(), 30);
+                    }}
+                    type="button"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden />
+                    Adicionar término
+                  </button>
+                </div>
+              )}
             </div>
             <div role="status" aria-live="polite">
               {startIsPast ? (
@@ -2036,73 +2364,73 @@ function EditorForm({
             </div>
           </div>
 
+          <h3 className="drawer-h3 ed-sec">Para quem</h3>
           {isAdmin ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField id={fid("turma")} label="Turma" hint="opcional" error={classError}>
-                <select
-                  ref={classRef}
-                  id={fid("turma")}
-                  name="academicClassId"
-                  className={cx("input", invalidInput)}
-                  value={form.academicClassId}
-                  onChange={(event) => change({ academicClassId: event.target.value })}
-                  aria-invalid={classError ? true : undefined}
-                  aria-describedby={describedBy(classError && `${fid("turma")}-erro`)}
-                >
-                  <option value="">Toda a instituição</option>
-                  {classOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField id={fid("disciplina")} label="Disciplina" hint="opcional" error={subjectError}>
-                <select
-                  ref={subjectRef}
-                  id={fid("disciplina")}
-                  name="subjectId"
-                  className={cx("input", invalidInput)}
-                  value={form.subjectId}
-                  onChange={(event) => change({ subjectId: event.target.value })}
-                  aria-invalid={subjectError ? true : undefined}
-                  aria-describedby={describedBy(subjectError && `${fid("disciplina")}-erro`)}
-                >
-                  <option value="">Sem disciplina</option>
-                  {subjectOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
+            <div className="ed-who grid gap-4 sm:grid-cols-2" data-field="">
+              <Select
+                id={fid("turma")}
+                buttonRef={classRef}
+                name="academicClassId"
+                label={
+                  <>
+                    <span>Turma</span> <span className="hint">opcional</span>
+                  </>
+                }
+                value={form.academicClassId}
+                options={[{ value: "", label: "Toda a instituição" }, ...classOptions]}
+                searchPlaceholder="Buscar turma"
+                error={classError}
+                onChange={(value) => change({ academicClassId: value })}
+              />
+              <Select
+                id={fid("disciplina")}
+                buttonRef={subjectRef}
+                name="subjectId"
+                label={
+                  <>
+                    <span>Disciplina</span> <span className="hint">opcional</span>
+                  </>
+                }
+                value={form.subjectId}
+                options={[{ value: "", label: "Sem disciplina" }, ...subjectOptions]}
+                searchPlaceholder="Buscar disciplina"
+                error={subjectError}
+                onChange={(value) => change({ subjectId: value })}
+              />
             </div>
+          ) : pairs.length <= 6 ? (
+            <PairPicker
+              id={fid("vinculo")}
+              buttonRef={pairRef}
+              pairs={pairs}
+              value={pairValue}
+              error={pairError}
+              onChange={(value) => {
+                const [academicClassId = "", subjectId = ""] = value.split(":");
+                change({ academicClassId, subjectId });
+                markTouched("subjectId");
+              }}
+            />
           ) : (
-            <FormField id={fid("vinculo")} label="Disciplina e turma" error={pairError}>
-              <select
-                ref={pairRef}
+            <div data-field="">
+              <Select
                 id={fid("vinculo")}
+                buttonRef={pairRef}
                 name="assignment"
-                className={cx("input", invalidInput)}
-                value={pairValue}
-                onChange={(event) => {
-                  const [academicClassId = "", subjectId = ""] = event.target.value.split(":");
+                label="Disciplina e turma"
+                placeholder="Escolha a disciplina"
+                value={pairValue || null}
+                options={pairs.map((pair) => ({ value: pair.value, label: pair.label, description: pair.description }))}
+                error={pairError}
+                onChange={(value) => {
+                  const [academicClassId = "", subjectId = ""] = value.split(":");
                   change({ academicClassId, subjectId });
                 }}
-                onBlur={() => markTouched("subjectId")}
-                aria-invalid={pairError ? true : undefined}
-                aria-describedby={describedBy(pairError && `${fid("vinculo")}-erro`)}
-              >
-                <option value="">Escolha a disciplina</option>
-                {pairs.map((pair) => (
-                  <option key={pair.value} value={pair.value}>
-                    {pair.label}
-                  </option>
-                ))}
-              </select>
-            </FormField>
+              />
+            </div>
           )}
 
+          <h3 className="drawer-h3 ed-sec">Detalhes</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField id={fid("local")} label="Local" hint="opcional" error={locationError}>
               <input
@@ -2138,9 +2466,30 @@ function EditorForm({
                 // a roda do mouse rola o painel, não muda o número
                 onWheel={(event) => event.currentTarget.blur()}
                 aria-invalid={pointsError ? true : undefined}
-                aria-describedby={describedBy(pointsError && `${fid("pontos")}-erro`)}
+                aria-describedby={describedBy(pointsError && `${fid("pontos")}-erro`, isEvaluation(form.category) && fid("pontos-ajuda"))}
                 placeholder="Ex.: 10"
               />
+              {isEvaluation(form.category) ? (
+                <div className="ed-pts" role="group" aria-label="Valores comuns">
+                  {["5", "10", "20"].map((value) => (
+                    <button
+                      key={value}
+                      className={cx("chip", form.points === value && "picked")}
+                      aria-pressed={form.points === value}
+                      onClick={() => {
+                        setPointsUnreadable(false);
+                        change({ points: value });
+                      }}
+                      type="button"
+                    >
+                      {value}
+                    </button>
+                  ))}
+                  <span id={fid("pontos-ajuda")} className="field-help">
+                    A nota vai de 0 a este valor.
+                  </span>
+                </div>
+              ) : null}
             </FormField>
           </div>
 

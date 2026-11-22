@@ -6,8 +6,8 @@
 html .hero .hero-label,
 html .hero-kicker .hero-label,
 html .hero .countdown .eyebrow.hero-label {
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: var(--fs-13);
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1.4;
   text-transform: none;
@@ -32,7 +32,7 @@ html .hero .countdown .eyebrow.hero-label {
   margin-top: 2px;
 }
 .hero-empty-note b {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink-2);
 }
 
@@ -51,7 +51,7 @@ html .hero .countdown .eyebrow.hero-label {
 /* ---------- linha de evento (event-bits.tsx, EventRow) ---------- */
 /* o trecho que diferencia nomes longos do calendário oficial ("Cursos Técnicos"), junto da categoria */
 .ev-qual {
-  font-size: 13.5px;
+  font-size: var(--fs-13);
   font-weight: 600;
   color: var(--ink-3);
   overflow-wrap: anywhere;
@@ -68,7 +68,7 @@ html .hero .countdown .eyebrow.hero-label {
 /* mês (e ano, fora do ano corrente) no bloco de data, nas listas que atravessam meses sem cabeçalho */
 .ev-date .ev-mo {
   display: block;
-  font-size: 11.5px;
+  font-size: var(--fs-12);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -76,8 +76,8 @@ html .hero .countdown .eyebrow.hero-label {
 }
 .ev-date .ev-yr {
   display: block;
-  font-size: 10.5px;
-  font-weight: 650;
+  font-size: var(--fs-12);
+  font-weight: 600;
   letter-spacing: 0;
   color: var(--muted);
 }
@@ -151,6 +151,17 @@ html .pnl:not(.pnl-noclass) .duo > .duo-col > .duo-fill {
 html .pnl:not(.pnl-noclass) .duo .fill-gap {
   display: none;
 }
+/* colunas quase iguais (useColumnFill, gridClass "duo-even"): a sobra que o número de itens não fecha (menos que
+   um item) vai para o último card da coluna mais baixa, no espaçador antes do rodapé; as duas terminam juntas */
+html .pnl .duo.duo-even {
+  align-items: stretch;
+}
+html .pnl .duo.duo-even > .duo-col > .duo-fill {
+  flex: 1 1 auto;
+}
+html .pnl .duo.duo-even .fill-gap {
+  display: block;
+}
 
 /* ---------- colunas soltas (useColumnFill, gridClass "duo-loose") ----------
    Lado a lado, quando as listas acabaram e ainda sobraria um vão grande no fim de um card esticado, as colunas
@@ -171,6 +182,12 @@ html .duo.duo-loose .fill-gap {
 /* listas do Painel: o título vai até três linhas (os nomes do calendário oficial são longos) */
 .pnl .pnl-list .ev-title {
   -webkit-line-clamp: 3;
+}
+/* as linhas começam junto do rótulo da seção ("Esta semana", "Janeiro de 2027") e do título do card, como no
+   Cronograma: o fundo do hover passa um pouco das bordas, o selo da data não fica recuado */
+html .pnl .pnl-list .ev {
+  width: calc(100% + 24px);
+  margin-inline: -12px;
 }
 
 /* Coluna de apoio lado a lado (1280 px ou mais, "Datas da instituição"): a linha de dados vira uma frase só
@@ -194,11 +211,14 @@ html .duo.duo-loose .fill-gap {
     .pnl .duo-side .pnl-list .ev-meta > span:last-child {
       margin-right: 0;
     }
-    /* a data e o prazo andam juntos: ou cabem na linha da categoria, ou descem inteiros ("11 a 15/01, em 54 dias"),
-       sem o "em 54 dias" sobrar sozinho na linha de baixo. Só um texto mais largo que a coluna quebra por dentro */
+    /* a data fica sempre na linha da categoria, sem descer para uma linha própria (rodada 9): quando a linha não
+       cabe, só o prazo ("em 73 dias", inteiro) continua na linha de baixo. Quebra comum, sem o equilíbrio do
+       "pretty", que podia separar "03 a" de "05/02" */
+    .pnl .duo-side .pnl-list .ev-meta {
+      text-wrap: wrap;
+    }
     .pnl .duo-side .pnl-list .ev-at {
-      display: inline-block;
-      max-width: 100%;
+      display: inline;
       white-space: normal;
     }
     .pnl .duo-side .pnl-list .ev-at > span {
@@ -223,7 +243,7 @@ html .duo.duo-loose .fill-gap {
 .wk-today-tag {
   display: block;
   margin-top: 2px;
-  font-size: 11.5px;
+  font-size: var(--fs-12);
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
@@ -236,37 +256,275 @@ html .duo.duo-loose .fill-gap {
 .wk-day.wk-past .wk-ev {
   opacity: 0.7;
 }
+/* blocos da semana (amostra A): brancos com borda, o ponto da categoria antes do título; nada de fundo pastel
+   no que se clica */
+html .wk-ev,
+html .wk-ev[class*="c-"] {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: none;
+}
+/* o ponto em flex: a segunda linha de um título longo começa embaixo do texto, não embaixo do ponto */
+html .wk-ev .wk-t {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--ink);
+}
+html .wk-ev .wk-t .dot {
+  flex: none;
+  margin-right: 0;
+  vertical-align: 0;
+  transform: translateY(-1px);
+}
+html .wk-ev .wk-h {
+  padding-left: 16px;
+  font-size: var(--fs-13);
+  font-weight: 400;
+  color: var(--muted);
+}
+@media (hover: hover) and (pointer: fine) {
+  html button.wk-ev:hover {
+    filter: none;
+    border-color: var(--line-hover);
+    background: var(--surface-2);
+  }
+}
+html .wk-label {
+  font-weight: 600;
+}
+/* turmas e disciplinas da docente: cards brancos com borda, como o resto da amostra A */
+.subj-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
 /* semana sem nada: uma linha só, com o próximo evento da docente */
 .wk-empty {
   margin-top: 14px;
 }
 
-/* ---------- toque: alvos de pelo menos 44 px sem mudar o desenho ---------- */
-@media (pointer: coarse) {
-  /* chips das datas das provas (KPI) e links dos rodapés: a área de toque cresce para cima e para baixo */
-  .pnl .kpi-chip,
-  .pnl .card-foot .link,
-  .pnl .link.min-h-6,
-  .avisos-foot .link {
-    position: relative;
+/* ---------- links soltos e cabeçalho ---------- */
+/* link de texto fora de um botão (.link-solto): 24 px de altura com o mouse */
+.link.link-solto {
+  min-height: 24px;
+}
+/* datas das provas no indicador: o botão é a área de toque e a pílula fica dentro dele */
+.kpi-chip-hit {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+}
+.kpi-chip-hit:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .kpi-chip-hit:hover > .pill {
+    filter: brightness(0.96);
+    text-decoration: underline;
   }
-  .pnl .kpi-chip::after,
-  .pnl .card-foot .link::after,
-  .pnl .link.min-h-6::after,
-  .avisos-foot .link::after {
-    content: "";
-    position: absolute;
-    left: -3px;
-    right: -3px;
-    top: 50%;
-    height: 44px;
-    translate: 0 -50%;
+}
+@media (pointer: coarse), (max-width: 767px) {
+  .kpi-chip-hit {
+    min-height: 44px;
   }
-  /* o espaço entre os chips no toque (26 px entre linhas, 10 px entre colunas) vem do ux.css */
+}
+/* "Ver todas", "Gerenciar lembretes", "Ver notas", "Entrar em outra turma", "Ver no cronograma": no toque e abaixo
+   de 768 px, cada link tem 44 px de altura de verdade (decisão 2); o rodapé do card não cresce, o link é que
+   ocupa a faixa dele */
+@media (pointer: coarse), (max-width: 767px) {
+  html .pnl .card-foot .link,
+  html .link.link-solto,
+  html .pnl .pagehead .link {
+    min-height: 44px;
+  }
+  html .pnl .card-foot:has(> .link) {
+    padding-top: 6px;
+  }
+}
+
+/* ---------- indicadores no celular (grade 2 x 2) ----------
+   O rótulo tem sempre a altura de duas linhas (e no máximo duas, com o nome inteiro no botão): os números dos
+   dois cards da mesma linha ficam na mesma altura, com rótulo curto ou longo */
+@media (max-width: 639px) {
+  html .pnl .kpis .kpi-top {
+    align-items: flex-start;
+    min-height: 2.8em;
+  }
+  html .pnl .kpis .kpi-label {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    line-height: 1.4;
+  }
+  html .pnl .kpis .kpi-ico {
+    margin-top: 1px;
+  }
+}
+
+/* ---------- toque: os links do rodapé dos avisos também com 44 px ---------- */
+@media (pointer: coarse), (max-width: 767px) {
+  html .avisos-foot .link {
+    min-height: 44px;
+  }
 }
 
 /* A página (app/page.tsx) põe o card de avisos numa caixa acima do Painel; com o card do próprio painel na tela,
    aquela cópia não aparece (AvisosCard host) e a caixa vazia não deixa a margem sobrando */
 .pop > .mb-5:empty {
   display: none;
+}
+
+/* ---------- destaque da administração em largura média (1024, tablet) ----------
+   De 540 a 719 px de destaque, a próxima data da instituição sai do alto à direita (lá ela ocupava três linhas e
+   empurrava o título para baixo) e vira uma linha embaixo dos dados, como no celular. O escudo fica no alto, ao
+   lado do rótulo e do título, sem flutuar no meio do card. */
+@container hero (min-width: 540px) and (max-width: 719.98px) {
+  html .pnl-admin .hero.with-date .hero-kicker {
+    grid-column: 2 / 4;
+  }
+  html .pnl-admin .hero.with-date > .datebig {
+    grid-row: 1 / 6;
+    align-self: start;
+  }
+  html .pnl-admin .hero.with-date > .countdown.next {
+    grid-column: 2 / 4;
+    grid-row: 4;
+    align-self: start;
+    justify-self: start;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    margin: 12px 0 0;
+    text-align: left;
+  }
+  html .pnl-admin .hero.with-date > .countdown.next b {
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    font-size: var(--fs-15);
+  }
+  html .pnl-admin .hero.with-date > .countdown.next b + small {
+    display: block;
+    margin: 0;
+    max-width: none;
+    white-space: normal;
+  }
+  html .pnl-admin .hero.with-date .hero-actions {
+    grid-row: 5;
+  }
+}
+/* celular: o escudo fica ao lado do título curto ("Calendário importado"), alinhado com ele */
+@media (max-width: 639px) {
+  html .pnl-admin .hero.with-date > .datebig {
+    align-self: center;
+  }
+}
+
+/* ---------- Painel da docente no celular e no tablet (uma coluna) ----------
+   Lado a lado, as datas da instituição ficam na coluna larga e "Meus próximos eventos" embaixo da semana (assim as
+   duas colunas fecham pelo número de itens). Numa coluna só, dashboard-teacher.tsx monta uma .duo-col única já na
+   ordem da docente (turmas, os eventos dela, a semana e as datas da instituição): sem order nem display: contents,
+   a ordem do DOM é a da tela */
+@media (max-width: 1279px) {
+  html .pnl.pnl-prof:not(.pnl-noclass) .duo {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+}
+
+/* ---------- sobra das colunas repartida entre as linhas (rodada 9) ----------
+   Com as colunas quase iguais (duo-even), a sobra que o número de itens não fecha não fica num buraco só antes do
+   rodapé: useColumnFill põe na coluna mais baixa (--fill-row) uma folga igual por linha das listas dela (datas,
+   compromissos, eventos, notas, distribuição), e o vão antes do rodapé do último card fica com a mesma folga */
+html .pnl .duo.duo-even > .duo-col .pnl-list .ev {
+  margin-block: calc(var(--fill-row, 0px) / 2);
+}
+/* linhas com divisória (notas): a folga fica dentro da linha, e a divisória continua no meio do vão */
+html .pnl .duo.duo-even > .duo-col [data-fill-row] {
+  padding-block: calc(var(--fill-row, 0px) / 2);
+}
+
+/* ---------- datas da instituição em duas colunas (card largo) ----------
+   Na coluna larga ou na largura toda, com o conteúdo do card a partir de 640 px (tela de 1440 para cima), as datas
+   de cada mês ficam em duas colunas: o card não mostra uma data só, encostada na esquerda, com o prazo lá na borda
+   direita. Abaixo disso as colunas teriam 240 a 280 px e quebravam a palavra ("Confrater nização"; rodada 9) */
+@container (min-width: 640px) {
+  /* o "gap-0.5" da lista é um utilitário (camada utilities), que ganha desta camada: daí o !important no vão
+     entre as colunas (as linhas passam 12 px de cada lado da célula, então sobram 24 px entre os textos) */
+  html .pnl .pnl-list.pnl-list-2 > div > .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 48px !important;
+  }
+}
+
+/* ---------- minigráfico "Próximos 30 dias" ----------
+   Cinco barras (uma por semana) e a legenda curta "por semana" embaixo, à direita do número */
+/* sobe ao lado do número (a legenda termina na linha de baixo dele); só desenho: o toque vai para o card.
+   Barras de 20 px em toda largura: com 32 px e -52 px, num card de 177 a 200 px (1100 a 1440) a barra mais alta
+   subia até o fim do rótulo "Próximos 30 dias" (rodada 9). Com -38 px a barra mais alta começa 1 px abaixo da
+   linha do rótulo (uns 5 px abaixo das letras) e "por semana" continua na linha do número */
+.kpi-spark {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -38px;
+  pointer-events: none;
+}
+.spark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.spark-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 20px;
+}
+.spark-cap {
+  font-size: var(--fs-12);
+  line-height: 16px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ---------- "Provas à frente" no toque e no celular ----------
+   Com 44 px de toque cada data ficava numa linha (o card ganhava uns 150 px e esticava o vizinho): fica só a
+   próxima, e as outras viram "+2" ao lado (o card inteiro leva às provas no cronograma) */
+.kpi-chips-more {
+  display: none;
+}
+/* o rótulo de cada indicador é o botão do card (a área dele, ::after, cobre o card todo). No toque e no celular o
+   próprio botão também passa de 44 px: 13 px a mais em cima e embaixo (18 + 26), devolvidos pela margem negativa, e
+   o rótulo (de uma ou duas linhas) não sai do lugar */
+@media (pointer: coarse), (max-width: 767px) {
+  html .pnl .kpi .kpi-hit {
+    padding-block: 13px;
+    margin-block: -13px;
+  }
+}
+@media (pointer: coarse), (max-width: 767px) {
+  html .pnl .kpi-chips > .kpi-chip-hit:not(:first-child) {
+    display: none;
+  }
+  html .pnl .kpi-chips > .kpi-chips-more {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-size: var(--fs-13);
+    font-weight: 600;
+    color: var(--muted);
+  }
 }

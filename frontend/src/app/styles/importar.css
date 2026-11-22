@@ -3,34 +3,50 @@
    (que começam com "html"), o seletor aqui também começa com "html" e tem uma classe a mais. */
 
 /* ---------- indicadores do alto ---------- */
-/* valor em palavra ("Hoje", "Em dia"): menor que o número, para caber numa linha */
+/* os valores seguem a escala única do .is-date (26 px, ou 22 abaixo de 480 px), sem tamanho próprio. A palavra
+   ("Falta importar") pode quebrar a linha no celular estreito em vez de vazar do card */
 html .kpi-val.imp-kpi-txt {
-  font-size: 32px;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
+/* "Em dia": card branco (amostra A), o valor e o ícone em verde; "Falta importar" usa o âmbar do .kpi.attn */
+html .kpi.imp-kpi-ok {
+  background: var(--surface);
+  border-color: var(--line);
+}
+html .imp-kpi-ok :is(.kpi-label, .kpi-hint) {
+  color: var(--muted);
+}
+html .imp-kpi-ok .kpi-label {
+  color: var(--ink-2);
+}
 html .imp-kpi-ok .kpi-val {
-  color: var(--brand);
+  color: var(--green);
+  font-weight: 700;
 }
 html .imp-kpi-ok .kpi-ico {
-  background: #fff;
-  color: var(--brand);
+  background: none;
+  color: var(--green);
+}
+html .kpi.imp-kpi-warn {
+  border-color: var(--amber-line);
+  background: var(--amber-bg);
+}
+html .imp-kpi-warn :is(.kpi-label, .kpi-ico, .kpi-hint) {
+  background: none;
+  color: var(--amber);
 }
 html .imp-kpi-warn .kpi-val {
-  color: #7a3b06;
-}
-html .imp-kpi-warn .kpi-ico {
-  background: #fff;
-  color: #b45309;
+  color: var(--amber);
 }
 @media (max-width: 639px) {
-  html .kpi-val.imp-kpi-txt {
-    font-size: 24px;
+  /* grade 2 x 2 do celular: o rótulo ocupa sempre duas linhas ("Última importação" quebra, "Fonte" não), para os
+     valores lado a lado começarem na mesma altura */
+  html .imp-kpis .kpi-top {
+    align-items: flex-start;
   }
-  /* "115 futuros" numa linha só no indicador estreito do celular */
-  html .kpi-val.imp-kpi-num {
-    font-size: 36px;
+  html .imp-kpis .kpi-label {
+    min-height: calc(2lh);
   }
 }
 
@@ -85,14 +101,14 @@ html .imp-kpi-warn .kpi-ico {
 }
 .imp-done-n {
   font-size: 46px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
 .imp-done-sub {
   margin-top: 6px;
-  font-size: 14.5px;
+  font-size: var(--fs-14);
   line-height: 1.45;
   color: var(--muted);
 }
@@ -110,7 +126,7 @@ html .imp-kpi-warn .kpi-ico {
   gap: 8px;
 }
 .imp-done-cats b {
-  font-weight: 750;
+  font-weight: 700;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -123,7 +139,7 @@ html .imp-kpi-warn .kpi-ico {
   border-radius: 10px;
   background: #fff7e0;
   color: #7a3b06;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
   font-weight: 600;
 }
 .imp-done-acts {
@@ -152,7 +168,7 @@ html .imp-kpi-warn .kpi-ico {
     font-size: 38px;
   }
   .imp-done-title {
-    font-size: 19px;
+    font-size: var(--fs-18);
   }
   .imp-done-acts {
     flex-basis: 100%;
@@ -163,15 +179,8 @@ html .imp-kpi-warn .kpi-ico {
   }
 }
 
-/* ---------- ordem no celular: a ação da tela (importar) vem antes dos indicadores ---------- */
-@media (max-width: 639px) {
-  .imp-page > .imp-done {
-    order: -2;
-  }
-  .imp-page > .imp-card {
-    order: -1;
-  }
-}
+/* ---------- ordem no celular: a mesma do computador (título da página, indicadores, resultado e o card de
+   importar). Antes o card subia para o topo e o título da página aparecia no meio da tela. ---------- */
 
 /* ---------- card de importar: área de soltar (larga) e exemplo (estreito), os passos numa faixa embaixo ---------- */
 .imp-card-head {
@@ -217,6 +226,14 @@ html .imp-kpi-warn .kpi-ico {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+/* leitura descartada (Desfazer por 10 s): o mesmo bloco, em cinza, porque nada espera conferência */
+html .imp-pending.is-discarded {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+.imp-pending.is-discarded .imp-pending-ico {
+  color: var(--muted);
 }
 
 /* lado a lado quando o card é largo; a coluna de apoio termina na mesma linha do 4º indicador (--side-w do ux.css) */
@@ -294,7 +311,7 @@ html .imp-kpi-warn .kpi-ico {
 }
 .imp-drop-title {
   font-family: var(--disp);
-  font-size: 20px;
+  font-size: var(--fs-22);
   font-weight: 700;
   line-height: 1.25;
   color: var(--ink);
@@ -361,7 +378,7 @@ html .imp-kpi-warn .kpi-ico {
     height: 22px;
   }
   .imp-drop-title {
-    font-size: 17px;
+    font-size: var(--fs-18);
   }
   .imp-drop-hint {
     margin-top: 4px;
@@ -397,8 +414,8 @@ html .imp-kpi-warn .kpi-ico {
 }
 .imp-aside-title {
   font-family: var(--disp);
-  font-size: 16.5px;
-  font-weight: 700;
+  font-size: var(--fs-16);
+  font-weight: 600;
   color: var(--ink);
 }
 .imp-aside-text {
@@ -412,7 +429,7 @@ html .imp-kpi-warn .kpi-ico {
 }
 .imp-sample-link {
   justify-self: start;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
 }
 /* passos: faixa embaixo do card; no card largo, o título à esquerda e os três passos lado a lado */
 .imp-steps {
@@ -445,7 +462,7 @@ html .imp-kpi-warn .kpi-ico {
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr);
   gap: 10px;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
   line-height: 1.45;
   color: var(--ink-3);
 }
@@ -462,8 +479,8 @@ html .imp-kpi-warn .kpi-ico {
   border-radius: 999px;
   border: 1px solid var(--line-strong);
   background: #fff;
-  font-size: 12.5px;
-  font-weight: 750;
+  font-size: var(--fs-12);
+  font-weight: 600;
   color: var(--brand-ink);
 }
 /* card estreito (exemplo embaixo da área de soltar): o texto à esquerda e o botão à direita */
@@ -493,6 +510,30 @@ html .imp-kpi-warn .kpi-ico {
 /* histórico: as páginas embaixo da tabela */
 .imp-hist-pager {
   padding: 0 24px 18px;
+}
+/* a tabela começa e termina na mesma linha do título do card (24 px; 16 px no celular) */
+html .imp-hist .tbl .imp-hist-c1 {
+  padding-left: 24px;
+  padding-right: 16px;
+}
+html .imp-hist .tbl .imp-hist-cl {
+  padding-left: 12px;
+  padding-right: 24px;
+}
+@media (max-width: 639px) {
+  html .imp-hist-head {
+    padding: 20px 16px 16px;
+  }
+  html .imp-hist .tbl .imp-hist-c1 {
+    padding-left: 16px;
+    padding-right: 12px;
+  }
+  html .imp-hist .tbl .imp-hist-cl {
+    padding-right: 16px;
+  }
+  .imp-hist-pager {
+    padding: 0 16px 16px;
+  }
 }
 
 /* ---------- histórico: a linha inteira abre o painel ---------- */
@@ -564,8 +605,9 @@ html .imp-kpi-warn .kpi-ico {
   gap: 4px;
 }
 /* no computador os filtros são abas; no celular, uma lista de escolha (as abas não cabem) */
-.imp-filter-select {
+html .select.imp-filter-select {
   display: none;
+  margin: 0;
 }
 .imp-search {
   position: relative;
@@ -589,6 +631,14 @@ html .imp-search .input {
 /* meses: uma linha só, que rola de lado quando não cabe (o mês escolhido vai para o meio) */
 .imp-months {
   min-width: 0;
+}
+/* título do seletor de mês com largura fixa: as setas não andam de um mês para o outro ("Dezembro de 2027" mede
+   248 px), e quem clica duas vezes no "›" acerta o botão */
+@media (min-width: 768px) {
+  .imp-months .mpick-title {
+    min-width: 252px;
+    justify-content: space-between;
+  }
 }
 .imp-review-bar .crono-strip {
   flex-wrap: nowrap;
@@ -616,7 +666,7 @@ html .imp-search .input {
   gap: 5px;
   height: 32px;
   padding: 0 8px;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
 }
 .imp-bulk {
   display: flex;
@@ -641,7 +691,7 @@ html .imp-search .input {
 .imp-review-list > .imp-note {
   margin-top: 16px;
   padding: 10px 14px;
-  font-size: 13.5px;
+  font-size: var(--fs-13);
 }
 /* o calendário já está no sistema: diz isso com clareza e mostra a saída */
 .imp-uptodate {
@@ -670,7 +720,7 @@ html .imp-search .input {
 }
 .imp-uptodate-title {
   font-family: var(--disp);
-  font-size: 17px;
+  font-size: var(--fs-18);
   font-weight: 700;
   line-height: 1.3;
   color: var(--ink);
@@ -742,6 +792,18 @@ html .imp-uptodate-more {
 }
 .imp-month-check:has(.imp-check:disabled) {
   cursor: default;
+}
+/* com o seletor de mês acima, o nome do mês não se repete aqui: a caixa ganha o rótulo curto "Todas do mês" */
+.imp-month-check:has(.imp-month-all) {
+  gap: 10px;
+}
+.imp-month-all {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.imp-month-check:has(.imp-check:disabled) .imp-month-all {
+  color: var(--muted);
 }
 /* fonte, tamanho e cor vêm do .drawer-h3 (ux.css), o título de bloco de todos os painéis */
 .imp-month-name {
@@ -819,7 +881,7 @@ html .imp-uptodate-more {
 /* o período que cruza o mês quebra só entre "31/05 a" e "05/06" */
 .imp-date b {
   font-size: 14px;
-  font-weight: 750;
+  font-weight: 700;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -827,7 +889,7 @@ html .imp-uptodate-more {
   white-space: nowrap;
 }
 .imp-date small {
-  font-size: 12.5px;
+  font-size: var(--fs-12);
   color: var(--muted);
 }
 /* o título inteiro, sem corte: é por ele que se decide o que importar */
@@ -869,7 +931,7 @@ html .pill.imp-row-cat {
   background: var(--fill);
   color: var(--ink-3);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   white-space: nowrap;
 }
 .imp-tag.staff {
@@ -921,8 +983,8 @@ html .pill.imp-row-cat {
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--ink-3);
-  font-size: 12.5px;
-  font-weight: 650;
+  font-size: var(--fs-12);
+  font-weight: 600;
   white-space: nowrap;
 }
 /* rodapé: o total à esquerda, os botões à direita */
@@ -936,12 +998,12 @@ html .pill.imp-row-cat {
 }
 .imp-foot-count b {
   font-size: 18px;
-  font-weight: 750;
+  font-weight: 700;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 .imp-foot-count small {
-  font-size: 12.5px;
+  font-size: var(--fs-12);
   color: var(--muted);
 }
 
@@ -978,7 +1040,7 @@ html .pill.imp-row-cat {
   html .imp-review-bar .imp-chips {
     display: none;
   }
-  html .imp-filter-select {
+  html .select.imp-filter-select {
     display: block;
     flex: 1 1 0;
     min-width: 0;
@@ -1036,7 +1098,7 @@ html .pill.imp-row-cat {
     align-items: center;
     gap: 2px;
     min-height: 32px;
-    font-size: 13.5px;
+    font-size: var(--fs-13);
   }
   .imp-uptodate-more svg {
     transition: transform 0.15s ease;
@@ -1091,29 +1153,27 @@ html .pill.imp-row-cat {
   .imp-hint-short {
     display: inline;
   }
-  html .kpi-val.imp-kpi-num {
-    font-size: 30px;
-  }
-  html .kpi-val.imp-kpi-num small {
-    white-space: nowrap;
-  }
 }
 
-/* toque: alvos de pelo menos 44 px (decisão 9 da rodada de UX) */
-@media (pointer: coarse) {
+/* toque e celular: alvos de pelo menos 44 px (decisão 2 da rodada 8) */
+@media (pointer: coarse), (max-width: 767px) {
   .imp-review-bar .crono-mchip {
     height: 44px;
   }
   .imp-bulk > .btn,
   .imp-uptodate-acts > .btn,
   .imp-uptodate-link,
-  .imp-uptodate-more,
+  html .imp-uptodate-more,
   .imp-pending-acts > .btn {
     min-height: 44px;
   }
   .imp-month-check {
     margin: -13px;
     padding: 13px;
+  }
+  /* nome da importação no histórico (tablet com toque): 44 px, como as outras linhas */
+  .imp-hist-open {
+    min-height: 44px;
   }
   .imp-sample-link {
     display: inline-flex;

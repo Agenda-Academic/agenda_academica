@@ -15,9 +15,8 @@ import { useId, useRef, useState } from "react";
 import {
   cx,
   dayMonthText,
-  formatDateBR,
+  firstName,
   formatOnDayAt,
-  formatWeekday,
   latestTermLabel,
   relativeDue,
   shiftLabel,
@@ -35,6 +34,7 @@ import {
   calendarUpcomingCount,
   delay,
   heightKey,
+  isOfficialDate,
   officialCategories,
   openAhead,
   upcomingOfficialDates,
@@ -43,7 +43,7 @@ import {
   type CalendarFilter,
 } from "./dashboard-bits";
 import { Pager, usePaged } from "./pager";
-import { EmptyState, SectionTitle } from "./ui";
+import { EmptyState, PageHeader, SectionTitle } from "./ui";
 
 function datesLabel(count: number) {
   return count === 1 ? "1 data" : `${count} datas`;
@@ -124,6 +124,11 @@ export function AdminDashboard({
   const ahead = events ? openAhead(events, now) : upcomingEvents;
   const classEvents = ahead.filter((event) => event.academicClassId !== null).length;
   const campusEvents = ahead.length - classEvents;
+  // "Eventos das turmas" (decisão 7, o mesmo número da Gestão): o valor é o que está à frente, sem as datas da
+  // instituição, e a dica diz quantos há no total
+  const classAhead = ahead.filter((event) => !isOfficialDate(event)).length;
+  const classTotal = (events ?? upcomingEvents).filter((event) => !isOfficialDate(event)).length;
+  const term = latestTermLabel(classes, now);
   const lastUpcoming = ahead[ahead.length - 1] ?? null;
   const openOfficial = onOpenCalendar ? () => onOpenCalendar({ categories: officialCategories }) : undefined;
   // o Cronograma lista também os cancelados e os concluídos: os rodapés usam o número dele e os
@@ -189,6 +194,10 @@ export function AdminDashboard({
 
   return (
     <div ref={rootRef} className="pnl pnl-admin admin-dash grid gap-5">
+      <PageHeader
+        title={`Olá, ${firstName(context?.user.fullName ?? "administração")}`}
+        subtitle={`Visão institucional do semestre ${term}`}
+      />
       <AvisosCard host avisos={avisos ?? []} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
 
       {/* Destaque institucional (Figma) */}
@@ -207,8 +216,10 @@ export function AdminDashboard({
                 <span className="pill stat stat-alt">Pendente</span>
               )}
             </div>
-            {/* text-wrap: balance (admin.css): o título quebra em duas linhas parecidas, sem "2026/2" sozinho embaixo */}
-            <h2 className="hero-title admin-hero-title">Visão institucional do semestre {latestTermLabel(classes, now)}</h2>
+            {/* título curto (o semestre está no cabeçalho da tela): no celular cabe ao lado do escudo, sem três linhas */}
+            <h2 className="hero-title admin-hero-title">
+              {lastImport ? "Calendário importado" : "Nenhum calendário importado"}
+            </h2>
             {/* o nome da fonte vem da importação: palavra ou link longo quebra em qualquer ponto */}
             <div className="hero-meta wrap-anywhere">
               <span>
@@ -260,8 +271,8 @@ export function AdminDashboard({
           icon={Target}
           label="Eventos das turmas"
           order={2}
-          value={String(classEvents)}
-          hint="à frente, nas turmas"
+          value={String(classAhead)}
+          hint={`${classTotal} no total`}
           actionLabel="Ver no cronograma"
           onClick={onOpenCalendar ? () => onOpenCalendar() : undefined}
         />
@@ -270,12 +281,10 @@ export function AdminDashboard({
           label="Datas da instituição"
           order={3}
           value={String(officialCount)}
-          tone="c-inst"
+          // a mesma dica da Gestão: curta, até quando vão as datas ("até janeiro de 2028"), sem repetir o número
           hint={
             officialDates.length
-              ? officialDates.length === 1
-                ? `em ${formatDateBR(officialDates[0].startsAt)}`
-                : `de ${formatDateBR(officialDates[0].startsAt)} a ${formatDateBR(officialDates[officialDates.length - 1].startsAt)}`
+              ? `até ${new Date(officialDates[officialDates.length - 1].startsAt).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}`
               : "nenhuma à frente"
           }
           note={officialNote}
@@ -288,7 +297,6 @@ export function AdminDashboard({
           label="Turmas ativas"
           order={4}
           value={String(classes.length)}
-          tone="c-trab"
           hint="no catálogo"
           actionLabel="Abrir Turmas e disciplinas"
           onClick={onOpenClasses}
@@ -298,7 +306,6 @@ export function AdminDashboard({
           label="Disciplinas ativas"
           order={5}
           value={String(subjects.length)}
-          tone="c-ativ"
           hint="no catálogo"
           actionLabel="Abrir Turmas e disciplinas"
           onClick={onOpenClasses}
@@ -346,8 +353,8 @@ export function AdminDashboard({
                   // min-w-0: abaixo de 640 px a grade tem uma coluna só, do tamanho do conteúdo, e um
                   // nome longo de turma a alargaria para fora do card em vez de cortar com reticências
                   return (
-                    <div key={academicClass.id} className="min-w-0 rounded-2xl bg-surface-2 p-4">
-                      <p className="truncate text-[15.5px] font-bold">{academicClass.name}</p>
+                    <div key={academicClass.id} className="subj-card min-w-0 p-4">
+                      <p className="truncate text-[15px] font-semibold text-ink">{academicClass.name}</p>
                       <p className="sub !mt-1">
                         {[academicClass.course?.code, academicClass.period, shiftLabel(academicClass.shift)]
                           .filter(Boolean)
@@ -432,7 +439,7 @@ export function AdminDashboard({
               title="Distribuição geral"
               subtitle={
                 lastUpcoming
-                  ? `${ahead.length} ${ahead.length === 1 ? "evento futuro" : "eventos futuros"}, de hoje até ${formatWeekday(lastUpcoming.startsAt)}`
+                  ? `${ahead.length} ${ahead.length === 1 ? "evento futuro" : "eventos futuros"}, de hoje até ${dayMonthText(lastUpcoming.startsAt)}`
                   : "Nenhum evento futuro"
               }
             />

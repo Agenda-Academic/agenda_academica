@@ -45,7 +45,7 @@ import { delay, showAllText } from "./dashboard-bits";
 import { GradesTeacher } from "./grades-teacher";
 import { GuardianDataDialog, guardianSeesLabels } from "./guardian-data-dialog";
 import { GradeValue, awaitingGrades, isAwaitingGrade, scoreParts, useApiLoad, useStudentGrades } from "./latest-grades-card";
-import { Drawer, EmptyState, ErrorState, RetryButton, SectionTitle, primaryButton, secondaryButton } from "./ui";
+import { Drawer, EmptyState, ErrorState, PageHeader, RetryButton, SectionTitle, primaryButton, secondaryButton } from "./ui";
 
 /**
  * Tela Notas (?tela=notas). Decide pelo papel:
@@ -97,7 +97,17 @@ export function GradesView(props: GradesViewProps) {
     );
   }
 
-  return <ReaderGrades {...props} />;
+  // aluno e responsável: o cabeçalho da tela (amostra A) e, embaixo, as notas
+  const who = props.role === "guardian" && props.student ? firstName(props.student.fullName ?? "Aluno") : null;
+  return (
+    <div className="grid gap-5">
+      <PageHeader
+        title="Notas"
+        subtitle={who ? `As notas que a docente publicou para ${who}, por disciplina.` : "As notas que a docente publicou, por disciplina."}
+      />
+      <ReaderGrades {...props} />
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -401,9 +411,10 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         action: { label: "Ver cronograma", onClick: () => navigate("calendar") },
       };
     }
-    // os dois cards lado a lado terminam na mesma linha (o vazio no meio do card principal)
+    // o vazio no estilo único (decisão 3), num card do tamanho dele, e o card de apoio embaixo, na largura toda: sem
+    // caixa tracejada esticada até a altura do card ao lado e sem colunas de alturas diferentes
     return (
-      <div className="notas-pair notas-wide notas-empty-pair">
+      <div className="notas-stack">
         <section className="card pad rise notas-empty-card" style={delay(0)} aria-labelledby="notas-titulo">
           <SectionTitle id="notas-titulo" title={isGuardian ? `Notas de ${name}` : "Suas notas"} />
           <div className="notas-empty-body">
@@ -454,7 +465,9 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
   }
 
   return (
-    <div className="grid gap-5">
+    // aluno: as colunas lado a lado só a partir de 1366 px (notas.css, .notas-aluno). Entre 1200 e 1365 px a lateral
+    // dele não tem lista que cresça (as próximas já aparecem todas) e terminaria bem acima das disciplinas
+    <div className={cx("grid gap-5", !isGuardian && "notas-aluno")}>
       <div className="notas-kpis">
         <div className="card kpi rise" style={delay(0)}>
           <div className="kpi-top">
@@ -473,19 +486,21 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         <div className="card kpi rise" style={delay(1)}>
           <div className="kpi-top">
             <p className="kpi-label">Aguardando publicação</p>
-            <span className="kpi-ico notas-ico-blue" aria-hidden>
+            {/* ícone cinza como os outros (Gestão e Painel); só fica colorido quando há nota esperando */}
+            <span className={cx("kpi-ico", waiting.length > 0 && "notas-ico-blue")} aria-hidden>
               <Clock className="h-[18px] w-[18px]" />
             </span>
           </div>
           <p className="kpi-val">{waiting.length}</p>
           <p className="kpi-hint wrap-anywhere">{waitingHint}</p>
         </div>
-        <div className={cx("card kpi rise notas-kpi-next", nextEval && "is-link")} style={delay(2)}>
+        <div className={cx("card kpi rise notas-kpi-prox", nextEval && "is-link")} style={delay(2)}>
           <div className="kpi-top">
             {nextEval ? (
-              // alvo de no mínimo 24 px de altura (o rótulo tem 18 px); centrado ao lado do ícone, o texto não sai do lugar
+              // alvo de 24 px com o mouse e 44 px no toque e no celular (notas.css), centrado ao lado do ícone: o texto
+              // e a altura do cabeçalho do card não saem do lugar
               <button
-                className="kpi-hit kpi-label inline-flex min-h-6 items-center"
+                className="kpi-hit kpi-label inline-flex items-center"
                 onClick={() => onOpenEvent(nextEval.eventId)}
                 aria-label={`Próxima avaliação: ${nextEval.title}, ${whenText(nextEval.startsAt)}. Ver no cronograma`}
                 type="button"
@@ -499,7 +514,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
               <CalendarDays className="h-[18px] w-[18px]" />
             </span>
           </div>
-          <p className={cx("kpi-val", !nextEval && "notas-kpi-none")}>{nextEval ? formatShortDate(nextEval.startsAt) : "Nenhuma"}</p>
+          <p className={cx("kpi-val", nextEval ? "is-date" : "notas-kpi-none")}>{nextEval ? formatShortDate(nextEval.startsAt) : "Nenhuma"}</p>
           <p className="kpi-hint wrap-anywhere">{nextHint}</p>
           {nextEval ? (
             // o card inteiro é o botão (kpi-hit); o texto só mostra para onde ele leva
@@ -519,6 +534,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
       ) : null}
 
       <NotasColumns
+        wideFrom={isGuardian ? 1200 : 1366}
         // busca nova ou limpa: o número de próximas recomeça do máximo e desce até as colunas fecharem juntas
         fitKey={words.join(" ")}
         // limite e máximo presos ao tamanho da lista: cada passo muda um item na tela e dispara nova medida
@@ -538,7 +554,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
               // responsável: as próximas que cabem para a lateral terminar junto com as disciplinas (decisão 5).
               // Sem o pé (repetiria o "Ver no cronograma" do indicador Próxima avaliação); quando não cabem todas,
               // o subtítulo diz quantas são e leva ao cronograma
-              guardianUp > 0 && upcomingRest.length ? (
+              guardianUp >= 0 && upcomingRest.length ? (
                 <UpcomingCard
                   inlineMore
                   lead={restLead}
@@ -628,7 +644,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
                   <div className="notas-soon">
                     <p>Nenhuma prova ou trabalho desta disciplina aconteceu ainda. A nota aparece aqui depois da avaliação.</p>
                     <button
-                      className="link min-h-6"
+                      className="link link-solto"
                       aria-label={`Ver no cronograma: ${group.next ? group.next.title : group.title}`}
                       onClick={() => (group.next ? onOpenEvent(group.next.eventId) : navigate("calendar"))}
                       type="button"
@@ -639,6 +655,8 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
                   </div>
                 )}
 
+                {/* espaçador: com as colunas quase iguais, o último card estica esse pouco aqui (NotasColumns) */}
+                <div className="notas-fill" aria-hidden />
                 {group.items.length > shown.length ? (
                   <div className="notas-more">
                     <button
@@ -674,30 +692,50 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
   );
 }
 
-/** "2 publicadas" (verde) e "1 aguardando" (amarelo) no canto do card da disciplina. */
 /**
- * Disciplinas e o card de apoio lado a lado (a partir de 1200 px). O card de apoio fica parado no alto enquanto a
- * lista rola e termina no próprio conteúdo (decisão 5: nada de card esticado); as colunas fecham juntas ajustando o
- * número de itens (fit), nunca um vão dentro do card.
+ * Disciplinas e o card de apoio lado a lado (a partir de wideFrom: 1200 px no responsável, 1366 px no aluno). As colunas terminam juntas (decisão 5): primeiro
+ * pelo número de itens (fit: as próximas avaliações do responsável, de UPCOMING_SHOWN até nenhuma); a sobra pequena
+ * que restar (até EVEN_GAP) vai para o último card da coluna mais baixa, num espaçador antes do fim dele
+ * (.notas-fill). Com sobra maior, o card de apoio fica do tamanho dele e parado no alto enquanto a lista rola.
  */
-const FILL_GAP = 80;
+const EVEN_GAP = 64;
+/** Diferença que já não vale tirar um item (px). */
+const CUT_SLACK = 24;
 
 /**
- * fit: a lateral tem um card que pode mostrar menos itens (as próximas avaliações do responsável). Lado a lado, ele
- * tira um por vez enquanto a lateral passar mais de FILL_GAP do fim da lista; a lista mudou de altura (busca, largura),
- * recomeça do máximo. Assim o número depende só da lista de agora. Um embaixo do outro, mostra o máximo.
+ * fit: a lateral tem um card que pode mostrar menos itens (as próximas avaliações do responsável). limit vai de max
+ * até 0 (o card só com o título e o caminho "Ver todas") e -1 (sem o card). Lado a lado, tira um por vez enquanto a
+ * lateral passar do fim da lista; se o corte deixa a lista mais comprida que a lateral por mais do que antes, o
+ * item volta. A lista mudou de altura (busca, largura), recomeça do máximo. Um embaixo do outro, mostra o máximo.
  */
 type SideFit = { limit: number; max: number; onLimit: (limit: number) => void };
+
+/** Altura do conteúdo de uma coluna, sem os espaçadores (.notas-fill) que esticam o último card. */
+function naturalHeight(column: HTMLElement) {
+  const kids = (Array.from(column.children) as HTMLElement[]).filter((kid) => kid.offsetHeight > 0);
+  if (!kids.length) {
+    return 0;
+  }
+  const gap = parseFloat(getComputedStyle(column).rowGap) || 0;
+  const spacers = (Array.from(column.querySelectorAll(".notas-fill")) as HTMLElement[]).reduce(
+    (sum, spacer) => sum + spacer.offsetHeight,
+    0
+  );
+  return kids.reduce((sum, kid) => sum + kid.offsetHeight, 0) + gap * (kids.length - 1) - spacers;
+}
 
 function NotasColumns({
   children,
   side,
   fit,
   fitKey = "",
+  wideFrom = 1200,
 }: {
   children: ReactNode;
   side: ReactNode;
   fit?: SideFit;
+  /** Largura (px) em que as colunas ficam lado a lado; a mesma do CSS (.notas-layout, .notas-aluno em notas.css). */
+  wideFrom?: number;
   /** Mudou (a busca do menu, por exemplo), o ajuste recomeça do máximo, como quando a tela abre. */
   fitKey?: string;
 }) {
@@ -707,7 +745,11 @@ function NotasColumns({
   const fitFor = useRef<number | null>(null);
   const fitKeyRef = useRef(fitKey);
   const restart = useRef(false);
+  // sobra da lateral antes do último corte (para devolver o item se o corte piorou) e se o ajuste já parou
+  const cutFrom = useRef<number | null>(null);
+  const settled = useRef(false);
   const updateRef = useRef<(() => void) | null>(null);
+  const [even, setEven] = useState(false);
   useLayoutEffect(() => {
     fitRef.current = fit;
     if (fitKeyRef.current !== fitKey) {
@@ -723,23 +765,41 @@ function NotasColumns({
     if (!main || !column) {
       return;
     }
-    const wide = window.matchMedia("(min-width: 1200px)");
+    const wide = window.matchMedia(`(min-width: ${wideFrom}px)`);
     const update = () => {
       const sideFit = fitRef.current;
-      if (!sideFit) {
-        return;
-      }
-      const gap = main.offsetHeight - column.offsetHeight;
-      const changed = restart.current || (fitFor.current !== null && Math.abs(fitFor.current - main.offsetHeight) > 2);
+      const heightMain = naturalHeight(main);
+      const heightSide = naturalHeight(column);
+      const changed = restart.current || (fitFor.current !== null && Math.abs(fitFor.current - heightMain) > 2);
       restart.current = false;
-      fitFor.current = main.offsetHeight;
-      if (sideFit.limit < sideFit.max && (!wide.matches || changed)) {
-        sideFit.onLimit(sideFit.max);
-        return;
+      fitFor.current = heightMain;
+      if (sideFit) {
+        if (changed) {
+          settled.current = false;
+          cutFrom.current = null;
+        }
+        if (sideFit.limit < sideFit.max && (!wide.matches || changed)) {
+          sideFit.onLimit(sideFit.max);
+          return;
+        }
+        const over = heightSide - heightMain;
+        if (cutFrom.current !== null) {
+          const before = cutFrom.current;
+          cutFrom.current = null;
+          if (-over > before) {
+            settled.current = true;
+            sideFit.onLimit(sideFit.limit + 1);
+            return;
+          }
+        }
+        if (wide.matches && !settled.current && over > CUT_SLACK && sideFit.limit > -1) {
+          cutFrom.current = over;
+          sideFit.onLimit(sideFit.limit - 1);
+          return;
+        }
       }
-      if (wide.matches && -gap > FILL_GAP && sideFit.limit > 0) {
-        sideFit.onLimit(sideFit.limit - 1);
-      }
+      const gap = Math.abs(heightSide - heightMain);
+      setEven(wide.matches && gap > 1 && gap <= EVEN_GAP);
     };
     updateRef.current = update;
     update();
@@ -752,9 +812,9 @@ function NotasColumns({
       wide.removeEventListener("change", update);
       updateRef.current = null;
     };
-  }, []);
+  }, [wideFrom]);
   return (
-    <div className="notas-layout">
+    <div className={cx("notas-layout", even && "is-even")}>
       <div ref={mainRef} className="notas-main">
         {children}
       </div>
@@ -765,6 +825,7 @@ function NotasColumns({
   );
 }
 
+/** "2 publicadas" (verde) e "1 aguardando" (amarelo) no canto do card da disciplina. */
 function GroupCounts({ group }: { group: GroupView }) {
   if (!group.published && !group.awaiting) {
     return (
@@ -1065,9 +1126,10 @@ function WhoSeesCard({ state, onOpenProfile }: { state: ReturnType<typeof useMyG
         }
       />
       <div className="mt-4">{body}</div>
-      {/* o rodapé vem logo depois do conteúdo: o card não estica até a altura do vizinho (decisão 5) */}
+      <div className="notas-fill" aria-hidden />
+      {/* o rodapé vem logo depois do conteúdo; só a pequena sobra das colunas quase iguais entra antes dele */}
       <div className="mt-4">
-        <button className={cx(secondaryButton, "w-full")} onClick={onOpenProfile} type="button">
+        <button className={cx(secondaryButton, "notas-who-btn")} onClick={onOpenProfile} type="button">
           {/* o mesmo ícone do perfil no menu e do "Alterar no perfil" de Lembretes */}
           <Settings2 className="h-4 w-4" aria-hidden />
           Alterar no perfil
@@ -1116,7 +1178,12 @@ function UpcomingCard({
     subtitle = onOpenCalendar ? (
       // numa linha só, na largura da lateral: "A mais próxima de 3. Ver todas"
       <>
-        {lead ?? (shown.length === 1 ? `A mais próxima de ${list.length}.` : `As ${shown.length} mais próximas de ${list.length}.`)}{" "}
+        {lead ??
+          (shown.length === 0
+            ? `${countText(list.length, "avaliação marcada", "avaliações marcadas")}.`
+            : shown.length === 1
+              ? `A mais próxima de ${list.length}.`
+              : `As ${shown.length} mais próximas de ${list.length}.`)}{" "}
         <button
           className="link notas-up-more"
           aria-label="Ver todas no cronograma"
@@ -1164,12 +1231,13 @@ function UpcomingCard({
             );
           })}
         </ul>
-      ) : (
+      ) : list.length ? null : (
         <p className="notas-up-none">Nenhuma prova ou trabalho marcado por enquanto.</p>
       )}
+      <div className="notas-fill" aria-hidden />
       {foot ? (
         <div className="notas-up-foot">
-          <button className="link min-h-6" onClick={onOpenCalendar} type="button">
+          <button className="link link-solto" onClick={onOpenCalendar} type="button">
             {more ? `Ver as ${list.length} no cronograma` : "Ver no cronograma"}
             <ArrowRight className="h-4 w-4" aria-hidden />
           </button>
@@ -1226,9 +1294,10 @@ function GuardianSeesCard({
           ? "Média da turma e notas de colegas não aparecem."
           : "Aluno maior de idade decide quem vê as notas e pode mudar isso a qualquer hora no perfil."}
       </p>
+      <div className="notas-fill" aria-hidden />
       <div className="card-foot">
         {/* quem lê é o próprio responsável: o card já se chama "O que você vê" (decisão 10) */}
-        <button className="link min-h-6" onClick={onOpenData} type="button">
+        <button className="link link-solto" onClick={onOpenData} type="button">
           Ver detalhes do que você vê
           <ArrowRight className="h-4 w-4" aria-hidden />
         </button>

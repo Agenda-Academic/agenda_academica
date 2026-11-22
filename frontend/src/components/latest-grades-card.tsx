@@ -319,14 +319,16 @@ export function LatestGradesCard({
     );
   } else if (grades.status === "error") {
     body = (
-      <div className="empty-inline compact mt-3.5" role="alert">
-        <span className="empty-ico bg-[#ffe4e8] text-[#be123c]">
-          <TriangleAlert className="h-5 w-5" aria-hidden />
+      // o estado vazio único (decisão 3): círculo de 40 px (vermelho claro, por ser erro), título 15/600, texto em
+      // muted e a ação em btn-s btn-sm
+      <div className="empty-inline compact notas-last-err mt-3.5" role="alert">
+        <span className="empty-ico">
+          <TriangleAlert aria-hidden />
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-ink">Não foi possível carregar as notas</p>
-          <p className="mt-0.5 text-sm leading-5 text-muted wrap-anywhere">{errorMessage(grades.error)}</p>
-          <RetryButton className={cx(secondaryButton, "btn-sm mt-2.5")} onRetry={grades.retry} retrying={grades.retrying} />
+        <div className="empty-body">
+          <p className="empty-t">Não foi possível carregar as notas</p>
+          <p className="empty-s">{errorMessage(grades.error)}</p>
+          <RetryButton className={cx(secondaryButton, "btn-sm")} onRetry={grades.retry} retrying={grades.retrying} />
         </div>
       </div>
     );
@@ -362,7 +364,8 @@ export function LatestGradesCard({
     body = (
       <ul className="notas-last">
         {shown.map((item) => (
-          <li key={item.eventId}>
+          // data-fill-row: com as colunas do Painel quase iguais, a pequena sobra é repartida entre as linhas
+          <li key={item.eventId} data-fill-row>
             <button className="notas-last-btn" onClick={() => onSeeAll(item.eventId)} type="button">
               <span className="min-w-0 flex-1">
                 <span className="notas-last-t">{item.title}</span>
@@ -381,7 +384,7 @@ export function LatestGradesCard({
   const footer =
     grades.status === "idle" ? null : (
       <div className="card-foot">
-        <button className="link min-h-6" onClick={() => onSeeAll()} type="button">
+        <button className="link link-solto" onClick={() => onSeeAll()} type="button">
           {list.length ? showAllText("Ver todas", list.length) : "Ver notas"}
           <ArrowRight className="h-4 w-4" aria-hidden />
         </button>
