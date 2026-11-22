@@ -33,7 +33,7 @@ export default await Env.create(new URL('../', import.meta.url), {
   DEMO_ACCOUNTS: Env.schema.boolean.optional(),
   // E-mails que viram administração ao entrar com o Google, separados por vírgula
   ADMIN_EMAILS: Env.schema.string.optional(),
-  // Fuso da instituição (datas sem fuso e horários dos e-mails). Padrão: America/Sao_Paulo.
+  // Fuso da instituição (datas sem fuso, horários dos e-mails e datas do seed). Padrão: America/Campo_Grande (MS).
   APP_TIMEZONE: Env.schema.string.optional(),
 
   // Session

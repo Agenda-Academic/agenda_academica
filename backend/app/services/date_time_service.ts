@@ -1,12 +1,14 @@
 import env from '#start/env'
 import { DateTime } from 'luxon'
 
-const DEFAULT_ZONE = 'America/Sao_Paulo'
+const DEFAULT_ZONE = 'America/Campo_Grande'
 
 /**
  * Fuso da instituição (APP_TIMEZONE), usado nas datas que chegam sem fuso (as do PDF do
- * calendário) e nos horários escritos nos e-mails. O campus de Três Lagoas, em MS, é
- * America/Campo_Grande; sem a variável vale America/Sao_Paulo. Valor inválido também cai no padrão.
+ * calendário), nos horários escritos nos e-mails e nas datas do seed. O campus de Três Lagoas
+ * fica em Mato Grosso do Sul (UTC-4, sem horário de verão), então o padrão é
+ * America/Campo_Grande: sem a variável, o servidor já fala a hora do campus. Valor inválido
+ * também cai no padrão.
  */
 export function appTimezone() {
   const zone = env.get('APP_TIMEZONE')?.trim()

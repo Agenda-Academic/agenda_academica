@@ -776,7 +776,7 @@ export async function downloadTemplate(info: GradeEventInfo, students: TemplateS
     ];
   });
   const withGrades = students.some((student) => student.grade);
-  const date = new Date(info.startsAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const date = new Date(info.startsAt).toLocaleDateString("pt-BR", { timeZone: "America/Campo_Grande" });
   const label = { fontWeight: "bold" as const };
   const howTo: SheetData = [
     [{ value: `Notas de ${info.title}`, fontWeight: "bold" as const, fontSize: 14 }],

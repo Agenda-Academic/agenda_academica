@@ -137,7 +137,8 @@ node ace db:seed
 ```
 
 > Datas: o backend normaliza datas para UTC ao gravar; entradas sem offset são
-> interpretadas como `America/Sao_Paulo`. O frontend sempre envia ISO com offset.
+> interpretadas no fuso da instituição (`APP_TIMEZONE`, padrão `America/Campo_Grande`,
+> o horário de Mato Grosso do Sul). O frontend sempre envia ISO com offset.
 
 ## Deploy (Vercel + Render)
 

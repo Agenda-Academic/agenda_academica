@@ -12,11 +12,12 @@ import Notification from '#models/notification'
 import Subject from '#models/subject'
 import TeachingAssignment from '#models/teaching_assignment'
 import User from '#models/user'
+import { appTimezone } from '#services/date_time_service'
 import { DateTime } from 'luxon'
 
-/** Dia letivo às `hour` horas (America/Sao_Paulo), normalizado para UTC; sábado e domingo vão para a segunda. */
+/** Dia letivo às `hour` horas no fuso da instituição (MS), normalizado para UTC; sábado e domingo vão para a segunda. */
 function classDay(days: number, hour: number, minute = 0) {
-  let day = DateTime.now().setZone('America/Sao_Paulo').startOf('day').plus({ days })
+  let day = DateTime.now().setZone(appTimezone()).startOf('day').plus({ days })
   while (day.weekday > 5) day = day.plus({ days: 1 })
   return day.plus({ hours: hour, minutes: minute }).toUTC()
 }
