@@ -522,6 +522,12 @@ const routes = {
     tokens: [{"old":"/api/v1/events/:id/grades/publish","type":0,"val":"api","end":""},{"old":"/api/v1/events/:id/grades/publish","type":0,"val":"v1","end":""},{"old":"/api/v1/events/:id/grades/publish","type":0,"val":"events","end":""},{"old":"/api/v1/events/:id/grades/publish","type":1,"val":"id","end":""},{"old":"/api/v1/events/:id/grades/publish","type":0,"val":"grades","end":""},{"old":"/api/v1/events/:id/grades/publish","type":0,"val":"publish","end":""}],
     types: placeholder as Registry['grades.unpublish']['types'],
   },
+  'grades.bulk_update': {
+    methods: ["PUT"],
+    pattern: '/api/v1/events/:id/grades',
+    tokens: [{"old":"/api/v1/events/:id/grades","type":0,"val":"api","end":""},{"old":"/api/v1/events/:id/grades","type":0,"val":"v1","end":""},{"old":"/api/v1/events/:id/grades","type":0,"val":"events","end":""},{"old":"/api/v1/events/:id/grades","type":1,"val":"id","end":""},{"old":"/api/v1/events/:id/grades","type":0,"val":"grades","end":""}],
+    types: placeholder as Registry['grades.bulk_update']['types'],
+  },
   'grades.update': {
     methods: ["PUT"],
     pattern: '/api/v1/events/:id/grades/:studentId',

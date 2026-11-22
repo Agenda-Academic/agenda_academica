@@ -45,6 +45,7 @@ type ImportRowItem = {
   identifier?: string | null
   kind: string
   message: string | null
+  rawScore?: string | null
   student: { id: number; fullName: string } | null
   score: number | null
   previousScore: number | null
@@ -444,6 +445,125 @@ test.group('Fase 3: notas', (group) => {
       await Notification.query().where('kind', 'grades_published').where('userId', diogo.id),
       0
     )
+  })
+
+  test('importação: Falta e Dispensa (ou F e D) da coluna Situação viram falta e dispensa sem nota', async ({
+    client,
+    assert,
+  }) => {
+    const { tads, diogo, maraisa, mathExam } = await demo()
+    const caio = await addStudent(tads, 'caio@agenda.test', 'Caio Lima')
+    const bia = await addStudent(tads, 'bia@agenda.test', 'Bia Souza')
+    const edu = await addStudent(tads, 'edu@agenda.test', 'Edu Rocha')
+    const gil = await addStudent(tads, 'gil@agenda.test', 'Gil Prado')
+    const hugo = await addStudent(tads, 'hugo@agenda.test', 'Hugo Reis')
+    const token = await loginAs(client, maraisa.email)
+    // Edu já tem falta e Gil já tem nota 7 na Agenda.
+    await expectStatus(putGrade(client, token, mathExam.id, edu.id, { status: 'absent' }), 201)
+    await expectStatus(putGrade(client, token, mathExam.id, gil.id, { score: 700 }), 201)
+
+    const draft = await createImport(
+      client,
+      token,
+      importBody(mathExam.id, [
+        { rowNumber: 2, identifier: diogo.email, score: 'Falta' },
+        { rowNumber: 3, identifier: caio.email, score: 'D' },
+        { rowNumber: 4, identifier: bia.email, score: ' dispensa ' },
+        { rowNumber: 5, identifier: edu.email, score: 'falta' },
+        { rowNumber: 6, identifier: gil.email, score: 'F' },
+        { rowNumber: 7, identifier: hugo.email, score: 'Falta' },
+        { rowNumber: 8, identifier: hugo.email, score: '8' },
+        { rowNumber: 9, identifier: 'ninguem@agenda.test', score: 'Faltou muito' },
+      ])
+    )
+    const byRow = new Map(draft.rows!.map((row) => [row.rowNumber, row]))
+    assert.equal(byRow.get(2)?.kind, 'new')
+    assert.isNull(byRow.get(2)?.score)
+    assert.equal(byRow.get(3)?.kind, 'new')
+    assert.equal(byRow.get(4)?.kind, 'new')
+    // Mesma situação que já está na Agenda: igual, não muda nada.
+    assert.equal(byRow.get(5)?.kind, 'same')
+    // Tinha 7 e a planilha diz falta: muda.
+    assert.equal(byRow.get(6)?.kind, 'changed')
+    assert.equal(byRow.get(6)?.previousScore, 700)
+    // Falta numa linha e nota na outra para o mesmo aluno: as duas ficam de fora.
+    assert.equal(byRow.get(7)?.kind, 'duplicate')
+    assert.equal(byRow.get(8)?.kind, 'duplicate')
+    assert.deepEqual(draft.totals, { new: 3, changed: 1, same: 1, newerInAgenda: 0, rejected: 3 })
+
+    const applied = await expectStatus(
+      client.post(`${API}/grade-imports/${draft.id}/apply`).bearerToken(token).json({}),
+      200
+    )
+    const result = (
+      applied.body() as unknown as Envelope<{ applied: { created: number; updated: number } }>
+    ).data.applied
+    assert.equal(result.created, 3)
+    assert.equal(result.updated, 1)
+
+    const gradeOf = (studentId: number) =>
+      Grade.query()
+        .where('academicEventId', mathExam.id)
+        .where('studentId', studentId)
+        .firstOrFail()
+    const [diogoGrade, caioGrade, biaGrade, eduGrade, gilGrade] = await Promise.all(
+      [diogo, caio, bia, edu, gil].map((student) => gradeOf(student.id))
+    )
+    assert.deepEqual([diogoGrade.status, diogoGrade.score], ['absent', null])
+    assert.deepEqual([caioGrade.status, caioGrade.score], ['excused', null])
+    assert.deepEqual([biaGrade.status, biaGrade.score], ['excused', null])
+    assert.deepEqual([eduGrade.status, eduGrade.score], ['absent', null])
+    assert.deepEqual([gilGrade.status, gilGrade.score], ['absent', null])
+    assert.isUndefined(await scoreOf(mathExam.id, hugo.id))
+    const gilChange = await GradeChange.query()
+      .where('gradeId', gilGrade.id)
+      .where('gradeImportId', draft.id)
+      .firstOrFail()
+    assert.deepEqual(
+      [gilChange.oldScore, gilChange.oldStatus, gilChange.newScore, gilChange.newStatus],
+      [700, 'graded', null, 'absent']
+    )
+
+    // Desfazer volta o 7 do Gil e apaga as faltas e dispensas que a importação criou.
+    await expectStatus(client.delete(`${API}/grade-imports/${draft.id}`).bearerToken(token), 200)
+    const gilBack = await gradeOf(gil.id)
+    assert.deepEqual([gilBack.status, gilBack.score], ['graded', 700])
+    assert.isUndefined(await scoreOf(mathExam.id, diogo.id))
+    assert.isUndefined(await scoreOf(mathExam.id, caio.id))
+  })
+
+  test('importação: nota e Falta ou Dispensa na mesma linha ("8,5 e Falta") fica com problema, sem gravar nada', async ({
+    client,
+    assert,
+  }) => {
+    const { tads, diogo, maraisa, mathExam } = await demo()
+    const caio = await addStudent(tads, 'caio@agenda.test', 'Caio Lima')
+    const token = await loginAs(client, maraisa.email)
+
+    const draft = await createImport(
+      client,
+      token,
+      importBody(mathExam.id, [
+        { rowNumber: 2, identifier: diogo.email, score: '8.5 e Falta' },
+        { rowNumber: 3, identifier: caio.email, score: '7,5 e Dispensa' },
+      ])
+    )
+    const byRow = new Map(draft.rows!.map((row) => [row.rowNumber, row]))
+    assert.equal(byRow.get(2)?.kind, 'invalid')
+    assert.equal(byRow.get(2)?.rawScore, '8.5 e Falta')
+    // a conferência diz o que a planilha traz, em vez de "nota inválida": a nota e a situação, para escolher uma
+    assert.equal(
+      byRow.get(2)?.message,
+      'A linha tem a nota 8,5 e Falta na Situação. Deixe só uma e importe de novo.'
+    )
+    assert.equal(byRow.get(3)?.kind, 'invalid')
+    assert.equal(
+      byRow.get(3)?.message,
+      'A linha tem a nota 7,5 e Dispensa na Situação. Deixe só uma e importe de novo.'
+    )
+    assert.deepEqual(draft.totals, { new: 0, changed: 0, same: 0, newerInAgenda: 0, rejected: 2 })
+    assert.isUndefined(await scoreOf(mathExam.id, diogo.id))
+    assert.isUndefined(await scoreOf(mathExam.id, caio.id))
   })
 
   test('desfazer restaura o valor anterior, apaga o que a importação criou e recusa com 409 se a nota mudou depois', async ({

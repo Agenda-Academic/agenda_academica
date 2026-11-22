@@ -5,6 +5,9 @@ import type {
   AdminGuardianLink,
   ApiConflictCode,
   AppNotification,
+  BulkGradeError,
+  BulkGradeInput,
+  BulkGradesResult,
   CalendarImport,
   ClaimLinkResult,
   ClassDetail,
@@ -1002,6 +1005,46 @@ export function saveGrade(token: string, eventId: number, studentId: number, inp
     method: "PUT",
     body: input,
   });
+}
+
+/**
+ * Lançamento em lote da planilha de notas (tudo ou nada). Cada linha passa pelas mesmas regras do saveGrade:
+ * score em centésimos de 0 até maxScore com status "graded"; "absent"/"excused" sem score; "cleared" apaga.
+ * Aluno ativo na turma (ou que já tem nota). Devolve o relatório do evento inteiro (EventGrades), o resumo e,
+ * com as notas já publicadas, quantos alunos e responsáveis foram avisados da mudança.
+ * Erros: 422 com uma entrada por linha ruim e nada gravado (leia com bulkGradeErrorsOf); 403 docente de outra
+ * disciplina ou perfil sem acesso; 404 evento que não vê; 409 ARCHIVED (turma arquivada) ou NOT_GRADABLE.
+ */
+export function saveGradesBulk(token: string, eventId: number, grades: BulkGradeInput[]) {
+  return request<BulkGradesResult>(token, `/events/${eventId}/grades`, { method: "PUT", body: { grades } });
+}
+
+/**
+ * Erros por linha de um 422 do saveGradesBulk, para marcar cada célula. A API manda field "grades.<i>.<campo>",
+ * index e studentId; erro do VineJS (sem index) também é lido pelo field. Outro erro: lista vazia.
+ */
+export function bulkGradeErrorsOf(error: unknown, sent: BulkGradeInput[] = []): BulkGradeError[] {
+  if (!(error instanceof ApiError) || error.status !== 422) {
+    return [];
+  }
+  const list: BulkGradeError[] = [];
+  for (const item of error.errors) {
+    const match = /^grades\.(\d+)\.(score|studentId|status)$/.exec(item.field ?? "");
+    if (!match) {
+      continue;
+    }
+    const extra = item as typeof item & { index?: unknown; studentId?: unknown };
+    const index = typeof extra.index === "number" ? extra.index : Number(match[1]);
+    const studentId = typeof extra.studentId === "number" ? extra.studentId : (sent[index]?.studentId ?? 0);
+    list.push({
+      index,
+      studentId,
+      field: match[2] as BulkGradeError["field"],
+      rule: item.rule ?? "invalid",
+      message: item.message,
+    });
+  }
+  return list;
 }
 
 /** Publica (avisa alunos e responsáveis). message pronta. Sem nota: 409 NO_GRADES. */

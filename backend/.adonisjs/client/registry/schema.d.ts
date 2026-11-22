@@ -1039,6 +1039,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/grades_controller').default['unpublish']>>>
     }
   }
+  'grades.bulk_update': {
+    methods: ["PUT"]
+    pattern: '/api/v1/events/:id/grades'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/grades').bulkGradesValidator)>>
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: ExtractQuery<InferInput<(typeof import('#validators/grades').bulkGradesValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/grades_controller').default['bulkUpdate']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/grades_controller').default['bulkUpdate']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
   'grades.update': {
     methods: ["PUT"]
     pattern: '/api/v1/events/:id/grades/:studentId'

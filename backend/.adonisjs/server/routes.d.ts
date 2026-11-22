@@ -90,6 +90,7 @@ export type ScannedRoutes = {
     'grades.index': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'grades.publish': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'grades.unpublish': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'grades.bulk_update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'grades.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'studentId': ParamValue} }
     'grades.mine': { paramsTuple?: []; params?: {} }
     'grades.student': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -197,6 +198,7 @@ export type ScannedRoutes = {
     'classes.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'class_subjects.update_assignment': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'subjects.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'grades.bulk_update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'grades.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'studentId': ParamValue} }
   }
   DELETE: {

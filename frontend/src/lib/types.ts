@@ -605,6 +605,44 @@ export type EventGrades = {
 /** PUT /events/:id/grades/:studentId: score em centésimos (null apaga), ou status falta/dispensa sem score. */
 export type GradeInput = { score?: number | null; status?: GradeStatus };
 
+/**
+ * Situação de uma linha no lançamento em lote: as da nota, mais "cleared" (apaga a nota; a célula vazia nunca
+ * vira zero).
+ */
+export type BulkGradeStatus = GradeStatus | "cleared";
+
+/**
+ * Uma linha do PUT /events/:id/grades (planilha de notas). score em centésimos (750 é 7,5), de 0 até
+ * event.maxScore, obrigatório com status "graded"; com "absent", "excused" ou "cleared" vai sem score (ou null).
+ */
+export type BulkGradeInput = { studentId: number; score?: number | null; status: BulkGradeStatus };
+
+/** O que o lote mudou. unchanged: linhas iguais ao que já estava gravado (não contam como alteração). */
+export type BulkGradesSummary = { created: number; updated: number; cleared: number; unchanged: number };
+
+/**
+ * Resposta do PUT /events/:id/grades: o relatório do evento atualizado (o mesmo formato do GET, para trocar o
+ * estado da gaveta de uma vez), o resumo e quem foi avisado. notified null: as notas ainda não estão
+ * publicadas, então ninguém é avisado. message pronta ("3 notas salvas. Avisamos 2 alunos e 1 responsável da
+ * mudança.").
+ */
+export type BulkGradesResult = {
+  data: EventGrades;
+  summary: BulkGradesSummary;
+  notified: { students: number; guardians: number } | null;
+  message: string;
+};
+
+/** Erro de uma linha do lote (422): índice da linha enviada, aluno, campo da linha, regra e frase pronta. */
+export type BulkGradeError = {
+  index: number;
+  studentId: number;
+  field: "score" | "studentId" | "status";
+  /** range, required, prohibited, points, not_in_class, distinct (ou a regra do VineJS). */
+  rule: string;
+  message: string;
+};
+
 /** POST /events/:id/grades/publish. */
 export type PublishGradesResult = {
   eventId: number;

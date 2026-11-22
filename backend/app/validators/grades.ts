@@ -68,3 +68,29 @@ export const updateGradeValidator = withMessages(
     status: vine.enum(GRADE_STATUSES).optional(),
   })
 )
+
+/** Situações aceitas no lançamento em lote: as da nota e `cleared` (apaga a nota). */
+export const BULK_GRADE_STATUSES = [...GRADE_STATUSES, 'cleared'] as const
+export type BulkGradeStatus = (typeof BULK_GRADE_STATUSES)[number]
+
+/** Linhas por lançamento em lote (a planilha manda a turma inteira de uma vez). */
+export const MAX_BULK_GRADES = 500
+
+/**
+ * PUT /events/:id/grades: a planilha de notas manda todas as linhas alteradas de uma vez.
+ * `score` em centésimos como no PUT por aluno; `status` obrigatório em cada linha.
+ */
+export const bulkGradesValidator = withMessages(
+  vine.create({
+    grades: vine
+      .array(
+        vine.object({
+          studentId: vine.number().withoutDecimals().min(1),
+          score: vine.number().withoutDecimals().min(0).max(100_000).nullable().optional(),
+          status: vine.enum(BULK_GRADE_STATUSES),
+        })
+      )
+      .minLength(1)
+      .maxLength(MAX_BULK_GRADES),
+  })
+)

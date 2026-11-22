@@ -125,6 +125,58 @@ export function parseScore(raw: unknown, maxScore: number): ParsedScore {
   return { ok: true, score: cents }
 }
 
+type ParsedImportScore =
+  | { ok: true; score: number; status: 'graded' }
+  | { ok: true; score: null; status: 'absent' | 'excused' }
+  | { ok: false; message: string }
+
+/** Palavras da coluna Situação (ou da nota) que a planilha baixada usa para falta e dispensa. */
+const STATUS_WORDS: Record<string, 'absent' | 'excused'> = {
+  f: 'absent',
+  falta: 'absent',
+  faltou: 'absent',
+  d: 'excused',
+  dispensa: 'excused',
+  dispensado: 'excused',
+  dispensada: 'excused',
+}
+
+/**
+ * Célula da importação: a nota como em `parseScore` ou a situação. "Falta" e "Dispensa" (ou F e
+ * D, sem diferença de maiúscula, acento ou espaço) viram falta ou dispensa sem nota, como sai na
+ * coluna Situação da planilha baixada.
+ */
+export function parseImportScore(raw: unknown, maxScore: number): ParsedImportScore {
+  if (typeof raw === 'string') {
+    const status = STATUS_WORDS[normalizeName(raw).replace(/[\s.]/g, '')]
+    if (status) {
+      return { ok: true, score: null, status }
+    }
+    // nota e Falta ou Dispensa na mesma linha (o front junta a coluna Situação: "8,5 e Falta"): nenhuma das
+    // duas vale sozinha. A linha fica de fora e diz o que a planilha traz, para a docente escolher uma.
+    const both = /^\s*(\S+)\s+e\s+(.+?)\s*$/.exec(raw)
+    const word = both ? STATUS_WORDS[normalizeName(both[2]).replace(/[\s.]/g, '')] : undefined
+    if (both && word && parseScore(both[1], Number.MAX_SAFE_INTEGER).ok) {
+      const label = word === 'absent' ? 'Falta' : 'Dispensa'
+      return {
+        ok: false,
+        message: `A linha tem a nota ${both[1].replace('.', ',')} e ${label} na Situação. Deixe só uma e importe de novo.`,
+      }
+    }
+  }
+  const parsed = parseScore(raw, maxScore)
+  return parsed.ok ? { ok: true, score: parsed.score, status: 'graded' } : parsed
+}
+
+/** Situação da linha da prévia: com nota é `graded`; sem nota, a falta ou dispensa do `rawScore`. */
+function rowStatus(row: { score: number | null; rawScore: string | null }, maxScore: number) {
+  if (row.score !== null) {
+    return 'graded' as const
+  }
+  const parsed = parseImportScore(row.rawScore, maxScore)
+  return parsed.ok && parsed.score === null ? parsed.status : null
+}
+
 /** Linha como chega do front: só as colunas mapeadas, já lidas do CSV ou do XLSX. */
 export type ImportRowInput = {
   rowNumber?: number
@@ -331,11 +383,12 @@ export default class GradeService {
         })
         return
       }
-      const parsed = parseScore(row.score, maxScore)
+      const parsed = parseImportScore(row.score, maxScore)
       if (!parsed.ok) {
         classified.push({ ...base, studentId: enrollment.userId, message: parsed.message })
         return
       }
+      // Falta e dispensa vão sem nota; a situação sai de novo do `rawScore` ("Falta", "D").
       classified.push({
         ...base,
         studentId: enrollment.userId,
@@ -343,6 +396,7 @@ export default class GradeService {
         kind: 'new',
       })
     })
+    const statusOf = (row: ClassifiedRow) => rowStatus(row, maxScore)
 
     // O mesmo aluno em mais de uma linha: com a mesma nota, vale a primeira; com notas
     // diferentes, nenhuma vale, para a docente corrigir o arquivo.
@@ -356,7 +410,9 @@ export default class GradeService {
       if (group.length < 2) {
         continue
       }
-      const sameScore = group.every((row) => row.score === group[0].score)
+      const sameScore = group.every(
+        (row) => row.score === group[0].score && statusOf(row) === statusOf(group[0])
+      )
       const lines = group.map((row) => row.rowNumber).join(', ')
       for (const [position, row] of group.entries()) {
         if (sameScore && position === 0) {
@@ -379,7 +435,7 @@ export default class GradeService {
       }
       row.previousScore = existing.score
       row.previousStatus = existing.status
-      if (existing.status === 'graded' && existing.score === row.score) {
+      if (existing.status === statusOf(row) && existing.score === row.score) {
         row.kind = 'same'
         continue
       }
@@ -472,12 +528,13 @@ export default class GradeService {
 
     const result = { created: 0, updated: 0, keptAgenda: 0, unchanged: 0, skipped: 0 }
     for (const row of rows) {
+      const status = maxScore === null ? null : rowStatus(row, maxScore)
       if (
         row.studentId === null ||
-        row.score === null ||
+        status === null ||
         !activeIds.has(row.studentId) ||
         maxScore === null ||
-        row.score > maxScore
+        (row.score !== null && row.score > maxScore)
       ) {
         result.skipped++
         continue
@@ -490,7 +547,7 @@ export default class GradeService {
         result.keptAgenda++
         continue
       }
-      if (current && current.status === 'graded' && current.score === row.score) {
+      if (current && current.status === status && current.score === row.score) {
         result.unchanged++
         continue
       }
@@ -500,7 +557,7 @@ export default class GradeService {
         studentId: row.studentId,
         current,
         score: row.score,
-        status: 'graded',
+        status,
         source: 'import',
         gradeImportId: gradeImport.id,
         actorId: actor.id,
@@ -809,6 +866,67 @@ export default class GradeService {
       }
     }
     return { students: studentIds.length, guardians }
+  }
+
+  /**
+   * Nota que mudou depois de publicada: avisa o aluno e os responsáveis com direito de ver
+   * (as mesmas regras da publicação). Nota nova vira "Nota publicada"; nota mudada ou apagada
+   * vira "Sua nota de <evento> foi atualizada". Usa o tipo `grades_published` com o mesmo
+   * link, então ocultar as notas de novo também retira estes avisos ainda não lidos.
+   */
+  static async notifyChanges(input: {
+    trx: TransactionClientContract
+    event: AcademicEvent
+    changes: { studentId: number; created: boolean }[]
+  }) {
+    const { trx, event, changes } = input
+    if (!changes.length) {
+      return { students: 0, guardians: 0 }
+    }
+    const subjectName = event.subject?.name
+    const body = subjectName ? `${subjectName}. Veja na tela Notas.` : 'Veja na tela Notas.'
+    const createdById = new Map(changes.map((change) => [change.studentId, change.created]))
+
+    for (const { studentId, created } of changes) {
+      await NotificationService.notify(
+        studentId,
+        {
+          kind: 'grades_published',
+          title: created
+            ? `Nota publicada: ${event.title}`
+            : `Sua nota de ${event.title} foi atualizada`,
+          body,
+          link: this.studentNoticeLink(event.id),
+        },
+        trx
+      )
+    }
+
+    let guardians = 0
+    const links = await GuardianLink.query({ client: trx })
+      .whereIn('studentId', [...createdById.keys()])
+      .where('status', 'active')
+      .preload('student')
+    for (const link of links) {
+      if (!effectiveShareGrades(link, link.student)) {
+        continue
+      }
+      const name = studentFirstName(link.student)
+      await NotificationService.notify(
+        link.guardianId,
+        {
+          kind: 'grades_published',
+          title: createdById.get(link.studentId)
+            ? `Nota de ${name} publicada: ${event.title}`
+            : `A nota de ${name} em ${event.title} foi atualizada`,
+          body,
+          link: this.guardianNoticeLink(link.studentId, event.id),
+        },
+        trx
+      )
+      guardians++
+    }
+    return { students: changes.length, guardians }
   }
 
   /** Oculta as notas de novo e retira os avisos de publicação que ainda não foram lidos. */

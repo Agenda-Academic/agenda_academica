@@ -16,7 +16,7 @@ import AuditLogService from '#services/audit_log_service'
 import GradeService, { formatScore, isGradable, maxScoreOf } from '#services/grade_service'
 import { effectiveShareGrades } from '#services/guardian_link_service'
 import { countOf } from '#services/query_helpers'
-import { updateGradeValidator } from '#validators/grades'
+import { bulkGradesValidator, updateGradeValidator } from '#validators/grades'
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
 
@@ -175,6 +175,177 @@ export default class GradesController {
 
     response.status(current ? 200 : 201)
     return { data: await GradeService.eventStudentRow(event, studentId, forAdmin) }
+  }
+
+  /**
+   * PUT /events/:id/grades: lançamento em lote da planilha de notas. Cada linha passa pelas
+   * mesmas regras do PUT por aluno; se alguma falha, nada é gravado (422 com o erro de cada
+   * linha em `grades.<i>.<campo>`). Tudo numa transação. Com as notas já publicadas, quem teve
+   * a nota mudada (e seus responsáveis com direito) recebe um aviso. Devolve o relatório do
+   * evento (o mesmo do GET) e o resumo do que mudou.
+   */
+  async bulkUpdate({ auth, params, request, response }: HttpContext) {
+    const user = auth.getUserOrFail()
+    if (!AcademicAccessService.allow(user, ['admin', 'teacher'])) {
+      return forbidden(response, ROLE_FORBIDDEN)
+    }
+    const loaded = await this.loadEvent(user, params.id, response)
+    if (!loaded.ok) {
+      return loaded.reply
+    }
+    const { event } = loaded
+    if (await this.isArchived(event)) {
+      return conflict(response, 'ARCHIVED', CLASS_ARCHIVED)
+    }
+
+    const { grades: rows } = await request.validateUsing(bulkGradesValidator)
+    const studentIds = [...new Set(rows.map((row) => row.studentId))]
+    const [enrollments, currentGrades] = await Promise.all([
+      Enrollment.query()
+        .where('academicClassId', event.academicClassId!)
+        .whereIn('userId', studentIds)
+        .preload('user'),
+      Grade.query().where('academicEventId', event.id).whereIn('studentId', studentIds),
+    ])
+    const activeIds = new Set(
+      enrollments
+        .filter((item) => item.status === 'active' && item.user?.role === 'student')
+        .map((item) => item.userId)
+    )
+    const gradedIds = new Set(currentGrades.map((grade) => grade.studentId))
+    const maxScore = maxScoreOf(event)
+
+    type BulkError = {
+      field: string
+      rule: string
+      message: string
+      index: number
+      studentId: number
+    }
+    const errors: BulkError[] = []
+    const seen = new Set<number>()
+    rows.forEach((row, index) => {
+      const fail = (field: string, rule: string, message: string) =>
+        errors.push({
+          field: `grades.${index}.${field}`,
+          rule,
+          message,
+          index,
+          studentId: row.studentId,
+        })
+      if (seen.has(row.studentId)) {
+        return fail('studentId', 'distinct', 'Este aluno aparece mais de uma vez na lista.')
+      }
+      seen.add(row.studentId)
+      // Aluno ativo na turma, ou quem já tem nota (para corrigir ou apagar depois de sair).
+      if (!activeIds.has(row.studentId) && !gradedIds.has(row.studentId)) {
+        return fail('studentId', 'not_in_class', STUDENT_NOT_IN_CLASS)
+      }
+      const score = row.score ?? null
+      if (row.status === 'graded') {
+        if (score === null) {
+          return fail('score', 'required', 'Informe a nota ou a situação do aluno.')
+        }
+        if (maxScore === null) {
+          return fail(
+            'score',
+            'points',
+            'Defina quanto vale a avaliação (a pontuação do evento) antes de lançar a nota.'
+          )
+        }
+        if (score > maxScore) {
+          return fail('score', 'range', `A nota precisa estar entre 0 e ${formatScore(maxScore)}.`)
+        }
+      } else if (score !== null) {
+        return fail(
+          'score',
+          'prohibited',
+          row.status === 'cleared'
+            ? 'Para apagar a nota, deixe a nota em branco.'
+            : 'Falta e dispensa não têm nota. Deixe a nota em branco.'
+        )
+      }
+    })
+    if (errors.length) {
+      return response.unprocessableEntity({ errors })
+    }
+
+    const published = event.gradesPublishedAt !== null
+    const result = await db.transaction(async (trx) => {
+      const summary = { created: 0, updated: 0, cleared: 0, unchanged: 0 }
+      const changes: { studentId: number; created: boolean }[] = []
+      const fresh = await Grade.query({ client: trx })
+        .where('academicEventId', event.id)
+        .whereIn('studentId', studentIds)
+      const currentByStudent = new Map(fresh.map((grade) => [grade.studentId, grade]))
+
+      for (const row of rows) {
+        const current = currentByStudent.get(row.studentId) ?? null
+        if (row.status === 'cleared') {
+          if (!current) {
+            summary.unchanged++
+            continue
+          }
+          await GradeService.clear({ trx, grade: current, eventId: event.id, actorId: user.id })
+          summary.cleared++
+          changes.push({ studentId: row.studentId, created: false })
+          continue
+        }
+        const status: GradeStatus = row.status
+        const score = status === 'graded' ? (row.score ?? null) : null
+        if (current && current.status === status && current.score === score) {
+          summary.unchanged++
+          continue
+        }
+        const grade = await GradeService.write({
+          trx,
+          eventId: event.id,
+          studentId: row.studentId,
+          current,
+          score,
+          status,
+          source: 'manual',
+          gradeImportId: null,
+          actorId: user.id,
+        })
+        await AuditLogService.record(
+          {
+            actorId: user.id,
+            action: current ? 'grade.update' : 'grade.create',
+            entity: 'grade',
+            entityId: grade.id,
+            subjectUserId: row.studentId,
+            // Sem o valor da nota: só ids e a situação.
+            meta: { academicEventId: event.id, status, bulk: true },
+          },
+          trx
+        )
+        summary[current ? 'updated' : 'created']++
+        changes.push({ studentId: row.studentId, created: !current })
+      }
+
+      const notified = published ? await GradeService.notifyChanges({ trx, event, changes }) : null
+      return { summary, notified }
+    })
+
+    const saved = result.summary.created + result.summary.updated + result.summary.cleared
+    let message = saved
+      ? `${saved} ${saved === 1 ? 'nota salva' : 'notas salvas'}.`
+      : 'Nenhuma nota mudou.'
+    if (result.notified && result.notified.students) {
+      const { students, guardians } = result.notified
+      const who = `${students} ${students === 1 ? 'aluno' : 'alunos'}`
+      message += guardians
+        ? ` Avisamos ${who} e ${guardians} ${guardians === 1 ? 'responsável' : 'responsáveis'} da mudança.`
+        : ` Avisamos ${who} da mudança.`
+    }
+
+    return {
+      data: await GradeService.eventReport(event, AcademicAccessService.isAdmin(user)),
+      summary: result.summary,
+      notified: result.notified,
+      message,
+    }
   }
 
   /**

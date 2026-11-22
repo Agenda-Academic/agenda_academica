@@ -168,6 +168,8 @@ router
         router.get('events/:id/grades', [GradesController, 'index'])
         router.post('events/:id/grades/publish', [GradesController, 'publish'])
         router.delete('events/:id/grades/publish', [GradesController, 'unpublish'])
+        // Lançamento em lote da planilha de notas (tudo ou nada).
+        router.put('events/:id/grades', [GradesController, 'bulkUpdate'])
         router.put('events/:id/grades/:studentId', [GradesController, 'update'])
 
         router.get('me/grades', [GradesController, 'mine'])

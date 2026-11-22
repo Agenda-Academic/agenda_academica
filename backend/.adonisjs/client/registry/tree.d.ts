@@ -133,6 +133,7 @@ export interface ApiDefinition {
     index: typeof routes['grades.index']
     publish: typeof routes['grades.publish']
     unpublish: typeof routes['grades.unpublish']
+    bulkUpdate: typeof routes['grades.bulk_update']
     update: typeof routes['grades.update']
     mine: typeof routes['grades.mine']
     student: typeof routes['grades.student']
