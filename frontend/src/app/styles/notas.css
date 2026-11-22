@@ -803,3 +803,231 @@ html .notas-kpis .kpi-top {
     align-items: flex-start;
   }
 }
+
+/* ==================================================================
+   Rodada 10: "Pantanal forte" (artefato aluno-notas-1440 com a paleta Pantanal)
+   A tela começa pelos indicadores (sem cabeçalho): o ícone num quadrado suave antes do rótulo e o número em Sora;
+   cada disciplina num card de raio 24, com a nota grande em Sora e a barra de quanto a avaliação vale ao lado,
+   crescendo ao entrar. O card "Últimas notas" do Painel usa o mesmo número. Os quadrados coloridos dos ícones
+   (.kpi-ic.k-*) vêm de painel.css.
+   ================================================================== */
+.notas-tela,
+.pnl {
+  --nt-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --nt-mola: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* entrada em cascata (--i) */
+html .notas-tela .rise {
+  animation: notas-entra 0.6s var(--nt-ease) backwards;
+  animation-delay: min(calc(var(--i, 0) * 70ms), 700ms);
+}
+
+/* ---------- indicadores ---------- */
+html .notas-tela .notas-kpis .kpi {
+  padding: 20px 22px;
+  border-radius: 24px;
+  transition:
+    transform 0.3s var(--nt-mola),
+    box-shadow 0.25s;
+}
+html .notas-tela .notas-kpis .kpi-top {
+  justify-content: flex-start;
+  gap: 10px;
+}
+html .notas-tela .notas-kpis .kpi-label {
+  font: 650 14px/1.25 var(--font);
+  color: var(--ink-3);
+}
+html .notas-tela .notas-kpis .kpi .kpi-val {
+  margin: 14px 0 6px;
+  font: 750 40px/1 var(--disp);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+html .notas-tela .notas-kpis .kpi .kpi-val.is-date {
+  font-size: 32px;
+  line-height: 40px;
+}
+html .notas-tela .notas-kpi-prox .kpi-val.notas-kpi-none {
+  font-size: 26px;
+  line-height: 40px;
+  color: var(--ink-3);
+}
+html .notas-tela .notas-kpis .kpi-hint {
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+html .notas-tela .notas-kpis .kpi-hit::after {
+  border-radius: 24px;
+}
+@media (hover: hover) and (pointer: fine) {
+  html .notas-tela .kpi.notas-kpi-prox.is-link:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 2px 4px rgb(15 36 24 / 0.05), 0 20px 34px -16px rgb(15 36 24 / 0.24);
+  }
+}
+@media (max-width: 767px) {
+  html .notas-tela .notas-kpis .kpi {
+    padding: 16px;
+    border-radius: 22px;
+  }
+  html .notas-tela .notas-kpis .kpi .kpi-val {
+    margin-top: 10px;
+    font-size: 34px;
+  }
+  html .notas-tela .notas-kpis .kpi .kpi-val.is-date {
+    font-size: 26px;
+    line-height: 34px;
+  }
+  html .notas-tela .notas-kpi-prox .kpi-val.notas-kpi-none {
+    font-size: 22px;
+    line-height: 34px;
+  }
+  html .notas-tela .notas-kpis .kpi-label {
+    font-size: 13px;
+  }
+}
+
+/* ---------- uma disciplina por card ---------- */
+html .notas-tela .notas-disc {
+  padding: 24px 26px 10px;
+  border-radius: 24px;
+}
+/* o quadrado do livro no lilás das Notas (o mesmo do menu) */
+html .notas-tela .notas-disc-ico {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #ebe3ff;
+  color: #6a4bc4;
+}
+html .notas-tela .notas-disc-head .h2 {
+  font: 700 20px/1.2 var(--disp);
+  letter-spacing: -0.02em;
+}
+html .notas-tela .notas-grade,
+html .notas-tela .notas-more,
+html .notas-tela .notas-soon {
+  border-top-color: var(--line);
+}
+html .notas-tela .notas-g-title {
+  font-size: 15.5px;
+  font-weight: 650;
+}
+
+/* a nota: o número grande em Sora e, à esquerda dele, a barra de quanto a avaliação vale (artefato). O número fica
+   na cor do texto; abaixo de 70% ele e a barra ganham o tom do desempenho (âmbar ou vermelho, .score.mid e .low) */
+html .notas-tela .notas-g-score.score {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+html :is(.notas-tela, .pnl) .score .score-n {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--disp);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+html :is(.notas-tela, .pnl) .score:is(.mid, .low) .score-n {
+  color: var(--tom);
+}
+html :is(.notas-tela, .pnl) .score .score-n small {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+html .notas-tela .notas-g-score .score-n {
+  justify-content: flex-end;
+  min-width: 92px;
+  font-size: 30px;
+  line-height: 1;
+}
+html .notas-tela .notas-g-score .score-bar {
+  width: 150px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--fill, #e6f0e4);
+}
+/* a barra no verde da marca; abaixo de 70%, no tom do desempenho. Cresce da esquerda ao entrar */
+html :is(.notas-tela, .pnl) .score .score-bar > span {
+  background: var(--brand);
+  transform-origin: left;
+  animation: notas-faixa 1s 0.45s var(--nt-ease) backwards;
+}
+html :is(.notas-tela, .pnl) .score:is(.mid, .low) .score-bar > span {
+  background: var(--tom);
+}
+/* card estreito (celular ou coluna apertada): a nota volta para cima da barra, ao lado do título */
+@container (max-width: 560px) {
+  html .notas-tela .notas-g-score.score {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  html .notas-tela .notas-g-score .score-n {
+    min-width: 0;
+    font-size: 26px;
+  }
+  html .notas-tela .notas-g-score .score-bar {
+    width: 84px;
+    height: 6px;
+  }
+}
+
+/* ---------- card "Últimas notas" do Painel: o número em Sora, sem a caixa colorida, e a barra embaixo ---------- */
+html .pnl .notas-last-v.score .score-n {
+  font-size: 26px;
+  line-height: 1;
+}
+html .pnl .notas-last-v.score .score-bar {
+  height: 6px;
+  background: var(--fill, #e6f0e4);
+}
+html .pnl .notas-last-btn {
+  border-radius: 16px;
+}
+html .pnl .notas-last-t {
+  font-size: 14.5px;
+  font-weight: 650;
+}
+
+@keyframes notas-entra {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes notas-faixa {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html .notas-tela .rise,
+  html :is(.notas-tela, .pnl) .score .score-bar > span {
+    animation: none;
+  }
+  html .notas-tela .notas-kpis .kpi {
+    transition: none;
+  }
+  html .notas-tela .kpi.notas-kpi-prox.is-link:hover {
+    transform: none;
+  }
+}

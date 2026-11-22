@@ -320,7 +320,9 @@ export function StudentJoinCard({
   const pending = pendingList(pendingEnrollments, sent);
 
   return (
-    <section className={cx("hero aluno-join rise", className)} style={delay(order)} aria-labelledby={titleId}>
+    // o destaque verde do Painel (pnl-hero, painel.css) enquanto o aluno não tem turma: o mesmo fundo dos outros
+    // destaques, com o campo do código em branco e o Entrar em amarelo ipê (aluno.css)
+    <section className={cx("hero pnl-hero aluno-join rise", className)} style={delay(order)} aria-labelledby={titleId}>
       <span className="aluno-join-ico" aria-hidden>
         <Users />
       </span>

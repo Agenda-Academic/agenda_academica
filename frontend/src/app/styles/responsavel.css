@@ -22,50 +22,46 @@
   color: var(--ink);
 }
 
-/* ---------------- cabeçalho do Painel: "Você acompanha Diogo, TADS 5" (PageHeader) ----------------
-   O curso e o período descem para uma linha própria, menor; os dois caminhos ("O que você vê" e "Acompanhar
-   outro aluno") ficam à direita do título no computador e embaixo dele no celular */
-.resp-head-line {
-  display: block;
-  margin-top: 2px;
-  font-size: var(--fs-13);
-  line-height: 1.45;
-  color: var(--muted);
+/* ---------------- card do aluno acompanhado (o que era o cabeçalho "Você acompanha Diogo, TADS 5") ----------------
+   No alto da coluna de apoio do Painel, como o card da turma do aluno (o título e os chips vêm de painel.css):
+   quem, a turma, o curso, o período, o turno e o semestre, e os dois caminhos embaixo */
+html .pnl .resp-st-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--ink-3);
 }
-.pnl .pagehead .resp-link {
+html .pnl .resp-st-who b {
+  font-weight: 700;
+  color: var(--ink);
+}
+html .pnl .resp-st-av {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+  font: 700 14px/1 var(--disp);
+}
+html .pnl .resp-st-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+}
+html .pnl .resp-st-foot .resp-link {
   white-space: nowrap;
 }
-.pnl .pagehead-a:has(.resp-link) {
-  column-gap: 20px;
-}
-@media (max-width: 639px) {
-  .pnl .pagehead-a:has(.resp-link) {
-    column-gap: 16px;
-  }
-}
 
-/* ---------------- destaque: rótulo em frase (amostra) e a frase do lembrete ---------------- */
-/* o mesmo rótulo em frase dos destaques dos outros perfis (.hero-label, painel.css) */
-.hero-kicker .resp-kicker {
-  font-size: var(--fs-13);
-  font-weight: 700;
-  color: var(--bebe-ink);
-}
+/* ---------------- destaque: a frase do lembrete (a cor sobre o verde-escuro vem de painel.css) ---------------- */
 .resp-hero-note {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 6px;
   font-size: 13px;
   line-height: 1.4;
-  color: var(--muted);
-}
-@media (max-width: 639px) {
-  .resp-hero-note {
-    flex-basis: 100%;
-    justify-content: center;
-    margin: 2px 0 0;
-    text-align: center;
-  }
 }
 
 /* o card de notas carrega sozinho: o invólucro só serve para medir a altura dele */

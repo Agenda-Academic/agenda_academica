@@ -3,7 +3,10 @@
    (.ev, .ev-group) usa seletor mais forte. */
 
 /* =====================================================================================================
-   Cronograma na direção A ("Claro e organizado"), como em amostra-a-claro/cronograma.html e calendario.html.
+   Cronograma na rodada 10, "Pantanal forte" (brief da rodada 10 e artefato-prints/aluno-cronograma-1440.png):
+   sem cabeçalho de página (a tela começa pela barra de controles), cards de raio 24 com sombra macia, selo de
+   data arredondado (o de hoje cheio na cor da marca), calendário arejado com o dia de hoje circulado a caneta e
+   entradas em cascata. Tudo com movimento desliga em prefers-reduced-motion (fim do arquivo).
    O CSS da faixa antiga de meses (.crono-bar, .crono-strip, .crono-mchip, .crono-pager) saiu: o Cronograma, a
    Gestão e a Importação usam o MonthPicker (month-pager.tsx, classes .mpick-*).
    ===================================================================================================== */
@@ -15,13 +18,55 @@
   min-width: 0;
 }
 
-/* ---------- filtros, fora do card ---------- */
+/* ---------- filtros, fora do card (a barra de controles abre a tela) ---------- */
 .crono-fbar {
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-width: 0;
-  margin: 24px 0 20px;
+  margin: 0 0 20px;
+}
+/* Agenda | Calendário: pílula branca flutuando no fundo, com a vista ativa cheia na cor da marca */
+html .crono-mode .seg {
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--r-full, 999px);
+  background: var(--surface);
+  box-shadow: var(--sh-card);
+}
+html .crono-mode .seg button {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: var(--r-full, 999px);
+  font-weight: 600;
+  color: var(--ink-3);
+  transition:
+    background-color 0.2s var(--ease),
+    color 0.2s var(--ease),
+    box-shadow 0.2s var(--ease);
+}
+html .crono-mode .seg button:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+html .crono-mode .seg .on,
+html .crono-mode .seg .on:hover {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 8px 16px -10px rgb(var(--brand-rgb) / 0.9);
+}
+html .crono-mode .seg .on svg {
+  color: #fff;
+}
+/* anel escuro na vista ativa (o verde da marca sumiria no verde do botão). !important: o anel do foco fica fora
+   das camadas (globals.css) e ganharia desta regra */
+html .crono-mode .seg .on:focus-visible {
+  outline-color: var(--ink) !important;
+}
+/* Próximos | Passados | Todos: também em pílula, na mesma linha */
+html .crono-frow > .seg,
+html .crono-frow > .seg button {
+  border-radius: var(--r-full, 999px);
 }
 .crono-frow {
   display: flex;
@@ -42,11 +87,6 @@
 .crono-total {
   font-variant-numeric: tabular-nums;
 }
-.crono-vr {
-  width: 1px;
-  height: 24px;
-  background: var(--line);
-}
 .crono-cats {
   min-width: 0;
 }
@@ -62,10 +102,11 @@
     margin: 0 8px 8px 0;
     vertical-align: top;
   }
-  /* Calendário: as categorias ficam na mesma linha da turma (ou do "Só meus"), com o divisor entre elas, e quebram
-     dentro do próprio bloco; o divisor nunca fica sozinho no fim da linha de cima */
+  /* Calendário: as categorias ficam na mesma linha da pílula Agenda | Calendário (e da turma ou do "Só meus")
+     quando cabem inteiras nela (a base "auto" é a largura de todas numa linha); senão o bloco desce inteiro para
+     a linha de baixo, em vez de se espremer em 3 linhas ao lado dos controles (admin a 1024 px) */
   html .crono-fbar.is-cal .crono-cats {
-    flex: 1 1 320px;
+    flex: 1 1 auto;
   }
 }
 /* "Só meus eventos": o interruptor com o rótulo ao lado, sem a altura extra fora do toque */
@@ -108,18 +149,26 @@ html .crono-frow .crono-mine {
 html .crono-listcard {
   padding: 0;
 }
+/* cards da tela (lista, detalhe ao lado e calendário): raio 24, sem borda dura, flutuando no fundo com a sombra
+   macia (o mesmo que o .card da base; repetido aqui para a tela não depender da ordem dos arquivos) */
+html .crono :is(.crono-listcard, .crono-detail, .cg-card) {
+  border: 0;
+  border-radius: var(--r-card, 24px);
+  background-color: var(--surface);
+  box-shadow: var(--sh-card);
+}
 
 /* ---------- lista do mês, por semana ---------- */
 .crono-list {
-  padding: 4px 20px 8px;
+  padding: 4px 20px 12px;
 }
 html .crono-list .crono-gh {
   display: block;
   margin: 0;
-  padding: 16px 0 8px;
+  padding: 18px 0 8px;
   font-size: var(--fs-13);
-  font-weight: 600;
-  color: var(--ink-3);
+  font-weight: 650;
+  color: var(--ink-2);
 }
 html .crono-list .crono-gh::after {
   content: none;
@@ -133,32 +182,88 @@ html .crono-list .crono-gh::after {
 .crono-day {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
 }
-/* linhas separadas por um fio claro; o fundo da linha (hover, escolhida) passa um pouco das bordas */
-.crono-rows > * + *,
-.crono-day > * + * {
-  border-top: 1px solid var(--line-2);
-}
-html .crono-list .ev {
+/* linha da Agenda como na amostra: sem fio entre as linhas, raio 18 e o fundo claro no hover, passando um pouco
+   das bordas do card */
+html .crono .crono-list .ev {
   width: calc(100% + 24px);
   margin: 0 -12px;
-  padding: 12px;
+  padding: 10px 12px;
   gap: 16px;
+  border-radius: 18px;
+  transition:
+    background-color 0.2s var(--ease),
+    box-shadow 0.2s var(--ease);
+}
+html .crono .crono-list .ev:hover {
+  background: var(--surface-2);
+}
+html .crono .crono-list .ev.sel,
+html .crono .crono-list .ev.sel:hover {
+  background: var(--brand-50);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brand) 32%, transparent);
 }
 html .crono-list .ev-title {
   font-size: var(--fs-15);
 }
+/* selo da data (SEG 23): quadrado de raio 16, o número em Sora. No hover ele sobe um pouco, com a mola */
+html .crono :is(.crono-list, .cg-day) .ev-date {
+  width: 54px;
+  padding: 7px 0 8px;
+  border: 0;
+  border-radius: var(--r-badge, 16px);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition:
+    transform 0.3s var(--mola),
+    background-color 0.2s var(--ease),
+    box-shadow 0.2s var(--ease);
+}
+html .crono :is(.crono-list, .cg-day) .ev-date .dw {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+html .crono :is(.crono-list, .cg-day) .ev-date .dn {
+  margin-top: 2px;
+  font-family: var(--disp);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  html .crono .crono-list .ev:hover .ev-date {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 0 0 1px var(--line-strong),
+      0 8px 14px -10px rgb(var(--shadow-rgb, 15 36 24) / 0.45);
+  }
+}
+html .crono .crono-list .ev.sel .ev-date {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 28%, transparent);
+}
+/* hora à direita em Sora, como na amostra */
+html .crono :is(.crono-list, .cg-day) .ev-time {
+  font-family: var(--disp);
+  font-size: var(--fs-15);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
 /* datas do campus (institucional, feriado, recesso): linha mais baixa e letra menor, para as provas e trabalhos
    se destacarem no meio delas. O título continua alinhado com o das provas. */
-html .crono-list .crono-item[data-campus] .ev {
-  padding-top: 9px;
-  padding-bottom: 9px;
+html .crono .crono-list .crono-item[data-campus] .ev {
+  padding-top: 7px;
+  padding-bottom: 7px;
 }
-/* o selo da data em versão de contorno (branco, sem o fundo cinza): a diferença fica clara */
-html .crono-list .crono-item[data-campus] .ev-date {
-  padding: 3px 0 4px;
+/* o selo da data em versão de contorno (branco, sem o fundo): a diferença fica clara */
+html .crono .crono-list .crono-item[data-campus] .ev-date {
+  padding: 4px 0 5px;
   background: var(--surface);
-  border: 1px solid var(--line);
 }
 html .crono-list .crono-item[data-campus] .ev-meta {
   margin-top: 2px;
@@ -168,7 +273,7 @@ html .crono-list .crono-item[data-campus] .ev-rel {
   margin-top: 1px;
   font-size: var(--fs-13);
 }
-html .crono-list .crono-item[data-campus] .ev-date .dn {
+html .crono .crono-list .crono-item[data-campus] .ev-date .dn {
   font-size: var(--fs-16);
   color: var(--ink-3);
 }
@@ -177,15 +282,41 @@ html .crono-list .crono-item[data-campus] .ev-title {
   font-weight: 500;
   color: var(--ink-2);
 }
-html .crono-list .crono-item[data-campus] .ev-time {
+html .crono .crono-list .crono-item[data-campus] .ev-time {
   font-size: var(--fs-13);
   color: var(--ink-3);
+}
+/* o selo de hoje (.ev.today, contrato da rodada 10 em ux.css): cheio na cor da marca, com o texto branco. Repetido
+   aqui com o peso das regras do Cronograma acima, que mudam o fundo do selo (escolhida, datas do campus, hover) */
+html .crono .crono-list .ev.today .ev-date,
+html .crono .crono-list .crono-item[data-campus] .ev.today .ev-date,
+html .crono .crono-list .ev.today:hover .ev-date {
+  background: var(--brand);
+  box-shadow: 0 8px 16px -10px rgb(var(--brand-rgb) / 0.9);
+}
+html .crono .crono-list .ev.today .ev-date :is(.dw, .dn, .ev-mo, .ev-yr) {
+  color: #fff;
 }
 /* várias datas no mesmo dia: o selo da data só na 1ª linha; nas outras fica o espaço dele */
 .crono-list .crono-item[data-cont] > .ev::before {
   content: "";
-  width: 48px;
+  width: 54px;
   flex-shrink: 0;
+}
+/* entrada em cascata das linhas (--i, a ordem na lista, até a 14ª). "backwards": sem transform no fim */
+.crono-list .crono-item {
+  animation: crono-in 0.42s var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+@keyframes crono-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 /* o mês na busca: para no alto, abaixo do cabeçalho do celular */
 .crono-list .crono-gh[id] {
@@ -280,8 +411,15 @@ html .crono-list .crono-item[data-campus] .ev-time {
 }
 
 /* ---------- detalhe ao lado (Agenda no computador) ---------- */
-html .crono-detail {
+/* o alto do card ganha um véu na cor da categoria (--k-bg, classe k-* do aside), que some em 180 px: o painel
+   tem a cor do evento, como a folha do artefato, sem pintar o card inteiro */
+html .crono .crono-detail {
   padding: 0;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--k-bg, var(--surface-2)) 85%, var(--surface)) 0,
+    var(--surface) 180px
+  );
 }
 html .crono-detail-x {
   position: absolute;
@@ -289,28 +427,47 @@ html .crono-detail-x {
   right: 14px;
   z-index: 1;
 }
+/* o X redondo, branco, flutuando sobre o véu */
+html .crono .crono-detail-x {
+  border-radius: var(--r-full, 999px);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  box-shadow: var(--sh-btn, 0 1px 2px rgb(15 36 24 / 0.06));
+}
+html .crono .crono-detail-x:hover {
+  background: var(--surface);
+}
 
 /* ---------- detalhe do evento (event-bits.tsx): painel ao lado e Modal ---------- */
 .evd-top {
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--line-2);
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
 }
 .evd-tags {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 10px;
-  min-height: 24px;
+  min-height: 26px;
 }
 .evd-top.has-x .evd-tags {
   padding-right: 44px;
 }
+/* categoria em pílula na cor dela (ponto, texto e fundo suave da categoria) */
+html .evd .evd-tags .cat {
+  height: 26px;
+  padding: 0 11px 0 10px;
+  border-radius: var(--r-full, 999px);
+  background: var(--k-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 18%, transparent);
+  font-weight: 650;
+}
 .evd-title {
-  margin-top: 10px;
-  font-size: var(--fs-22);
+  margin-top: 12px;
+  font-family: var(--disp);
+  font-size: 24px;
   font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
   color: var(--ink);
 }
 .evd-title.is-long {
@@ -326,9 +483,9 @@ html .crono-detail-x {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 10px;
-  margin-top: 10px;
+  margin-top: 12px;
   font-size: var(--fs-14);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--ink-2);
 }
 .evd-when .tnum {
@@ -338,7 +495,11 @@ html .crono-detail-x {
   flex: none;
   width: 16px;
   height: 16px;
-  color: var(--muted);
+  color: var(--k, var(--muted));
+}
+/* "Amanhã", "Em 4 dias": pílula */
+html .evd .evd-when .stat {
+  border-radius: var(--r-full, 999px);
 }
 .evd-src {
   margin-top: 6px;
@@ -350,31 +511,34 @@ html .crono-detail-x {
 }
 .evd-dl {
   margin: 0;
-  padding-top: 4px;
+  padding-top: 6px;
 }
+/* dados em linhas: o ícone num quadrado suave de raio 10, o rótulo e o valor */
 .evd-row {
   display: grid;
-  grid-template-columns: 22px 92px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 8px;
-  padding: 9px 0;
+  grid-template-columns: 30px 88px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
   font-size: var(--fs-14);
-}
-.evd-row + .evd-row {
-  border-top: 1px solid var(--line-2);
 }
 .evd-row-ico {
   align-self: center;
-  width: 16px;
-  height: 16px;
-  color: var(--faint);
+  box-sizing: border-box;
+  width: 30px;
+  height: 30px;
+  padding: 7px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--ink-3);
 }
 .evd-row dt {
   color: var(--muted);
 }
 .evd-row dd {
   margin: 0;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--ink);
 }
 .evd-row dd small {
@@ -383,21 +547,22 @@ html .crono-detail-x {
   font-weight: 400;
   color: var(--muted);
 }
+/* descrição como citação: o fio na cor da categoria, sem caixa (como no artefato) */
 .evd-desc {
-  padding: 12px 14px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid color-mix(in srgb, var(--k, var(--line-strong)) 55%, transparent);
   font-size: var(--fs-14);
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--ink-2);
 }
+/* lembrete numa caixa suave, de raio 18 */
 .evd-remind {
   container-type: inline-size;
   margin-top: 16px;
-  padding-top: 14px;
-  padding-bottom: 2px;
-  border-top: 1px solid var(--line-2);
+  padding: 14px 16px 12px;
+  border-radius: 18px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
 }
 .evd-remind.is-closed {
   display: flex;
@@ -460,26 +625,29 @@ html .evd-acts .ib.ev-more {
 }
 /* no painel ao lado, as seções ganham o recuo do card (no Modal, o corpo já tem o dele) */
 .evd.is-side .evd-top {
-  padding: 20px 20px 16px;
+  padding: 22px 22px 18px;
 }
 .evd.is-side .evd-sec {
-  padding-left: 20px;
-  padding-right: 20px;
+  padding-left: 22px;
+  padding-right: 22px;
 }
 .evd.is-side .evd-remind {
-  margin: 12px 20px 0;
-  padding: 14px 0 6px;
+  margin: 16px 22px 0;
+  padding: 14px 16px 12px;
 }
 .evd.is-side .evd-acts {
-  padding: 16px 20px;
+  padding: 16px 22px 20px;
 }
-/* painel compacto, sem buraco, mas com o mesmo respiro de 20 px dos outros blocos no fim do card (o "Mudar
+/* painel compacto, sem buraco, mas com o mesmo respiro dos outros blocos no fim do card (o "Mudar
    antecedência" não fica colado na borda de baixo; sem lembrete, a descrição ou os dados fecham o card) */
-.evd.is-side > .evd-sec:last-child {
-  padding-bottom: 20px;
+.evd.is-side > .evd-sec:not(.evd-remind):last-child {
+  padding-bottom: 22px;
+}
+.evd.is-side > .evd-remind:last-child {
+  margin-bottom: 22px;
 }
 .evd.is-side > .evd-dl:last-child {
-  padding-bottom: 11px;
+  padding-bottom: 16px;
 }
 /* antecedência em 3 colunas iguais no bloco estreito (painel de 400 px, Modal do celular) */
 @container (max-width: 559px) {
@@ -536,13 +704,14 @@ html .cg-card {
 .cg-note {
   margin: 12px 20px 0;
 }
+/* grade arejada, como no artefato: os dias com um vão de 6 px entre as colunas e só um fio claro em cima de cada
+   dia (sem as linhas verticais), dentro de um recuo de 14 px do card */
 .cg {
   margin-top: 12px;
-  border-top: 1px solid var(--line);
+  padding: 0 14px 4px;
 }
 .mpick-bar + .cg {
   margin-top: 0;
-  border-top: 0;
 }
 .cg-dow {
   position: sticky;
@@ -550,50 +719,69 @@ html .cg-card {
   z-index: 3;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  border-bottom: 1px solid var(--line);
+  column-gap: 6px;
   background: var(--surface);
 }
 .cg-dow span {
-  padding: 10px 12px;
-  font-size: var(--fs-12);
-  font-weight: 600;
+  padding: 12px 8px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
   color: var(--ink-3);
 }
 .cg-wk {
   position: relative;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  column-gap: 6px;
 }
-.cg-wk + .cg-wk,
-.cg-day + .cg-wk {
-  border-top: 1px solid var(--line);
-}
+/* altura fixa do dia: número (30 px) e 3 linhas de 20 px (faixas, chips e o "+N", calendar-view DAY_ROWS). Toda
+   semana fica com a mesma altura; o que não cabe vai para o "+N". O fio de cima é uma sombra por dentro (e não
+   uma borda), para não mexer na altura nem na posição das faixas (.cg-bars, top: 38px) */
 .cg-c {
   position: relative;
   min-width: 0;
-  min-height: 132px;
+  min-height: 112px;
   padding: 8px;
+  border-radius: 0 0 14px 14px;
+  box-shadow: inset 0 1px 0 var(--line);
   /* a largura do dia decide se a hora cabe no chip do evento (.cg-ev .tm) */
   container: cg-cell / inline-size;
+  transition: background-color 0.2s var(--ease);
+  /* os dias surgem um a um ao abrir o mês (--d, a ordem do dia na grade), como o "surge" do artefato */
+  animation: cg-surge 0.4s var(--ease) backwards;
+  animation-delay: calc(var(--d, 0) * 8ms);
 }
-.cg-c + .cg-c {
-  border-left: 1px solid var(--line-2);
+@keyframes cg-surge {
+  from {
+    opacity: 0.2;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
-/* fim de semana: fundo cinza bem claro e o número mais leve; dias de outro mês: bem apagados (como na amostra) */
-.cg-c.we,
-.cg-c.out {
-  background: var(--surface-2);
+/* fim de semana: um verde bem claro, sutil, e o número mais leve; dias de outro mês: só apagados */
+.cg-c.we {
+  background: color-mix(in srgb, var(--surface-2) 75%, var(--surface));
 }
 .cg-c.we .cg-dn {
-  color: var(--muted);
+  color: var(--ink-3);
 }
+.cg-c.out {
+  background: transparent;
+}
+/* dia escolhido: o verde claro da marca, com o traço de cima na cor dela */
 .cg-c.sel {
   background: var(--brand-50);
-  box-shadow: inset 0 0 0 1.5px var(--brand-200);
+  box-shadow: inset 0 2px 0 var(--brand);
 }
 @media (hover: hover) and (pointer: fine) {
   .cg-c:not(.sel):hover {
-    background: var(--fill);
+    background: var(--surface-2);
+    box-shadow: inset 0 1px 0 var(--line-strong);
   }
 }
 /* o botão do dia cobre a célula: o espaço livre abre a lista do dia. O número fica no canto. */
@@ -605,7 +793,7 @@ html .cg-hit {
   gap: 2px;
   padding: 8px;
   border: 0;
-  border-radius: 0;
+  border-radius: inherit;
   background: transparent;
   color: inherit;
   text-align: left;
@@ -615,17 +803,20 @@ html .cg-hit {
 html .cg-hit:focus-visible {
   outline-offset: -2px !important;
 }
+/* número do dia em Sora */
 .cg-dn {
+  position: relative;
   display: inline-grid;
   place-items: center;
   min-width: 26px;
   height: 26px;
   padding: 0 4px;
   border-radius: 13px;
-  font-size: var(--fs-13);
-  font-weight: 600;
+  font-family: var(--disp);
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1;
-  color: var(--ink-2);
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 .cg-mon {
@@ -637,12 +828,13 @@ html .cg-hit:focus-visible {
 .cg-c.out .cg-dn,
 .cg-c.out .cg-mon {
   color: var(--faint);
-  font-weight: 500;
+  font-weight: 600;
 }
+/* hoje: o número na cor da marca, circulado a caneta (.pen-ring do contrato da rodada 10, ux.css; o .cg-dn tem
+   position: relative e o traço se desenha na entrada) */
 .cg-c.today .cg-dn {
-  background: var(--brand);
-  color: var(--surface);
-  font-weight: 700;
+  color: var(--brand-ink);
+  font-weight: 800;
 }
 /* eventos de um dia: por cima do botão do dia, cada um abre o evento */
 .cg-items {
@@ -658,9 +850,11 @@ html .cg-hit:focus-visible {
 .cg-items > button {
   pointer-events: auto;
 }
+/* as linhas das faixas que passam pelo dia (20 px cada, 2 px entre elas) */
 .cg-lanes {
   display: block;
-  height: calc(var(--lanes) * 24px - 2px);
+  flex: none;
+  height: calc(var(--lanes) * 22px - 2px);
 }
 .cg-c.out .cg-items {
   opacity: 0.55;
@@ -672,16 +866,24 @@ html .cg-hit:focus-visible {
 .k-c-inst { --k: var(--c-inst); --k-bg: var(--c-inst-bg); --k-t: var(--c-inst-t); }
 .k-c-fer { --k: var(--c-fer); --k-bg: var(--c-fer-bg); --k-t: var(--c-fer-t); }
 .k-c-rec { --k: var(--c-rec); --k-bg: var(--c-rec-bg); --k-t: var(--c-rec-t); }
+/* chip de um dia: uma linha só, o nome cortado com reticências (inteiro na dica e no detalhe). A hora fica no fim
+   da linha só quando cabe ao lado do nome inteiro; senão ela quebra para uma 2ª linha, que fica escondida (a hora
+   nunca corta o nome) */
 html .cg-ev {
   display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-content: flex-start;
   align-items: center;
-  gap: 6px;
+  gap: 0 6px;
   width: 100%;
   min-width: 0;
-  height: 22px;
+  height: 20px;
   padding: 0 6px;
+  overflow: hidden;
   border: 0;
-  border-radius: 6px;
+  /* pílula (raio da metade da altura) */
+  border-radius: 10px;
   background: transparent;
   font-size: var(--fs-12);
   font-weight: 500;
@@ -689,20 +891,29 @@ html .cg-ev {
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
 }
 html .cg-ev .dot {
+  flex: none;
   width: 6px;
   height: 6px;
 }
 html .cg-ev .tx {
+  flex: 0 1 auto;
   min-width: 0;
+  /* o ponto (6 px) e o vão ficam ao lado */
+  max-width: calc(100% - 12px);
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 20px;
 }
 /* o título vem primeiro e fica com o espaço; a hora só aparece no fim do chip quando o dia é largo (1920) */
 html .cg-ev .tm {
   flex: none;
   margin-left: auto;
+  line-height: 20px;
   font-weight: 600;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
@@ -712,60 +923,24 @@ html .cg-ev .tm {
     display: none;
   }
 }
-/* o título usa até duas linhas ("Prova de / Matemática"), em vez de "Prova d..."; vale até o dia de 1920 px.
-   A hora (a partir de 200 px) fica no fim da 1ª linha quando cabe ao lado do título inteiro; senão desce para a
-   linha de baixo, e o título fica com a largura toda (a hora nunca corta o título) */
+/* dia até 259 px (1440 e menores): o chip usa também o recuo da célula (4 px de cada lado), para caber mais do
+   nome na linha */
 @container cg-cell (max-width: 259px) {
-  /* o chip usa também o recuo da célula (4 px de cada lado) */
   .cg-items {
     margin-left: -4px;
     margin-right: -4px;
   }
   html .cg-ev {
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 0 4px;
-    height: auto;
-    min-height: 22px;
-    padding: 3px 5px;
-    line-height: 16px;
-    white-space: normal;
-  }
-  /* o título mede o próprio texto (até a largura que sobra ao lado do ponto): a hora só fica ao lado se couber */
-  html .cg-ev .tx {
-    flex: 0 1 auto;
-    max-width: calc(100% - 10px);
-  }
-  html .cg-ev .dot {
-    margin-top: 5px;
-  }
-  html .cg-ev .tm {
-    line-height: 16px;
+    column-gap: 5px;
+    padding: 0 5px;
   }
   html .cg-ev .tx {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow-wrap: anywhere;
+    max-width: calc(100% - 11px);
   }
 }
-/* dia entre 120 e 139 px (1300 a 1399 px, notebook de 1366): o título tem cerca de 117 px e não cabe em duas
-   linhas ("Prova de Engenharia de Software"); até três linhas */
+/* dia estreito (1024 a 1366 px): prova, trabalho e atividade já vêm pintados na cor da categoria; sem o ponto,
+   sobra mais lugar para o nome */
 @container cg-cell (max-width: 139px) {
-  html .cg-ev .tx {
-    -webkit-line-clamp: 3;
-  }
-}
-/* dia bem estreito (1024 px): até três linhas, para o nome da disciplina aparecer */
-@container cg-cell (max-width: 119px) {
-  html .cg-ev .tx {
-    -webkit-line-clamp: 3;
-    overflow-wrap: break-word;
-    /* manual: quebra entre palavras ("Prova de / Estrutura"), nunca "Es-trutura"; palavra maior que o dia ainda
-       quebra pelo overflow-wrap */
-    hyphens: manual;
-  }
-  /* prova, trabalho e atividade já vêm pintados na cor da categoria: sem o ponto, a palavra inteira cabe */
   html .cg-ev.full .dot {
     display: none;
   }
@@ -774,7 +949,8 @@ html .cg-ev .tm {
   }
 }
 html .cg-ev:hover {
-  background: var(--fill);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 /* provas, trabalhos e atividades da turma: preenchidos, para se destacarem no meio das datas da instituição */
 html .cg-ev.full {
@@ -796,33 +972,41 @@ html .cg-ev.cancel .tx {
   text-decoration: line-through;
   opacity: 0.7;
 }
-/* "+2 mais": botão que abre a lista do dia */
+/* "+2 mais": botão arredondado (pílula) que abre a lista do dia */
 html .cg-more {
   align-self: flex-start;
   display: inline-flex;
+  flex: none;
   align-items: center;
-  height: 22px;
-  padding: 0 7px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  max-width: 100%;
+  height: 20px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--r-full, 999px);
   background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
   font-size: var(--fs-12);
-  font-weight: 600;
-  color: var(--ink-3);
+  font-weight: 650;
+  color: var(--brand-ink);
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease),
+    color 0.15s var(--ease);
 }
 html .cg-more:hover {
-  border-color: var(--line-strong);
-  background: var(--surface-2);
-  color: var(--ink);
+  background: var(--brand-50);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent);
+  color: var(--brand-ink);
 }
 html .cg-more.open {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--surface);
+  background: var(--brand);
+  box-shadow: none;
+  color: #fff;
 }
-/* faixas dos eventos de vários dias: uma camada por cima da semana, com corte limpo e o nome inteiro na dica */
+/* faixas dos eventos de vários dias: uma camada por cima da semana, nas mesmas linhas de 20 px dos chips, presa
+   às colunas dos dias do evento (4 px de folga de cada ponta), uma linha só com o nome cortado e inteiro na dica */
 .cg-bars {
   position: absolute;
   top: 38px;
@@ -831,37 +1015,59 @@ html .cg-more.open {
   z-index: 2;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-auto-rows: 22px;
+  /* o mesmo vão das colunas dos dias (.cg-wk): a faixa fica presa às colunas do evento */
+  column-gap: 6px;
+  grid-auto-rows: 20px;
   row-gap: 2px;
   pointer-events: none;
 }
+/* faixa em pílula, no fundo suave da categoria, com o ponto da cor forte no começo */
 .cg-bar {
   display: flex;
+  align-self: center;
   align-items: center;
+  gap: 6px;
   min-width: 0;
+  height: 18px;
   margin: 0 4px;
-  padding: 0 8px;
-  border-left: 3px solid var(--k);
-  border-radius: 6px;
+  padding: 0 8px 0 7px;
+  overflow: hidden;
+  border-radius: 9px;
   background: var(--k-bg);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 18%, transparent);
   font-size: var(--fs-12);
   font-weight: 600;
+  line-height: 18px;
   color: var(--k-t);
   white-space: nowrap;
   cursor: pointer;
   pointer-events: auto;
+  transition: box-shadow 0.15s var(--ease);
+  /* surge com o dia em que começa (--d; o --k é a cor da categoria) */
+  animation: cg-surge 0.4s var(--ease) backwards;
+  animation-delay: calc(var(--d, 0) * 8ms);
+}
+.cg-bar::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--k);
 }
 .cg-bar:hover {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 40%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 45%, transparent);
 }
-/* continua da semana anterior ou na próxima: a ponta fica reta e encosta na borda */
+/* continua da semana anterior ou na próxima: a ponta fica reta e encosta na borda (sem o ponto, que marca o
+   começo do evento) */
 .cg-bar.from-before {
   margin-left: 0;
-  padding-left: 10px;
-  border-left: 0;
+  padding-left: 9px;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
+}
+.cg-bar.from-before::before {
+  display: none;
 }
 .cg-bar.to-after {
   margin-right: 0;
@@ -887,13 +1093,23 @@ html .cg-more.open {
   display: none;
 }
 @media (max-width: 1023px) {
+  .cg {
+    padding: 0 8px 4px;
+  }
+  .cg-dow,
+  .cg-wk {
+    column-gap: 3px;
+  }
   .cg-dow span {
-    padding: 8px 0;
+    padding: 10px 0 8px;
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
     text-align: center;
   }
   .cg-c {
     min-height: 60px;
     padding: 6px 2px;
+    border-radius: 0 0 12px 12px;
   }
   html .cg-hit {
     justify-content: center;
@@ -937,26 +1153,34 @@ html .cg-more.open {
 /* lista do dia escolhido: abre embaixo da semana dele, como uma caixa por cima da grade */
 .cg-day {
   position: relative;
-  margin: 8px 12px 12px;
-  padding: 14px 16px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+  margin: 8px 0 12px;
+  padding: 16px 18px 12px;
+  border: 0;
+  border-radius: 20px;
   background: var(--surface);
-  box-shadow: var(--sh-pop);
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    var(--sh-pop);
 }
 html .cg-day-x {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 12px;
+  right: 12px;
+  border-radius: var(--r-full, 999px);
 }
 .cg-day-h {
   padding-right: 44px;
   margin-bottom: 6px;
 }
 .cg-day-t {
-  font-size: var(--fs-16);
+  font-family: var(--disp);
+  font-size: 17px;
   font-weight: 700;
+  letter-spacing: -0.015em;
   color: var(--ink);
+}
+html .cg-day .cg-day-list .ev {
+  border-radius: 16px;
 }
 .cg-day-s {
   margin-top: 2px;
@@ -984,7 +1208,7 @@ html .cg-day-new .btn:hover {
 }
 @media (max-width: 639px) {
   .cg-day {
-    margin: 6px 6px 10px;
+    margin: 6px 0 10px;
     padding: 12px 10px 6px;
   }
 }
@@ -995,7 +1219,8 @@ html .cg-day-new .btn:hover {
   align-items: center;
   justify-content: space-between;
   gap: 8px 20px;
-  padding: 10px 20px;
+  margin: 8px 14px 0;
+  padding: 12px 6px 14px;
   border-top: 1px solid var(--line);
   font-size: var(--fs-13);
   color: var(--muted);
@@ -1005,16 +1230,25 @@ html .cg-day-new .btn:hover {
   align-items: center;
   gap: 8px;
 }
+/* legenda: cada categoria numa pílula suave, com o ponto da cor forte */
 .cg-leg {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
+  gap: 6px 8px;
   margin-left: auto;
 }
 .cg-leg li {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--r-full, 999px);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
 }
 .cg-leg .dot {
   width: 7px;
@@ -1027,7 +1261,8 @@ html .cg-day-new .btn:hover {
 }
 @media (max-width: 639px) {
   .cg-foot {
-    padding: 10px 12px;
+    margin: 6px 8px 0;
+    padding: 10px 4px 12px;
   }
   .cg-note {
     margin: 10px 12px 0;
@@ -1037,13 +1272,13 @@ html .cg-day-new .btn:hover {
 /* ---------- celular ---------- */
 @media (max-width: 760px) {
   /* Agenda e Calendário dividem a largura; o período também */
-  .crono .pagehead-a,
-  .crono .pagehead-a .seg,
+  .crono-mode,
+  html .crono-mode .seg,
   .crono-frow > .seg {
     display: flex;
     width: 100%;
   }
-  .crono .pagehead-a .seg button,
+  html .crono-mode .seg button,
   .crono-frow > .seg button {
     flex: 1 1 0;
     justify-content: center;
@@ -1051,7 +1286,7 @@ html .cg-day-new .btn:hover {
   }
   .crono-fbar {
     gap: 10px;
-    margin: 16px 0 14px;
+    margin: 0 0 14px;
   }
   .crono-frow {
     gap: 8px 12px;
@@ -1063,9 +1298,6 @@ html .cg-day-new .btn:hover {
   }
   .crono-total {
     white-space: nowrap;
-  }
-  .crono-vr {
-    display: none;
   }
   .crono-list {
     padding: 0 12px 8px;
@@ -1145,5 +1377,27 @@ html .crono-listcard .month-empty-acts .btn {
 @media (max-width: 400px) {
   .mpick-de {
     display: none;
+  }
+}
+
+/* sem movimento: as entradas em cascata, os dias surgindo e a mola do selo (a caneta, .pen-ring, fica desenhada
+   pela regra do contrato em ux.css) */
+@media (prefers-reduced-motion: reduce) {
+  .crono-list .crono-item,
+  .cg-c,
+  .cg-bar {
+    animation: none;
+  }
+  html .crono :is(.crono-list, .cg-day) .ev-date,
+  html .crono .crono-list .ev,
+  html .crono-mode .seg button,
+  .cg-c,
+  html .cg-ev,
+  html .cg-more,
+  .cg-bar {
+    transition: none;
+  }
+  html .crono .crono-list .ev:hover .ev-date {
+    transform: none;
   }
 }

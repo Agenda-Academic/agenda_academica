@@ -1,23 +1,9 @@
 "use client";
 
-import {
-  ArrowRight,
-  Bell,
-  BellRing,
-  BookOpen,
-  CalendarDays,
-  Clock,
-  Info,
-  Loader2,
-  MapPin,
-  Trophy,
-  UserPlus,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react";
+import { Bell, BellRing, CalendarDays, Clock, Info, UserPlus } from "lucide-react";
 import { useEffect, useId, useState } from "react";
-import { classPeriodLine, cx, dateParts, firstName } from "@/lib/format";
-import { categoryMeta, gradableCategories, reminderOffsetLabel, reminderOptions } from "@/lib/meta";
+import { classPeriodLine, classTermLabel, cx, firstName, shiftLabel } from "@/lib/format";
+import { gradableCategories, reminderOffsetLabel, reminderOptions } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, LinkedStudent, Reminder } from "@/lib/types";
 import { useAppActions, useBackLayer } from "./app-actions";
 import {
@@ -28,19 +14,17 @@ import {
   calendarUpcomingCount,
   delay,
   heightKey,
-  heroCountdown,
-  heroWhen,
   officialCategories,
   openAhead,
-  pointsLabel,
   upcomingOfficialDates,
   useColumnFill,
   type CalendarFilter,
+  type HeroAction,
 } from "./dashboard-bits";
 import { GuardianDataDialog } from "./guardian-data-dialog";
 import { GuardianLinkCard } from "./guardian-link-card";
 import { LatestGradesCard } from "./latest-grades-card";
-import { Drawer, EmptyState, PageHeader, SectionTitle, secondaryButton } from "./ui";
+import { Drawer, EmptyState, SectionTitle, secondaryButton } from "./ui";
 
 /**
  * Painel do responsável com o aluno escolhido (desenho 5.6, amostra responsavel-painel): faixa "Você acompanha
@@ -108,156 +92,8 @@ function plural(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** Contagem regressiva do destaque (a mesma marcação do destaque do aluno), atualizada a cada 30 s. */
-function HeroCountdown({ startsAt, until }: { startsAt: string; until: string }) {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 30000);
-    return () => window.clearInterval(timer);
-  }, []);
-  // a mesma conta do destaque do aluno: "6 dias" (como o "em 6 dias" da lista) e, perto, o relógio
-  const count = heroCountdown(startsAt, now);
-  return (
-    <div className="countdown">
-      <p className="eyebrow hero-label" aria-hidden>
-        {count.live ? <span className="live" /> : null}
-        Faltam
-      </p>
-      <b aria-hidden>{count.text}</b>
-      <small aria-hidden>{until}</small>
-      <span className="sr-only">
-        {count.words} {until}.
-      </span>
-    </div>
-  );
-}
-
-type ReminderAction = {
-  label: string;
-  icon: LucideIcon;
-  onClick: () => void;
-  /** Criando: giro no lugar do ícone e o clique não repete. */
-  busy?: boolean;
-  /** O botão abre o detalhe deste evento (o foco volta a ele). */
-  opensEvent?: number;
-};
-
-/**
- * Destaque da próxima avaliação do aluno (amostra responsavel-painel). Usa a marcação e as classes do destaque do
- * Painel (NextEventHero, em globals.css), com a frase "O lembrete chega só para você." ao lado do botão do
- * lembrete, que o destaque comum não tem. Só "Ver detalhes" e o lembrete do próprio responsável: nada de editar.
- */
-function GuardianHero({
-  event,
-  hideClass,
-  kicker,
-  reminder,
-  onOpen,
-}: {
-  event: AcademicEvent;
-  hideClass: boolean;
-  kicker: string;
-  reminder?: ReminderAction;
-  onOpen: (id: number) => void;
-}) {
-  const meta = categoryMeta[event.category];
-  const parts = dateParts(event.startsAt);
-  const course = [event.subject?.name, hideClass ? null : event.academicClass?.name].filter(Boolean).join(", ");
-  const ReminderIcon = reminder?.icon;
-  const until = event.category === "assignment" ? "até a entrega" : event.category === "exam" ? "até a prova" : "até o início";
-
-  return (
-    <section key={event.id} className="hero with-date is-event h-full" aria-label={kicker} data-event-id={event.id}>
-      <div className="datebig">
-        <span className="dw">{parts.weekday}</span>
-        <span className="dn">{parts.day}</span>
-        <span className="mo">{parts.month}</span>
-      </div>
-      <div className="hero-body">
-        <div className="hero-kicker">
-          <span className="hero-label resp-kicker">{kicker}</span>
-          <span className={cx("pill", meta.tint)}>{meta.short}</span>
-        </div>
-        {/* título, disciplina, local e nome vêm de quem publicou: palavra longa quebra sem passar da borda */}
-        <h2 className="hero-title wrap-anywhere">{event.title}</h2>
-        <div className="hero-meta wrap-anywhere">
-          <span>
-            <Clock className="h-[15px] w-[15px]" aria-hidden />
-            {heroWhen(event)}
-          </span>
-          {course ? (
-            <span>
-              <BookOpen className="h-[15px] w-[15px]" aria-hidden />
-              {course}
-            </span>
-          ) : null}
-          {event.location ? (
-            <span>
-              <MapPin className="h-[15px] w-[15px]" aria-hidden />
-              {event.location}
-            </span>
-          ) : null}
-          {event.teacher?.fullName ? (
-            <span>
-              <UserRound className="h-[15px] w-[15px]" aria-hidden />
-              {event.teacher.fullName}
-            </span>
-          ) : null}
-          {event.points !== null ? (
-            <span>
-              <Trophy className="h-[15px] w-[15px]" aria-hidden />
-              {pointsLabel(event.points)}
-            </span>
-          ) : null}
-        </div>
-        <div className="hero-actions">
-          <button
-            className="btn btn-p"
-            data-primary-action
-            data-opens-event={event.id}
-            onClick={() => onOpen(event.id)}
-            type="button"
-          >
-            Ver detalhes
-            <ArrowRight className="h-4 w-4" aria-hidden />
-          </button>
-          {reminder ? (
-            <>
-              <button
-                className="btn btn-s aria-disabled:cursor-not-allowed aria-disabled:opacity-55"
-                aria-busy={reminder.busy || undefined}
-                aria-disabled={reminder.busy || undefined}
-                aria-describedby={`resp-lembrete-${event.id}`}
-                data-opens-event={reminder.opensEvent}
-                onClick={() => {
-                  if (!reminder.busy) {
-                    reminder.onClick();
-                  }
-                }}
-                type="button"
-              >
-                {reminder.busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : ReminderIcon ? (
-                  <ReminderIcon className="h-4 w-4" aria-hidden />
-                ) : null}
-                {reminder.label}
-              </button>
-              <span className="resp-hero-note" id={`resp-lembrete-${event.id}`}>
-                O lembrete chega só para você.
-              </span>
-            </>
-          ) : null}
-        </div>
-      </div>
-      <HeroCountdown startsAt={event.startsAt} until={until} />
-    </section>
-  );
-}
-
 export function GuardianDashboard({
   avisos,
-  context,
   defaultReminderMinutes,
   events,
   reminders,
@@ -301,6 +137,7 @@ export function GuardianDashboard({
   const [gradesKey, setGradesKey] = useState("");
 
   const examsTitleId = useId();
+  const studentTitleId = useId();
 
   const name = firstName(student.fullName ?? "Aluno");
   const classes = student.classes;
@@ -348,7 +185,7 @@ export function GuardianDashboard({
     }
   }
 
-  const reminderAction: ReminderAction | undefined = !heroEvent
+  const reminderAction: HeroAction | undefined = !heroEvent
     ? undefined
     : heroReminder
       ? {
@@ -400,33 +237,80 @@ export function GuardianDashboard({
   );
   const examsShown = Math.min(mainCount, examsList.length);
 
-  return (
-    <div className="pnl grid gap-5">
-      <AvisosCard host avisos={avisos} events={events} onDismiss={onDismissAviso} onOpen={onSelect} />
+  // o card do aluno acompanhado (o que era o cabeçalho "Você acompanha Diogo, TADS 5"): quem, a turma, o curso, o
+  // período, o turno e o semestre, com os dois caminhos (o que o responsável vê e acompanhar outro aluno). Fica no
+  // alto da coluna de apoio, como o card da turma no Painel do aluno
+  const studentCard = (
+    <section className="card pad rise pnl-class resp-student" style={delay(2)} aria-labelledby={studentTitleId}>
+      <p className="resp-st-who">
+        <span className="resp-st-av" aria-hidden>
+          {student.initials}
+        </span>
+        <span className="min-w-0">
+          Você acompanha <b>{name}</b>
+        </span>
+      </p>
+      {/* nome de turma longo, sem espaço, quebra em qualquer ponto */}
+      <h2 id={studentTitleId} className="pnl-class-t wrap-anywhere">
+        {classNames || name}
+      </h2>
+      <p className="sub">{firstClass ? (firstClass.course?.name ?? classLine) : classLine}</p>
+      {firstClass ? (
+        <div className="pnl-chips">
+          {firstClass.period ? <span className="pnl-chip">{firstClass.period}</span> : null}
+          {firstClass.shift ? <span className="pnl-chip">{shiftLabel(firstClass.shift)}</span> : null}
+          <span className="pnl-chip">
+            {firstClass.semester ? classTermLabel(firstClass) : `Ano letivo ${firstClass.year}`}
+          </span>
+        </div>
+      ) : null}
+      <div className="card-foot resp-st-foot">
+        <button className="link link-solto resp-link" onClick={() => setDataOpen(true)} type="button">
+          <Info className="h-4 w-4" aria-hidden />O que você vê
+        </button>
+        <button className="link link-solto resp-link" onClick={() => setLinkOpen(true)} type="button">
+          <UserPlus className="h-4 w-4" aria-hidden />
+          Acompanhar outro aluno
+        </button>
+      </div>
+    </section>
+  );
 
-      {/* cabeçalho da tela, como nas outras: quem está na tela, o aluno acompanhado e os dois caminhos (o que o
-          responsável vê e acompanhar outro aluno). O nome do aluno também está no seletor do menu */}
-      <PageHeader
-        title={`Olá, ${firstName(context?.user.fullName ?? "responsável")}`}
-        subtitle={
-          <>
-            Você acompanha <b className="font-semibold text-ink-2">{name}</b>
-            {classNames ? `, ${classNames}` : null}
-            <span className="resp-head-line">{classLine}</span>
-          </>
-        }
-        actions={
-          <>
-            <button className="link resp-link" onClick={() => setDataOpen(true)} type="button">
-              <Info className="h-4 w-4" aria-hidden />O que você vê
-            </button>
-            <button className="link resp-link" onClick={() => setLinkOpen(true)} type="button">
-              <UserPlus className="h-4 w-4" aria-hidden />
-              Acompanhar outro aluno
-            </button>
-          </>
-        }
-      />
+  const until = heroEvent
+    ? heroEvent.category === "assignment"
+      ? "até a entrega"
+      : heroEvent.category === "exam"
+        ? "até a prova"
+        : "até o início"
+    : undefined;
+  const noteId = heroEvent ? `resp-lembrete-${heroEvent.id}` : undefined;
+
+  return (
+    <div className="pnl pnl-resp grid gap-5">
+      {/* o destaque é o primeiro bloco da tela (sem cabeçalho): a próxima avaliação do aluno acompanhado */}
+      <div className="hero-slot rise" style={delay(0)}>
+        <NextEventHero
+          event={heroEvent}
+          kicker={kicker}
+          hideClass={singleClass}
+          until={until}
+          // só o lembrete do próprio responsável: nada de editar
+          secondary={reminderAction ? { ...reminderAction, describedBy: noteId } : undefined}
+          after={
+            reminderAction ? (
+              <p className="resp-hero-note" id={noteId}>
+                O lembrete chega só para você.
+              </p>
+            ) : undefined
+          }
+          emptyTitle="Nenhuma prova ou trabalho à frente"
+          emptyText={`Quando a docente publicar uma avaliação de ${name}, ela aparece aqui.`}
+          onOpen={onSelect}
+          onEmptyAction={{ label: "Ver cronograma", onClick: () => onOpenCalendar() }}
+        />
+      </div>
+
+      <AvisosCard host avisos={avisos} events={events} onDismiss={onDismissAviso} onOpen={onSelect} />
 
       {pending.length ? (
         <p className="callout blue rise" style={delay(1)}>
@@ -438,27 +322,6 @@ export function GuardianDashboard({
           </span>
         </p>
       ) : null}
-
-      <div className="hero-slot rise" style={delay(1)}>
-        {heroEvent ? (
-          <GuardianHero
-            event={heroEvent}
-            hideClass={singleClass}
-            kicker={kicker}
-            reminder={reminderAction}
-            onOpen={onSelect}
-          />
-        ) : (
-          <NextEventHero
-            event={null}
-            kicker={kicker}
-            emptyTitle="Nenhuma prova ou trabalho à frente"
-            emptyText={`Quando a docente publicar uma avaliação de ${name}, ela aparece aqui.`}
-            onOpen={onSelect}
-            onEmptyAction={{ label: "Ver cronograma", onClick: () => onOpenCalendar() }}
-          />
-        )}
-      </div>
 
       {examsIdle ? (
         // nada da turma à frente: as duas colunas continuam (decisão da rodada 8). As datas da instituição, o que há à
@@ -478,6 +341,7 @@ export function GuardianDashboard({
             />
           </div>
           <div className="duo-col duo-side">
+            {studentCard}
             <LatestGradesCard
               key={student.id}
               className="duo-fill"
@@ -564,6 +428,7 @@ export function GuardianDashboard({
           </div>
 
           <div className="duo-col duo-side">
+            {studentCard}
             <InstitutionDatesCard
               className="duo-fill"
               events={officialDates}

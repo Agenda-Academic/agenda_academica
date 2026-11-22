@@ -28,6 +28,7 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
+  type CSSProperties,
   type DragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -1031,9 +1032,10 @@ export function GradesSheet({
               </tr>
             </thead>
             <tbody>
-              {visible.map((item) => (
+              {visible.map((item, index) => (
                 <SheetLine
                   key={item.row.studentId}
+                  index={index}
                   focused={focusedId === item.row.studentId}
                   flash={sheet.flash.includes(item.row.studentId)}
                   isAdmin={isAdmin}
@@ -1083,6 +1085,7 @@ export function GradesSheet({
 function SheetLine({
   flash,
   focused,
+  index,
   isAdmin,
   item,
   locked,
@@ -1099,6 +1102,8 @@ function SheetLine({
 }: {
   flash: boolean;
   focused: boolean;
+  /** Posição na lista à vista: atrasa a entrada da linha (cascata, só nas primeiras). */
+  index: number;
   isAdmin: boolean;
   item: SheetRow;
   locked: boolean;
@@ -1136,7 +1141,10 @@ function SheetLine({
   ];
 
   return (
-    <tr className={cx("nd-row", pending && !error && "is-pend", error && "is-bad", flash && "is-saved")}>
+    <tr
+      className={cx("nd-row", pending && !error && "is-pend", error && "is-bad", flash && "is-saved")}
+      style={{ "--i": Math.min(index, 14) } as CSSProperties}
+    >
       <td className="nd-c-no">{item.number}</td>
       <td className="nd-c-st">
         <span className="nd-nm" title={name}>{name}</span>
@@ -1286,7 +1294,10 @@ export function GradesReview({
             </h4>
             <ul className="nd-rv-list">
               {list.map(({ after, row }) => (
-                <li key={row.row.studentId} className={cx(group === "cleared" && "is-clear")}>
+                <li
+                  key={row.row.studentId}
+                  className={cx(group === "cleared" && "is-clear", after.kind === "absent" && "is-f", after.kind === "excused" && "is-d")}
+                >
                   <span className="nd-rv-name">{row.name}</span>
                   <ValueChange
                     from={row.before.kind === "empty" ? "" : valueLabel(row.before)}

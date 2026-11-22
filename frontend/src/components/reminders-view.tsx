@@ -1,7 +1,19 @@
 "use client";
 
-import { Bell, Check, CircleCheck, History, Loader2, Mail } from "lucide-react";
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import {
+  ArrowRight,
+  Bell,
+  BellOff,
+  BellRing,
+  Check,
+  CircleCheck,
+  History,
+  Loader2,
+  Mail,
+  Send,
+  SlidersHorizontal,
+} from "lucide-react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import {
   countText,
   cx,
@@ -18,13 +30,14 @@ import { categoryMeta, reminderOffsetLabel, reminderOptions, statusMeta } from "
 import type { AcademicEvent, Category, Reminder, UserRole } from "@/lib/types";
 import { Pager, usePaged } from "./pager";
 import { Select, type SelectOption } from "./select";
-import { EmptyState, PageHeader, Switch } from "./ui";
+import { EmptyState, Switch } from "./ui";
 
 /*
- * Lembretes (rodada 7): a tela lista os EVENTOS que importam, cada um com um interruptor de lembrete, e não
- * "lembretes" soltos. Em cima, a faixa de situação (o próximo aviso e quantas avaliações têm lembrete, com o
- * "Lembrar das que faltam"); embaixo, a lista "Avaliações e eventos" (Próximos e Já avisados) e, ao lado, "Como
- * você é avisado" (a antecedência padrão, editada ali mesmo, e onde o aviso chega).
+ * Lembretes (rodada 10, visual Pantanal): a tela lista os EVENTOS que importam, cada um com um interruptor de
+ * lembrete, e não "lembretes" soltos. Sem cabeçalho de página: em cima, o "Próximo aviso" com a linha do tempo
+ * (Agora, E-mail sai, o evento) e quantas avaliações têm lembrete, com o "Lembrar das que faltam"; ao lado, "Como
+ * você é avisado" (a antecedência padrão, editada ali mesmo, e onde o aviso chega); embaixo, a lista "Avaliações e
+ * eventos" (Próximos e Já avisados), com o selo da data.
  */
 
 /** Linhas por página na lista. */
@@ -46,10 +59,6 @@ const isAssessment = (event: AcademicEvent) => event.category === "exam" || even
 const isVoid = (event?: AcademicEvent | null) => event?.status === "cancelled" || event?.status === "completed";
 const startOf = (event: AcademicEvent) => new Date(event.startsAt).getTime();
 
-function capitalize(text: string) {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
 /**
  * Quando o aviso sai (ou saiu), no mesmo formato do toast e do detalhe do evento (formatRelativeWhen): "hoje às
  * 18:00", "amanhã às 07:30" ou "qua, 25/11, às 18:00". O que saiu ontem fica "ontem às 18:00".
@@ -57,11 +66,6 @@ function capitalize(text: string) {
 export function sendWhen(value: string, now: number) {
   const days = Math.round((startOfDay(new Date(value)).getTime() - startOfDay(new Date(now)).getTime()) / 86400000);
   return days === -1 ? `ontem às ${formatTime(value)}` : formatRelativeWhen(value, now);
-}
-
-/** Título da faixa: "Hoje às 18:00", "Amanhã às 07:30" ou "Qua, 25/11, às 18:00". */
-function headlineWhen(value: string, now: number) {
-  return capitalize(formatRelativeWhen(value, now));
 }
 
 /* ---------------- antecedência padrão e canais: os mesmos no perfil e em Lembretes ---------------- */
@@ -111,24 +115,28 @@ export function ReminderChannels({ email }: { email?: string | null }) {
   return (
     <ul className="lb-channels">
       <li>
-        <span className="lb-ch-ico" aria-hidden>
+        <span className="lb-ch-ico is-app" aria-hidden>
           <Bell className="h-4 w-4" />
         </span>
         <span className="min-w-0">
           <b>No sistema</b>
           <small>O aviso aparece no Painel e em Lembretes.</small>
         </span>
-        <Check className="lb-ch-ok" aria-label="Ligado" />
+        <span className="lb-ch-ok">
+          <Check aria-label="Ligado" />
+        </span>
       </li>
       <li>
-        <span className="lb-ch-ico" aria-hidden>
+        <span className="lb-ch-ico is-mail" aria-hidden>
           <Mail className="h-4 w-4" />
         </span>
         <span className="min-w-0">
           <b>No e-mail</b>
           <small className="wrap-anywhere">{email || "No e-mail da sua conta."}</small>
         </span>
-        <Check className="lb-ch-ok" aria-label="Ligado" />
+        <span className="lb-ch-ok">
+          <Check aria-label="Ligado" />
+        </span>
       </li>
     </ul>
   );
@@ -190,10 +198,77 @@ function offsetOptions(event: AcademicEvent, current: number | null, now: number
   });
 }
 
+/** "da prova", "do trabalho" ou "do evento" (depois de "1 dia antes"). */
+function eventNoun(event: AcademicEvent) {
+  return event.category === "exam" ? "da prova" : event.category === "assignment" ? "do trabalho" : "do evento";
+}
+
+/** "seg, 23/11, 18:00" ou "seg, 23/11, dia todo": quando o evento é, no ponto final da linha do tempo. */
+function eventPoint(event: AcademicEvent) {
+  return `${formatShortDate(event.startsAt)}, ${isWholeDay(event.startsAt, event.endsAt) ? "dia todo" : formatTime(event.startsAt)}`;
+}
+
+/**
+ * Linha do tempo do próximo aviso: Agora, E-mail sai e o evento. O envelope fica na proporção do tempo; o CSS segura
+ * ele longe das pontas (lembretes.css, .lb-tl), para os três rótulos não se encostarem. Sem aviso agendado
+ * ("example"), ela mostra como o aviso funciona, apagada e sem animação: o e-mail sai com a antecedência padrão antes
+ * da prova ou do trabalho.
+ */
+function ReminderTimeline({
+  now,
+  sendAt,
+  event,
+  example,
+}: {
+  now: number;
+  sendAt?: string;
+  event?: AcademicEvent | null;
+  /** Sem aviso agendado: os rótulos do exemplo (a antecedência padrão e o nome do ponto final). */
+  example?: { offset: string; end: string };
+}) {
+  let ratio = 0.62;
+  if (!example && sendAt && event) {
+    const span = Math.max(1, startOf(event) - now);
+    ratio = (new Date(sendAt).getTime() - now) / span;
+  }
+  const point = Math.min(96, Math.max(4, ratio * 100));
+  const meta = event ? categoryMeta[event.category] : null;
+  return (
+    <ol
+      className={cx("lb-tl", example && "is-example")}
+      style={{ "--p": `${point.toFixed(1)}%` } as CSSProperties}
+      aria-label={example ? "Como o aviso funciona" : "Linha do tempo do aviso"}
+    >
+      <li className="lb-tl-track" aria-hidden>
+        <i />
+      </li>
+      <li className="lb-tl-pt is-now">
+        <span className="lb-tl-dot" aria-hidden />
+        <b>Agora</b>
+        <small className="tnum">hoje, {formatTime(new Date(now).toISOString())}</small>
+      </li>
+      <li className="lb-tl-pt is-send">
+        <span className="lb-tl-env" aria-hidden>
+          <Mail />
+        </span>
+        <b>E-mail sai</b>
+        <small className="tnum">{example ? example.offset : sendAt ? sendWhen(sendAt, now) : ""}</small>
+      </li>
+      <li className="lb-tl-pt is-end">
+        <span className={cx("lb-tl-dot", meta?.accent)} aria-hidden />
+        <b>{example ? example.end : (meta?.short ?? "Evento")}</b>
+        <small className="tnum">{example ? "na data marcada" : event ? eventPoint(event) : ""}</small>
+      </li>
+    </ol>
+  );
+}
+
 type RowProps = {
   event: AcademicEvent;
   reminder: Reminder | null;
   now: number;
+  /** Posição na lista (a entrada em cascata das linhas). */
+  order: number;
   defaultMinutes: number;
   busy: boolean;
   flash: boolean;
@@ -209,7 +284,7 @@ type RowProps = {
  * Linha de evento: selo da data, título (abre o evento) com a categoria e quando é, quando o aviso chega, a
  * antecedência (menu próprio) e o interruptor. Evento cancelado ou concluído: "O aviso não sai mais" e Remover.
  */
-function EventRow({ event, reminder, now, defaultMinutes, busy, flash, optimistic, onToggle, onPick, onRemove, onOpen }: RowProps) {
+function EventRow({ event, reminder, now, order, defaultMinutes, busy, flash, optimistic, onToggle, onPick, onRemove, onOpen }: RowProps) {
   const meta = categoryMeta[event.category];
   const voided = isVoid(event);
   const status = voided ? statusMeta[event.status] : null;
@@ -247,17 +322,29 @@ function EventRow({ event, reminder, now, defaultMinutes, busy, flash, optimisti
   } else if (reminder && on) {
     aviso = (
       <span className="lb-aviso">
-        Aviso <b>{sendWhen(reminder.sendAt, now)}</b>
+        <Mail aria-hidden />
+        <span>
+          Aviso <b>{sendWhen(reminder.sendAt, now)}</b>
+        </span>
       </span>
     );
   } else if (!open) {
     aviso = <span className="lb-aviso is-off">Começa em menos de 15 minutos</span>;
   } else {
-    aviso = <span className="lb-aviso is-off">Sem lembrete</span>;
+    aviso = (
+      <span className="lb-aviso is-off">
+        <BellOff aria-hidden />
+        Sem lembrete
+      </span>
+    );
   }
 
   return (
-    <li className={cx("lb-row", on && !voided && "is-on", voided && "is-void")} data-event={event.id}>
+    <li
+      className={cx("lb-row", on && !voided && "is-on", voided && "is-void")}
+      style={{ "--r": Math.min(order, 10) } as CSSProperties}
+      data-event={event.id}
+    >
       <DateBadge value={event.startsAt} now={now} />
       <div className="lb-main">
         <button className="lb-title" onClick={onOpen} type="button">
@@ -318,12 +405,14 @@ function EventRow({ event, reminder, now, defaultMinutes, busy, flash, optimisti
 function SentRow({
   reminder,
   now,
+  order,
   live,
   onDismiss,
   onOpen,
 }: {
   reminder: Reminder;
   now: number;
+  order: number;
   live: boolean;
   onDismiss?: () => void;
   onOpen: () => void;
@@ -332,7 +421,7 @@ function SentRow({
   const meta = event ? categoryMeta[event.category] : null;
   const title = event?.title ?? `Evento #${reminder.academicEventId}`;
   return (
-    <li className="lb-row is-hist">
+    <li className="lb-row is-hist" style={{ "--r": Math.min(order, 10) } as CSSProperties}>
       {event ? <DateBadge value={event.startsAt} now={now} /> : <span className="dbadge lb-date" aria-hidden />}
       <div className="lb-main">
         <button className="lb-title" onClick={onOpen} type="button">
@@ -612,49 +701,69 @@ export function RemindersView({
           ? "Avisos para você das datas que escolher no cronograma."
           : "Escolha de quais provas e eventos você quer ser avisado e quando.";
   const nextEvent = nextAviso?.academicEvent ?? null;
+  // sem aviso agendado, a faixa e a lista são as mesmas de antes; com ele, o título é o evento e a linha do tempo diz o resto
+  const hasStrip = Boolean(nextAviso || nextEvents.length);
 
-  /* ---------------- faixa de situação ---------------- */
+  /* ---------------- próximo aviso: o evento, a linha do tempo e a cobertura das avaliações ---------------- */
   const strip = (
-    <section className="card lb-strip" aria-labelledby={stripTitleId}>
-      <div className="lb-strip-main">
-        <p className="lb-strip-k">Próximo aviso</p>
-        <h2 ref={stripTitleRef} id={stripTitleId} tabIndex={-1} className="lb-strip-t wrap-anywhere">
-          {nextAviso ? (
-            <>
-              <span className="tnum">{headlineWhen(nextAviso.sendAt, now)}</span>, {nextEvent?.title ?? "evento da sua agenda"}
-            </>
-          ) : (
-            "Nenhum aviso agendado"
-          )}
-        </h2>
-        <p className="lb-strip-s">
-          {nextAviso && nextEvent ? (
-            <>
-              {categoryMeta[nextEvent.category].short} {relativeDue(nextEvent.startsAt)}, {formatShortDate(nextEvent.startsAt)}
-              {isWholeDay(nextEvent.startsAt, nextEvent.endsAt) ? ", dia todo" : `, ${formatTime(nextEvent.startsAt)}`}. O aviso chega
-              no sistema{email ? (
-                <>
-                  {" "}e em <span className="lb-mail">{email}</span>
-                </>
-              ) : null}
-              .
-            </>
-          ) : !showAssessments ? (
-            "Ligue o lembrete de um evento para ser avisado antes dele."
-          ) : coverTotal ? (
-            "Ligue o lembrete das provas e trabalhos que vêm aí."
-          ) : (
-            "Nenhuma avaliação nos próximos 30 dias. As que vêm depois também aceitam lembrete."
-          )}
-        </p>
+    <section className="card lb-next anim-in" style={{ "--i": 0 } as CSSProperties} aria-labelledby={stripTitleId}>
+      <div className="lb-next-head">
+        <div className="min-w-0">
+          <p className="lb-kicker">
+            <span className="lb-ic is-ipe" aria-hidden>
+              <Send />
+            </span>
+            Próximo aviso
+          </p>
+          <h2 ref={stripTitleRef} id={stripTitleId} tabIndex={-1} className="lb-next-t wrap-anywhere">
+            {nextAviso ? (nextEvent?.title ?? "Evento da sua agenda") : "Nenhum aviso agendado"}
+          </h2>
+          <p className="lb-next-s">
+            {nextAviso ? (
+              <>
+                O e-mail sai <b className="tnum">{sendWhen(nextAviso.sendAt, now)}</b>,{" "}
+                {reminderOffsetLabel(nextAviso.offsetMinutes)}
+                {nextEvent ? ` ${eventNoun(nextEvent)}` : ""}.
+              </>
+            ) : !showAssessments ? (
+              "Ligue o lembrete de um evento para ser avisado antes dele."
+            ) : coverTotal ? (
+              "Ligue o lembrete das provas e trabalhos que vêm aí."
+            ) : (
+              "Nenhuma avaliação nos próximos 30 dias. As que vêm depois também aceitam lembrete."
+            )}
+          </p>
+        </div>
+        {nextEvent ? (
+          <button className="link lb-next-link" onClick={() => onOpenEvent(nextEvent.id)} type="button">
+            Ver evento
+            <ArrowRight aria-hidden />
+          </button>
+        ) : null}
       </div>
+
+      {nextAviso && nextEvent ? (
+        <ReminderTimeline now={now} sendAt={nextAviso.sendAt} event={nextEvent} />
+      ) : !nextAviso ? (
+        <ReminderTimeline
+          now={now}
+          example={{
+            offset: reminderOffsetLabel(defaultReminderMinutes),
+            end: showAssessments ? "Prova ou trabalho" : "Evento",
+          }}
+        />
+      ) : null}
+
       {showAssessments && coverTotal ? (
         <div className="lb-cover">
           <p className="lb-cover-t">
             <b className="tnum">
-              {coverDone} de {coverTotal}
-            </b>{" "}
-            {coverTotal === 1 ? "avaliação" : "avaliações"} com lembrete
+              {coverDone}
+              <small> de {coverTotal}</small>
+            </b>
+            <span>
+              {coverTotal === 1 ? "avaliação" : "avaliações"} com lembrete nos próximos 30 dias
+            </span>
           </p>
           <div
             className="lb-bar"
@@ -664,9 +773,8 @@ export function RemindersView({
             aria-valuemax={coverTotal}
             aria-valuenow={coverDone}
           >
-            <span style={{ width: `${Math.round((coverDone / coverTotal) * 100)}%` }} />
+            <span className="bar-grow" style={{ width: `${Math.round((coverDone / coverTotal) * 100)}%` }} />
           </div>
-          <p className="lb-cover-s">nos próximos 30 dias</p>
           {missing.length && onRemindMany ? (
             <button
               className="btn btn-p lb-cover-btn"
@@ -691,6 +799,8 @@ export function RemindersView({
 
   /* ---------------- lista ---------------- */
   const groups = groupByWeek(pagedNext.items, new Date(now));
+  // posição de cada linha na página (a entrada em cascata segue a lista, de grupo em grupo)
+  const rowOrder = new Map(pagedNext.items.map((event, index) => [event.id, index]));
   const nextList = pagedNext.total ? (
     <>
       {groups.map((group) => (
@@ -705,6 +815,7 @@ export function RemindersView({
                   event={event}
                   reminder={reminder}
                   now={now}
+                  order={rowOrder.get(event.id) ?? 0}
                   defaultMinutes={defaultReminderMinutes}
                   busy={busyId === event.id}
                   flash={flashId === event.id}
@@ -739,11 +850,12 @@ export function RemindersView({
   const sentList = pagedSent.total ? (
     <>
       <ul className="lb-list lb-list-hist">
-        {pagedSent.items.map((reminder) => (
+        {pagedSent.items.map((reminder, index) => (
           <SentRow
             key={reminder.id}
             reminder={reminder}
             now={now}
+            order={index}
             live={liveIds.has(reminder.id)}
             onDismiss={onDismissAviso ? () => onDismissAviso(reminder.id) : undefined}
             onOpen={() => onOpenEvent(reminder.academicEventId)}
@@ -762,11 +874,20 @@ export function RemindersView({
   ];
 
   const listCard = (
-    <section className="card lb-card" aria-labelledby={listTitleId}>
+    <section className="card lb-card anim-in" style={{ "--i": 2 } as CSSProperties} aria-labelledby={listTitleId}>
       <div className="lb-card-head">
-        <h2 ref={listTitleRef} id={listTitleId} tabIndex={-1} className="h2 outline-none">
-          {showAssessments ? "Avaliações e eventos" : "Seus lembretes"}
-        </h2>
+        <div className="lb-card-ttl">
+          <span className="lb-ic is-ipe" aria-hidden>
+            <BellRing />
+          </span>
+          <div className="min-w-0">
+            <h2 ref={listTitleRef} id={listTitleId} tabIndex={-1} className="lb-h outline-none">
+              {showAssessments ? "Avaliações e eventos" : "Seus lembretes"}
+            </h2>
+            {/* o que era o subtítulo da página: de quem são os avisos (o responsável vê o nome do estudante) */}
+            <p className="lb-sub">{subtitle}</p>
+          </div>
+        </div>
         <div className="seg" role="tablist" aria-label="Lista">
           {tabs.map((item) => (
             <button
@@ -792,6 +913,15 @@ export function RemindersView({
       </div>
       <div id={panelId} role="tabpanel" aria-labelledby={tabIds[tab]} className="lb-panel">
         {tab === "next" ? nextList : sentList}
+        {tab === "next" && onOpenCalendar && nextEvents.length ? (
+          <p className="lb-more">
+            Outro evento? Abra no cronograma e ligue o lembrete.{" "}
+            <button className="link" onClick={() => onOpenCalendar()} type="button">
+              Ver cronograma
+              <ArrowRight aria-hidden />
+            </button>
+          </p>
+        ) : null}
       </div>
       {tab === "next" && voided.length ? (
         <div className="lb-void">
@@ -818,8 +948,11 @@ export function RemindersView({
 
   /* ---------------- lateral ---------------- */
   const side = (
-    <section className="card pad lb-side" aria-labelledby={sideTitleId}>
-      <h2 id={sideTitleId} className="h2">
+    <section className="card lb-side anim-in" style={{ "--i": 1 } as CSSProperties} aria-labelledby={sideTitleId}>
+      <h2 id={sideTitleId} className="lb-h lb-side-t">
+        <span className="lb-ic is-brand" aria-hidden>
+          <SlidersHorizontal />
+        </span>
         Como você é avisado
       </h2>
 
@@ -837,28 +970,18 @@ export function RemindersView({
           <ReminderChannels email={email} />
         </div>
       </div>
-
-      {onOpenCalendar && nextEvents.length ? (
-        <p className="lb-side-foot">
-          Outro evento? Abra no cronograma e ligue o lembrete.{" "}
-          <button className="link" onClick={() => onOpenCalendar()} type="button">
-            Ver cronograma
-          </button>
-        </p>
-      ) : null}
     </section>
   );
 
+  // sem cabeçalho de página (o nome da tela está no trilho): começa pelo Próximo aviso, com "Como você é avisado" ao
+  // lado, e a lista embaixo. Sem aviso agendado e sem nada por vir, a faixa só repetiria o vazio da lista ("Nenhum
+  // aviso agendado" em cima de "Nenhuma prova ou trabalho por vir"): ela sai, a lista fica no alto e o "Como você é
+  // avisado" desce para baixo dela, na largura toda (sem card esticado com buraco)
   return (
-    <div className="lb">
-      <PageHeader title="Lembretes" subtitle={subtitle} />
-      {/* sem aviso agendado e sem nada por vir, a faixa só repetiria o vazio da lista ("Nenhum aviso agendado" em
-          cima de "Nenhuma prova ou trabalho por vir"): ela sai e fica uma mensagem só */}
-      {nextAviso || nextEvents.length ? strip : null}
-      <div className={cx("lb-cols", !nextEvents.length && !sent.length && "is-empty")}>
-        {listCard}
-        {side}
-      </div>
+    <div className={cx("lb", hasStrip ? "has-next" : "no-next")}>
+      {hasStrip ? strip : null}
+      {listCard}
+      {side}
     </div>
   );
 }

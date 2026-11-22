@@ -241,8 +241,8 @@ export function ValueChange({ from, to, tone }: { from: string; to: string; tone
       <span className="sr-only">{`de ${from} para ${to}`}</span>
       <span aria-hidden className="inline-flex items-center gap-1">
         {from ? <s>{from}</s> : <span className="notas-docente-ck-none-v">sem nota</span>}
-        <ArrowRight className="h-3.5 w-3.5 text-muted" />
-        {to}
+        <ArrowRight className="notas-docente-ck-arrow h-3.5 w-3.5" />
+        <span className="notas-docente-ck-new">{to}</span>
       </span>
     </p>
   );

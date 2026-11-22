@@ -3,6 +3,7 @@
 import {
   ArrowRight,
   BookOpen,
+  CalendarDays,
   CloudDownload,
   FileText,
   History,
@@ -12,30 +13,24 @@ import {
   Users,
 } from "lucide-react";
 import { useId, useRef, useState } from "react";
-import {
-  cx,
-  dayMonthText,
-  firstName,
-  formatOnDayAt,
-  latestTermLabel,
-  relativeDue,
-  shiftLabel,
-  startOfDay,
-} from "@/lib/format";
+import { cx, dayMonthText, formatOnDayAt, latestTermLabel, shiftLabel, startOfDay } from "@/lib/format";
 import { allCategories } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, CalendarImport, Reminder } from "@/lib/types";
 import { AdminPendingCard } from "./admin-pending-card";
 import {
   AvisosCard,
   CategoryBreakdown,
+  HeroButton,
   InsightTile,
   InstitutionDatesCard,
+  PanelHero,
   calendarNote,
   calendarUpcomingCount,
   delay,
   heightKey,
   isOfficialDate,
   officialCategories,
+  officialWhen,
   openAhead,
   upcomingOfficialDates,
   useColumnFill,
@@ -43,7 +38,7 @@ import {
   type CalendarFilter,
 } from "./dashboard-bits";
 import { Pager, usePaged } from "./pager";
-import { EmptyState, PageHeader, SectionTitle } from "./ui";
+import { EmptyState, SectionTitle } from "./ui";
 
 function datesLabel(count: number) {
   return count === 1 ? "1 data" : `${count} datas`;
@@ -194,81 +189,58 @@ export function AdminDashboard({
 
   return (
     <div ref={rootRef} className="pnl pnl-admin admin-dash grid gap-5">
-      <PageHeader
-        title={`Olá, ${firstName(context?.user.fullName ?? "administração")}`}
-        subtitle={`Visão institucional do semestre ${term}`}
-      />
-      <AvisosCard host avisos={avisos ?? []} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
-
-      {/* Destaque institucional (Figma) */}
+      {/* Sem cabeçalho: o primeiro bloco é o destaque com a próxima data da instituição (a contagem, o nome e a
+          folha da data), a situação do calendário oficial, a última importação e as duas ações de antes. O
+          semestre que o cabeçalho dizia fica no subtítulo de "Atividade por turma" */}
       <div className="hero-slot rise" style={delay(0)}>
-        <section className="hero with-date" aria-label="Calendário oficial">
-          <div className="datebig" aria-hidden>
-            <ShieldCheck className="h-12 w-12" strokeWidth={1.6} />
-          </div>
-          <div className="hero-body">
-            <div className="hero-kicker">
-              <span className="hero-label">Calendário oficial</span>
-              {/* situação: etiqueta com fundo, como as outras situações (Agendado, Concluído) */}
-              {officialCount ? (
-                <span className="pill stat stat-conc">Em dia</span>
-              ) : (
-                <span className="pill stat stat-alt">Pendente</span>
-              )}
-            </div>
-            {/* título curto (o semestre está no cabeçalho da tela): no celular cabe ao lado do escudo, sem três linhas */}
-            <h2 className="hero-title admin-hero-title">
-              {lastImport ? "Calendário importado" : "Nenhum calendário importado"}
-            </h2>
-            {/* o nome da fonte vem da importação: palavra ou link longo quebra em qualquer ponto */}
-            <div className="hero-meta wrap-anywhere">
-              <span>
-                <History className="h-[15px] w-[15px]" aria-hidden />
-                {importLine}
-              </span>
-              {sourceLine ? (
-                <span>
-                  <FileText className="h-[15px] w-[15px]" aria-hidden />
-                  {sourceLine}
-                </span>
-              ) : null}
-            </div>
-            <div className="hero-actions">
-              <button className="btn btn-p" data-primary-action onClick={onOpenSync} type="button">
-                <CloudDownload className="h-4 w-4" aria-hidden />
-                Importar calendário
-              </button>
-              {onNewEvent ? (
-                <button className="btn btn-s" onClick={onNewEvent} type="button">
-                  <Plus className="h-4 w-4" aria-hidden />
-                  Novo evento oficial
-                </button>
-              ) : null}
-            </div>
-          </div>
-          <div className="countdown next">
-            <p className="eyebrow hero-label">Próxima data da instituição</p>
-            {nextOfficial ? (
-              <>
-                {/* com o ano fora do ano corrente: "1 de jan de 2027" (o 01/01 de 2027 e o de 2028 não se confundem) */}
-                <b>{dayMonthText(nextOfficial.startsAt)}</b>
-                {/* no computador, uma linha com reticências; no celular, o nome quebra linha, e a
-                    palavra ou o link longo quebra em qualquer ponto */}
-                <small className="wrap-anywhere" title={nextOfficial.title}>
-                  {nextOfficial.title}, {relativeDue(nextOfficial.startsAt)}
-                </small>
-              </>
+        <PanelHero
+          kicker={nextOfficial ? "Próxima data da instituição" : "Calendário oficial"}
+          category={nextOfficial?.category}
+          pills={
+            // situação do calendário: etiqueta com fundo, como as outras situações (Agendado, Concluído)
+            officialCount ? (
+              <span className="pill stat stat-conc">Calendário em dia</span>
             ) : (
-              <small>Nenhuma data à frente</small>
-            )}
-          </div>
-        </section>
+              <span className="pill stat stat-alt">Calendário pendente</span>
+            )
+          }
+          startsAt={nextOfficial?.startsAt}
+          state={nextOfficial ? undefined : false}
+          title={nextOfficial ? nextOfficial.title : lastImport ? "Calendário importado" : "Nenhum calendário importado"}
+          description={nextOfficial ? undefined : <p>Nenhuma data da instituição à frente.</p>}
+          sheetNote={nextOfficial ? undefined : "hoje"}
+          facts={[
+            ...(nextOfficial
+              ? [
+                  {
+                    key: "quando",
+                    icon: CalendarDays,
+                    // com o ano fora do ano corrente: o 01/01 de 2027 e o de 2028 não se confundem. Os dias que
+                    // faltam já estão na contagem grande
+                    text: officialWhen(nextOfficial).replace(/^./, (first) => first.toUpperCase()),
+                  },
+                ]
+              : []),
+            { key: "importacao", icon: History, text: importLine },
+            // o nome da fonte vem da importação: palavra ou link longo quebra em qualquer ponto
+            ...(sourceLine ? [{ key: "fonte", icon: FileText, text: sourceLine }] : []),
+          ]}
+          actions={
+            <>
+              <HeroButton primary action={{ label: "Importar calendário", icon: CloudDownload, onClick: onOpenSync }} />
+              {onNewEvent ? <HeroButton action={{ label: "Novo evento oficial", icon: Plus, onClick: onNewEvent }} /> : null}
+            </>
+          }
+        />
       </div>
+
+      <AvisosCard host avisos={avisos ?? []} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
 
       <div className="kpis">
         {/* dois números que não se repetem: o que é das turmas e as datas da instituição (com o período) */}
         <InsightTile
           icon={Target}
+          tone="k-brand"
           label="Eventos das turmas"
           order={2}
           value={String(classAhead)}
@@ -278,6 +250,7 @@ export function AdminDashboard({
         />
         <InsightTile
           icon={ShieldCheck}
+          tone="k-azul"
           label="Datas da instituição"
           order={3}
           value={String(officialCount)}
@@ -294,6 +267,7 @@ export function AdminDashboard({
         {/* os quatro indicadores levam a algum lugar: os de turmas e disciplinas, à tela Turmas e disciplinas */}
         <InsightTile
           icon={Users}
+          tone="k-ok"
           label="Turmas ativas"
           order={4}
           value={String(classes.length)}
@@ -303,6 +277,7 @@ export function AdminDashboard({
         />
         <InsightTile
           icon={BookOpen}
+          tone="k-lilas"
           label="Disciplinas ativas"
           order={5}
           value={String(subjects.length)}
@@ -340,10 +315,11 @@ export function AdminDashboard({
             <SectionTitle
               id={classTitleId}
               title="Atividade por turma"
+              // o semestre que o cabeçalho da tela dizia ("Visão institucional do semestre 2026/2") fica aqui
               subtitle={
                 campusEvents
-                  ? `${campusEvents} ${campusEvents === 1 ? "evento oficial também vale" : "eventos oficiais também valem"} para todas as turmas`
-                  : undefined
+                  ? `Semestre ${term}. ${campusEvents} ${campusEvents === 1 ? "evento oficial também vale" : "eventos oficiais também valem"} para todas as turmas`
+                  : `Semestre ${term}`
               }
             />
             {classes.length ? (

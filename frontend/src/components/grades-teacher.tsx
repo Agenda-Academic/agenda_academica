@@ -13,7 +13,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { getEventGrades, getGradeImports } from "@/lib/api";
 import {
   countText,
@@ -37,7 +37,7 @@ import { activeAssignments } from "./event-editor";
 import { launchedCount, subscribeGradesChanged } from "./event-grades-drawer";
 import { Pager, usePaged } from "./pager";
 import { Select, type SelectOption } from "./select";
-import { EmptyState, PageHeader, secondaryButton } from "./ui";
+import { EmptyState, secondaryButton } from "./ui";
 
 /**
  * Tela Notas da docente e da administração (desenho 5.7): as avaliações (prova e trabalho de turma) que a
@@ -47,6 +47,9 @@ import { EmptyState, PageHeader, secondaryButton } from "./ui";
  * Rodada de UX de 2026-11-17: a lista não expande mais no lugar ("Ver todas" virava uma rolagem sem fim). Ela
  * mostra 8 avaliações por página (pager.tsx), agrupadas por mês, com a aba "Pendentes" (as que já aconteceram e
  * ainda não têm notas publicadas) na frente, e filtros por turma e disciplina quando há mais de uma.
+ *
+ * Rodada 10 (visual Pantanal): sem cabeçalho de página. A tela começa pela barra de abas e filtros; o título e o
+ * resumo ficam só para o leitor de tela (o nome da tela já está no trilho).
  * Dona: área Notas (docente).
  */
 export type GradesTeacherProps = {
@@ -601,6 +604,7 @@ export function GradesTeacher({
                     event={event}
                     focused={event.id === focusEventId}
                     future={!happened(event)}
+                    index={shown.indexOf(event)}
                     summary={summaries[event.id] ?? null}
                     onOpenEvent={onOpenEvent}
                     onOpenGrades={openRow}
@@ -621,7 +625,11 @@ export function GradesTeacher({
   const showOffers = showControls && offers.length > 1 && (tabFound.length > 0 || activeOffer !== null);
   return (
     <div className="notas-docente-page">
-      <PageHeader id="notas-docente-titulo" title="Notas das avaliações" subtitle={subtitle} />
+      {/* sem cabeçalho visível (rodada 10): o título e o resumo seguem para o leitor de tela */}
+      <h2 className="sr-only" id="notas-docente-titulo">
+        Notas das avaliações
+      </h2>
+      <p className="sr-only">{subtitle}</p>
       {showControls ? (
         <div className="notas-docente-bar">
           <div className="seg notas-docente-tabs-seg" role="group" aria-label="Quais avaliações mostrar">
@@ -731,7 +739,9 @@ function Progress({ launched, students }: { launched: number; students: number }
       >
         <span style={{ width: `${pct}%` }} />
       </span>
-      <span className="notas-docente-prog-t">{`${launched} de ${students} com nota`}</span>
+      <span className="notas-docente-prog-t">
+        <b>{`${launched} de ${students}`}</b> com nota
+      </span>
     </span>
   );
 }
@@ -842,6 +852,7 @@ function EvaluationRow({
   event,
   focused,
   future,
+  index,
   onOpenEvent,
   onOpenGrades,
   onRetry,
@@ -851,6 +862,8 @@ function EvaluationRow({
   event: AcademicEvent;
   focused: boolean;
   future: boolean;
+  /** Posição na página: atrasa a entrada da linha (cascata). */
+  index: number;
   onOpenEvent: (eventId: number) => void;
   onOpenGrades: (eventId: number) => void;
   onRetry: () => void;
@@ -870,7 +883,11 @@ function EvaluationRow({
     .filter(Boolean)
     .join(", ");
   return (
-    <li className={cx("notas-docente-ev", focused && "is-focus")} data-grades-event={event.id}>
+    <li
+      className={cx("notas-docente-ev", focused && "is-focus")}
+      data-grades-event={event.id}
+      style={{ "--i": index } as CSSProperties}
+    >
       <span className="dbadge" aria-hidden>
         <small>{parts.weekday}</small>
         <b>{parts.day}</b>

@@ -152,7 +152,9 @@ export function GuardianDataContent({ student, forGuardian }: { student?: SeenSt
           return (
             <div key={row.label} className="resp-sees-row">
               <dt className="resp-sees-lab">
-                <Icon className="resp-sees-ico" aria-hidden />
+                <span className={`resp-sees-ic is-${row.answer}`} aria-hidden>
+                  <Icon className="resp-sees-ico" />
+                </span>
                 <span className="min-w-0">
                   <span className="block font-semibold text-ink">{row.label}</span>
                   <span className="block text-[13px] leading-5 text-muted">{row.detail}</span>

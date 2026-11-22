@@ -135,18 +135,19 @@ export function ProfileModal({
           )
         }
       >
-        <div className="flex items-center gap-3.5 rounded-2xl bg-surface-2 p-4">
-          <span className="disp flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-[15px] font-bold text-brand-ink">
+        {/* quem é: o avatar no quadrado verde (como o logo), o nome em Sora e o papel e a matrícula em pílulas */}
+        <div className="prof-head">
+          <span className="prof-av" aria-hidden>
             {user.initials ?? (user.fullName ?? user.email).slice(0, 2).toUpperCase()}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[15px] font-bold">{user.fullName ?? user.email}</p>
-            <p className="truncate text-sm text-muted">{user.email}</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <span className="pill st-ag">{roleLabels[user.role]}</span>
+            <p className="prof-name truncate">{user.fullName ?? user.email}</p>
+            <p className="prof-mail truncate">{user.email}</p>
+            <div className="prof-chips">
+              <span className="prof-chip">{roleLabels[user.role]}</span>
               {user.registration && user.role !== "guardian" ? (
                 // matrícula comprida e sem espaço: corta com reticência na largura do cartão, inteira no title
-                <span className="pill st-ag min-w-0 max-w-full" title={user.registration}>
+                <span className="prof-chip min-w-0 max-w-full" title={user.registration}>
                   <span className="truncate">{user.registration}</span>
                 </span>
               ) : null}

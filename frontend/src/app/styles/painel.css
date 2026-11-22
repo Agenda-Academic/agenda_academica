@@ -2,21 +2,6 @@
    Rodadas de UX de 2026-11-17. Os seletores que disputam com o visual-novo.css começam com "html", pelo
    mesmo motivo de lá; os do Painel ficam dentro de .pnl (a raiz de cada painel). */
 
-/* ---------- rótulo do destaque em frase (sem caixa alta), o mesmo em todos os perfis ---------- */
-html .hero .hero-label,
-html .hero-kicker .hero-label,
-html .hero .countdown .eyebrow.hero-label {
-  font-size: var(--fs-13);
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.4;
-  text-transform: none;
-  color: var(--bebe-ink);
-}
-/* "Faltam" e "Próxima data da instituição": a mesma frase, um pouco mais apagada que o rótulo */
-html .hero .countdown .eyebrow.hero-label {
-  color: color-mix(in srgb, var(--bebe-ink) 72%, transparent);
-}
 /* linha a mais no vazio do destaque (a próxima data da instituição) */
 .hero-empty-note {
   margin-top: 10px;
@@ -26,26 +11,12 @@ html .hero .countdown .eyebrow.hero-label {
   gap: 6px 10px;
   font-size: 14px;
   line-height: 1.45;
-  color: var(--ink-3);
 }
 .hero-empty-note > svg {
   margin-top: 2px;
 }
 .hero-empty-note b {
   font-weight: 600;
-  color: var(--ink-2);
-}
-
-/* destaque da administração: a próxima data da instituição com o nome, também no computador */
-@container hero (min-width: 540px) {
-  html .pnl-admin .hero.with-date > .countdown.next b + small {
-    display: block;
-    max-width: 240px;
-    margin: 6px 0 0 auto;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
 }
 
 /* ---------- linha de evento (event-bits.tsx, EventRow) ---------- */
@@ -383,54 +354,6 @@ html .wk-label {
   display: none;
 }
 
-/* ---------- destaque da administração em largura média (1024, tablet) ----------
-   De 540 a 719 px de destaque, a próxima data da instituição sai do alto à direita (lá ela ocupava três linhas e
-   empurrava o título para baixo) e vira uma linha embaixo dos dados, como no celular. O escudo fica no alto, ao
-   lado do rótulo e do título, sem flutuar no meio do card. */
-@container hero (min-width: 540px) and (max-width: 719.98px) {
-  html .pnl-admin .hero.with-date .hero-kicker {
-    grid-column: 2 / 4;
-  }
-  html .pnl-admin .hero.with-date > .datebig {
-    grid-row: 1 / 6;
-    align-self: start;
-  }
-  html .pnl-admin .hero.with-date > .countdown.next {
-    grid-column: 2 / 4;
-    grid-row: 4;
-    align-self: start;
-    justify-self: start;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 2px 10px;
-    margin: 12px 0 0;
-    text-align: left;
-  }
-  html .pnl-admin .hero.with-date > .countdown.next b {
-    margin: 0;
-    padding: 0;
-    border-radius: 0;
-    background: none;
-    font-size: var(--fs-15);
-  }
-  html .pnl-admin .hero.with-date > .countdown.next b + small {
-    display: block;
-    margin: 0;
-    max-width: none;
-    white-space: normal;
-  }
-  html .pnl-admin .hero.with-date .hero-actions {
-    grid-row: 5;
-  }
-}
-/* celular: o escudo fica ao lado do título curto ("Calendário importado"), alinhado com ele */
-@media (max-width: 639px) {
-  html .pnl-admin .hero.with-date > .datebig {
-    align-self: center;
-  }
-}
-
 /* ---------- Painel da docente no celular e no tablet (uma coluna) ----------
    Lado a lado, as datas da instituição ficam na coluna larga e "Meus próximos eventos" embaixo da semana (assim as
    duas colunas fecham pelo número de itens). Numa coluna só, dashboard-teacher.tsx monta uma .duo-col única já na
@@ -526,5 +449,764 @@ html .pnl .duo.duo-even > .duo-col [data-fill-row] {
     font-size: var(--fs-13);
     font-weight: 600;
     color: var(--muted);
+  }
+}
+
+/* ==================================================================
+   Rodada 10: "Pantanal forte" (amostra sora-pantanal-forte e artefato)
+   O destaque verde-escuro no topo de cada Painel, os indicadores com o ícone num quadrado suave, o selo de data
+   arredondado (o de hoje cheio, em verde), o card da turma com chips e as animações. Tudo dentro de .pnl (a raiz
+   de cada Painel), com "html" na frente para valer por cima do visual-novo.css e do ux.css (mesma camada). Os
+   tokens novos (--ipe, --hero-a...) vêm do globals.css; o valor depois da vírgula é só a reserva.
+   ================================================================== */
+.pnl {
+  --pnl-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --pnl-mola: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --pnl-ipe: var(--ipe, #f2b71f);
+  /* o amarelo claro que lê bem sobre o verde-escuro ("Faltam", as unidades, os ícones dos botões) */
+  --pnl-ipe-l: #f9d56e;
+  --pnl-mid: #7aa83a;
+  --pnl-shadow: 0 1px 2px rgb(15 36 24 / 0.04), 0 6px 18px -8px rgb(15 36 24 / 0.12);
+  --pnl-shadow-up: 0 2px 4px rgb(15 36 24 / 0.05), 0 20px 34px -16px rgb(15 36 24 / 0.24);
+}
+
+/* ---------- entrada em cascata (--i) ---------- */
+html .pnl .rise {
+  animation: pnl-entra 0.6s var(--pnl-ease) backwards;
+  animation-delay: min(calc(var(--i, 0) * 70ms), 700ms);
+}
+
+/* ---------- destaque ---------- */
+html .pnl .hero-slot {
+  container: hero / inline-size;
+}
+html .pnl .pnl-hero {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  isolation: isolate;
+  height: auto;
+  padding: 30px 36px 32px;
+  border: 0;
+  border-radius: 28px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.14) 1.1px, transparent 1.6px) 0 0 / 20px 20px,
+    radial-gradient(70% 120% at 100% 0%, var(--hero-glow, #1f9a48) 0%, transparent 62%),
+    linear-gradient(135deg, var(--hero-a, #0b5c28) 0%, var(--hero-b, #0a4a22) 100%);
+  box-shadow: 0 26px 50px -26px rgb(8 60 28 / 0.7);
+}
+html .pnl .ph-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-height: 28px;
+}
+html .pnl .ph-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 700 12px/1.2 var(--font);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.82);
+}
+html .pnl .ph-kicker svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+/* a categoria e as situações (Agendado, Salvo agora, Calendário em dia) em pílulas translúcidas */
+html .pnl .pnl-hero .ph-cat,
+html .pnl .pnl-hero .ph-top .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14) !important;
+  box-shadow: none;
+  color: #fff !important;
+  font: 650 13px/1 var(--font);
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+html .pnl .pnl-hero .ph-top .pill::before {
+  background: var(--pnl-ipe-l);
+}
+html .pnl .pnl-hero .ph-top .pill svg {
+  color: var(--pnl-ipe-l);
+}
+html .pnl .ph-cat i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff8a8e;
+}
+/* o ponto de cada categoria, num tom que lê bem sobre o verde-escuro */
+html .pnl .ph-cat[data-cat="assignment"] i {
+  background: #cdb6ff;
+}
+html .pnl .ph-cat[data-cat="activity"] i {
+  background: #7fe3ef;
+}
+html .pnl .ph-cat[data-cat="extracurricular"] i {
+  background: #ffb37a;
+}
+html .pnl .ph-cat[data-cat="institutional"] i {
+  background: #a9c8ff;
+}
+html .pnl .ph-cat[data-cat="holiday"] i {
+  background: #8fe3a8;
+}
+html .pnl .ph-cat[data-cat="recess"] i {
+  background: #ffd36b;
+}
+html .pnl .ph-live {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 650 13px/1 var(--font);
+  color: rgb(255 255 255 / 0.86);
+}
+html .pnl .ph-live i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pnl-ipe);
+}
+html .pnl .ph-live.is-on i {
+  animation: pnl-pulso 2.2s infinite;
+}
+html .pnl .ph-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 20px 32px;
+  margin-top: 14px;
+}
+html .pnl .ph-body {
+  min-width: 0;
+}
+html .pnl .ph-faltam {
+  font: 650 16px/1 var(--font);
+  color: var(--pnl-ipe-l);
+}
+html .pnl .ph-digits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 22px;
+  margin: 8px 0 14px;
+}
+html .pnl .ph-unit {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+html .pnl .ph-unit b {
+  display: inline-block;
+  font: 750 104px/0.9 var(--disp);
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  animation: pnl-tick 0.4s var(--pnl-ease) both;
+}
+html .pnl .ph-unit small {
+  margin-left: 4px;
+  font: 650 20px/1 var(--font);
+  color: var(--pnl-ipe-l);
+}
+html .pnl .ph-title {
+  max-width: 28ch;
+  font: 750 38px/1.08 var(--disp);
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+html .pnl .ph-desc {
+  max-width: 62ch;
+  margin-top: 10px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: rgb(255 255 255 / 0.84);
+}
+html .pnl .ph-desc .hero-empty-note b {
+  color: #fff;
+}
+html .pnl .ph-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 14px;
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.35;
+  color: rgb(255 255 255 / 0.88);
+}
+html .pnl .ph-facts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+html .pnl .ph-facts svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  opacity: 0.72;
+}
+html .pnl .ph-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+html .pnl .pnl-hero .ph-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 16px;
+  font: 700 15px/1 var(--font);
+  transition:
+    transform 0.25s var(--pnl-mola),
+    box-shadow 0.2s,
+    background-color 0.2s;
+}
+html .pnl .pnl-hero .ph-btn-p {
+  background: var(--pnl-ipe);
+  color: #0b3d1f;
+  box-shadow: 0 12px 24px -12px rgb(0 0 0 / 0.5);
+}
+html .pnl .pnl-hero .ph-btn-s {
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.3);
+}
+html .pnl .pnl-hero .ph-btn-s svg {
+  color: var(--pnl-ipe-l);
+}
+@media (hover: hover) and (pointer: fine) {
+  html .pnl .pnl-hero .ph-btn:not([aria-disabled="true"]):hover {
+    transform: translateY(-2px);
+  }
+  html .pnl .pnl-hero .ph-btn-p:not([aria-disabled="true"]):hover {
+    background: #ffc534;
+  }
+  html .pnl .pnl-hero .ph-btn-s:not([aria-disabled="true"]):hover {
+    background: rgb(255 255 255 / 0.2);
+  }
+}
+/* o anel de foco em branco: o azul ou o verde da marca some no fundo verde-escuro */
+html .pnl .pnl-hero :is(button, a):focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+/* "O lembrete chega só para você." (responsável), embaixo dos botões */
+html .pnl .pnl-hero .resp-hero-note {
+  margin-top: 10px;
+  font-size: 13.5px;
+  color: rgb(255 255 255 / 0.78);
+}
+
+/* folha da data, com a caneta circulando o dia */
+html .pnl .ph-sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px 6px 0;
+  color: #fff;
+}
+html .pnl .ph-wd {
+  font: 700 14px/1 var(--font);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+html .pnl .ph-dn {
+  position: relative;
+  font: 750 120px/0.8 var(--disp);
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+html .pnl .ph-mo {
+  font: 650 15px/1 var(--font);
+  color: rgb(255 255 255 / 0.78);
+}
+html .pnl .ph-note {
+  margin-top: -6px;
+  font: 700 13px/1 var(--font);
+  letter-spacing: 0.02em;
+  color: var(--pnl-ipe-l);
+}
+html .pnl .ph-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 190px;
+  height: 140px;
+  overflow: visible;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-8deg);
+}
+html .pnl .ph-ring path {
+  fill: none;
+  stroke: var(--pnl-ipe);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: pnl-caneta 1.1s 0.7s cubic-bezier(0.6, 0.1, 0.3, 1) forwards;
+}
+/* destaque vazio: o título fica no lugar da contagem, um pouco menor */
+html .pnl .pnl-hero.is-empty .ph-title {
+  margin-top: 10px;
+  font-size: 34px;
+}
+
+/* destaque em largura média (1024, tablet): tudo um pouco menor */
+@container hero (max-width: 1000px) {
+  html .pnl .ph-unit b {
+    font-size: 84px;
+  }
+  html .pnl .ph-title {
+    font-size: 32px;
+  }
+  html .pnl .ph-dn {
+    font-size: 96px;
+  }
+  html .pnl .ph-ring {
+    width: 156px;
+    height: 116px;
+  }
+}
+@container hero (max-width: 760px) {
+  html .pnl .pnl-hero {
+    padding: 24px 26px 26px;
+  }
+  html .pnl .ph-unit b {
+    font-size: 68px;
+  }
+  html .pnl .ph-unit small {
+    font-size: 17px;
+  }
+  html .pnl .ph-digits {
+    gap: 4px 16px;
+  }
+  html .pnl .ph-title,
+  html .pnl .pnl-hero.is-empty .ph-title {
+    font-size: 28px;
+  }
+  html .pnl .ph-dn {
+    font-size: 80px;
+  }
+  html .pnl .ph-ring {
+    width: 130px;
+    height: 98px;
+  }
+  html .pnl .ph-sheet {
+    padding-right: 4px;
+  }
+}
+/* celular (amostra aluno-painel-390): o destaque compacto, sem a folha, os dados um embaixo do outro e os botões
+   na largura toda, com 48 px de altura */
+@container hero (max-width: 600px) {
+  html .pnl .pnl-hero {
+    padding: 20px 20px 22px;
+    border-radius: 24px;
+  }
+  html .pnl .ph-kicker {
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+  }
+  html .pnl .ph-main {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 12px;
+  }
+  html .pnl .ph-sheet {
+    display: none;
+  }
+  html .pnl .ph-faltam {
+    font-size: 15px;
+  }
+  html .pnl .ph-digits {
+    gap: 2px 14px;
+    margin: 6px 0 12px;
+  }
+  html .pnl .ph-unit b {
+    font-size: 56px;
+  }
+  html .pnl .ph-unit small {
+    font-size: 15px;
+  }
+  html .pnl .ph-title,
+  html .pnl .pnl-hero.is-empty .ph-title {
+    font-size: 24px;
+    line-height: 1.15;
+  }
+  /* os dados seguem em linha e quebram como texto (amostra do celular: o local e a docente na mesma linha) */
+  html .pnl .ph-facts {
+    gap: 8px 16px;
+    font-size: 14.5px;
+  }
+  html .pnl .ph-facts li {
+    align-items: flex-start;
+  }
+  html .pnl .ph-facts svg {
+    margin-top: 1px;
+  }
+  html .pnl .ph-actions {
+    flex-direction: column;
+    margin-top: 20px;
+  }
+  html .pnl .pnl-hero .ph-btn {
+    width: 100%;
+  }
+}
+
+/* ---------- indicadores (amostra): branco, raio 24, o ícone num quadrado suave antes do rótulo, número em Sora 40 ---------- */
+html .pnl .kpis {
+  gap: 20px;
+}
+html .pnl .pnl-kpi {
+  padding: 20px 22px;
+  border-radius: 24px;
+  transition:
+    transform 0.3s var(--pnl-mola),
+    box-shadow 0.25s;
+}
+html .pnl .pnl-kpi .kpi-top {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+}
+html .pnl .kpi-ic,
+html .notas-kpis .kpi-ic {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+}
+html .pnl .kpi-ic svg,
+html .notas-kpis .kpi-ic svg {
+  width: 17px;
+  height: 17px;
+}
+html :is(.pnl, .notas-kpis) .kpi-ic.k-brand {
+  background: var(--brand-50, #e2f4e6);
+  color: var(--brand-ink, #0b5c28);
+}
+html :is(.pnl, .notas-kpis) .kpi-ic.k-prova {
+  background: #ffe6ea;
+  color: #c2334c;
+}
+html :is(.pnl, .notas-kpis) .kpi-ic.k-ipe {
+  background: var(--ipe-bg, #fff4d1);
+  color: var(--ipe-ink, #7a5600);
+}
+html :is(.pnl, .notas-kpis) .kpi-ic.k-ok {
+  background: #dff3e5;
+  color: #13863c;
+}
+html :is(.pnl, .notas-kpis) .kpi-ic.k-azul {
+  background: #dceaff;
+  color: #2160c4;
+}
+html :is(.pnl, .notas-kpis) .kpi-ic.k-lilas {
+  background: #ebe3ff;
+  color: #6a4bc4;
+}
+html .pnl .pnl-kpi .kpi-label {
+  font: 650 14px/1.25 var(--font);
+  color: var(--ink-3);
+}
+html .pnl .pnl-kpi .kpi-val {
+  margin: 14px 0 6px;
+  font: 750 40px/1 var(--disp);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+html .pnl .pnl-kpi .kpi-val small {
+  margin-left: 6px;
+  font: 650 15px/1 var(--font);
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+html .pnl .pnl-kpi .kpi-val.is-date {
+  font-size: 32px;
+  line-height: 40px;
+  white-space: nowrap;
+}
+html .pnl .pnl-kpi .kpi-hint {
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+html .pnl .pnl-kpi .kpi-hit::after {
+  border-radius: 24px;
+}
+@media (hover: hover) and (pointer: fine) {
+  html .pnl .pnl-kpi.is-link:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--pnl-shadow-up);
+  }
+}
+/* "Próximos 30 dias": as barrinhas sobem ao lado do número de 40 px */
+html .pnl .pnl-kpi .kpi-spark {
+  margin-top: -42px;
+}
+html .pnl .pnl-kpi .spark-bars > span {
+  transform-origin: bottom;
+  animation: pnl-sobe 0.7s 0.45s var(--pnl-ease) backwards;
+}
+/* "Pontos em jogo": a barra por disciplina, arredondada, cresce da esquerda ao entrar */
+html .pnl .pnl-bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--fill, #e6f0e4);
+  transform-origin: left;
+  animation: pnl-faixa 1s 0.5s var(--pnl-ease) backwards;
+}
+@media (max-width: 639px) {
+  html .pnl .kpis {
+    gap: 12px;
+  }
+  html .pnl .pnl-kpi {
+    padding: 16px;
+    border-radius: 22px;
+  }
+  html .pnl .pnl-kpi .kpi-top {
+    align-items: flex-start;
+    gap: 8px;
+  }
+  html .pnl .pnl-kpi .kpi-label {
+    font-size: 13px;
+  }
+  html .pnl .pnl-kpi .kpi-ic {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+  }
+  html .pnl .pnl-kpi .kpi-val {
+    margin-top: 10px;
+    font-size: 34px;
+  }
+  html .pnl .pnl-kpi .kpi-val.is-date {
+    font-size: 24px;
+    line-height: 34px;
+  }
+  html .pnl .pnl-kpi .kpi-spark {
+    margin-top: -36px;
+  }
+}
+
+/* ---------- listas: selo de data arredondado; o de hoje, cheio em verde ---------- */
+html .pnl .pnl-list .ev {
+  border-radius: 18px;
+  transition: background-color 0.2s;
+}
+html .pnl .ev .ev-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 56px;
+  min-height: 58px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .pnl .ev .ev-date .dw {
+  font: 700 11px/1 var(--font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+html .pnl .ev .ev-date .dn {
+  font: 750 22px/1 var(--disp);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+html .pnl .ev .ev-date .ev-mo {
+  margin-top: 1px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+html .pnl .pnl-ev[data-today] > .ev .ev-date {
+  background: var(--brand);
+  box-shadow: 0 8px 16px -10px var(--brand);
+}
+html .pnl .pnl-ev[data-today] > .ev .ev-date :is(.dw, .dn, .ev-mo, .ev-yr) {
+  color: #fff;
+}
+html .pnl .pnl-list .ev-title {
+  font-size: 15.5px;
+  font-weight: 650;
+}
+html .pnl .pnl-list .ev-time {
+  font: 700 15px/1.2 var(--disp);
+}
+html .pnl .ev-group {
+  margin: 20px 0 6px;
+  font-weight: 650;
+  color: var(--ink-3);
+}
+
+/* ---------- card da turma (aluno) e do aluno acompanhado (responsável) ---------- */
+html .pnl .pnl-class-t {
+  font: 750 30px/1.05 var(--disp);
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+html .pnl .pnl-class-t:focus {
+  outline: none;
+}
+html .pnl .pnl-class-t:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+html .pnl .pnl-class .sub {
+  margin-top: 6px;
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+html .pnl .pnl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+html .pnl .pnl-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font: 650 12.5px/1 var(--font);
+  color: var(--ink-2);
+}
+html .pnl .pnl-subjects {
+  margin-top: 14px;
+}
+html .pnl .pnl-subjects > li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+html .pnl .pnl-subjects-who {
+  flex: none;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+/* ---------- cards do Painel: hover que levanta nas linhas clicáveis, sem mexer no card ---------- */
+@media (hover: hover) and (pointer: fine) {
+  html .pnl .pnl-list button.ev:hover {
+    background: var(--surface-2);
+  }
+}
+
+/* ---------- animações ---------- */
+@keyframes pnl-entra {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pnl-tick {
+  from {
+    opacity: 0.2;
+    transform: translateY(0.12em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pnl-caneta {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes pnl-faixa {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes pnl-sobe {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes pnl-pulso {
+  0% {
+    box-shadow: 0 0 0 0 rgb(242 183 31 / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgb(242 183 31 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(242 183 31 / 0);
+  }
+}
+/* sem animação (preferência do sistema): tudo já no lugar, a caneta já desenhada */
+@media (prefers-reduced-motion: reduce) {
+  html .pnl .rise,
+  html .pnl .ph-unit b,
+  html .pnl .ph-live.is-on i,
+  html .pnl .pnl-bar,
+  html .pnl .pnl-kpi .spark-bars > span {
+    animation: none;
+  }
+  html .pnl .ph-ring path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  html .pnl .pnl-kpi,
+  html .pnl .pnl-hero .ph-btn {
+    transition: none;
+  }
+  html .pnl .pnl-kpi.is-link:hover,
+  html .pnl .pnl-hero .ph-btn:hover {
+    transform: none;
   }
 }

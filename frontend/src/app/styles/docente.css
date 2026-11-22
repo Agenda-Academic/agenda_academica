@@ -607,3 +607,244 @@ html .docente-oferta.mine .pill.stat.docente-pill-mine {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* ==================================================================
+   Rodada 10: visual "Pantanal forte" na aba Minhas turmas e no painel da turma da docente. Este arquivo entra
+   antes do visual-novo.css e do ux.css: o que disputa com eles começa com "html" e repete a classe. Sombras e
+   curvas --gx-* no :root (gestao.css).
+   ================================================================== */
+html .card.docente-turmas {
+  border: 0;
+  border-radius: 24px;
+  box-shadow: var(--gx-sh);
+  animation: docente-in 0.55s var(--gx-ease) backwards;
+}
+@keyframes docente-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+html .docente-turmas .h2 {
+  font-family: var(--disp);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+/* cabeçalho da tabela em versalete e as linhas com hover arredondado, dentro de um recuo de 12 px */
+@container (min-width: 640px) {
+  html .docente-turmas .docente-turma-head {
+    margin: 0 12px;
+    padding: 10px 8px 10px 12px;
+    border-top: 0;
+    border-bottom: 1px solid var(--line);
+    background: none;
+    font-size: 12.5px;
+    letter-spacing: 0;
+    color: var(--muted);
+  }
+}
+html .docente-turmas .docente-turma-list {
+  padding: 4px 12px 10px;
+  border-top: 1px solid var(--line);
+}
+html .docente-turmas .docente-turma-head + .docente-turma-list {
+  border-top: 0;
+}
+html .docente-turmas .docente-turma-list > li + li,
+html .docente-turmas .docente-turma-list > .docente-turma-row + .docente-turma-row {
+  border-top: 0;
+}
+html .docente-turmas .docente-turma-row {
+  position: relative;
+  padding: 14px 8px 14px 12px;
+  border-radius: 16px;
+  background: transparent;
+  transition: background-color 0.2s ease;
+}
+/* o fio entre as linhas: um traço recuado, que some ao lado da linha em hover */
+html .docente-turmas .docente-turma-list > li + li > .docente-turma-row::before,
+html .docente-turmas .docente-turma-list > .docente-turma-row + .docente-turma-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 10px;
+  left: 10px;
+  height: 1px;
+  background: var(--line);
+  pointer-events: none;
+}
+html .docente-turmas .docente-turma-list > li:hover > .docente-turma-row::before,
+html .docente-turmas .docente-turma-list > li:hover + li > .docente-turma-row::before,
+html .docente-turmas .docente-turma-list > .docente-turma-row:hover::before,
+html .docente-turmas .docente-turma-list > .docente-turma-row:hover + .docente-turma-row::before {
+  opacity: 0;
+}
+@media (max-width: 639px) {
+  html .docente-turmas .docente-turma-list {
+    padding: 4px 8px 8px;
+  }
+  html .docente-turmas .docente-turma-row {
+    padding: 12px 4px 12px 8px;
+  }
+}
+html .docente-turmas button.docente-turma-row:hover {
+  background: var(--surface-2);
+}
+html .docente-turmas .docente-turma-row.sel {
+  background: var(--brand-50);
+  box-shadow: inset 4px 0 0 var(--brand);
+}
+html .docente-turmas .docente-turma-line .t {
+  font-family: var(--disp);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+html .docente-turmas .docente-turma-row .docente-num {
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+html .docente-turmas .docente-turma-go {
+  transition:
+    transform 0.25s var(--gx-mola),
+    color 0.2s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  html .docente-turmas button.docente-turma-row:hover .docente-turma-go {
+    transform: translateX(3px);
+    color: var(--brand);
+  }
+}
+html .docente-subj-chip svg {
+  color: var(--brand);
+}
+/* linhas em cascata */
+html .docente-turmas .docente-turma-list > li {
+  animation: docente-in 0.45s var(--gx-ease) backwards;
+  animation-delay: calc(0.18s + var(--docente-i, 0) * 55ms);
+}
+html .docente-turmas .docente-turma-list > li:nth-child(2) {
+  --docente-i: 1;
+}
+html .docente-turmas .docente-turma-list > li:nth-child(3) {
+  --docente-i: 2;
+}
+html .docente-turmas .docente-turma-list > li:nth-child(n + 4) {
+  --docente-i: 3;
+}
+/* pedidos de entrada: âmbar ipê */
+html .docente-tab-pend {
+  background: var(--ipe-bg, #fff4d1);
+  color: var(--ipe-ink, #7a5600);
+}
+html .docente-turmas .pill.stat {
+  border-radius: 999px;
+}
+html .docente-turmas .pill.stat.stat-alt {
+  border-color: color-mix(in srgb, var(--ipe, #f2b71f) 55%, transparent);
+  background: var(--ipe-bg, #fff4d1);
+  color: var(--ipe-ink, #7a5600);
+}
+
+/* ---------- painel da turma (Drawer): raio 28, blocos suaves ---------- */
+.drawer:has(.docente-panel) {
+  border-radius: 28px 0 0 28px;
+}
+html .drawer:has(.docente-panel) .drawer-head {
+  border-radius: 28px 0 0 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand-50) 60%, var(--surface)) 0%, var(--surface) 100%);
+}
+html .drawer:has(.docente-panel) .drawer-head h2 {
+  font-family: var(--disp);
+  letter-spacing: -0.02em;
+}
+html .drawer:has(.docente-panel) .drawer-foot {
+  border-radius: 0 0 0 28px;
+}
+@media (max-width: 639px) {
+  .drawer:has(.docente-panel),
+  html .drawer:has(.docente-panel) :is(.drawer-head, .drawer-foot) {
+    border-radius: 0;
+  }
+}
+html .docente-panel .docente-dsec-t {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+html .docente-panel .docente-dsec-t::before {
+  content: "";
+  flex: none;
+  width: 4px;
+  height: 16px;
+  border-radius: 99px;
+  background: var(--brand);
+}
+html .docente-panel .docente-oferta {
+  border: 0;
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .docente-panel .docente-oferta.mine {
+  background: var(--brand-50);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent);
+}
+html .docente-panel .docente-oferta.warn {
+  background: var(--ipe-bg, #fff4d1);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ipe, #f2b71f) 45%, transparent);
+}
+html .docente-panel .docente-oferta.warn .docente-docs {
+  color: var(--ipe-ink, #7a5600);
+}
+html .docente-panel .docente-code-chip {
+  border: 0;
+  border-radius: 999px;
+  padding: 0 9px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .docente-panel .docente-av-xs {
+  border-radius: 9px;
+  background: var(--brand-100, #ccebd3);
+  color: var(--brand-ink);
+}
+html .docente-panel .pill.stat {
+  border-radius: 999px;
+}
+html .docente-panel :is(.pill.stat.stat-alt, .stat.amber) {
+  border-color: color-mix(in srgb, var(--ipe, #f2b71f) 55%, transparent);
+  background: var(--ipe-bg, #fff4d1);
+  color: var(--ipe-ink, #7a5600);
+}
+html .docente-panel .seg {
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .docente-panel .seg button {
+  border-radius: 999px;
+}
+html .docente-panel .seg button.on {
+  background: var(--brand);
+  color: #fff;
+}
+html .docente-panel .seg button.on :is(.n, .docente-n) {
+  color: rgb(255 255 255 / 0.85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html .card.docente-turmas,
+  html .docente-turmas .docente-turma-list > li {
+    animation: none;
+  }
+  html .docente-turmas .docente-turma-go {
+    transition: none;
+  }
+  html .docente-turmas button.docente-turma-row:hover .docente-turma-go {
+    transform: none;
+  }
+}

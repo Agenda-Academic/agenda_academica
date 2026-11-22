@@ -479,7 +479,9 @@ export function EventRow({
     <button
       aria-current={selected ? "true" : undefined}
       aria-label={name}
-      className={cx("ev", selected && "sel", showMonth && !hideDate && "with-month")}
+      // today: evento de hoje, o selo da data fica cheio em verde (contrato da rodada 10 em ux.css, .ev.today .ev-date).
+      // Vale em toda lista que usa a linha (Painéis, Cronograma e lista do dia)
+      className={cx("ev", selected && "sel", showMonth && !hideDate && "with-month", days === 0 && "today")}
       data-event-id={event.id}
       // abre o detalhe: ao fechá-lo, o foco volta para cá (contrato com o page.tsx)
       data-opens-event={event.id}
@@ -988,7 +990,8 @@ export function EventDetailContent({
 
   // ordem da amostra A: categoria, título e quando; os dados; a descrição; o lembrete; as ações
   return (
-    <div className={cx("evd", side && "is-side")}>
+    // k-*: a cor da categoria (--k, --k-bg, --k-t) para a etiqueta, a faixa do alto e a descrição (cronograma.css)
+    <div className={cx("evd", side && "is-side", `k-${meta.tint}`)}>
       <div className={cx("evd-top", cornerSpace && "has-x")}>
         <div className="evd-tags">
           <span className={cx("cat", meta.tint)}>{meta.short}</span>

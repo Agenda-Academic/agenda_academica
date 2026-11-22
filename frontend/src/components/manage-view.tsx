@@ -485,6 +485,8 @@ type Kpi = {
   hint?: ReactNode;
   bar?: number;
   tone?: "attn" | "ok";
+  /** Cor do quadrado do ícone (rodada 10): verde da marca, vermelho de prova, ipê, ok, azul da bandeira ou lilás. */
+  ic?: "k-brand" | "k-prova" | "k-ipe" | "k-ok" | "k-azul" | "k-trab";
   /** Ainda sem os dados dele: rótulo, ícone, número e dica viram esqueleto (nada de mostrar um rótulo e trocar depois). */
   loading?: boolean;
   aria: string;
@@ -1338,16 +1340,6 @@ export function ManageView({
 
   /* ---------- cabeçalho, indicadores e filtros ---------- */
 
-  const assignmentClasses = [...new Set(publishable.map((item) => item.academicClass?.name).filter(Boolean) as string[])];
-  const assignmentSubjects = [...new Set(publishable.map((item) => item.subject?.name).filter(Boolean) as string[])];
-  const officialTotal = manageableEvents.filter(isOfficialDate).length;
-  const classesTotal = manageableEvents.length - officialTotal;
-  const subtitle = admin
-    ? `${countText(officialTotal, "data da instituição", "datas da instituição")} e ${countText(classesTotal, "evento das turmas", "eventos das turmas")}`
-    : assignmentClasses.length
-      ? `${joinList(assignmentClasses)}, ${joinList(assignmentSubjects)}`
-      : "Eventos que você gerencia";
-
   // "Novo evento" com a seta "Para qual disciplina?" (as ofertas com evento novo); com uma só, o botão já basta
   const offerItems: RowMenuItem<string>[] = publishable
     .filter((item, index, list) => list.findIndex((other) => other.academicClassId === item.academicClassId && other.subjectId === item.subjectId) === index)
@@ -1400,16 +1392,12 @@ export function ManageView({
     )
   ) : null;
 
+  // rodada 10: sem cabeçalho de página (o nome da tela já está no trilho). O título fica só para leitor de tela e
+  // continua recebendo o foco ao limpar a busca; as ações vão para a linha das abas (docente) ou dos filtros
   const header = (
-    <header className="pagehead gx-head">
-      <div className="min-w-0">
-        <h2 id={headingId} ref={headingRef} tabIndex={-1} className="pagehead-t wrap-anywhere">
-          {admin ? "Eventos da instituição" : "Gestão"}
-        </h2>
-        <p className="pagehead-s">{subtitle}</p>
-      </div>
-      {headerActions ? <div className="pagehead-a">{headerActions}</div> : null}
-    </header>
+    <h2 id={headingId} ref={headingRef} tabIndex={-1} className="sr-only">
+      {admin ? "Eventos da instituição" : "Gestão"}
+    </h2>
   );
 
   // indicadores (amostra A): clicáveis, cada um leva ao que conta
@@ -1433,6 +1421,7 @@ export function ManageView({
       value: attentionCount,
       hint: attentionCount ? joinList(hintParts) : "Tudo em dia",
       tone: attentionCount ? "attn" : "ok",
+      ic: attentionCount ? "k-ipe" : "k-ok",
       aria: attentionCount ? `Precisa de atenção: ${attentionCount}, ${joinList(hintParts)}` : "Precisa de atenção: nada, tudo em dia",
       go: { period: "overview" },
     });
@@ -1444,6 +1433,7 @@ export function ManageView({
       id: "proximas",
       label: "Próximas avaliações",
       icon: CalendarDays,
+      ic: "k-prova",
       value: soonEvals.length,
       hint: soonEvals.length
         ? `${joinList(dates)}${soonEvals.length > 2 ? ` e mais ${soonEvals.length - 2}` : ""}`
@@ -1459,6 +1449,7 @@ export function ManageView({
       id: "publicadas",
       label: "Notas publicadas",
       icon: ClipboardCheck,
+      ic: "k-ok",
       value: (
         <>
           {published}
@@ -1497,6 +1488,7 @@ export function ManageView({
               id: "pedidos",
               label: "Pedidos de entrada",
               icon: UserPlus,
+              ic: "k-ipe",
               value: pendingTotal,
               hint: "Esperando sua decisão em Minhas turmas",
               tone: "attn",
@@ -1508,6 +1500,7 @@ export function ManageView({
               id: "alunos",
               label: "Alunos ativos",
               icon: Users,
+              ic: "k-brand",
               value: activeStudents,
               hint: "Nenhum pedido de entrada",
               aria: `Alunos ativos: ${activeStudents}, em ${countText(classTotal, "turma", "turmas")}, nenhum pedido de entrada`,
@@ -1517,6 +1510,7 @@ export function ManageView({
               id: "turmas",
               label: "Minhas turmas",
               icon: Users,
+              ic: "k-brand",
               value: classTotal,
               hint: "Nenhum pedido de entrada",
               aria: `Minhas turmas: ${classTotal}, nenhum pedido de entrada`,
@@ -1546,6 +1540,7 @@ export function ManageView({
         id: "30dias",
         label: `Próximos ${SOON_DAYS} dias`,
         icon: CalendarClock,
+        ic: "k-brand",
         value: next30.length,
         hint: next30.length
           ? `${next30.filter(isOfficialDate).length} da instituição e ${next30.filter((event) => !isOfficialDate(event)).length} das turmas`
@@ -1557,6 +1552,7 @@ export function ManageView({
         id: "instituicao",
         label: "Datas da instituição",
         icon: ShieldCheck,
+        ic: "k-azul",
         value: officialOpenAhead,
         hint: officialRange,
         aria: `Datas da instituição: ${officialOpenAhead} à frente, ${officialRange}`,
@@ -1566,6 +1562,7 @@ export function ManageView({
         id: "turmas",
         label: "Eventos das turmas",
         icon: Target,
+        ic: "k-trab",
         value: classEventsAhead,
         hint: `${classEventsTotal} no total`,
         aria: `Eventos das turmas: ${classEventsAhead} à frente, ${classEventsTotal} no total`,
@@ -1578,6 +1575,7 @@ export function ManageView({
         value: changedAhead,
         hint: changedAhead ? "Entre os próximos" : "Nenhum entre os próximos",
         tone: changedAhead ? "attn" : undefined,
+        ic: changedAhead ? "k-ipe" : "k-prova",
         aria: `Alterados ou cancelados entre os próximos: ${changedAhead}`,
         go: { period: "upcoming", changed: true },
       }
@@ -1605,7 +1603,11 @@ export function ManageView({
             style={delay(index)}
             aria-busy={kpi.loading || undefined}
           >
+            {/* rodada 10: o ícone num quadrado suave colorido, antes do rótulo (.kpi-ic do dono base) */}
             <div className="kpi-top">
+              <span className={cx("kpi-ic", kpi.loading ? "skel" : (kpi.ic ?? "k-brand"))} aria-hidden>
+                {kpi.loading ? null : <Icon />}
+              </span>
               <button
                 className="kpi-hit kpi-label"
                 aria-label={kpi.aria}
@@ -1614,9 +1616,6 @@ export function ManageView({
               >
                 {kpi.loading ? <span className="skel gx-kpi-skel-label" aria-hidden /> : kpi.label}
               </button>
-              <span className={cx("kpi-ico", kpi.loading && "skel")} aria-hidden>
-                {kpi.loading ? null : <Icon />}
-              </span>
             </div>
             <p className="kpi-val" aria-hidden>
               {kpi.value}
@@ -1702,6 +1701,8 @@ export function ManageView({
           />
         ) : null}
       </div>
+      {/* administração (sem abas): "Importar calendário" e "Novo evento oficial" na barra de controles, à direita */}
+      {!teacherTabs && headerActions ? <div className="gx-fact">{headerActions}</div> : null}
     </div>
   );
 
@@ -2037,6 +2038,8 @@ export function ManageView({
       {header}
       {teacherTabs ? (
         <>
+          {/* rodada 10: a tela começa pelas abas, com "Novo evento" (o dividido) na mesma linha, à direita */}
+          <div className="gx-top">
           <div ref={paneTabsRef} className="tabs gx-tabs" role="tablist" aria-label="Gestão">
             {paneTabs.map((item) => {
               const selected = pane === item.id;
@@ -2064,6 +2067,8 @@ export function ManageView({
               );
             })}
           </div>
+          {headerActions ? <div className="gx-top-a">{headerActions}</div> : null}
+          </div>
           <div id={paneIds.events} role="tabpanel" aria-labelledby={`${paneIds.events}-aba`} hidden={pane !== "events"}>
             {noAssignments ? (
               <section className="card pad rise gx-notice">
@@ -2084,7 +2089,12 @@ export function ManageView({
         </>
       ) : (
         <>
-          <div className="gx-gap" />
+          {/* administração: as ações ficam na linha dos filtros; sem nenhum evento (sem filtros), numa linha própria */}
+          {headerActions && !manageableEvents.length ? (
+            <div className="gx-top gx-top-solo">
+              <div className="gx-top-a">{headerActions}</div>
+            </div>
+          ) : null}
           {eventsContent}
         </>
       )}

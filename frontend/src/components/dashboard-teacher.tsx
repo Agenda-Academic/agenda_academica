@@ -18,7 +18,6 @@ import {
   countText,
   cx,
   dateParts,
-  firstName,
   formatShortDate,
   formatTime,
   isWholeDay,
@@ -49,7 +48,7 @@ import {
   type CalendarFilter,
 } from "./dashboard-bits";
 import { eventLastDay } from "./event-bits";
-import { EmptyState, PageHeader, SectionTitle } from "./ui";
+import { EmptyState, SectionTitle } from "./ui";
 
 /** Blocos de evento na semana; os que não cabem viram "+N eventos" no dia deles. */
 const WEEK_LIMIT = 7;
@@ -308,9 +307,8 @@ export function TeacherDashboard({
       wide,
     ].join("|")
   );
-  // cabeçalho da tela: "Olá, Maraísa" e as turmas com o semestre, na ordem do Painel do aluno ("TADS 5, semestre
-  // 2026/2"); com mais de duas turmas, só o número delas (a linha não cresce sem fim)
-  const greeting = `Olá, ${firstName(context?.user.fullName ?? "docente")}`;
+  // sem cabeçalho de tela (rodada 10): as turmas com o semestre ("TADS 5, semestre 2026/2"; com mais de duas turmas,
+  // só o número delas) ficam no subtítulo do card "Minhas turmas e disciplinas"
   const classesText = classes.length
     ? classes.length > 2
       ? countText(classes.length, "turma", "turmas")
@@ -327,7 +325,7 @@ export function TeacherDashboard({
   // os quatro cards de baixo; lado a lado ficam em duas colunas, numa coluna só seguem a ordem da docente
   const turmasCard = (
     <section className="card pad rise prof-turmas" style={delay(6)} aria-labelledby="prof-turmas-titulo">
-      <SectionTitle id="prof-turmas-titulo" title="Minhas turmas e disciplinas" />
+      <SectionTitle id="prof-turmas-titulo" title="Minhas turmas e disciplinas" subtitle={headSubtitle || undefined} />
       {assignments.length ? (
         <ul className="subj-grid">
           {assignments.map((assignment) => {
@@ -505,9 +503,7 @@ export function TeacherDashboard({
 
   return (
     <div ref={rootRef} className="pnl pnl-prof grid gap-5">
-      <PageHeader title={greeting} subtitle={headSubtitle || undefined} />
-      <AvisosCard host avisos={avisos ?? []} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
-
+      {/* sem cabeçalho: o primeiro bloco é o destaque com a próxima avaliação da docente; os avisos logo depois */}
       <div className="hero-slot rise" style={delay(0)}>
         <NextEventHero
           event={nextMine}
@@ -521,7 +517,7 @@ export function TeacherDashboard({
           saved={nextMine !== null && savedId === nextMine.id}
           secondary={
             nextMine && onEdit
-              ? { label: "Ver no cronograma", onClick: () => onSelect(nextMine.id), opensEvent: nextMine.id }
+              ? { label: "Ver no cronograma", icon: CalendarDays, onClick: () => onSelect(nextMine.id), opensEvent: nextMine.id }
               : { label: "Abrir gestão", icon: LayoutGrid, onClick: onOpenManage }
           }
           emptyTitle="Nenhum prazo publicado à frente"
@@ -531,9 +527,12 @@ export function TeacherDashboard({
         />
       </div>
 
+      <AvisosCard host avisos={avisos ?? []} events={upcomingEvents} onDismiss={onDismissAviso} onOpen={onSelect} />
+
       <div className="kpis">
         <InsightTile
           icon={Megaphone}
+          tone="k-brand"
           label="Publicações futuras"
           order={2}
           value={String(myOpen.length)}
@@ -543,6 +542,7 @@ export function TeacherDashboard({
         />
         <InsightTile
           icon={Users}
+          tone="k-azul"
           label="Turmas"
           order={3}
           value={String(classes.length)}
@@ -552,6 +552,7 @@ export function TeacherDashboard({
         />
         <InsightTile
           icon={BookOpen}
+          tone="k-lilas"
           label="Disciplinas"
           order={4}
           value={String(assignments.length)}
@@ -562,6 +563,7 @@ export function TeacherDashboard({
         {/* a próxima data da instituição (feriado, recesso) ajuda a marcar a prova; "115 à frente" não ajudava */}
         <InsightTile
           icon={ShieldCheck}
+          tone="k-ipe"
           label="Próxima data da instituição"
           order={5}
           value={nextOfficial ? shortDayMonth(nextOfficial.startsAt) : "Nenhuma"}

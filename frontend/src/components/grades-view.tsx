@@ -45,7 +45,7 @@ import { delay, showAllText } from "./dashboard-bits";
 import { GradesTeacher } from "./grades-teacher";
 import { GuardianDataDialog, guardianSeesLabels } from "./guardian-data-dialog";
 import { GradeValue, awaitingGrades, isAwaitingGrade, scoreParts, useApiLoad, useStudentGrades } from "./latest-grades-card";
-import { Drawer, EmptyState, ErrorState, PageHeader, RetryButton, SectionTitle, primaryButton, secondaryButton } from "./ui";
+import { Drawer, EmptyState, ErrorState, RetryButton, SectionTitle, primaryButton, secondaryButton } from "./ui";
 
 /**
  * Tela Notas (?tela=notas). Decide pelo papel:
@@ -97,14 +97,10 @@ export function GradesView(props: GradesViewProps) {
     );
   }
 
-  // aluno e responsável: o cabeçalho da tela (amostra A) e, embaixo, as notas
-  const who = props.role === "guardian" && props.student ? firstName(props.student.fullName ?? "Aluno") : null;
+  // aluno e responsável: sem cabeçalho de tela (rodada 10), a tela começa pelos indicadores; o nome da tela está no
+  // menu e o h1 da página continua para o leitor de tela
   return (
-    <div className="grid gap-5">
-      <PageHeader
-        title="Notas"
-        subtitle={who ? `As notas que a docente publicou para ${who}, por disciplina.` : "As notas que a docente publicou, por disciplina."}
-      />
+    <div className="notas-tela grid gap-5">
       <ReaderGrades {...props} />
     </div>
   );
@@ -469,12 +465,13 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
     // dele não tem lista que cresça (as próximas já aparecem todas) e terminaria bem acima das disciplinas
     <div className={cx("grid gap-5", !isGuardian && "notas-aluno")}>
       <div className="notas-kpis">
+        {/* o ícone num quadrado suave antes do rótulo e o número em Sora, como os indicadores do Painel */}
         <div className="card kpi rise" style={delay(0)}>
           <div className="kpi-top">
-            <p className="kpi-label">Notas publicadas</p>
-            <span className="kpi-ico" aria-hidden>
-              <CircleCheck className="h-[18px] w-[18px]" />
+            <span className="kpi-ic k-ok" aria-hidden>
+              <CircleCheck />
             </span>
+            <p className="kpi-label">Notas publicadas</p>
           </div>
           <p className="kpi-val">{publishedTotal}</p>
           <p className="kpi-hint">
@@ -485,17 +482,20 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         </div>
         <div className="card kpi rise" style={delay(1)}>
           <div className="kpi-top">
-            <p className="kpi-label">Aguardando publicação</p>
-            {/* ícone cinza como os outros (Gestão e Painel); só fica colorido quando há nota esperando */}
-            <span className={cx("kpi-ico", waiting.length > 0 && "notas-ico-blue")} aria-hidden>
-              <Clock className="h-[18px] w-[18px]" />
+            {/* amarelo ipê quando há nota esperando; sem nenhuma, o verde dos outros */}
+            <span className={cx("kpi-ic", waiting.length > 0 ? "k-ipe" : "k-brand")} aria-hidden>
+              <Clock />
             </span>
+            <p className="kpi-label">Aguardando publicação</p>
           </div>
           <p className="kpi-val">{waiting.length}</p>
           <p className="kpi-hint wrap-anywhere">{waitingHint}</p>
         </div>
         <div className={cx("card kpi rise notas-kpi-prox", nextEval && "is-link")} style={delay(2)}>
           <div className="kpi-top">
+            <span className="kpi-ic k-prova" aria-hidden>
+              <CalendarDays />
+            </span>
             {nextEval ? (
               // alvo de 24 px com o mouse e 44 px no toque e no celular (notas.css), centrado ao lado do ícone: o texto
               // e a altura do cabeçalho do card não saem do lugar
@@ -510,9 +510,6 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
             ) : (
               <p className="kpi-label">Próxima avaliação</p>
             )}
-            <span className="kpi-ico" aria-hidden>
-              <CalendarDays className="h-[18px] w-[18px]" />
-            </span>
           </div>
           <p className={cx("kpi-val", nextEval ? "is-date" : "notas-kpi-none")}>{nextEval ? formatShortDate(nextEval.startsAt) : "Nenhuma"}</p>
           <p className="kpi-hint wrap-anywhere">{nextHint}</p>

@@ -1733,3 +1733,570 @@ html .admin-year button:focus-visible {
     height: 40px;
   }
 }
+
+/* ==================================================================
+   Rodada 10: visual "Pantanal forte" na tela Turmas e disciplinas e nos painéis dela (Nova turma em passos,
+   curso, turma, disciplina e aluno). Sem cabeçalho de página: a tela começa pelos cards. Este arquivo entra antes
+   do visual-novo.css e do ux.css: as regras que disputam com eles começam com "html" e repetem a classe.
+   Tokens: --brand*, --ipe* (com reserva), --c-*, e as sombras e curvas --gx-* (gestao.css, no :root).
+   ================================================================== */
+
+/* âmbar das pendências: o ipê */
+html .admin-duo,
+html .admin-panel,
+html .admin-pend-list {
+  --admin-amber-bg: var(--ipe-bg, #fff4d1);
+  --admin-amber-line: color-mix(in srgb, var(--ipe, #f2b71f) 45%, transparent);
+  --admin-amber-ink: var(--ipe-ink, #7a5600);
+}
+
+/* ---------- cards: raio 24, sem borda dura, sombra macia, entrada em cascata ---------- */
+html .admin-screen > .card.card,
+html .admin-duo > .card.card {
+  border: 0;
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--gx-sh);
+  animation: admin-in 0.55s var(--gx-ease) backwards;
+}
+html .admin-duo > .card.card:nth-child(2) {
+  animation-delay: 0.08s;
+}
+@keyframes admin-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+/* título do card em Sora */
+html .admin-screen .admin-head .h2 {
+  font-family: var(--disp);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+/* "Cursos N" e "Nova turma" lado a lado à direita do título; no celular, embaixo dele, na largura do card */
+.admin-head-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+@media (max-width: 639px) {
+  .admin-turmas .admin-head {
+    flex-wrap: wrap;
+  }
+  .admin-turmas .admin-head-acts {
+    flex: 1 1 100%;
+  }
+  .admin-turmas .admin-head-acts > .btn {
+    flex: 1 1 auto;
+  }
+  .admin-turmas .admin-head-acts > .btn-p {
+    order: -1;
+    flex-basis: 100%;
+  }
+}
+/* botões arredondados que levantam no hover (mola) */
+html .admin-screen :is(.admin-head, .admin-head-acts, .admin-rows-pad, .admin-disc-empty) .btn {
+  border-radius: 14px;
+  transition:
+    transform 0.25s var(--gx-mola),
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+html .admin-screen :is(.admin-head, .admin-head-acts) .btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+html .admin-screen .admin-head .btn-p {
+  box-shadow: 0 10px 20px -12px var(--brand);
+}
+html .admin-courses-btn .admin-n {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+
+/* ---------- Ativas / Arquivadas em pílula ---------- */
+html .admin-screen .admin-seg .seg,
+html .admin-panel .seg {
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .admin-screen .admin-seg .seg button,
+html .admin-panel .seg button {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+html .admin-screen .admin-seg .seg button.on,
+html .admin-panel .seg button.on {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 8px 16px -10px var(--brand);
+}
+html .admin-screen .admin-seg .seg button.on .admin-n,
+html .admin-panel .seg button.on :is(.n, .admin-n) {
+  color: rgb(255 255 255 / 0.85);
+}
+@media (pointer: coarse), (max-width: 767px) {
+  html .admin-screen .admin-seg .seg button,
+  html .admin-panel .seg button {
+    height: 44px;
+  }
+}
+
+/* ---------- lista de turmas: cabeçalho em versalete, linhas com hover arredondado ---------- */
+@container (min-width: 600px) {
+  html .admin-turmas .admin-thead {
+    margin: 0 12px;
+    padding: 10px 8px 10px 12px;
+    border-top: 0;
+    border-bottom: 1px solid var(--line);
+    background: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--muted);
+  }
+  html .admin-turmas .admin-thead + .admin-rows {
+    border-top: 0;
+  }
+}
+html .admin-turmas .admin-rows {
+  padding: 4px 12px 10px;
+  border-top: 1px solid var(--line);
+}
+html .admin-turmas .admin-row,
+html .admin-screen .admin-drow {
+  position: relative;
+  border-bottom: 0;
+  border-radius: 16px;
+  transition: background-color 0.2s ease;
+}
+html .admin-turmas .admin-row {
+  padding: 14px 8px 14px 12px;
+}
+/* o fio entre as linhas: um traço recuado, que some ao lado da linha em hover */
+html .admin-turmas .admin-rows > li + li > .admin-row::before,
+html .admin-screen .admin-dlist > li + li > .admin-drow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 10px;
+  left: 10px;
+  height: 1px;
+  background: var(--line);
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+html .admin-turmas .admin-rows > li:hover > .admin-row::before,
+html .admin-turmas .admin-rows > li:hover + li > .admin-row::before,
+html .admin-screen .admin-dlist > li:hover > .admin-drow::before,
+html .admin-screen .admin-dlist > li:hover + li > .admin-drow::before {
+  opacity: 0;
+}
+@media (max-width: 639px) {
+  html .admin-turmas .admin-rows {
+    padding: 4px 8px 8px;
+  }
+  html .admin-turmas .admin-row {
+    padding: 12px 4px 12px 8px;
+  }
+}
+/* número de alunos em Sora */
+html .admin-turmas .admin-c-num .admin-t {
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+html .admin-turmas .admin-t-line .admin-t {
+  font-family: var(--disp);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+/* a seta anda um pouco para a direita no hover */
+html .admin-screen .admin-go {
+  transition:
+    transform 0.25s var(--gx-mola),
+    color 0.2s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  html .admin-screen :is(.admin-row, .admin-drow, .admin-srow):hover {
+    background: var(--surface-2);
+  }
+  html .admin-screen :is(.admin-row, .admin-drow, .admin-srow):hover .admin-go {
+    transform: translateX(3px);
+    color: var(--brand);
+  }
+}
+/* linhas entram em cascata */
+html .admin-screen :is(.admin-rows, .admin-dlist, .admin-people) > li {
+  animation: admin-in 0.45s var(--gx-ease) backwards;
+  animation-delay: calc(0.18s + var(--admin-i, 0) * 55ms);
+}
+html .admin-screen :is(.admin-rows, .admin-dlist, .admin-people) > li:nth-child(2) {
+  --admin-i: 1;
+}
+html .admin-screen :is(.admin-rows, .admin-dlist, .admin-people) > li:nth-child(3) {
+  --admin-i: 2;
+}
+html .admin-screen :is(.admin-rows, .admin-dlist, .admin-people) > li:nth-child(4) {
+  --admin-i: 3;
+}
+html .admin-screen :is(.admin-rows, .admin-dlist, .admin-people) > li:nth-child(5) {
+  --admin-i: 4;
+}
+html .admin-screen :is(.admin-rows, .admin-dlist, .admin-people) > li:nth-child(n + 6) {
+  --admin-i: 5;
+}
+
+/* ---------- etiquetas de situação nas cores novas ---------- */
+html :is(.admin-screen, .admin-panel) .pill.stat {
+  border-radius: 999px;
+  font-weight: 650;
+}
+html :is(.admin-screen, .admin-panel) :is(.pill.stat.stat-alt, .stat.amber) {
+  border-color: color-mix(in srgb, var(--ipe, #f2b71f) 55%, transparent);
+  background: var(--ipe-bg, #fff4d1);
+  color: var(--ipe-ink, #7a5600);
+}
+html :is(.admin-screen, .admin-panel) :is(.pill.stat.stat-conc, .stat.green) {
+  border-color: color-mix(in srgb, var(--brand) 25%, transparent);
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+html :is(.admin-screen, .admin-panel) :is(.pill.stat.stat-canc, .stat.red) {
+  border-color: color-mix(in srgb, var(--c-prova, #e5484d) 30%, transparent);
+  background: var(--c-prova-bg, #fdecec);
+  color: var(--c-prova-t, #b3261e);
+}
+
+/* ---------- disciplinas: linhas arredondadas, código em pílula ---------- */
+html .admin-screen .admin-drow {
+  min-height: 56px;
+  padding: 9px 10px;
+  margin: 0 -10px;
+  width: calc(100% + 20px);
+}
+html .admin-screen .admin-d-t {
+  font-weight: 650;
+}
+html :is(.admin-screen, .admin-panel) .admin-code {
+  border-radius: 999px;
+  padding: 0 9px;
+  background: var(--fill);
+  color: var(--ink-2);
+}
+html :is(.admin-screen, .admin-panel) .admin-code.wt {
+  background: var(--surface);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* ---------- alunos achados pela busca: avatar em quadrado verde-claro ---------- */
+html :is(.admin-screen, .admin-panel) .admin-av-sm {
+  border-radius: 12px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+html :is(.admin-screen, .admin-panel) .admin-av-xs {
+  border-radius: 9px;
+  background: var(--brand-100, #ccebd3);
+  color: var(--brand-ink);
+}
+html :is(.admin-screen, .admin-panel) .admin-srow {
+  border-radius: 14px;
+}
+
+/* ---------- painéis (curso, turma, disciplina, aluno): gaveta de raio 28 e blocos suaves ---------- */
+.drawer:has(.admin-panel) {
+  border-radius: 28px 0 0 28px;
+}
+html .drawer:has(.admin-panel) .drawer-head {
+  border-radius: 28px 0 0 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand-50) 60%, var(--surface)) 0%, var(--surface) 100%);
+}
+html .drawer:has(.admin-panel) .drawer-head h2 {
+  font-family: var(--disp);
+  letter-spacing: -0.02em;
+}
+html .drawer:has(.admin-panel) .drawer-foot {
+  border-radius: 0 0 0 28px;
+}
+@media (max-width: 639px) {
+  .drawer:has(.admin-panel),
+  html .drawer:has(.admin-panel) :is(.drawer-head, .drawer-foot) {
+    border-radius: 0;
+  }
+}
+html .admin-panel .admin-sec-t {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+html .admin-panel .admin-sec-t::before {
+  content: "";
+  flex: none;
+  width: 4px;
+  height: 16px;
+  border-radius: 99px;
+  background: var(--brand);
+}
+html .admin-panel .admin-facts {
+  border: 0;
+  border-radius: 18px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .admin-panel .admin-facts dd {
+  font-weight: 650;
+}
+html .admin-panel .admin-offer {
+  border: 0;
+  border-radius: 18px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .admin-panel .admin-offer.warn {
+  background: var(--admin-amber-bg);
+  box-shadow: inset 0 0 0 1px var(--admin-amber-line);
+}
+html .admin-panel .admin-pend-box {
+  border: 0;
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 1px var(--admin-amber-line);
+}
+html .admin-panel .admin-codebox {
+  border: 0;
+  border-radius: 18px;
+  background: var(--brand-50);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+html .admin-panel .admin-code-big {
+  font-family: var(--disp);
+  color: var(--brand-ink);
+}
+html .admin-panel :is(.admin-input, .input, .select-btn) {
+  border-radius: 14px;
+}
+html .admin-panel .input:focus,
+html .admin-panel .select-btn:focus-visible {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+html .admin-panel .admin-year {
+  border-radius: 14px;
+}
+
+/* ---------- Nova turma em passos ---------- */
+html .admin-panel .admin-step {
+  border: 0;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .admin-panel .admin-step.is-done {
+  background: var(--surface-2);
+}
+html .admin-panel .admin-step.is-cur {
+  border-radius: 22px;
+  box-shadow:
+    inset 0 0 0 2px var(--brand),
+    0 18px 36px -22px rgb(8 60 28 / 0.45);
+  animation: admin-in 0.4s var(--gx-ease) backwards;
+}
+html .admin-panel .admin-step.is-next {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .admin-panel .admin-step-no {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: var(--fill);
+  color: var(--ink-3);
+  font-family: var(--disp);
+}
+html .admin-panel .admin-step-no.is-on {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+html .admin-panel .admin-step-ck {
+  border: 0;
+  background: var(--brand);
+  color: #fff;
+}
+html .admin-panel .admin-step-t {
+  font-family: var(--disp);
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+html .admin-prog3 i {
+  height: 6px;
+  background: var(--fill);
+}
+html .admin-prog3 i.done {
+  background: var(--brand);
+}
+html .admin-prog3 i.cur {
+  background: var(--ipe, #f2b71f);
+}
+/* cursos em cartões de escolha, modos e o curso novo */
+html .admin-panel .admin-course {
+  border: 0;
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition:
+    transform 0.25s var(--gx-mola),
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+html .admin-panel .admin-course:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    var(--gx-sh-up);
+}
+html .admin-panel .admin-course.on {
+  background: var(--brand-50);
+  box-shadow:
+    inset 0 0 0 2px var(--brand),
+    0 10px 20px -14px var(--brand);
+}
+html .admin-panel .admin-course-new {
+  border-radius: 18px;
+  border-color: color-mix(in srgb, var(--brand) 35%, transparent);
+  color: var(--brand-ink);
+}
+html .admin-panel .admin-segs {
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .admin-panel .admin-segs label {
+  border-radius: 999px;
+}
+html .admin-panel .admin-segs label.on {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 8px 16px -10px var(--brand);
+}
+html .admin-panel .admin-chips label {
+  border-radius: 999px;
+  transition:
+    transform 0.25s var(--gx-mola),
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+html .admin-panel .admin-chips label:hover {
+  transform: translateY(-2px);
+}
+html .admin-panel .admin-chips label.on {
+  box-shadow: 0 8px 16px -10px var(--brand);
+}
+/* "como a turma vai aparecer": um cartão de linha da lista, com o contorno tracejado verde */
+html .admin-panel .admin-preview {
+  border: 1.5px dashed color-mix(in srgb, var(--brand) 35%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--brand-50) 45%, var(--surface));
+}
+html .admin-panel .admin-preview-row b {
+  font-family: var(--disp);
+  font-weight: 700;
+}
+/* turma criada */
+html .admin-panel .admin-done-ico {
+  width: 56px;
+  height: 56px;
+  border: 0;
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 14px 26px -14px var(--brand);
+  animation: admin-pop 0.5s var(--gx-mola) backwards;
+}
+@keyframes admin-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+html .admin-panel .admin-done-t {
+  font-family: var(--disp);
+}
+html .admin-panel .admin-next-btn {
+  border: 0;
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition:
+    transform 0.25s var(--gx-mola),
+    box-shadow 0.2s ease;
+}
+html .admin-panel .admin-next-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    var(--gx-sh-up);
+}
+html .admin-panel .admin-next-ico {
+  border-radius: 12px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+
+/* ---------- card Pendências do Painel (admin-pending-card.tsx): ícones em quadrado suave ---------- */
+html .admin-mini-warn .mini-ico {
+  border-radius: 12px;
+  background: var(--ipe-bg, #fff4d1);
+  color: var(--ipe-ink, #7a5600);
+}
+html .admin-mini-blue .mini-ico {
+  border-radius: 12px;
+  background: var(--ms-azul-bg, #e3edfb);
+  color: var(--ms-azul, #2160c4);
+}
+
+/* ---------- movimento reduzido ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html .admin-screen > .card.card,
+  html .admin-duo > .card.card,
+  html .admin-screen :is(.admin-rows, .admin-dlist, .admin-people) > li,
+  html .admin-panel .admin-step.is-cur,
+  html .admin-panel .admin-done-ico {
+    animation: none;
+  }
+  html .admin-screen :is(.admin-head, .admin-head-acts) .btn:hover:not(:disabled),
+  html .admin-screen :is(.admin-row, .admin-drow, .admin-srow):hover .admin-go,
+  html .admin-panel .admin-course:hover,
+  html .admin-panel .admin-chips label:hover,
+  html .admin-panel .admin-next-btn:hover {
+    transform: none;
+  }
+  html .admin-screen :is(.admin-head, .admin-head-acts, .admin-rows-pad, .admin-disc-empty) .btn,
+  html .admin-screen .admin-go,
+  html .admin-panel .admin-course,
+  html .admin-panel .admin-chips label,
+  html .admin-panel .admin-next-btn {
+    transition: none;
+  }
+}

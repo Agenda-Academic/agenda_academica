@@ -8,9 +8,11 @@ import {
   CheckCheck,
   CheckCircle2,
   Clock,
+  Eye,
   Loader2,
   MapPin,
   PieChart,
+  Target,
   Trophy,
   UserRound,
   type LucideIcon,
@@ -27,7 +29,6 @@ import {
   type Ref,
 } from "react";
 import {
-  countdown,
   cx,
   dateParts,
   formatShortDate,
@@ -37,7 +38,6 @@ import {
   groupByWeek,
   isSameDay,
   isWholeDay,
-  NBSP,
   relativeDue,
   startOfDay,
   yearSuffix,
@@ -707,7 +707,7 @@ export function InsightTile({
    * cronograma mostra também 1 cancelada". Entra também no nome do botão.
    */
   note?: string | null;
-  /** Cor do ícone: classe de categoria (ex.: "c-prova"). Padrão: verde da marca. */
+  /** Cor do quadrado do ícone: "k-brand" (padrão), "k-prova", "k-ipe", "k-ok", "k-azul" ou "k-lilas". */
   tone?: string;
   /** Peças só visuais (gráfico, barra). */
   children?: ReactNode;
@@ -721,8 +721,12 @@ export function InsightTile({
     note ? `. ${capitalize(note)}` : ""
   }`;
   return (
-    <div className={cx("card kpi rise", onClick && "is-link")} style={delay(order)}>
+    <div className={cx("card kpi pnl-kpi rise", onClick && "is-link")} style={delay(order)}>
+      {/* o ícone num quadrado suave colorido, antes do rótulo (amostra); o número grande em Sora embaixo */}
       <div className="kpi-top">
+        <span className={cx("kpi-ic", tone ?? "k-brand")} aria-hidden>
+          <Icon />
+        </span>
         <p className="kpi-label">
           {onClick ? (
             // alvo de no mínimo 24 px de altura (o rótulo tem 18 px); centrado ao lado do ícone, o texto não sai do lugar
@@ -733,9 +737,6 @@ export function InsightTile({
             label
           )}
         </p>
-        <span className={cx("kpi-ico", tone)}>
-          <Icon className="h-[18px] w-[18px]" aria-hidden />
-        </span>
       </div>
       <p className={cx("kpi-val", valueClassName)}>
         {value}
@@ -795,6 +796,11 @@ export function CategoryBreakdown({
       </ul>
     </div>
   );
+}
+
+/** A data cai hoje (o selo cheio das listas do Painel). */
+function isToday(value: string) {
+  return isSameDay(new Date(value), new Date());
 }
 
 /** Rodapé "Ver todos (N)" de uma lista do Painel. */
@@ -883,19 +889,21 @@ export function EventList({
       return date.getFullYear() * 12 + date.getMonth();
     })).size > 1;
 
-  // as linhas (EventRow) já dizem qual evento abrem (data-opens-event), para o foco voltar a elas
+  // as linhas (EventRow) já dizem qual evento abrem (data-opens-event), para o foco voltar a elas. O invólucro diz
+  // se a data é hoje: o selo de hoje fica cheio, em verde (painel.css)
   const row = (event: AcademicEvent, showMonth = false) => (
-    <EventRow
-      key={event.id}
-      event={event}
-      hideClass={hideClass}
-      showMonth={showMonth}
-      mine={isMine ? isMine(event) : mineId !== undefined && event.teacherId === mineId}
-      saved={savedId === event.id}
-      showTeacher={isMine ? !isMine(event) : mineId !== undefined ? event.teacherId !== mineId : undefined}
-      selected={selectedId === event.id}
-      onClick={() => onSelect(event.id)}
-    />
+    <div key={event.id} className="pnl-ev" data-today={isToday(event.startsAt) || undefined}>
+      <EventRow
+        event={event}
+        hideClass={hideClass}
+        showMonth={showMonth}
+        mine={isMine ? isMine(event) : mineId !== undefined && event.teacherId === mineId}
+        saved={savedId === event.id}
+        showTeacher={isMine ? !isMine(event) : mineId !== undefined ? event.teacherId !== mineId : undefined}
+        selected={selectedId === event.id}
+        onClick={() => onSelect(event.id)}
+      />
+    </div>
   );
 
   const groups = grouped ? (grouped === "month" ? groupByMonth(visible) : groupByWeek(visible)) : null;
@@ -1041,41 +1049,6 @@ function calendarDays(value: string, now: Date) {
   return Math.round((startOfDay(new Date(value)).getTime() - startOfDay(now).getTime()) / (24 * 60 * 60 * 1000));
 }
 
-/**
- * O número grande da contagem do destaque. Com 2 dias ou mais pela frente, os dias de calendário ("6 dias"), a
- * mesma conta do "em 6 dias" da lista logo abaixo (antes, "5d 18h" ao lado de "em 6 dias" parecia erro); mais
- * perto, o relógio ("18h 21m"), que corre sozinho (live).
- */
-export function heroCountdown(value: string, now: Date) {
-  const days = calendarDays(value, now);
-  if (days >= 2) {
-    return { text: `${days}${NBSP}dias`, words: `Faltam ${days} dias`, live: false };
-  }
-  return { text: countdown(value, now), words: countdownWords(value, now), live: true };
-}
-
-/** Contagem regressiva que se atualiza sozinha. note troca o texto miúdo de baixo (ex.: "visível para toda a turma"). */
-function Countdown({ startsAt, until, note }: { startsAt: string; until: string; note?: string }) {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 30000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const count = heroCountdown(startsAt, now);
-  return (
-    <div className="countdown">
-      <p className="eyebrow hero-label" aria-hidden>
-        {count.live ? <span className="live" /> : null}
-        Faltam
-      </p>
-      <b aria-hidden>{count.text}</b>
-      <small aria-hidden>{note ?? until}</small>
-      <span className="sr-only">
-        {count.words} {until}.{note ? ` ${capitalize(note)}.` : ""}
-      </span>
-    </div>
-  );
-}
 
 /** Quando é o evento do destaque: "Amanhã, 19:00", "Amanhã, 19:00 até 21:30" ou "Hoje, dia todo". */
 export function heroWhen(event: AcademicEvent) {
@@ -1104,12 +1077,256 @@ export type HeroAction = {
   busy?: boolean;
   /** O botão abre o detalhe deste evento: ganha data-opens-event, para o foco voltar a ele. */
   opensEvent?: number;
+  /** Id da frase que explica o botão (aria-describedby), como "O lembrete chega só para você." do responsável. */
+  describedBy?: string;
 };
 
+/** Um dado da linha do destaque: ícone e texto ("Ter, 24/11, 19:00", "Laboratório 3", "Vale 10 pontos"). */
+export type HeroFact = { key: string; icon: LucideIcon; text: ReactNode };
+
+/** "Agora" que anda no começo de cada minuto: a contagem troca junto com o relógio, sem pular nem atrasar. */
+function useMinuteNow() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    let timer = 0;
+    const wait = () => 60000 - (Date.now() % 60000) + 40;
+    const tick = () => {
+      setNow(new Date());
+      timer = window.setTimeout(tick, wait());
+    };
+    timer = window.setTimeout(tick, wait());
+    return () => window.clearTimeout(timer);
+  }, []);
+  return now;
+}
+
+/** As partes da contagem grande: dias (só quando há), horas e minutos, com dois dígitos nas horas e nos minutos. */
+function countParts(value: string, now: Date) {
+  const ms = new Date(value).getTime() - now.getTime();
+  if (ms <= 0) {
+    return null;
+  }
+  const minutes = Math.floor(ms / 60000);
+  const days = Math.floor(minutes / 1440);
+  const two = (count: number) => String(count).padStart(2, "0");
+  return [
+    ...(days ? [{ key: "d", value: String(days), unit: days === 1 ? "dia" : "dias" }] : []),
+    { key: "h", value: two(Math.floor((minutes % 1440) / 60)), unit: "h" },
+    { key: "m", value: two(minutes % 60), unit: "min" },
+  ];
+}
+
+/** "Faltam 2 dias 04 h 18 min", em Sora, atualizada a cada minuto; o leitor de tela ouve a frase inteira. */
+function HeroCount({ startsAt, until }: { startsAt: string; until: string }) {
+  const now = useMinuteNow();
+  const parts = countParts(startsAt, now);
+  return (
+    <div className="ph-count">
+      <p className="ph-faltam" aria-hidden>
+        {parts ? "Faltam" : "Começa"}
+      </p>
+      <p className="ph-digits" aria-hidden>
+        {parts ? (
+          parts.map((part) => (
+            <span key={part.key} className="ph-unit">
+              {/* a chave troca o número quando ele muda: ele entra de novo, e a largura fixa não deixa a linha pular */}
+              <b key={part.value}>{part.value}</b>
+              <small>{part.unit}</small>
+            </span>
+          ))
+        ) : (
+          <span className="ph-unit">
+            <b>agora</b>
+          </span>
+        )}
+      </p>
+      <span className="sr-only">
+        {countdownWords(startsAt, now)} {until}.
+      </span>
+    </div>
+  );
+}
+
+/** A caneta que circula a data da folha (stroke-dashoffset em painel.css). */
+function PenRing() {
+  return (
+    <svg className="pen-ring ph-ring" viewBox="0 0 64 56" aria-hidden focusable="false">
+      <path
+        pathLength={100}
+        d="M35 5C52 4 62 16 59 30C56 45 38 53 22 49C7 45 2 31 7 19C12 8 26 3 40 6C45 7 49 9 51 11"
+      />
+    </svg>
+  );
+}
+
+/** Folha da data à direita do destaque: "TER", o "24" circulado e "novembro" (com o ano fora do ano corrente). */
+function HeroSheet({ value, note }: { value: string; note?: string }) {
+  const parts = dateParts(value);
+  const month = new Date(value).toLocaleDateString("pt-BR", { month: "long" });
+  return (
+    <div className="ph-sheet" aria-hidden>
+      <span className="ph-wd">{parts.weekday}</span>
+      <b className="ph-dn">
+        {parts.day}
+        <PenRing />
+      </b>
+      <span className="ph-mo">
+        {month}
+        {parts.otherYear ? ` de ${parts.year}` : ""}
+      </span>
+      {note ? <span className="ph-note">{note}</span> : null}
+    </div>
+  );
+}
+
+/** Botão do destaque: o principal em amarelo ipê, o outro translúcido (painel.css). */
+export function HeroButton({ action, primary }: { action: HeroAction; primary?: boolean }) {
+  const Icon = action.icon;
+  return (
+    <button
+      className={cx("btn ph-btn", primary ? "btn-p ph-btn-p" : "btn-s ph-btn-s", busyLook)}
+      aria-busy={action.busy || undefined}
+      aria-disabled={action.busy || undefined}
+      aria-describedby={action.describedBy}
+      data-primary-action={primary || undefined}
+      data-opens-event={action.opensEvent}
+      onClick={() => {
+        if (!action.busy) {
+          action.onClick();
+        }
+      }}
+      type="button"
+    >
+      {action.busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : Icon ? <Icon className="h-4 w-4" aria-hidden /> : null}
+      {action.label}
+      {primary && !Icon && !action.busy ? <ArrowRight className="h-4 w-4" aria-hidden /> : null}
+    </button>
+  );
+}
+
 /**
- * Destaque do próximo compromisso (card branco com faixa verde), com bloco de data e contagem
- * regressiva. No computador (globals.css, .hero-slot) ele vira uma grade: a data à esquerda, a
- * contagem no alto à direita e os botões lado a lado, que podem seguir por baixo da contagem.
+ * O destaque do Painel (amostra "Pantanal forte"): fundo verde-escuro com pontilhado, "PRÓXIMO COMPROMISSO" com a
+ * pílula da categoria e "contando", a contagem gigante, o título, os dados com ícones, os botões e, à direita, a
+ * folha com a data circulada pela caneta. Sem data (startsAt), é o destaque vazio no mesmo formato, com a folha de
+ * hoje. O mesmo em todos os perfis.
+ */
+export function PanelHero({
+  actions,
+  after,
+  category,
+  className,
+  description,
+  eventId,
+  facts = [],
+  kicker,
+  pills,
+  sheetDate,
+  sheetNote,
+  startsAt,
+  state,
+  title,
+  until = "até o início",
+}: {
+  actions?: ReactNode;
+  /** Linha depois dos botões (ex.: "O lembrete chega só para você."). */
+  after?: ReactNode;
+  /** Categoria do evento: a pílula com o ponto na cor dela. */
+  category?: Category | null;
+  className?: string;
+  /** Texto embaixo do título (o destaque vazio). */
+  description?: ReactNode;
+  /** O evento do destaque (data-event-id), para a página mostrar e focar o evento salvo. */
+  eventId?: number;
+  facts?: HeroFact[];
+  kicker: string;
+  /** Etiquetas a mais ao lado da categoria (situação, "Salvo agora"). */
+  pills?: ReactNode;
+  /** Data da folha à direita (padrão: startsAt; no vazio, hoje). */
+  sheetDate?: string | null;
+  /** Linha miúda embaixo do mês ("hoje"). */
+  sheetNote?: string;
+  /** Com a data, a contagem regressiva grande e "contando". */
+  startsAt?: string | null;
+  /** O que fica no canto direito do alto (padrão: "contando" com a contagem, "em dia" sem ela). false tira. */
+  state?: ReactNode | false;
+  title: ReactNode;
+  /** Final da frase da contagem para o leitor de tela ("até o início", "até a entrega"). */
+  until?: string;
+}) {
+  // hoje fixado na montagem (render precisa ser puro): a folha do destaque vazio
+  const [today] = useState(() => new Date().toISOString());
+  const meta = category ? categoryMeta[category] : null;
+  const corner = state === undefined ? (startsAt ? "contando" : "em dia") : state;
+  return (
+    <section
+      className={cx("hero pnl-hero", !startsAt && "is-empty", className)}
+      aria-label={kicker}
+      data-event-id={eventId}
+    >
+      <div className="ph-top">
+        <span className="ph-kicker">
+          <Target aria-hidden />
+          {kicker}
+        </span>
+        {meta ? (
+          <span className="ph-cat" data-cat={category ?? undefined}>
+            <i aria-hidden />
+            {meta.short}
+          </span>
+        ) : null}
+        {pills}
+        {corner ? (
+          <span className={cx("ph-live", startsAt && "is-on")}>
+            <i aria-hidden />
+            {corner}
+          </span>
+        ) : null}
+      </div>
+      <div className="ph-main">
+        <div className="ph-body">
+          {startsAt ? <HeroCount startsAt={startsAt} until={until} /> : null}
+          {/* título, disciplina, turma, local e nome vêm da pessoa: palavra ou link longo quebra em qualquer ponto */}
+          <h2 className="ph-title wrap-anywhere">{title}</h2>
+          {description ? <div className="ph-desc">{description}</div> : null}
+          {facts.length ? (
+            <ul className="ph-facts wrap-anywhere">
+              {facts.map(({ key, icon: Icon, text }) => (
+                <li key={key}>
+                  <Icon aria-hidden />
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {actions ? <div className="ph-actions">{actions}</div> : null}
+          {after}
+        </div>
+        <HeroSheet value={sheetDate ?? startsAt ?? today} note={sheetNote} />
+      </div>
+    </section>
+  );
+}
+
+/** Os dados do evento no destaque: quando, disciplina e turma, local, docente e pontos. */
+export function heroFacts(
+  event: AcademicEvent,
+  { hideClass, hideTeacher, note }: { hideClass?: boolean; hideTeacher?: boolean; note?: string } = {}
+): HeroFact[] {
+  const course = [event.subject?.name, hideClass ? null : event.academicClass?.name].filter(Boolean).join(", ");
+  const facts: Array<HeroFact | null> = [
+    { key: "quando", icon: Clock, text: heroWhen(event) },
+    course ? { key: "curso", icon: BookOpen, text: course } : null,
+    event.location ? { key: "local", icon: MapPin, text: event.location } : null,
+    !hideTeacher && event.teacher?.fullName ? { key: "docente", icon: UserRound, text: event.teacher.fullName } : null,
+    event.points !== null ? { key: "pontos", icon: Trophy, text: pointsLabel(event.points) } : null,
+    note ? { key: "nota", icon: Eye, text: capitalize(note) } : null,
+  ];
+  return facts.filter((fact): fact is HeroFact => fact !== null);
+}
+
+/**
+ * Destaque do próximo compromisso (PanelHero): a contagem gigante, o título, os dados, "Ver detalhes" e o lembrete,
+ * com a folha da data à direita. Sem evento, o destaque vazio no mesmo formato.
  */
 export function NextEventHero({
   event,
@@ -1125,10 +1342,16 @@ export function NextEventHero({
   hideTeacher,
   showStatus,
   countdownNote,
+  until,
+  after,
   onOpen,
   onEmptyAction,
 }: {
   event: AcademicEvent | null;
+  /** Final da frase da contagem para o leitor de tela (padrão: "até a entrega" no trabalho, "até o início"). */
+  until?: string;
+  /** Linha depois dos botões (o responsável: "O lembrete chega só para você."). */
+  after?: ReactNode;
   /** Linha a mais no vazio (ex.: a próxima data da instituição, que não é compromisso da turma). */
   emptyNote?: ReactNode;
   emptyTitle?: string;
@@ -1146,142 +1369,63 @@ export function NextEventHero({
   hideTeacher?: boolean;
   /** Mostra a situação (Agendado, Alterado) ao lado da categoria, como no Painel da docente do Figma. */
   showStatus?: boolean;
-  /** Texto miúdo da contagem no lugar de "até o início" (ex.: "visível para toda a turma"). */
+  /** Linha a mais nos dados do destaque, com o ícone do olho (ex.: "Visível para toda a turma"). */
   countdownNote?: string;
   onOpen: (id: number) => void;
   onEmptyAction?: { label: string; onClick: () => void };
 }) {
   if (!event) {
-    // vazio esticado pelo card ao lado (Painel do aluno, junto da turma): o texto fica no alto, sem flutuar no
-    // meio de um vão
+    // o destaque vazio no mesmo formato: o que falta dizer no lugar da contagem e a folha de hoje
     return (
-      <section className="hero h-full items-start content-start" aria-label={kicker}>
-        <div className="hero-body">
-          <p className="hero-label">{kicker}</p>
-          <h2 className="hero-title">{emptyTitle}</h2>
-          <p className="mt-3 text-sm text-ink-3">{emptyText}</p>
-          {emptyNote ? <div className="hero-empty-note">{emptyNote}</div> : null}
-          {onEmptyAction ? (
-            <div className="hero-actions">
-              <button className="btn btn-p" onClick={onEmptyAction.onClick} type="button">
-                {onEmptyAction.label}
-                <ArrowRight className="h-4 w-4" aria-hidden />
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </section>
+      <PanelHero
+        kicker={kicker}
+        title={emptyTitle}
+        description={
+          <>
+            <p>{emptyText}</p>
+            {emptyNote ? <div className="hero-empty-note">{emptyNote}</div> : null}
+          </>
+        }
+        sheetNote="hoje"
+        actions={
+          onEmptyAction ? (
+            <HeroButton primary action={{ label: onEmptyAction.label, onClick: onEmptyAction.onClick }} />
+          ) : undefined
+        }
+      />
     );
   }
 
-  const meta = categoryMeta[event.category];
-  const parts = dateParts(event.startsAt);
-  const course = [event.subject?.name, hideClass ? null : event.academicClass?.name].filter(Boolean).join(", ");
-  const SecondaryIcon = secondary?.icon;
-  const PrimaryIcon = primaryAction?.icon;
-
   // a chave troca o card quando o evento muda: o foco não fica num "Editar" que passou a ser de outro evento
   return (
-    <section key={event.id} className="hero with-date is-event h-full" aria-label={kicker} data-event-id={event.id}>
-      <div className="datebig">
-        <span className="dw">{parts.weekday}</span>
-        <span className="dn">{parts.day}</span>
-        <span className="mo">{parts.month}</span>
-      </div>
-      <div className="hero-body">
-        <div className="hero-kicker">
-          <span className="hero-label">{kicker}</span>
-          <span className={cx("pill", meta.tint)}>{meta.short}</span>
-          {showStatus ? <StatusPill event={event} showScheduled /> : null}
-          {saved ? <SavedPill /> : null}
-        </div>
-        {/* título, disciplina, turma, local e nome vêm da pessoa: palavra ou link longo quebra em
-            qualquer ponto, sem passar da borda do destaque */}
-        <h2 className="hero-title wrap-anywhere">{event.title}</h2>
-        <div className="hero-meta wrap-anywhere">
-          <span>
-            <Clock className="h-[15px] w-[15px]" aria-hidden />
-            {heroWhen(event)}
-          </span>
-          {course ? (
-            <span>
-              <BookOpen className="h-[15px] w-[15px]" aria-hidden />
-              {course}
-            </span>
-          ) : null}
-          {event.location ? (
-            <span>
-              <MapPin className="h-[15px] w-[15px]" aria-hidden />
-              {event.location}
-            </span>
-          ) : null}
-          {!hideTeacher && event.teacher?.fullName ? (
-            <span>
-              <UserRound className="h-[15px] w-[15px]" aria-hidden />
-              {event.teacher.fullName}
-            </span>
-          ) : null}
-          {event.points !== null ? (
-            <span>
-              <Trophy className="h-[15px] w-[15px]" aria-hidden />
-              {pointsLabel(event.points)}
-            </span>
-          ) : null}
-        </div>
-        <div className="hero-actions">
-          {primaryAction ? (
-            <button
-              className="btn btn-p"
-              data-primary-action
-              data-opens-event={primaryAction.opensEvent}
-              onClick={primaryAction.onClick}
-              type="button"
-            >
-              {PrimaryIcon ? <PrimaryIcon className="h-4 w-4" aria-hidden /> : null}
-              {primaryAction.label}
-              {PrimaryIcon ? null : <ArrowRight className="h-4 w-4" aria-hidden />}
-            </button>
-          ) : (
-            <button
-              className="btn btn-p"
-              data-primary-action
-              data-opens-event={event.id}
-              onClick={() => onOpen(event.id)}
-              type="button"
-            >
-              {primaryLabel}
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </button>
-          )}
-          {secondary ? (
-            <button
-              className={cx("btn btn-s", busyLook)}
-              aria-busy={secondary.busy || undefined}
-              aria-disabled={secondary.busy || undefined}
-              data-opens-event={secondary.opensEvent}
-              onClick={() => {
-                if (!secondary.busy) {
-                  secondary.onClick();
-                }
-              }}
-              type="button"
-            >
-              {secondary.busy ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              ) : SecondaryIcon ? (
-                <SecondaryIcon className="h-4 w-4" aria-hidden />
-              ) : null}
-              {secondary.label}
-            </button>
-          ) : null}
-        </div>
-      </div>
-      <Countdown
-        startsAt={event.startsAt}
-        until={event.category === "assignment" ? "até a entrega" : "até o início"}
-        note={countdownNote}
-      />
-    </section>
+    <PanelHero
+      key={event.id}
+      kicker={kicker}
+      category={event.category}
+      pills={
+        showStatus || saved ? (
+          <>
+            {showStatus ? <StatusPill event={event} showScheduled /> : null}
+            {saved ? <SavedPill /> : null}
+          </>
+        ) : undefined
+      }
+      eventId={event.id}
+      startsAt={event.startsAt}
+      until={until ?? (event.category === "assignment" ? "até a entrega" : "até o início")}
+      title={event.title}
+      facts={heroFacts(event, { hideClass, hideTeacher, note: countdownNote })}
+      actions={
+        <>
+          <HeroButton
+            primary
+            action={primaryAction ?? { label: primaryLabel, onClick: () => onOpen(event.id), opensEvent: event.id }}
+          />
+          {secondary ? <HeroButton action={secondary} /> : null}
+        </>
+      }
+      after={after}
+    />
   );
 }
 

@@ -17,6 +17,7 @@ import {
   History,
   Info,
   Landmark,
+  Lightbulb,
   ListChecks,
   Loader2,
   Lock,
@@ -38,7 +39,6 @@ import {
   ConfirmDialog,
   Drawer,
   EmptyState,
-  PageHeader,
   dangerButton,
   iconButton,
   primaryButton,
@@ -681,11 +681,12 @@ function countByCategory(list: Array<{ category: Category }>) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-/** Indicador do alto: rótulo e ícone, número (ou palavra curta) forte e dica. */
+/** Indicador do alto: ícone num quadrado suave e rótulo, número (ou palavra curta) forte e dica. */
 function ImportTile({
   hint,
   hintShort,
   icon: Icon,
+  iconTone,
   label,
   order,
   text,
@@ -697,6 +698,8 @@ function ImportTile({
   /** Dica curta do celular estreito (abaixo de 420px), onde a longa ocupava 3 a 5 linhas no indicador. */
   hintShort?: string;
   icon: LucideIcon;
+  /** Cor do quadrado do ícone (as variantes .k-* do .kpi-ic): verde, ipê, azul da instituição ou verde de "deu certo". */
+  iconTone: "brand" | "ipe" | "azul" | "ok";
   label: string;
   order: number;
   /** Valor em palavra ("Hoje", "Em dia"): no mesmo tamanho do número, mas pode quebrar a linha no celular. */
@@ -706,14 +709,14 @@ function ImportTile({
   value: string;
 }) {
   return (
-    <div className={cx("card kpi rise", tone && `imp-kpi-${tone}`)} style={delay(order)}>
+    <div className={cx("card kpi imp-kpi anim-in", tone && `imp-kpi-${tone}`)} style={delay(order)}>
       <div className="kpi-top">
-        <p className="kpi-label">{label}</p>
-        <span className="kpi-ico" aria-hidden>
-          <Icon className="h-[18px] w-[18px]" />
+        <span className={cx("kpi-ic", `k-${iconTone}`)} aria-hidden>
+          <Icon />
         </span>
+        <p className="kpi-label">{label}</p>
       </div>
-      {/* a escala única dos indicadores (.is-date do ux.css): 26 px, ou 22 abaixo de 480 px, igual nos quatro */}
+      {/* a mesma escala nos quatro (Sora): o número e a palavra do mesmo tamanho */}
       <p className={cx("kpi-val is-date", text ? "imp-kpi-txt" : "imp-kpi-num")}>
         {value}
         {unit ? <small> {unit}</small> : null}
@@ -1479,7 +1482,7 @@ export function SyncView({
   if (!isAdmin) {
     // a tela é da administração; quem chega aqui por outro caminho vê o porquê (Figma, Estados e feedback)
     return (
-      <section className="card pad rise" aria-labelledby={restrictedId}>
+      <section className="card pad anim-in" aria-labelledby={restrictedId}>
         <div className="empty-inline">
           <span className="empty-ico imp-lock">
             <Lock className="h-6 w-6" aria-hidden />
@@ -1516,12 +1519,22 @@ export function SyncView({
   const DropIcon = pdfReading ? Loader2 : pdfError && !pdfDragging ? AlertTriangle : FileUp;
 
   return (
+    // sem cabeçalho de página (o nome da tela está no trilho): começa pelos indicadores
     <div className="imp-page grid gap-5">
-      <PageHeader title="Importar calendário" subtitle="Datas oficiais da instituição, para todas as turmas." />
       <div className="kpis imp-kpis">
-        <ImportTile icon={Landmark} label="Fonte" value="Reitoria" text hint="calendário letivo oficial" hintShort="calendário oficial" order={0} />
+        <ImportTile
+          icon={Landmark}
+          iconTone="azul"
+          label="Fonte"
+          value="Reitoria"
+          text
+          hint="calendário letivo oficial"
+          hintShort="calendário oficial"
+          order={0}
+        />
         <ImportTile
           icon={History}
+          iconTone="ipe"
           label="Última importação"
           value={lastImport ? dayLabel(lastImport.importedAt, now) : "Nunca"}
           text
@@ -1531,6 +1544,7 @@ export function SyncView({
         />
         <ImportTile
           icon={CalendarCheck}
+          iconTone="brand"
           label="Datas da instituição"
           value={String(officialAhead)}
           unit={officialAhead === 1 ? "futura" : "futuras"}
@@ -1540,6 +1554,7 @@ export function SyncView({
         />
         <ImportTile
           icon={upToDate ? CircleCheckBig : AlertTriangle}
+          iconTone={upToDate ? "ok" : "ipe"}
           label="Situação"
           value={upToDate ? "Em dia" : "Falta importar"}
           text
@@ -1554,7 +1569,7 @@ export function SyncView({
         <section
           ref={resultRef}
           tabIndex={-1}
-          className={cx("card rise imp-done", resultUndone && "is-undone")}
+          className={cx("card anim-in imp-done", resultUndone && "is-undone")}
           style={delay(4)}
           aria-labelledby={resultTitleId}
         >
@@ -1646,12 +1661,17 @@ export function SyncView({
       ) : null}
 
       {onReadPdf ? (
-        <section ref={cardRef} tabIndex={-1} className="card pad rise imp-card" style={delay(5)} aria-labelledby={cardTitleId}>
+        <section ref={cardRef} tabIndex={-1} className="card pad anim-in imp-card" style={delay(5)} aria-labelledby={cardTitleId}>
           <div className="imp-card-head">
-            <h2 className="h2" id={cardTitleId}>
-              Importar o calendário acadêmico
-            </h2>
-            <p className="sub">As datas do PDF abrem para você conferir antes de gravar.</p>
+            <span className="imp-head-ic is-rosa" aria-hidden>
+              <CalendarDays />
+            </span>
+            <div className="min-w-0">
+              <h2 className="imp-h" id={cardTitleId}>
+                Importar o calendário acadêmico
+              </h2>
+              <p className="imp-sub">As datas do PDF abrem para você conferir antes de gravar.</p>
+            </div>
           </div>
 
           {pendingReading ? (
@@ -1778,6 +1798,9 @@ export function SyncView({
             <div className="imp-aside">
               <section className="imp-sample" aria-labelledby={sampleTitleId}>
                 <h3 className="imp-aside-title" id={sampleTitleId}>
+                  <span className="imp-aside-ic" aria-hidden>
+                    <Lightbulb />
+                  </span>
                   Não tem o PDF à mão?
                 </h3>
                 <p className="imp-aside-text">Use o Calendário Acadêmico 2027 do Campus Três Lagoas para ver como funciona.</p>
@@ -1834,12 +1857,17 @@ export function SyncView({
         </section>
       ) : null}
 
-      <section className="card rise imp-hist" style={delay(6)} aria-labelledby={histId}>
+      <section className="card anim-in imp-hist" style={delay(6)} aria-labelledby={histId}>
         <div className="imp-hist-head">
-          <h2 ref={histHeadRef} className="h2" id={histId}>
-            Importações realizadas
-          </h2>
-          {imports.length ? <p className="sub">Abra uma importação para ver as datas que ela trouxe ou desfazer.</p> : null}
+          <span className="imp-head-ic is-ipe" aria-hidden>
+            <History />
+          </span>
+          <div className="min-w-0">
+            <h2 ref={histHeadRef} className="imp-h" id={histId}>
+              Importações realizadas
+            </h2>
+            {imports.length ? <p className="imp-sub">Abra uma importação para ver as datas que ela trouxe ou desfazer.</p> : null}
+          </div>
         </div>
         {imports.length ? (
           <table className="tbl">
@@ -1902,10 +1930,15 @@ export function SyncView({
                         onClick={() => openImport(target)}
                         type="button"
                       >
-                        <span className="t block wrap-anywhere">{item.sourceName}</span>
-                        <span className="s block @min-[600px]:hidden">{formatShortDateTime(item.importedAt)}</span>
-                        <span className="mt-1.5 flex @min-[440px]:hidden">
-                          <span className={cx("pill", state.pill)}>{state.label}</span>
+                        <span className={cx("imp-hist-ic", undone && "is-undone")} aria-hidden>
+                          <FileText />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="t block wrap-anywhere">{item.sourceName}</span>
+                          <span className="s block @min-[600px]:hidden">{formatShortDateTime(item.importedAt)}</span>
+                          <span className="mt-1.5 flex @min-[440px]:hidden">
+                            <span className={cx("pill", state.pill)}>{state.label}</span>
+                          </span>
                         </span>
                       </button>
                     </td>

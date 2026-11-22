@@ -1,45 +1,84 @@
 /* Importar calendário (tela da administração). Dono: sync-view.tsx.
    Camada components, antes do ux.css: onde a regra disputa com uma do visual-novo.css ou do ux.css
-   (que começam com "html"), o seletor aqui também começa com "html" e tem uma classe a mais. */
+   (que começam com "html"), o seletor aqui também começa com "html" e tem uma classe a mais.
+   Rodada 10 (visual Pantanal, Sora + Onest): sem cabeçalho de página; cards de raio 24, indicadores com o ícone
+   num quadrado suave, área de enviar PDF convidativa, passos numerados arredondados e o histórico com linhas
+   arejadas. --ipe* e --ms-azul têm valor de reserva para o caso de o token ainda não existir. Toda animação desliga
+   com prefers-reduced-motion. */
 
-/* ---------- indicadores do alto ---------- */
-/* os valores seguem a escala única do .is-date (26 px, ou 22 abaixo de 480 px), sem tamanho próprio. A palavra
-   ("Falta importar") pode quebrar a linha no celular estreito em vez de vazar do card */
-html .kpi-val.imp-kpi-txt {
+/* ---------- movimento: os cards entram em cascata pela classe comum .anim-in (ux.css, style="--i: N") ---------- */
+@keyframes imp-flutua {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+/* ---------- indicadores do alto: ícone num quadrado suave (.kpi-ic .k-*, ux.css), rótulo, valor em Sora e dica ---------- */
+html .imp-kpis .kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+html .imp-kpis .kpi-label {
+  font-size: var(--fs-14);
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--ink-3);
+}
+/* a mesma escala nos quatro, em Sora: o número e a palavra ("Reitoria", "Em dia") do mesmo tamanho */
+html .imp-kpis .kpi-val,
+html .imp-kpis .kpi-val.is-date {
+  margin-top: 16px;
+  font-family: var(--disp);
+  font-size: 30px;
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+html .imp-kpis .kpi-val small,
+html .imp-kpis .kpi-val.is-date small {
+  margin-left: 2px;
+  font-family: var(--font);
+  font-size: var(--fs-15);
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+html .imp-kpis .kpi-hint {
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+/* a palavra ("Falta importar") pode quebrar a linha no celular estreito em vez de vazar do card */
+html .imp-kpis .kpi-val.imp-kpi-txt {
   white-space: normal;
   overflow-wrap: anywhere;
 }
-/* "Em dia": card branco (amostra A), o valor e o ícone em verde; "Falta importar" usa o âmbar do .kpi.attn */
-html .kpi.imp-kpi-ok {
+/* "Em dia": o valor em verde; "Falta importar": o card ganha o fundo de ipê e o valor em âmbar escuro */
+html .imp-kpis .kpi.imp-kpi-ok {
+  border-color: transparent;
   background: var(--surface);
-  border-color: var(--line);
 }
-html .imp-kpi-ok :is(.kpi-label, .kpi-hint) {
-  color: var(--muted);
-}
-html .imp-kpi-ok .kpi-label {
-  color: var(--ink-2);
-}
-html .imp-kpi-ok .kpi-val {
-  color: var(--green);
-  font-weight: 700;
-}
-html .imp-kpi-ok .kpi-ico {
-  background: none;
+html .imp-kpis .imp-kpi-ok .kpi-val {
   color: var(--green);
 }
-html .kpi.imp-kpi-warn {
-  border-color: var(--amber-line);
-  background: var(--amber-bg);
+html .imp-kpis .kpi.imp-kpi-warn {
+  border-color: transparent;
+  background: linear-gradient(160deg, var(--ipe-bg, #fff4d1), var(--surface) 70%);
 }
-html .imp-kpi-warn :is(.kpi-label, .kpi-ico, .kpi-hint) {
-  background: none;
-  color: var(--amber);
-}
-html .imp-kpi-warn .kpi-val {
-  color: var(--amber);
+html .imp-kpis .imp-kpi-warn .kpi-val {
+  color: var(--ipe-ink, #7a5600);
 }
 @media (max-width: 639px) {
+  html .imp-kpis .kpi {
+    padding: 16px;
+  }
   /* grade 2 x 2 do celular: o rótulo ocupa sempre duas linhas ("Última importação" quebra, "Fonte" não), para os
      valores lado a lado começarem na mesma altura */
   html .imp-kpis .kpi-top {
@@ -47,7 +86,54 @@ html .imp-kpi-warn .kpi-val {
   }
   html .imp-kpis .kpi-label {
     min-height: calc(2lh);
+    padding-top: 1px;
   }
+  html .imp-kpis :is(.kpi-ic, .kpi-ico) {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+  }
+  html .imp-kpis .kpi-val,
+  html .imp-kpis .kpi-val.is-date {
+    margin-top: 10px;
+    font-size: 22px;
+  }
+}
+
+/* títulos dos cards: o ícone num quadrado suave ao lado do título (Sora) e do subtítulo */
+.imp-head-ic {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+}
+.imp-head-ic svg {
+  width: 19px;
+  height: 19px;
+}
+.imp-head-ic.is-rosa {
+  background: #ffe0ea;
+  color: #b23a62;
+}
+.imp-head-ic.is-ipe {
+  background: var(--ipe-bg, #fff4d1);
+  color: var(--ipe-ink, #7a5600);
+}
+html .imp-h {
+  font-family: var(--disp);
+  font-size: var(--fs-18);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.imp-sub {
+  margin-top: 2px;
+  font-size: var(--fs-14);
+  line-height: 1.45;
+  color: var(--ink-3);
 }
 
 /* ---------- resultado da importação (logo abaixo dos indicadores) ---------- */
@@ -57,13 +143,16 @@ html .imp-kpi-warn .kpi-val {
   flex-wrap: wrap;
   align-items: center;
   gap: 18px 24px;
-  padding: 24px 64px 24px 24px;
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-  background: linear-gradient(100deg, color-mix(in srgb, var(--accent-tint) 70%, #fff) 0, #fff 420px);
+  padding: 26px 64px 26px 26px;
+  border-color: transparent;
+  background:
+    radial-gradient(60% 140% at 0% 0%, var(--brand-50) 0, transparent 70%),
+    radial-gradient(40% 120% at 100% 100%, color-mix(in srgb, var(--ipe-bg, #fff4d1) 80%, transparent) 0, transparent 70%),
+    var(--surface);
 }
 .imp-done.is-undone {
-  border-color: var(--line);
-  background: #fff;
+  border-color: transparent;
+  background: var(--surface);
 }
 .imp-done-ico {
   display: flex;
@@ -73,16 +162,26 @@ html .imp-kpi-warn .kpi-val {
   width: 60px;
   height: 60px;
   border-radius: 18px;
-  background: #fff;
-  color: #1d7f55;
-  box-shadow:
-    0 1px 2px rgb(var(--shadow-rgb) / 0.06),
-    0 10px 22px -14px rgb(var(--accent-rgb) / 0.9);
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 14px 26px -14px color-mix(in srgb, var(--brand) 85%, transparent);
+  animation: imp-pop 0.5s 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+@keyframes imp-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-12deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .is-undone .imp-done-ico {
   background: var(--surface-2);
   color: var(--ink-3);
   box-shadow: none;
+  animation: none;
 }
 .imp-done-body {
   flex: 1 1 380px;
@@ -101,7 +200,7 @@ html .imp-kpi-warn .kpi-val {
 }
 .imp-done-n {
   font-size: 46px;
-  font-weight: 700;
+  font-weight: 750;
   line-height: 1;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -136,9 +235,9 @@ html .imp-kpi-warn .kpi-val {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  border-radius: 10px;
-  background: #fff7e0;
-  color: #7a3b06;
+  border-radius: 999px;
+  background: var(--ipe-bg, #fff4d1);
+  color: var(--ipe-ink, #7a5600);
   font-size: var(--fs-13);
   font-weight: 600;
 }
@@ -183,8 +282,23 @@ html .imp-kpi-warn .kpi-val {
    importar). Antes o card subia para o topo e o título da página aparecia no meio da tela. ---------- */
 
 /* ---------- card de importar: área de soltar (larga) e exemplo (estreito), os passos numa faixa embaixo ---------- */
+html .imp-card {
+  padding: 24px 26px 26px;
+}
 .imp-card-head {
-  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+@media (max-width: 639px) {
+  html .imp-card {
+    padding: 18px 16px 18px;
+  }
+  .imp-card-head {
+    align-items: flex-start;
+    gap: 12px;
+  }
 }
 /* leitura feita e painel fechado: dá para voltar a conferir sem ler o PDF de novo */
 .imp-pending {
@@ -194,8 +308,8 @@ html .imp-kpi-warn .kpi-val {
   gap: 12px 16px;
   margin-bottom: 16px;
   padding: 12px 16px;
-  border-radius: 14px;
-  border: 1px solid var(--brand-200);
+  border-radius: 18px;
+  border: 1px solid var(--brand-100);
   background: var(--brand-50);
 }
 .imp-pending-ico {
@@ -254,66 +368,84 @@ html .imp-pending.is-discarded {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 200px;
-  padding: 22px 24px;
-  border-radius: 18px;
-  border: 2px dashed var(--line-strong);
-  background: #fbfcff;
+  min-height: 236px;
+  padding: 26px 24px;
+  border-radius: 22px;
+  border: 2px dashed color-mix(in srgb, var(--brand) 32%, var(--line));
+  /* pontilhado de caderno bem leve e um brilho verde no alto: a área chama para soltar o PDF */
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--brand) 14%, transparent) 1px, transparent 1.5px) 0 0 / 18px 18px,
+    radial-gradient(80% 90% at 50% 0%, var(--brand-50) 0, transparent 70%),
+    var(--surface-2);
   text-align: center;
   cursor: pointer;
   transition:
-    border-color 0.16s ease,
-    background-color 0.16s ease,
-    box-shadow 0.16s ease;
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .imp-drop:hover {
-  border-color: var(--line-hover);
-  background: var(--surface-2);
+  border-color: color-mix(in srgb, var(--brand) 60%, var(--line));
+  box-shadow: 0 18px 36px -26px color-mix(in srgb, var(--brand) 70%, transparent);
 }
 .imp-drop.is-over {
+  border-style: solid;
   border-color: var(--brand);
-  background: var(--brand-50);
-  box-shadow: 0 0 0 4px rgb(var(--brand-rgb) / 0.12);
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--brand) 22%, transparent) 1px, transparent 1.5px) 0 0 / 18px 18px,
+    var(--brand-50);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--brand) 14%, transparent);
+  transform: scale(1.01);
 }
 .imp-drop.is-busy {
   border-style: solid;
-  border-color: var(--brand-200);
+  border-color: var(--brand-100);
   background: var(--brand-50);
   cursor: progress;
 }
 .imp-drop.is-bad {
-  border-color: #e9a3b4;
-  background: #fff6f8;
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: color-mix(in srgb, var(--danger) 5%, var(--surface));
 }
 .imp-drop-ico {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
-  margin-bottom: 6px;
-  border-radius: 18px;
-  background: #fff;
+  width: 68px;
+  height: 68px;
+  margin-bottom: 8px;
+  border-radius: 22px;
+  background: var(--surface);
   color: var(--brand);
   box-shadow:
-    0 1px 2px rgb(var(--shadow-rgb) / 0.06),
-    0 12px 26px -16px rgb(var(--brand-rgb) / 0.6);
-  transition: transform 0.16s ease;
+    0 1px 2px rgb(15 36 24 / 0.06),
+    0 16px 30px -16px color-mix(in srgb, var(--brand) 70%, transparent);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* o ícone flutua de leve quando o mouse passa; arrastando o PDF por cima, ele sobe e cresce */
+.imp-drop:hover .imp-drop-ico {
+  animation: imp-flutua 1.6s ease-in-out infinite;
 }
 .imp-drop.is-over .imp-drop-ico {
-  transform: translateY(-3px) scale(1.04);
+  animation: none;
+  transform: translateY(-6px) scale(1.08);
+}
+.imp-drop.is-busy .imp-drop-ico {
+  animation: none;
 }
 .imp-drop.is-bad .imp-drop-ico {
   color: var(--danger);
   box-shadow:
-    0 1px 2px rgb(var(--shadow-rgb) / 0.06),
-    0 12px 26px -16px rgb(var(--danger-rgb) / 0.6);
+    0 1px 2px rgb(15 36 24 / 0.06),
+    0 16px 30px -16px color-mix(in srgb, var(--danger) 60%, transparent);
 }
 .imp-drop-title {
   font-family: var(--disp);
   font-size: var(--fs-22);
   font-weight: 700;
   line-height: 1.25;
+  letter-spacing: -0.01em;
   color: var(--ink);
 }
 .imp-drop.is-bad .imp-drop-title {
@@ -368,14 +500,14 @@ html .imp-pending.is-discarded {
     gap: 4px;
   }
   .imp-drop-ico {
-    width: 44px;
-    height: 44px;
+    width: 52px;
+    height: 52px;
     margin-bottom: 4px;
-    border-radius: 14px;
+    border-radius: 17px;
   }
   .imp-drop-ico svg {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
   }
   .imp-drop-title {
     font-size: var(--fs-18);
@@ -404,25 +536,45 @@ html .imp-pending.is-discarded {
 .imp-aside {
   display: grid;
   align-content: center;
-  padding: 20px;
-  border-radius: 18px;
-  background: var(--surface-2);
+  padding: 22px;
+  border-radius: 22px;
+  background:
+    radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ipe-bg, #fff4d1) 90%, transparent) 0, transparent 70%),
+    var(--surface-2);
 }
 .imp-sample {
   display: grid;
   gap: 10px;
 }
 .imp-aside-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--disp);
   font-size: var(--fs-16);
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--ink);
 }
+.imp-aside-ic {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background: var(--ipe-bg, #fff4d1);
+  color: var(--ipe-ink, #7a5600);
+}
+.imp-aside-ic svg {
+  width: 16px;
+  height: 16px;
+}
 .imp-aside-text {
-  margin-top: -4px;
+  margin-top: -2px;
   font-size: 14px;
   line-height: 1.5;
-  color: var(--muted);
+  color: var(--ink-3);
 }
 .imp-sample-btn {
   width: 100%;
@@ -433,38 +585,47 @@ html .imp-pending.is-discarded {
 }
 /* passos: faixa embaixo do card; no card largo, o título à esquerda e os três passos lado a lado */
 .imp-steps {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line-2);
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
 }
 .imp-steps ol {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   margin-top: 12px;
 }
 @container (min-width: 700px) {
   .imp-steps {
     display: grid;
     grid-template-columns: 130px minmax(0, 1fr);
-    align-items: start;
+    align-items: center;
     gap: 20px;
-  }
-  .imp-steps .imp-aside-title {
-    padding-top: 3px;
   }
   .imp-steps ol {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 24px;
+    gap: 14px;
     margin-top: 0;
   }
 }
+/* cada passo num bloco arredondado, com o número num quadrado suave (verde, ipê e azul, como o trilho) */
 .imp-steps li {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--surface-2);
   font-size: var(--fs-13);
   line-height: 1.45;
   color: var(--ink-3);
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 0.2s ease;
+}
+.imp-steps li:hover {
+  transform: translateY(-2px);
+  background: var(--fill);
 }
 .imp-steps li b {
   font-weight: 700;
@@ -474,14 +635,22 @@ html .imp-pending.is-discarded {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  border: 1px solid var(--line-strong);
-  background: #fff;
-  font-size: var(--fs-12);
-  font-weight: 600;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--brand-50);
+  font-family: var(--disp);
+  font-size: var(--fs-16);
+  font-weight: 750;
   color: var(--brand-ink);
+}
+.imp-steps li:nth-child(2) .imp-step-n {
+  background: var(--ipe-bg, #fff4d1);
+  color: var(--ipe-ink, #7a5600);
+}
+.imp-steps li:nth-child(3) .imp-step-n {
+  background: color-mix(in srgb, var(--ms-azul, #2160c4) 12%, #fff);
+  color: var(--ms-azul, #2160c4);
 }
 /* card estreito (exemplo embaixo da área de soltar): o texto à esquerda e o botão à direita */
 @container (min-width: 560px) and (max-width: 859px) {
@@ -521,35 +690,115 @@ html .imp-hist .tbl .imp-hist-cl {
   padding-right: 24px;
 }
 @media (max-width: 639px) {
-  html .imp-hist-head {
-    padding: 20px 16px 16px;
+  html .imp-hist .imp-hist-head {
+    padding: 18px 16px 10px;
+    align-items: flex-start;
   }
+  /* a tabela fica 4 px para dentro (importar.css, histórico): 4 + 12 = 16 px, a linha do título */
   html .imp-hist .tbl .imp-hist-c1 {
-    padding-left: 16px;
-    padding-right: 12px;
+    padding-left: 12px;
+    padding-right: 10px;
   }
   html .imp-hist .tbl .imp-hist-cl {
-    padding-right: 16px;
+    padding-right: 12px;
   }
   .imp-hist-pager {
     padding: 0 16px 16px;
   }
 }
 
-/* ---------- histórico: a linha inteira abre o painel ---------- */
+/* ---------- histórico: linhas arejadas, a linha inteira abre o painel ---------- */
+/* a tabela fica 12 px para dentro do card: a linha em foco ganha o fundo arredondado sem encostar na borda; a
+   primeira coluna continua alinhada com o título do card (12 + 12 = 24 px) */
+html .imp-hist .tbl {
+  width: calc(100% - 24px);
+  margin: 0 12px 12px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+html .imp-hist .tbl th {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink-3);
+}
+html .imp-hist .tbl td {
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--line-2);
+}
+html .imp-hist .tbl tr:last-child td {
+  border-bottom: 0;
+}
+html .imp-hist .tbl .imp-hist-c1 {
+  padding-left: 12px;
+}
+html .imp-hist .tbl .imp-hist-cl {
+  padding-right: 12px;
+}
+.imp-hist-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+html .imp-hist-head {
+  padding: 22px 24px 12px;
+}
 .imp-hist-row {
   cursor: pointer;
-  transition: background-color 0.12s ease;
 }
-.imp-hist-row:hover,
-.imp-hist-row.is-open {
+.imp-hist-row > td {
+  transition: background-color 0.2s ease;
+}
+.imp-hist-row:hover > td,
+.imp-hist-row.is-open > td {
   background: var(--surface-2);
+  border-bottom-color: transparent;
+}
+.imp-hist-row:hover > td:first-child,
+.imp-hist-row.is-open > td:first-child {
+  border-radius: 16px 0 0 16px;
+}
+.imp-hist-row:hover > td:last-child,
+.imp-hist-row.is-open > td:last-child {
+  border-radius: 0 16px 16px 0;
 }
 .imp-hist-open {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 14px;
   width: 100%;
-  border-radius: 8px;
+  border-radius: 10px;
   text-align: left;
+}
+/* o arquivo da importação num quadrado suave (rosa, a cor de Importar no trilho); desfeita, cinza */
+.imp-hist-ic {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background: #ffe0ea;
+  color: #b23a62;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.imp-hist-ic svg {
+  width: 18px;
+  height: 18px;
+}
+.imp-hist-ic.is-undone {
+  background: var(--fill);
+  color: var(--muted);
+}
+.imp-hist-row:hover .imp-hist-ic {
+  transform: translateY(-2px) rotate(-4deg);
+}
+html .imp-hist .tbl .imp-hist-open .t {
+  font-weight: 650;
+  color: var(--ink);
+  transition: color 0.2s ease;
 }
 .imp-hist-row:hover .imp-hist-open .t {
   color: var(--brand-ink);
@@ -557,12 +806,46 @@ html .imp-hist .tbl .imp-hist-cl {
 .imp-hist-chev {
   color: var(--faint);
   transition:
-    color 0.12s ease,
-    transform 0.12s ease;
+    color 0.2s ease,
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .imp-hist-row:hover .imp-hist-chev {
   color: var(--brand);
-  transform: translateX(2px);
+  transform: translateX(3px);
+}
+@media (max-width: 639px) {
+  html .imp-hist .tbl {
+    width: calc(100% - 8px);
+    margin: 0 4px 8px;
+  }
+  .imp-hist-ic {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+  }
+}
+
+/* sem movimento: tudo parado, no lugar final */
+@media (prefers-reduced-motion: reduce) {
+  html .imp-page .anim-in,
+  html .imp-done-ico,
+  html .imp-drop:hover .imp-drop-ico {
+    animation: none !important;
+  }
+  html .imp-drop,
+  html .imp-drop-ico,
+  html .imp-steps li,
+  html .imp-hist-ic,
+  html .imp-hist-chev {
+    transition: none !important;
+  }
+  html .imp-drop.is-over,
+  html .imp-drop.is-over .imp-drop-ico,
+  html .imp-steps li:hover,
+  html .imp-hist-row:hover .imp-hist-ic,
+  html .imp-hist-row:hover .imp-hist-chev {
+    transform: none;
+  }
 }
 
 /* ---------- painel Conferir datas e Datas importadas ---------- */

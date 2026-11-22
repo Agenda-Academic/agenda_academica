@@ -1,17 +1,21 @@
 "use client";
 
-import { ArrowRight, Bell, BellRing, BookOpen, CalendarDays, Loader2, Plus, ShieldAlert, Target, Trophy } from "lucide-react";
+import {
+  ArrowRight,
+  Bell,
+  BellRing,
+  BookOpen,
+  CalendarDays,
+  CalendarRange,
+  FilePenLine,
+  Loader2,
+  Plus,
+  ShieldAlert,
+  Trophy,
+} from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { getMyGuardians } from "@/lib/api";
-import {
-  classTermLabel,
-  countText,
-  cx,
-  firstName,
-  formatShortDateTime,
-  latestTermLabel,
-  shiftLabel,
-} from "@/lib/format";
+import { classTermLabel, countText, cx, formatShortDateTime, shiftLabel } from "@/lib/format";
 import { reminderOffsetLabel, reminderOptions } from "@/lib/meta";
 import type { AcademicClass, AcademicContext, AcademicEvent, Category, Dashboard, GuardianLink, Reminder } from "@/lib/types";
 import { useAppActions, useBackLayer } from "./app-actions";
@@ -47,7 +51,7 @@ import {
 } from "./student-join-card";
 import { Pager, usePaged } from "./pager";
 import { DateBadge, sendWhen } from "./reminders-view";
-import { Drawer, PageHeader, SectionTitle } from "./ui";
+import { Drawer, SectionTitle } from "./ui";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -545,16 +549,8 @@ export function StudentDashboard({
     );
   }
 
-  // cabeçalho da tela: "Olá, Diogo" e a turma com o semestre
-  const greeting = `Olá, ${firstName(context?.user.fullName ?? "estudante")}`;
-  const headSubtitle = noClass
-    ? pending.length
-      ? `Pedido para entrar na ${pending[0].academicClass.name} aguardando confirmação`
-      : "Você ainda não está em uma turma"
-    : classes.length === 1
-      ? `${classes[0].name}, ${classes[0].semester ? `semestre ${classTermLabel(classes[0])}` : `ano letivo ${classes[0].year}`}`
-      : `${countText(classes.length, "turma", "turmas")}, semestre ${latestTermLabel(classes, now)}`;
-  const pageHead = context ? <PageHeader title={greeting} subtitle={headSubtitle} /> : null;
+  // sem cabeçalho de tela (rodada 10): a turma e o semestre que ele dizia ficam no card da turma (os chips e, com
+  // mais de uma turma, a linha de cada uma); o pedido sem decisão fica no card de entrar
 
   /** Pedidos de entrada ainda sem decisão, no card da turma (quem já tem turma pediu outra). */
   const pendingNotes = pending.length ? (
@@ -568,10 +564,12 @@ export function StudentDashboard({
   /** Turma, curso e período (chips), com o período letivo sem "/0" na turma anual. */
   function classChips(academicClass: AcademicClass) {
     return (
-      <div className="chips mt-3 gap-1.5">
-        {academicClass.period ? <span className="pill st-ag">{academicClass.period}</span> : null}
-        {academicClass.shift ? <span className="pill st-ag capitalize">{academicClass.shift}</span> : null}
-        <span className="pill st-ag">{classTermLabel(academicClass)}</span>
+      <div className="pnl-chips">
+        {academicClass.period ? <span className="pnl-chip">{academicClass.period}</span> : null}
+        {academicClass.shift ? <span className="pnl-chip">{shiftLabel(academicClass.shift)}</span> : null}
+        <span className="pnl-chip">
+          {academicClass.semester ? classTermLabel(academicClass) : `Ano letivo ${academicClass.year}`}
+        </span>
       </div>
     );
   }
@@ -585,34 +583,27 @@ export function StudentDashboard({
   const classCard = context ? (
     // no alto da coluna de apoio, do tamanho do conteúdo; o destaque fica na largura toda, sem esticar até a
     // altura deste card (antes, lado a lado, sobravam uns 50 px vazios em cima e embaixo do destaque)
-    <section className="card pad rise flex flex-col" style={delay(6)} aria-labelledby={classTitleId}>
+    <section className="card pad rise flex flex-col pnl-class" style={delay(6)} aria-labelledby={classTitleId}>
       {classes.length === 1 ? (
         <>
           {/* nome de turma longo, sem espaço, quebra em qualquer ponto */}
-          <h2
-            ref={classHeadingRef}
-            id={classTitleId}
-            className="disp text-[22px] font-bold leading-tight wrap-anywhere"
-            tabIndex={-1}
-          >
+          <h2 ref={classHeadingRef} id={classTitleId} className="pnl-class-t wrap-anywhere" tabIndex={-1}>
             {classes[0].name}
           </h2>
           <p className="sub">{classes[0].course?.name ?? "Curso"}</p>
           {classChips(classes[0])}
           {subjects.length ? (
-            <>
-              <hr className="divider mt-[18px] mb-3.5" />
-              <ul className="flex flex-col gap-2.5 text-sm">
-                {/* o nome da docente fica inteiro; só um nome que passa de 70% da linha corta com
-                    reticências, para a disciplina continuar à vista e a linha não passar da borda do card */}
-                {subjects.slice(0, 5).map(([subject, teacher]) => (
-                  <li key={subject} className="flex justify-between gap-2.5">
-                    <span className="truncate font-semibold">{subject}</span>
-                    {teacher ? <span className="muted max-w-[70%] shrink-0 truncate">{teacher}</span> : null}
-                  </li>
-                ))}
-              </ul>
-            </>
+            // uma disciplina por linha, com a divisória fina (amostra): a docente à direita
+            <ul className="pnl-subjects">
+              {/* o nome da docente fica inteiro; só um nome que passa de 70% da linha corta com
+                  reticências, para a disciplina continuar à vista e a linha não passar da borda do card */}
+              {subjects.slice(0, 5).map(([subject, teacher]) => (
+                <li key={subject}>
+                  <span className="truncate">{subject}</span>
+                  {teacher ? <span className="pnl-subjects-who">{teacher}</span> : null}
+                </li>
+              ))}
+            </ul>
           ) : classIdle ? (
             // a turma parada: o destaque ao lado já diz "Nenhuma prova ou trabalho à frente" e leva ao Cronograma;
             // repetir o vazio aqui seria o mesmo aviso em blocos seguidos (decisão 13). O card fica com o nome, os
@@ -632,7 +623,7 @@ export function StudentDashboard({
         </>
       ) : (
         <>
-          <h2 ref={classHeadingRef} id={classTitleId} className="disp text-[22px] font-bold leading-tight" tabIndex={-1}>
+          <h2 ref={classHeadingRef} id={classTitleId} className="pnl-class-t" tabIndex={-1}>
             Suas turmas
           </h2>
           {/* com mais de uma página, o subtítulo diz quais turmas estão à vista ("1 a 3 de 5"): o Pager do rodapé
@@ -748,28 +739,33 @@ export function StudentDashboard({
         onSelect={onSelect}
       />
     );
-    return (
-      <div className="pnl pnl-noclass grid gap-5">
-        {pageHead}
+    const notes = (
+      <>
         <AvisosCard host avisos={avisos ?? []} events={events} onDismiss={onDismissAviso} onOpen={onSelect} />
         {reviewBanner}
-
-        {/* Lado a lado: entrar na turma e os lembretes, que terminam na mesma linha (os dois esticam, e a folga dos
-            lembretes fica antes do rodapé); embaixo, as datas da instituição na largura toda. No celular e no
-            tablet, um card embaixo do outro, já na ordem da tela no JSX: as datas vêm antes dos lembretes, que sem
-            turma costumam estar vazios (o foco do teclado segue a mesma ordem). O card de entrar já explica o que
-            falta (sem um card "Sem turma" repetindo a mesma orientação) */}
+      </>
+    );
+    return (
+      <div className="pnl pnl-noclass grid gap-5">
+        {/* Sem cabeçalho: o primeiro bloco é o destaque de entrar na turma (verde, como o destaque dos outros
+            Painéis). Lado a lado: entrar na turma e os lembretes, que terminam na mesma linha (os dois esticam, e a
+            folga dos lembretes fica antes do rodapé); embaixo, os avisos e as datas da instituição na largura toda.
+            No celular e no tablet, um card embaixo do outro, já na ordem da tela no JSX: as datas vêm antes dos
+            lembretes, que sem turma costumam estar vazios (o foco do teclado segue a mesma ordem). O card de entrar
+            já explica o que falta (sem um card "Sem turma" repetindo a mesma orientação) */}
         {wide ? (
           <>
             <div className="duo">
               <div className="duo-col duo-main">{joinCard}</div>
               <div className="duo-col duo-side">{remindersCard(1, "duo-fill")}</div>
             </div>
+            {notes}
             {noClassDates}
           </>
         ) : (
           <>
             {joinCard}
+            {notes}
             {noClassDates}
             {remindersCard(1)}
           </>
@@ -780,11 +776,8 @@ export function StudentDashboard({
 
   return (
     <div className="pnl grid gap-5">
-      {pageHead}
-      <AvisosCard host avisos={avisos ?? []} events={events} onDismiss={onDismissAviso} onOpen={onSelect} />
-      {reviewBanner}
-
-      {/* Destaque na largura toda (como nos outros Painéis); a turma fica no alto da coluna de apoio, embaixo */}
+      {/* Sem cabeçalho: o primeiro bloco é o destaque, na largura toda (como nos outros Painéis); os avisos e o
+          aviso do vínculo vêm logo depois dele. A turma fica no alto da coluna de apoio, embaixo */}
       <div className="hero-slot rise" style={delay(0)}>
         <NextEventHero
           event={nextEvent}
@@ -798,12 +791,16 @@ export function StudentDashboard({
         />
       </div>
 
+      <AvisosCard host avisos={avisos ?? []} events={events} onDismiss={onDismissAviso} onOpen={onSelect} />
+      {reviewBanner}
+
       {/* Indicadores (todos levam ao Cronograma ou a Lembretes). Com a turma parada e nenhum lembrete, os quatro
           seriam zero logo abaixo do destaque vazio: não aparecem */}
       {kpisIdle ? null : (
         <div className="kpis">
           <InsightTile
-            icon={Target}
+            icon={CalendarRange}
+            tone="k-brand"
             label="Próximos 30 dias"
             order={2}
             value={String(thirtyDays)}
@@ -816,7 +813,8 @@ export function StudentDashboard({
             </div>
           </InsightTile>
           <InsightTile
-            icon={BookOpen}
+            icon={FilePenLine}
+            tone="k-prova"
             label="Provas à frente"
             order={3}
             value={String(exams30.length)}
@@ -851,7 +849,8 @@ export function StudentDashboard({
             }
           />
           <InsightTile
-            icon={Bell}
+            icon={BellRing}
+            tone="k-ipe"
             label="Lembretes agendados"
             order={4}
             value={String(scheduled.length)}
@@ -861,6 +860,7 @@ export function StudentDashboard({
           />
           <InsightTile
             icon={Trophy}
+            tone="k-ok"
             label="Pontos em jogo"
             order={5}
             value={pointsAtStake ? String(pointsAtStake) : "0"}
@@ -876,15 +876,19 @@ export function StudentDashboard({
           >
             {pointsBySubject.length ? (
               <div
-                className="stack mt-3 h-2"
+                className="stack pnl-bar mt-3 h-2"
                 role="img"
                 aria-label={pointsBySubject.map(([name, points]) => `${name} ${points} pontos`).join(", ")}
                 title={pointsBySubject.map(([name, points]) => `${name}: ${points}`).join(", ")}
               >
+                {/* do verde da marca ao amarelo ipê (amostra), uma cor por disciplina; a barra cresce ao entrar */}
                 {pointsBySubject.map(([name, points], index) => (
                   <span
                     key={name}
-                    style={{ flex: points, background: ["var(--brand)", "var(--brand-400)", "var(--brand-200)"][index % 3] }}
+                    style={{
+                      flex: points,
+                      background: ["var(--brand)", "var(--pnl-mid, #7aa83a)", "var(--ipe, #f2b71f)"][index % 3],
+                    }}
                   />
                 ))}
               </div>

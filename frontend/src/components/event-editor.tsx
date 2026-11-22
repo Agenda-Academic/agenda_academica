@@ -924,74 +924,66 @@ function EventPreview({
   const points = pointsLabel(form.points);
   const description = form.description.trim();
 
+  const monthName = start ? start.toLocaleDateString("pt-BR", { month: "long" }) : null;
+
+  // rodada 10: no estilo do destaque do Painel (verde-escuro em gradiente, pontilhado de caderno, texto branco e o
+  // dia circulado pela caneta ipê). As etiquetas e o texto são os mesmos de antes
   return (
-    <div className="rounded-2xl bg-surface-2 p-1.5">
-      <div className="flex items-start gap-4 rounded-[14px] bg-white p-3.5">
-        <span className="ev-date">
-          <span className="dw">{parts?.weekday ?? "Dia"}</span>
-          <span className="dn">{parts?.day ?? "--"}</span>
-          {/* fora do ano corrente, o bloco diz também o mês e o ano ("SEG 01 MAR 2027"), como nas listas sem cabeçalho de mês */}
-          {parts?.otherYear ? (
-            <span className="ev-mo">
-              {parts.month}
-              <span className="ev-yr">{parts.year}</span>
+    <div className={cx("ed-prev", status === "cancelled" && "is-cancelled")}>
+      <div className="ed-prev-main">
+        <div className="ed-prev-pills">
+          <span className={cx("cat", meta.tint)}>{meta.short}</span>
+          {official ? (
+            <span className="ed-prev-tag">
+              <ShieldCheck className="h-3 w-3" aria-hidden />
+              Oficial
             </span>
           ) : null}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p
-            className={cx(
-              "text-[15px] font-semibold leading-[1.3] wrap-anywhere",
-              status === "cancelled" && "text-muted line-through",
-              !form.title.trim() && "text-muted"
-            )}
-          >
-            {form.title.trim() || "Título do evento"}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <span className={cx("pill", meta.tint)}>{meta.short}</span>
-            {official ? (
-              <span className="pill prio">
-                <ShieldCheck className="h-3 w-3" aria-hidden />
-                Oficial
-              </span>
-            ) : null}
-            {status && status !== "scheduled" ? (
-              <span className={cx("pill", statusMeta[status].pill)}>{statusMeta[status].label}</span>
-            ) : null}
-            {past ? <span className="pill stat stat-alt">Data no passado</span> : null}
-          </div>
-          <ul className="mt-2.5 grid gap-1 text-[13px] leading-5 text-ink-3">
-            <li className="flex items-start gap-2">
-              <BookOpen className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-              <span className="min-w-0 wrap-anywhere">{audience}</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-              <span className="min-w-0">
-                {start ? eventWhenLabel(start.toISOString(), end ? end.toISOString() : null) : "Escolha a data de início"}
-              </span>
-            </li>
-            {form.location.trim() ? (
-              <li className="flex items-start gap-2">
-                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-                <span className="min-w-0 wrap-anywhere">{form.location.trim()}</span>
-              </li>
-            ) : null}
-            {points ? (
-              <li className="flex items-start gap-2">
-                <Trophy className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-                <span className="min-w-0 wrap-anywhere">{points}</span>
-              </li>
-            ) : null}
-          </ul>
-          {description ? (
-            <p className="mt-2 line-clamp-2 whitespace-pre-line text-[13px] leading-5 text-muted wrap-anywhere">
-              {description}
-            </p>
-          ) : null}
+          {status && status !== "scheduled" ? <span className="ed-prev-tag">{statusMeta[status].label}</span> : null}
+          {past ? <span className="ed-prev-tag is-warn">Data no passado</span> : null}
         </div>
+        <p className={cx("ed-prev-t wrap-anywhere", !form.title.trim() && "is-empty")}>
+          {form.title.trim() || "Título do evento"}
+        </p>
+        <ul className="ed-prev-meta">
+          <li>
+            <BookOpen aria-hidden />
+            <span className="min-w-0 wrap-anywhere">{audience}</span>
+          </li>
+          <li>
+            <CalendarClock aria-hidden />
+            <span className="min-w-0">
+              {start ? eventWhenLabel(start.toISOString(), end ? end.toISOString() : null) : "Escolha a data de início"}
+            </span>
+          </li>
+          {form.location.trim() ? (
+            <li>
+              <MapPin aria-hidden />
+              <span className="min-w-0 wrap-anywhere">{form.location.trim()}</span>
+            </li>
+          ) : null}
+          {points ? (
+            <li>
+              <Trophy aria-hidden />
+              <span className="min-w-0 wrap-anywhere">{points}</span>
+            </li>
+          ) : null}
+        </ul>
+        {description ? <p className="ed-prev-d line-clamp-2 whitespace-pre-line wrap-anywhere">{description}</p> : null}
       </div>
+      {/* a folha do dia: semana, o dia circulado e o mês (com o ano fora do ano corrente) */}
+      <span className="ed-prev-date" aria-hidden>
+        <small>{parts?.weekday ?? "Dia"}</small>
+        <b>
+          {parts?.day ?? "--"}
+          {parts ? (
+            <svg className="ed-prev-ring" viewBox="0 0 64 56">
+              <path d="M35 5C52 4 62 16 59 30C56 45 38 53 22 49C7 45 2 31 7 19C12 8 26 3 40 6C45 7 49 9 51 11" />
+            </svg>
+          ) : null}
+        </b>
+        {monthName ? <span>{parts?.otherYear ? `${monthName} ${parts.year}` : monthName}</span> : null}
+      </span>
     </div>
   );
 }
@@ -1358,14 +1350,15 @@ export function EventEditor({
           : "Novo evento";
   // situações (etiqueta com fundo, .pill.stat), como na gaveta de notas: nunca ponto + palavra de categoria
   const dirtyPill = changed ? <span className="pill stat stat-alt">Alterações não salvas</span> : null;
-  const eyebrow = editingEvent ? (
-    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span className={cx("cat", categoryMeta[editingEvent.category].tint)}>
-        {categoryMeta[editingEvent.category].short}
-      </span>
+  // rodada 10: o cabeçalho leva a categoria em pílula colorida (também no evento novo, a que está escolhida) e
+  // ganha o tom dela (gestao.css, .drawer:has(.ed-eyebrow[data-tint]))
+  const eyebrowCategory = editingEvent ? editingEvent.category : blocked ? null : form.category;
+  const eyebrow = eyebrowCategory ? (
+    <span className="ed-eyebrow flex flex-wrap items-center gap-x-3 gap-y-1" data-tint={categoryMeta[eyebrowCategory].tint}>
+      <span className={cx("cat", categoryMeta[eyebrowCategory].tint)}>{categoryMeta[eyebrowCategory].short}</span>
       {/* cancelado muda o sentido do painel; concluído e alterado ficam no rodapé (Mais) */}
-      {editingEvent.status === "cancelled" ? <StatusPill event={editingEvent} /> : null}
-      {dirtyPill}
+      {editingEvent?.status === "cancelled" ? <StatusPill event={editingEvent} /> : null}
+      {editingEvent ? dirtyPill : null}
     </span>
   ) : undefined;
   // min-w-0: no cabeçalho (uma linha flexível), a linha comprida quebra em vez de passar do X; no celular são 2

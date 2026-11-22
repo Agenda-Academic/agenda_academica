@@ -191,7 +191,7 @@ export function ProfileStudents() {
                 const busy = busyId === item.linkId;
                 const fullName = item.fullName ?? "Aluno";
                 return (
-                  <li key={item.linkId} className="aluno-guard">
+                  <li key={item.linkId} className="aluno-guard is-student">
                     <div className="aluno-g-row">
                       <span className="aluno-g-av" aria-hidden>
                         {item.initials}

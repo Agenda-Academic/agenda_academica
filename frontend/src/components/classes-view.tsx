@@ -13,7 +13,7 @@ import { StudentPanel } from "./classes-student-panel";
 import { SavedPill } from "./dashboard-bits";
 import { Pager, usePaged } from "./pager";
 import { Select, type SelectOption } from "./select";
-import { Drawer, EmptyState, ErrorState, PageHeader, Segmented, SectionTitle, primaryButton, secondaryButton } from "./ui";
+import { Drawer, EmptyState, ErrorState, Segmented, SectionTitle, primaryButton, secondaryButton } from "./ui";
 
 /**
  * Tela "Turmas e disciplinas" (só administração; desenho 5.3). Dona: área Admin.
@@ -1147,15 +1147,28 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
     >
       <div className="admin-card-head admin-head">
         <SectionTitle id="turmas-titulo" title="Turmas" subtitle={turmasSub} />
-        <button
-          ref={newClassRef}
-          className={primaryButton}
-          onClick={() => openPanel({ kind: "newClass" })}
-          type="button"
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-          Nova turma
-        </button>
+        {/* rodada 10: sem cabeçalho de página, "Cursos" vem para cá, ao lado de "Nova turma" */}
+        <div className="admin-head-acts">
+          <button
+            className={cx(secondaryButton, "admin-courses-btn")}
+            disabled={!data}
+            onClick={() => openPanel({ kind: "courses" })}
+            type="button"
+          >
+            <GraduationCap className="h-4 w-4" aria-hidden />
+            Cursos
+            {data ? <span className="admin-n">{data.courses.length}</span> : null}
+          </button>
+          <button
+            ref={newClassRef}
+            className={primaryButton}
+            onClick={() => openPanel({ kind: "newClass" })}
+            type="button"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Nova turma
+          </button>
+        </div>
       </div>
       <div className="admin-filters" role="group" aria-label="Filtros das turmas">
         {/* filtros em pílula (amostra A): "Curso: Todos" e "Semestre: 2026/2", azuis quando ligados. O chip mostra a
@@ -1452,28 +1465,9 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
     </section>
   );
 
-  const pageSub = !data
-    ? "Carregando"
-    : `${countText(activeCount, "turma ativa", "turmas ativas")}, ${countText(data.subjects.length, "disciplina", "disciplinas")} e ${countText(data.courses.length, "curso", "cursos")}`;
-
+  // rodada 10: sem cabeçalho de página. A tela começa pelos cards (o nome dela está no trilho e no h1 da casca)
   return (
-    <div className="grid gap-5">
-      <PageHeader
-        title="Turmas e disciplinas"
-        subtitle={pageSub}
-        actions={
-          <button
-            className={secondaryButton}
-            disabled={!data}
-            onClick={() => openPanel({ kind: "courses" })}
-            type="button"
-          >
-            <GraduationCap className="h-4 w-4" aria-hidden />
-            Cursos
-            {data ? <span className="admin-n">{data.courses.length}</span> : null}
-          </button>
-        }
-      />
+    <div className="grid gap-5 admin-screen">
       {nothingFound ? (
         nothingCard
       ) : (

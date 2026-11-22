@@ -395,10 +395,10 @@ export function GuardianLinkCard({
   const dialog = <GuardianDataDialog forGuardian open={dataOpen} onClose={() => setDataOpen(false)} />;
 
   return (
-    <section ref={rootRef} className="card resp-vinc rise" style={delay(order)} aria-labelledby={titleId}>
+    <section ref={rootRef} className="card resp-vinc anim-in" style={delay(order)} aria-labelledby={titleId}>
       <div className="resp-vinc-in">
         <div className="resp-vinc-main">
-          <span className="empty-ico" aria-hidden>
+          <span className="empty-ico resp-vinc-ic" aria-hidden>
             <Link2 className="h-[22px] w-[22px]" />
           </span>
           <h2 id={titleId} className="resp-vinc-title">

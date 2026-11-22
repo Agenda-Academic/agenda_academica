@@ -136,6 +136,106 @@
   border-radius: 9px;
 }
 
+/* ---------- rodada 10: o card de entrar é o destaque verde-escuro do Painel (o fundo vem de .pnl-hero) ---------- */
+html .pnl .pnl-hero.aluno-join {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  column-gap: 18px;
+  row-gap: 22px;
+  align-items: start;
+  align-content: start;
+}
+html .pnl .pnl-hero.aluno-join .aluno-join-ico {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.14);
+  color: var(--pnl-ipe-l, #f9d56e);
+}
+html .pnl .pnl-hero.aluno-join .aluno-join-ico svg {
+  width: 26px;
+  height: 26px;
+}
+html .pnl .pnl-hero.aluno-join .hero-title {
+  font: 750 34px/1.08 var(--disp);
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+html .pnl .pnl-hero.aluno-join .aluno-join-sub {
+  max-width: 560px;
+  color: rgb(255 255 255 / 0.84);
+}
+html .pnl .pnl-hero.aluno-join .aluno-join-field .lbl {
+  color: #fff;
+}
+html .pnl .pnl-hero.aluno-join .input.aluno-code-input {
+  height: 48px;
+  border-color: transparent;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--ink);
+}
+html .pnl .pnl-hero.aluno-join .aluno-join-row .btn-p {
+  height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--pnl-ipe, #f2b71f);
+  color: #0b3d1f;
+  box-shadow: 0 12px 24px -12px rgb(0 0 0 / 0.5);
+}
+@media (hover: hover) and (pointer: fine) {
+  html .pnl .pnl-hero.aluno-join .aluno-join-row .btn-p:not([aria-disabled="true"]):hover {
+    background: #ffc534;
+  }
+}
+html .pnl .pnl-hero.aluno-join .field-help {
+  color: rgb(255 255 255 / 0.72);
+}
+/* o erro do código em rosa claro: o vermelho comum some no verde-escuro */
+html .pnl .pnl-hero.aluno-join .field-error {
+  color: #ffd2d2;
+}
+html .pnl .pnl-hero.aluno-join .field-error svg {
+  color: #ffb0b0;
+}
+/* o pedido sem decisão: faixa translúcida sobre o verde */
+html .pnl .pnl-hero.aluno-join .callout.aluno-pending {
+  border: 0;
+  background: rgb(255 255 255 / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.2);
+  color: #fff;
+}
+html .pnl .pnl-hero.aluno-join .aluno-pending-ico {
+  background: var(--pnl-ipe, #f2b71f);
+  color: #0b3d1f;
+}
+html .pnl .pnl-hero.aluno-join .aluno-pending-when {
+  color: rgb(255 255 255 / 0.75);
+}
+html .pnl .pnl-hero.aluno-join .aluno-pending .pill {
+  background: var(--pnl-ipe, #f2b71f);
+  color: #0b3d1f;
+}
+
+@media (max-width: 639px) {
+  html .pnl .pnl-hero.aluno-join {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 16px;
+    padding: 22px 20px;
+    border-radius: 24px;
+  }
+  html .pnl .pnl-hero.aluno-join .hero-title {
+    font-size: 26px;
+  }
+  html .pnl .pnl-hero.aluno-join .aluno-join-row {
+    flex-wrap: wrap;
+  }
+  html .pnl .pnl-hero.aluno-join .aluno-join-row .btn-p {
+    width: 100%;
+  }
+}
+
 @media (max-width: 639px) {
   /* celular: sem o ícone, o título e o campo na largura toda */
   .hero.aluno-join {
@@ -614,15 +714,15 @@ html .aviso-t {
 }
 .al-rem {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   min-height: 60px;
   margin: 0 -8px;
   width: calc(100% + 16px);
   padding: 8px;
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: 18px;
   background: none;
   text-align: left;
   cursor: pointer;
@@ -634,12 +734,44 @@ html .aviso-t {
   outline: 2px solid var(--brand);
   outline-offset: 0;
 }
-/* o selo vem da tela Lembretes (.lb-date, com área de grade própria): aqui ele fica na primeira coluna */
+/* o selo vem da tela Lembretes (.lb-date, com área de grade própria): aqui ele fica na primeira coluna, com o
+   mesmo desenho do selo das listas do Painel (raio 16, o de hoje cheio em verde; painel.css) */
 html .al-rem > .dbadge {
   grid-area: auto;
 }
+html .pnl .al-rem > .dbadge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 52px;
+  min-height: 54px;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
 html .al-rem .dbadge small {
   text-transform: uppercase;
+}
+html .pnl .al-rem > .dbadge small {
+  font: 700 11px/1 var(--font);
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+html .pnl .al-rem > .dbadge b {
+  font: 750 21px/1 var(--disp);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+html .pnl .al-rem > .dbadge.today {
+  background: var(--brand);
+  box-shadow: 0 8px 16px -10px var(--brand);
+}
+html .pnl .al-rem > .dbadge.today :is(small, b) {
+  color: #fff;
 }
 .al-rem-t {
   display: -webkit-box;
