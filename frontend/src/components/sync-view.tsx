@@ -1527,7 +1527,7 @@ export function SyncView({
           icon={Landmark}
           iconTone="azul"
           label="Fonte"
-          value="Reitoria"
+          value="Instituição"
           text
           hint="calendário letivo oficial"
           hintShort="calendário oficial"

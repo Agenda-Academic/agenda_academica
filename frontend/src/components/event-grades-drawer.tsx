@@ -16,6 +16,7 @@ import {
   type ConflictDetails,
 } from "@/lib/api";
 import { countText, cx, errorMessage, formatShortDateTime } from "@/lib/format";
+import { zonedNowMs } from "@/lib/zone";
 import { categoryMeta, gradeImportSourceLabels } from "@/lib/meta";
 import type { AcademicEvent, BulkGradeInput, EventGrades, GradeImport, GradeImportApplied } from "@/lib/types";
 import { useAppActions, useBackLayer } from "./app-actions";
@@ -643,8 +644,27 @@ function useGradesPanel({
 
   /* --------------------------- publicar --------------------------- */
 
-  async function publish() {
+  /** Nota publicada antes da avaliação acontecer chega para aluno e responsável cedo demais: pede a confirmação. */
+  function askPublishBeforeEvent() {
+    const startsAt = info?.startsAt;
+    if (!startsAt || new Date(startsAt).getTime() <= zonedNowMs()) {
+      return false;
+    }
+    confirm({
+      title: "Publicar antes da avaliação?",
+      message: `Esta avaliação ainda não aconteceu (${formatShortDateTime(startsAt)}). Se publicar agora, alunos e responsáveis recebem as notas antes dela.`,
+      confirmLabel: "Publicar mesmo assim",
+      cancelLabel: "Voltar",
+      tone: "primary",
+      action: () => publish(true),
+    });
+    return true;
+  }
+
+  /** `confirmed`: a pessoa já viu o aviso de publicar antes da avaliação (ou está desfazendo o ocultar). */
+  async function publish(confirmed = false) {
     if (publishing) return;
+    if (!confirmed && askPublishBeforeEvent()) return;
     setPublishing(true);
     try {
       const { data: result, message } = await publishGrades(token, eventId);
@@ -682,7 +702,7 @@ function useGradesPanel({
     try {
       const { message } = await unpublishGrades(token, eventId);
       setData((current) => (current ? { ...current, event: { ...current.event, gradesPublishedAt: null } } : current));
-      toast(message, { key: `notas-publicar-${eventId}`, undo: archived ? undefined : () => publish() });
+      toast(message, { key: `notas-publicar-${eventId}`, undo: archived ? undefined : () => publish(true) });
       changed(true);
     } catch (error) {
       showError(error, `notas-publicar-${eventId}`);

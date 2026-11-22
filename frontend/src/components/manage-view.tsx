@@ -1070,7 +1070,7 @@ export function ManageView({
   function stateCell(event: AcademicEvent) {
     const state = gradeState(event);
     if (state.kind === "later") {
-      return <span className="gx-nt">{event.category === "exam" ? "Depois da prova" : "Depois da entrega"}</span>;
+      return <span className="gx-nt">{event.category === "exam" ? "Notas depois da prova" : "Notas depois da entrega"}</span>;
     }
     if (state.kind === "published") {
       return (

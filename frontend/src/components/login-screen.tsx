@@ -36,7 +36,7 @@ type FieldErrors = Partial<Record<FieldName, string>>;
 const fieldOrder: FieldName[] = ["fullName", "email", "password", "passwordConfirmation", "consent"];
 
 // o "Li e concordo" do responsável (LGPD, desenho 6.1) é só da tela: a API não guarda o aceite
-const consentMissing = "Marque Li e concordo para criar a conta de responsável.";
+const consentMissing = "Marque a caixa de consentimento (Li e concordo) para criar a conta de responsável.";
 
 const emailTaken = "Este e-mail já tem conta. Entre ou use outro e-mail.";
 
@@ -458,7 +458,7 @@ function PasswordRecovery({
               autoComplete="new-password"
               error={fieldErrors.password}
               errorId={`${baseId}-senha-erro`}
-              hint="mínimo de 8 caracteres"
+              hint="de 8 a 32 caracteres"
               inputRef={passwordRef}
               label="Senha nova"
               shown={shown}
@@ -818,7 +818,7 @@ export function LoginScreen({
                 {mode === "signup" ? (
                   <>
                     <span className="opcional">Para pais e responsáveis acompanharem a agenda e as notas do aluno. </span>
-                    Tenha em mãos o código do aluno: ele gera no perfil, ou a secretaria passa.
+                    Logo depois de criar a conta, você digita o código do aluno: ele gera no perfil, ou a secretaria passa.
                   </>
                 ) : demoOn
                     ? "Use seu e-mail ou escolha uma conta de demonstração."
@@ -870,7 +870,7 @@ export function LoginScreen({
                     autoComplete={mode === "login" ? "current-password" : "new-password"}
                     error={fieldErrors.password}
                     errorId={errorId("password")}
-                    hint={mode === "signup" ? "mín. 8 caracteres" : undefined}
+                    hint={mode === "signup" ? "de 8 a 32 caracteres" : undefined}
                     inputRef={passwordRef}
                     label="Senha"
                     shown={showPassword}

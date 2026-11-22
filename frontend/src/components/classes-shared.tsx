@@ -340,10 +340,13 @@ export function plural(count: number, singular: string, pluralForm: string) {
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
+/** "da", "de", "do", "das", "dos" e "e" não valem como segundo nome nas iniciais (como no servidor). */
+const NAME_PARTICLES = new Set(["da", "de", "do", "das", "dos", "e"]);
+
 /**
- * Iniciais do avatar, como na amostra: a primeira letra do primeiro e do último nome ("Prof. Rafael Lima" vira
- * "RL"); com um nome só, as duas primeiras letras dele ("Profa. Maraísa" vira "MA"). O "Prof." e o "Profa." não
- * contam.
+ * Iniciais do avatar, iguais às do menu e da API (models/user.ts): a primeira letra do primeiro e do segundo nome
+ * ("Diogo Queiroz da Silva" vira "DQ"; "Maria da Silva", "MS", porque o "da" não conta); com um nome só, as duas
+ * primeiras letras dele ("Profa. Maraísa" vira "MA"). O "Prof." e o "Profa." não contam.
  */
 export function initialsOf(name: string | null | undefined) {
   const parts = (name ?? "")
@@ -357,8 +360,8 @@ export function initialsOf(name: string | null | undefined) {
     return "?";
   }
   const first = parts[0];
-  const last = parts[parts.length - 1];
-  const pair = parts.length > 1 ? `${first[0]}${last[0]}` : first.slice(0, 2).join("");
+  const second = parts.slice(1).find((letters) => !NAME_PARTICLES.has(letters.join("").toLocaleLowerCase("pt-BR")));
+  const pair = second ? `${first[0]}${second[0]}` : first.slice(0, 2).join("");
   return pair.toLocaleUpperCase("pt-BR");
 }
 

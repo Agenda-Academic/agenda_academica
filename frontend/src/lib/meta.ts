@@ -205,7 +205,7 @@ export const demoAccounts = [
   },
   {
     label: roleLabels.admin,
-    description: "Importa o calendário oficial da reitoria",
+    description: "Importa o calendário oficial da instituição",
     email: "admin@agenda.test",
     password: "password123",
   },

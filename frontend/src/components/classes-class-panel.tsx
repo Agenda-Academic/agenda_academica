@@ -3496,6 +3496,21 @@ function CodeSection({
   // desligou: o botão que pediu (o Desligar) sai quando a turma recarrega, e o foco vai para o Gerar código
   const focusGenerate = useRef<{ from: Element | null } | null>(null);
 
+  // o painel abriu pedindo esta seção ("Ligar o código da turma"): o foco do painel não rola (preventScroll), então a
+  // seção vem para a vista aqui. O pedido some quando o foco chega (onFocused), por isso fica guardado numa ref.
+  const scrollOnOpen = useRef(focusFirst);
+  useEffect(() => {
+    if (!scrollOnOpen.current) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      scrollOnOpen.current = false;
+      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      document.getElementById(headingId)?.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+    }, 160);
+    return () => window.clearTimeout(timer);
+  }, [headingId]);
+
   useLayoutEffect(() => {
     const pending = focusGenerate.current;
     const target = generateRef.current;

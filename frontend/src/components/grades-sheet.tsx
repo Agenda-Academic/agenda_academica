@@ -459,8 +459,9 @@ function stats(data: EventGrades) {
     .map((row) => row.grade?.score as number);
   if (!scores.length) return null;
   const sum = scores.reduce((total, value) => total + value, 0);
-  // a média com uma casa (7,4); os três saem no mesmo formato: inteiro sem casa ("9"), senão com vírgula ("7,5")
-  return { mean: Math.round(sum / scores.length / 10) * 10, min: Math.min(...scores), max: Math.max(...scores) };
+  // a média também em centésimos, como a menor e a maior: com uma casa só ela podia passar da maior nota (7,3 com
+  // máximo 7,25). Os três saem no mesmo formato: inteiro sem casa ("9"), senão com vírgula ("7,25")
+  return { mean: Math.round(sum / scores.length), min: Math.min(...scores), max: Math.max(...scores) };
 }
 
 export function GradesStatus({

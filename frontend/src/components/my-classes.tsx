@@ -114,9 +114,13 @@ function studentName(student: Pick<ClassStudent, "fullName" | "email">) {
 /** Tratamentos que não entram nas iniciais: Prof., Profa., Dr., Dra. e Dr(a). */
 const honorific = /^(prof|profa|profª|dr|dra|dr\(a\))\.?$/i;
 
+/** "da", "de", "do", "das", "dos" e "e" não valem como segundo nome nas iniciais (como no servidor). */
+const particle = /^(da|de|do|das|dos|e)$/i;
+
 /**
- * Iniciais do primeiro e do último nome, sem o tratamento: "Ana Beatriz Rocha" vira "AR" e "Profa. Paula Souza",
- * "PS". Com um nome só, as duas primeiras letras, como o menu ("Profa. Maraísa" vira "MA").
+ * Iniciais do primeiro e do segundo nome, sem o tratamento, iguais às do menu e da API: "Ana Beatriz Rocha" vira
+ * "AB", "Profa. Paula Souza", "PS" e "Maria da Silva", "MS". Com um nome só, as duas primeiras letras, como o menu
+ * ("Profa. Maraísa" vira "MA").
  */
 function initials(name: string) {
   const words = name
@@ -128,7 +132,8 @@ function initials(name: string) {
     return "?";
   }
   const first = words[0];
-  const text = words.length > 1 ? `${first.charAt(0)}${words[words.length - 1].charAt(0)}` : first.slice(0, 2);
+  const second = words.slice(1).find((word) => !particle.test(word));
+  const text = second ? `${first.charAt(0)}${second.charAt(0)}` : first.slice(0, 2);
   return text.toLocaleUpperCase("pt-BR");
 }
 
