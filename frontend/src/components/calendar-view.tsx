@@ -4,7 +4,6 @@ import { zonedNow, zonedNowMs } from "@/lib/zone";
 import {
   CalendarRange,
   CalendarX2,
-  Check,
   ChevronRight,
   History,
   Inbox,
@@ -47,6 +46,7 @@ import {
   type MonthNoun,
   type PagerTarget,
 } from "./month-pager";
+import { FilterPanel, type FilterOption, type FilterSection } from "./filter-panel";
 import { Pager, usePaged } from "./pager";
 import { Select, type SelectOption } from "./select";
 import { Modal, Segmented, SegmentedButton } from "./ui";
@@ -1363,7 +1363,7 @@ export function CalendarView({
   onSelect,
   onSetStatus,
 }: {
-  /** Eventos já filtrados pela busca e sem o filtro de categoria, para as contagens dos chips. */
+  /** Eventos já filtrados pela busca e sem o filtro de categoria, para as contagens do filtro. */
   allEvents?: AcademicEvent[];
   calendarMode: CalendarMode;
   canManageEvent: (event: AcademicEvent) => boolean;
@@ -1523,9 +1523,8 @@ export function CalendarView({
   const detailTitleRef = useRef<HTMLHeadingElement>(null);
   const dayTitleRef = useRef<HTMLHeadingElement>(null);
   const dayPanelRef = useRef<HTMLElement>(null);
-  const allChipRef = useRef<HTMLButtonElement>(null);
-  // categorias: no celular, uma faixa que rola de lado (cronograma.css)
-  const catsRef = useRef<HTMLDivElement>(null);
+  // botão do filtro (funil): o foco volta para ele quando a ação clicada some da tela
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLElement>(null);
   const asideRoomRef = useRef<HTMLDivElement>(null);
   // título do seletor de mês da Agenda: o pé da lista leva a página até ele e o foco para lá
@@ -1854,27 +1853,6 @@ export function CalendarView({
     window.requestAnimationFrame(() => detailTitleRef.current?.focus({ preventScroll: true }));
   });
 
-  // celular: as categorias ficam numa faixa que rola de lado; a primeira escolhida fica à vista (sem mexer
-  // quando ela já está inteira na faixa, para o chip tocado não sair de baixo do dedo)
-  const pickedKey = allSelected ? "" : selectedCategories.join(",");
-  useLayoutEffect(() => {
-    const strip = catsRef.current;
-    if (!strip || strip.scrollWidth <= strip.clientWidth + 1) {
-      return;
-    }
-    const chip = strip.querySelector<HTMLElement>('.chip[aria-pressed="true"]');
-    if (!chip) {
-      return;
-    }
-    const edge = 24;
-    const start = chip.offsetLeft;
-    const end = start + chip.offsetWidth;
-    if (start >= strip.scrollLeft + edge && end <= strip.scrollLeft + strip.clientWidth - edge) {
-      return;
-    }
-    strip.scrollLeft = Math.max(0, Math.min(strip.scrollWidth - strip.clientWidth, start - edge));
-  }, [pickedKey, calendarMode]);
-
   function dayButton(key: string | null) {
     return key ? (sectionRef.current?.querySelector<HTMLElement>(`[data-day="${key}"]`) ?? null) : null;
   }
@@ -1970,9 +1948,9 @@ export function CalendarView({
     selectAllCategories();
   }
 
-  /** O botão clicado some da tela: o foco vai para o chip "Todas", que fica (e não cai no início da página). */
+  /** O botão clicado some da tela: o foco vai para o botão do filtro, que fica (e não cai no início da página). */
   function focusAllChip() {
-    window.requestAnimationFrame(() => allChipRef.current?.focus());
+    window.requestAnimationFrame(() => filterButtonRef.current?.focus());
   }
 
   function clearSearch() {
@@ -1992,6 +1970,26 @@ export function CalendarView({
     } else {
       allCategories.filter((category) => !selectedCategories.includes(category)).forEach(toggleCategory);
     }
+  }
+
+  /**
+   * Categoria escolhida no filtro (a mesma regra das antigas pílulas): com "Todas" ativo (mesmo por uma escolha que
+   * cobre todas as que têm eventos), mostra só a escolhida; depois soma e tira.
+   */
+  function pickCategory(category: Category) {
+    const picked = !allSelected && selectedCategories.includes(category);
+    if (allSelected && setCategories) {
+      setCategories([category]);
+      return;
+    }
+    // desmarcar a última escolhida que tem eventos volta a Todas, em vez de revelar uma escolhida escondida com 0
+    // ("Trabalhos 0") e deixar a lista vazia
+    const rest = selectedCategories.filter((item) => item !== category);
+    if (picked && setCategories && !rest.some((item) => categoryCounts[item] > 0)) {
+      setCategories(allCategories);
+      return;
+    }
+    toggleCategory(category);
   }
 
   /** "Limpar filtros": tira as categorias, a turma e o "Só meus"; a busca continua (ela tem o próprio X). */
@@ -2647,28 +2645,6 @@ export function CalendarView({
       </button>
     ) : null;
 
-  const classSelect =
-    role === "admin" && classes.length ? (
-      <Select
-        active={classFilter !== "all"}
-        ariaLabel="Turma"
-        className="crono-class"
-        options={classOptions}
-        prefix="Turma:"
-        size="sm"
-        value={classFilter}
-        variant="filter"
-        width="auto"
-        onChange={(value) => setClassFilter(value)}
-      />
-    ) : null;
-
-  const clearLink = showClear ? (
-    <button className="link max-sm:hidden" onClick={clearNarrowing} type="button">
-      Limpar filtros
-    </button>
-  ) : null;
-
   const hiddenLine = calHiddenLine ? (
     <span className="crono-hidden">
       <span className="text-sm font-semibold text-ink-3">{hiddenText}</span>
@@ -2683,63 +2659,94 @@ export function CalendarView({
     </span>
   ) : null;
 
-  // categorias: no celular, uma faixa de uma linha que rola de lado, com o "Limpar filtros" no fim
-  const categoryChips = (
-    <div ref={catsRef} className="chips crono-cats" role="group" aria-label="Categorias" hidden={hideCats}>
-      <button
-        ref={allChipRef}
-        className={cx("chip", allSelected && "on")}
-        aria-pressed={allSelected}
-        onClick={selectAllCategories}
-        type="button"
-      >
-        {allSelected ? <Check className="h-3.5 w-3.5" aria-hidden /> : null}
-        Todas
-        <span className="n">{totalCount}</span>
-      </button>
-      {allCategories.map((category) => {
-        const picked = !allSelected && selectedCategories.includes(category);
-        const meta = categoryMeta[category];
-        // sem nada para mostrar, o chip some, mesmo escolhido ("Trabalhos 0" marcado parecia um filtro
-        // que mostra algo). Só fica quando nenhuma escolhida tem eventos: aí a pessoa vê o que está ativo
-        if (allEvents && categoryCounts[category] === 0 && !(picked && !pickedWithEvents)) {
-          return null;
+  // filtro recolhível (no lugar das pílulas de categoria e do Select de turma): o botão com o funil abre o painel
+  // com as seções Categoria e, para a administração, Turma. Escolher aplica na hora, com a mesma regra, as mesmas
+  // contagens e os mesmos estados das pílulas; o botão do pé só fecha.
+  // Categorias à vista: sem nada para mostrar, a opção some, mesmo escolhida ("Trabalhos 0" marcada parecia um
+  // filtro que mostra algo). Só fica quando nenhuma escolhida tem eventos: aí a pessoa vê o que está ativo
+  const shownCategories = allCategories.filter((category) => {
+    const picked = !allSelected && selectedCategories.includes(category);
+    return !(allEvents && categoryCounts[category] === 0 && !(picked && !pickedWithEvents));
+  });
+  const pickedShown = allSelected ? [] : shownCategories.filter((category) => selectedCategories.includes(category));
+  const categorySummary = allSelected
+    ? "Todas"
+    : pickedShown.length === 1
+      ? categoryMeta[pickedShown[0]].label
+      : `${pickedShown.length} categorias`;
+  const categorySection: FilterSection | null = hideCats
+    ? null
+    : {
+        id: "categoria",
+        title: "Categoria",
+        summary: categorySummary,
+        summaryCount: allSelected ? totalCount : pickedShown.reduce((sum, category) => sum + categoryCounts[category], 0),
+        defaultOpen: true,
+        options: [
+          {
+            value: "all",
+            label: "Todas",
+            count: totalCount,
+            mark: <span className="dot fp-dot-all" aria-hidden />,
+            selected: allSelected,
+          },
+          ...shownCategories.map<FilterOption>((category) => ({
+            value: category,
+            label: categoryMeta[category].label,
+            count: categoryCounts[category],
+            mark: <span className={cx("dot", categoryMeta[category].accent)} aria-hidden />,
+            selected: !allSelected && selectedCategories.includes(category),
+          })),
+        ],
+        onPick: (value) => (value === "all" ? selectAllCategories() : pickCategory(value as Category)),
+      };
+  const classLabel = classOptions.find((option) => option.value === classFilter)?.label ?? "Todas";
+  const classSection: FilterSection | null =
+    role === "admin" && classes.length
+      ? {
+          id: "turma",
+          title: "Turma",
+          summary: classLabel,
+          options: classOptions.map<FilterOption>((option, index) => ({
+            value: option.value,
+            label: option.label,
+            description: option.description,
+            // o título do grupo vai na primeira turma
+            groupTitle: option.group && classOptions[index - 1]?.group !== option.group ? option.group : undefined,
+            selected: classFilter === option.value,
+          })),
+          onPick: (value) => setClassFilter(value),
         }
-        return (
-          <button
-            key={category}
-            className={cx("chip", picked && "on")}
-            aria-pressed={picked}
-            onClick={() => {
-              // com "Todas" ativo (mesmo por uma escolha que cobre todas as que têm eventos), mostra só a clicada
-              if (allSelected && setCategories) {
-                setCategories([category]);
-                return;
-              }
-              // desmarcar a última escolhida que tem eventos volta a Todas, em vez de revelar uma
-              // escolhida escondida com 0 ("Trabalhos 0") e deixar a lista vazia
-              const rest = selectedCategories.filter((item) => item !== category);
-              if (picked && setCategories && !rest.some((item) => categoryCounts[item] > 0)) {
-                setCategories(allCategories);
-                return;
-              }
-              toggleCategory(category);
-            }}
-            type="button"
-          >
-            <span className={cx("dot", meta.accent)} aria-hidden />
-            {meta.label}
-            <span className="n">{categoryCounts[category]}</span>
-          </button>
-        );
-      })}
-      {showClear ? (
-        <button className="link crono-clear sm:hidden" onClick={clearNarrowing} type="button">
-          Limpar filtros
-        </button>
-      ) : null}
-    </div>
+      : null;
+  const filterSections = [categorySection, classSection].filter((section): section is FilterSection => section !== null);
+  // rótulo curto no botão: o que está escolhido ("Provas", "TADS 5"); com os dois, o primeiro e "+1"
+  const activeParts = [allSelected || !pickedShown.length ? null : categorySummary, classFilter !== "all" ? classLabel : null].filter(
+    (part): part is string => part !== null
   );
+  const activeLabel = activeParts.length ? (activeParts.length > 1 ? `${activeParts[0]} +1` : activeParts[0]) : null;
+  // o pé diz quanto a tela vai mostrar com o filtro: na Agenda, o período ("Ver 118 eventos", "Ver 4 provas"); no
+  // Calendário, o mês na tela (com busca, todos os meses)
+  const shownForFoot = monthMode ? (term ? scopedEvents.length : monthEvents.length) : listEvents.length;
+  const doneLabel = shownForFoot
+    ? `Ver ${countText(shownForFoot)}${monthMode && !term ? ` em ${monthName(cursor)}` : ""}`
+    : "Fechar";
+  const filterPanel = filterSections.length ? (
+    <FilterPanel
+      activeLabel={activeLabel}
+      buttonRef={filterButtonRef}
+      className="crono-filter"
+      doneLabel={doneLabel}
+      // "Limpar" no painel: volta o que o painel escolhe (categorias e turma)
+      onClear={() => {
+        setClassFilter("all");
+        selectAllCategories();
+      }}
+      // "Limpar" ao lado do botão: o mesmo "Limpar filtros" de antes (categorias, turma e "Só meus"), com a mesma
+      // regra para não repetir a ação que já está logo abaixo (decisão 13)
+      outsideClear={showClear ? { label: "Limpar filtros", onClear: clearNarrowing } : null}
+      sections={filterSections}
+    />
+  ) : null;
 
   // Agenda e Calendário em pílula, no começo da barra de controles (a tela não tem mais cabeçalho)
   const modeSwitch = (
@@ -2758,8 +2765,8 @@ export function CalendarView({
       <h2 className="sr-only">{title}</h2>
       {role === "student" && noClass ? null : <p className="sr-only">{subtitle}</p>}
 
-      {/* filtros fora do card, como na amostra: na Agenda, o modo, o período, o "Só meus" e a turma numa linha e
-          as categorias embaixo; no Calendário, tudo numa linha só */}
+      {/* filtros fora do card, numa linha só: o modo, o período (na Agenda), a busca ativa, o "Só meus" e, no fim,
+          o botão do filtro (categorias e turma num painel recolhível) com o "Limpar" */}
       {calendarMode === "list" ? (
         <div className="crono-fbar">
           <div className="crono-frow">
@@ -2772,10 +2779,8 @@ export function CalendarView({
             ) : null}
             {searchChip}
             {mineSwitch}
-            {classSelect}
-            {clearLink ? <span className="crono-fright max-sm:hidden">{clearLink}</span> : null}
+            {filterPanel}
           </div>
-          {categoryChips}
         </div>
       ) : (
         <div className="crono-fbar is-cal">
@@ -2783,14 +2788,8 @@ export function CalendarView({
             {modeSwitch}
             {searchChip}
             {mineSwitch}
-            {classSelect}
-            {categoryChips}
-            {clearLink || hiddenLine ? (
-              <span className={cx("crono-fright", !hiddenLine && "max-sm:hidden")}>
-                {hiddenLine}
-                {clearLink}
-              </span>
-            ) : null}
+            {hiddenLine ? <span className="crono-fright">{hiddenLine}</span> : null}
+            {filterPanel}
           </div>
         </div>
       )}
