@@ -456,6 +456,12 @@ const routes = {
     tokens: [{"old":"/api/v1/users/:id","type":0,"val":"api","end":""},{"old":"/api/v1/users/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/users/:id","type":0,"val":"users","end":""},{"old":"/api/v1/users/:id","type":1,"val":"id","end":""}],
     types: placeholder as Registry['users.update']['types'],
   },
+  'users.update_role': {
+    methods: ["PATCH"],
+    pattern: '/api/v1/users/:id/role',
+    tokens: [{"old":"/api/v1/users/:id/role","type":0,"val":"api","end":""},{"old":"/api/v1/users/:id/role","type":0,"val":"v1","end":""},{"old":"/api/v1/users/:id/role","type":0,"val":"users","end":""},{"old":"/api/v1/users/:id/role","type":1,"val":"id","end":""},{"old":"/api/v1/users/:id/role","type":0,"val":"role","end":""}],
+    types: placeholder as Registry['users.update_role']['types'],
+  },
   'notifications.index': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/notifications',

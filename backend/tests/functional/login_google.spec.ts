@@ -366,6 +366,8 @@ test.group('Entrar com o Google', (group) => {
       exchange.assertStatus(200)
       const created = await User.findByOrFail('email', 'coordenacao.agenda@gmail.com')
       assert.equal(created.role, 'admin')
+      // é a administração principal: a tela mostra o card Coordenação para ela
+      assert.isTrue((exchange.body() as unknown as SessionBody).data.user.canManageCoordination)
 
       // aluno que já existe: vira administração ao entrar pelo Google, e o registro fica
       const diogo = await User.findByOrFail('email', 'diogo@agenda.test')
@@ -379,6 +381,74 @@ test.group('Entrar com o Google', (group) => {
         .where('subjectUserId', diogo.id)
         .firstOrFail()
       assert.include(log.meta ?? '', 'student')
+    } finally {
+      env.set('ADMIN_EMAILS', '')
+    }
+  })
+
+  test('nomeação e remoção pela tela continuam depois de um novo login com o Google', async ({
+    client,
+    assert,
+  }) => {
+    // a admin@agenda.test faz o papel da administração principal: só ela nomeia e remove pela tela
+    env.set('ADMIN_EMAILS', 'admin@agenda.test')
+    try {
+      const login = await client
+        .post(`${API}/auth/login`)
+        .json({ email: 'admin@agenda.test', password: 'password123' })
+      login.assertStatus(200)
+      const adminToken = (login.body() as unknown as SessionBody).data.token
+      const marina = await User.findByOrFail('email', 'marina@agenda.test')
+      assert.equal(marina.role, 'teacher')
+
+      // docente nomeada pela tela, fora da lista ADMIN_EMAILS: o login com o Google não a rebaixa
+      ;(
+        await client
+          .patch(`${API}/users/${marina.id}/role`)
+          .bearerToken(adminToken)
+          .json({ role: 'admin' })
+      ).assertStatus(200)
+      const promoted = await backFromGoogle(client, googleClaims({ email: 'marina@agenda.test' }))
+      const exchange = await client
+        .post(`${API}/auth/google/exchange`)
+        .json({ code: loginCodeFrom(assert, promoted.location) })
+      exchange.assertStatus(200)
+      assert.equal((exchange.body() as unknown as SessionBody).data.user.role, 'admin')
+      // coordenação nomeada, fora da lista: não é a principal e não define quem é coordenação
+      assert.isFalse((exchange.body() as unknown as SessionBody).data.user.canManageCoordination)
+      await marina.refresh()
+      assert.equal(marina.role, 'admin')
+
+      // removida pela tela, fora da lista: entra de novo pelo Google e continua docente
+      ;(
+        await client
+          .patch(`${API}/users/${marina.id}/role`)
+          .bearerToken(adminToken)
+          .json({ role: 'teacher' })
+      ).assertStatus(200)
+      const removed = await backFromGoogle(client, googleClaims({ email: 'marina@agenda.test' }))
+      loginCodeFrom(assert, removed.location)
+      await marina.refresh()
+      assert.equal(marina.role, 'teacher')
+      assert.isNull(
+        await AuditLog.query()
+          .where('action', 'auth.google_admin')
+          .where('subjectUserId', marina.id)
+          .first()
+      )
+
+      // quem está na lista continua virando coordenação ao entrar, e aí é a principal: a tela não remove
+      env.set('ADMIN_EMAILS', 'admin@agenda.test,marina@agenda.test')
+      const listed = await backFromGoogle(client, googleClaims({ email: 'marina@agenda.test' }))
+      loginCodeFrom(assert, listed.location)
+      await marina.refresh()
+      assert.equal(marina.role, 'admin')
+      const blocked = await client
+        .patch(`${API}/users/${marina.id}/role`)
+        .bearerToken(adminToken)
+        .json({ role: 'teacher' })
+      blocked.assertStatus(409)
+      assert.equal((blocked.body() as unknown as { code: string }).code, 'ROOT_ADMIN')
     } finally {
       env.set('ADMIN_EMAILS', '')
     }

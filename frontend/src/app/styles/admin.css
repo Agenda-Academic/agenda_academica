@@ -83,7 +83,8 @@
   .admin-duo > .admin-disc {
     align-self: flex-start;
     position: sticky;
-    top: 20px;
+    /* o mesmo respiro do topo da página (16 px): com 20, o card descia 4 px e ficava torto ao lado de Turmas */
+    top: 16px;
     z-index: 1;
   }
 }
@@ -2269,6 +2270,125 @@ html .admin-mini-blue .mini-ico {
   border-radius: 12px;
   background: var(--ms-azul-bg, #e3edfb);
   color: var(--ms-azul, #2160c4);
+}
+
+/* ---------- coluna larga da tela Turmas: o card Turmas e, embaixo dele, o card Coordenação ---------- */
+.admin-duo > .admin-main-col > .card {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+html .admin-duo > .admin-main-col > .card.card {
+  border: 0;
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--gx-sh);
+  animation: admin-in 0.55s var(--gx-ease) backwards;
+}
+html .admin-duo > .admin-main-col > .card.card + .card.card {
+  animation-delay: 0.16s;
+}
+@media (min-width: 1280px) and (max-width: 1359px) {
+  html .duo.admin-duo > .admin-main-col {
+    flex: 1 1 100%;
+  }
+}
+
+/* ---------- card Coordenação (tela Turmas): quem tem acesso de coordenação, em linhas como as de Disciplinas ---------- */
+.admin-coord-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+}
+.admin-coord-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  min-width: 0;
+  padding: 12px 4px;
+  border-top: 1px solid var(--line);
+  scroll-margin: 16px;
+}
+.admin-coord-item:first-child {
+  border-top: 0;
+}
+/* a pessoa recém-nomeada recebe o foco (useRowReveal): o anel aparece só pelo teclado */
+.admin-coord-item:focus {
+  outline: none;
+}
+.admin-coord-item:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+/* o nome e o e-mail ocupam a linha; sem espaço, o "Remover" desce e fica à direita */
+.admin-coord-item > .admin-s-main {
+  flex: 1 1 170px;
+}
+.admin-coord-av {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+  font-family: var(--disp);
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.admin-coord-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.admin-coord-item > .admin-coord-rm {
+  margin-left: auto;
+}
+/* "Salvo agora" da pessoa recém-nomeada: pílula verde cheia, texto branco (4,7:1) */
+html .admin-screen .pill.stat.admin-saved {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+html .admin-screen .admin-coord-list .btn {
+  border-radius: 14px;
+  transition:
+    transform 0.25s var(--gx-mola),
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+html .admin-screen .admin-coord-list .btn:hover:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(-2px);
+}
+html .admin-screen .admin-coord-list > li {
+  animation: admin-in 0.45s var(--gx-ease) backwards;
+  animation-delay: 0.22s;
+}
+/* celular: "Adicionar pessoa" desce para baixo do título, na largura do card */
+@media (max-width: 639px) {
+  .admin-coord .admin-head {
+    flex-wrap: wrap;
+  }
+  .admin-coord .admin-head > .btn {
+    flex: 1 1 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html .admin-screen .admin-coord-list > li {
+    animation: none;
+  }
+  html .admin-screen .admin-coord-list .btn {
+    transition: none;
+  }
+  html .admin-screen .admin-coord-list .btn:hover:not(:disabled):not([aria-disabled="true"]) {
+    transform: none;
+  }
 }
 
 /* ---------- movimento reduzido ---------- */

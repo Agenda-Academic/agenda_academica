@@ -777,7 +777,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     teacherOffer.assertStatus(403)
   })
 
-  test('GET /users: só a administração, com id, nome, e-mail e papel', async ({
+  test('GET /users: só a administração, com id, nome, e-mail, papel e as marcas da coordenação', async ({
     client,
     assert,
   }) => {
@@ -787,13 +787,17 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(token)
       .qs({ role: 'teacher', q: 'mar' })
     response.assertStatus(200)
-    const users = (response.body() as unknown as Envelope<{ email: string }[]>).data
+    const users = (
+      response.body() as unknown as Envelope<{ email: string; isRoot: boolean; isSelf: boolean }[]>
+    ).data
     assert.sameMembers(
       users.map((item) => item.email),
       ['maraisa@agenda.test', 'marina@agenda.test']
     )
     for (const item of users) {
-      assert.sameMembers(Object.keys(item), ['id', 'fullName', 'email', 'role'])
+      assert.sameMembers(Object.keys(item), ['id', 'fullName', 'email', 'role', 'isRoot', 'isSelf'])
+      assert.isFalse(item.isRoot)
+      assert.isFalse(item.isSelf)
     }
 
     const invalid = await client.get(`${API}/users`).bearerToken(token).qs({ role: 'chefe' })

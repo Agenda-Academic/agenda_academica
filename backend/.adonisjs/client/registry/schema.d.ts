@@ -907,6 +907,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/users_controller').default['update']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
+  'users.update_role': {
+    methods: ["PATCH"]
+    pattern: '/api/v1/users/:id/role'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').updateUserRoleValidator)>>
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').updateUserRoleValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/users_controller').default['updateRole']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/users_controller').default['updateRole']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
   'notifications.index': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/notifications'

@@ -1,14 +1,44 @@
 "use client";
 
-import { BookOpen, ChevronRight, CircleAlert, GraduationCap, Plus, School, Search, SearchX, UserRound, Users } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2,
+  ChevronRight,
+  CircleAlert,
+  GraduationCap,
+  Plus,
+  School,
+  Search,
+  SearchX,
+  ShieldCheck,
+  UserMinus,
+  UserPlus,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { getClassStudents, getClasses, getCourses, getSubjects, searchUsers } from "@/lib/api";
+import { getClassStudents, getClasses, getCourses, getSubjects, searchUsers, setUserRole } from "@/lib/api";
 import { classTermLabel, countText, cx, errorMessage, latestTermLabel, normalizeText } from "@/lib/format";
-import type { AcademicContext, ClassSummary, Course, Subject, UserSummary } from "@/lib/types";
+import type { AcademicContext, ClassSummary, Course, DirectoryUser, Subject, UserSummary } from "@/lib/types";
 import { useAppActions, useBackLayer, type ClassesTarget } from "./app-actions";
 import { ClassPanel, CoursePanel, CoursesPanel, NewClassPanel, NewCoursePanel } from "./classes-class-panel";
-import { AddOfferPanel, AddStudentsPanel, NewSubjectPanel, OfferPanel, SubjectPanel } from "./classes-panels";
-import { plural, refreshRemotes, useDebounced, useRemote, type PanelApi, type PanelView } from "./classes-shared";
+import {
+  AddCoordinatorPanel,
+  AddOfferPanel,
+  AddStudentsPanel,
+  NewSubjectPanel,
+  OfferPanel,
+  SubjectPanel,
+} from "./classes-panels";
+import {
+  initialsOf,
+  plural,
+  refreshRemotes,
+  useDebounced,
+  useRemote,
+  type PanelApi,
+  type PanelView,
+} from "./classes-shared";
 import { StudentPanel } from "./classes-student-panel";
 import { SavedPill } from "./dashboard-bits";
 import { Pager, usePaged } from "./pager";
@@ -55,6 +85,9 @@ const CLASS_PAGE = 8;
  * disciplinas com paginação, com espaço de sobra.
  */
 const SUBJECT_PAGE = 8;
+/** Botão ocupado (aria-disabled): cursor de proibido e meio apagado, como nos painéis. */
+const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
+
 /** Alunos achados pela busca: 8 por página. A API devolve no máximo 20 (backend, UsersController). */
 const STUDENT_PAGE = 8;
 const STUDENT_API_LIMIT = 20;
@@ -366,9 +399,18 @@ function useToastRoom(open: boolean, contentRef: RefObject<HTMLDivElement | null
 
 export function ClassesView({ search, target, onTargetHandled, onSearchCount, onClearSearch }: ClassesViewProps) {
   const actions = useAppActions();
-  const { token, user, confirm, reload: reloadPage } = actions;
+  const { token, user, confirm, toast, showError, reload: reloadPage } = actions;
   const lists = useRemote(`admin:${user.id}:listas`, () => loadLists(token));
   const data = lists.data;
+  // Card Coordenação: só a administração principal nomeia e remove (as outras administrações não veem o card). O
+  // /context, recarregado a cada carga da página, vale mais que a sessão guardada no navegador.
+  const canManageCoordination = (actions.context?.user ?? user).canManageCoordination === true;
+  // quem tem acesso de coordenação (a lista vem inteira, com isRoot e isSelf); sem o card, nem busca
+  const coordination = useRemote<DirectoryUser[]>(canManageCoordination ? `admin:${user.id}:coordenacao` : null, () =>
+    searchUsers(token, { role: "admin" }),
+  );
+  const addCoordRef = useRef<HTMLButtonElement>(null);
+  const [removingCoord, setRemovingCoord] = useState<number | null>(null);
 
   // filtros do card Turmas
   const [segment, setSegment] = useState<"active" | "archived">("active");
@@ -962,6 +1004,8 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
         return "Adicionar alunos";
       case "student":
         return view.name ?? "Aluno";
+      case "addCoordinator":
+        return "Adicionar à coordenação";
     }
   }
 
@@ -991,6 +1035,8 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
         return <AddStudentsPanel {...common} view={view} />;
       case "student":
         return <StudentPanel {...common} view={view} />;
+      case "addCoordinator":
+        return <AddCoordinatorPanel {...common} view={view} />;
     }
   }
 
@@ -1450,6 +1496,150 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
       </section>
     ) : null;
 
+  /* ---------------------------------------------------------------- */
+  /* Card Coordenação                                                  */
+  /* ---------------------------------------------------------------- */
+
+  const coordPeople = coordination.data ?? [];
+  const coordFirstLoad = coordination.loading && !coordination.data;
+  const coordSub = coordFirstLoad
+    ? "Carregando a coordenação"
+    : `${plural(coordPeople.length, "pessoa", "pessoas")} com acesso de coordenação`;
+
+  /** Depois de remover: quando a pessoa sai do card, o foco que caiu no body vai para "Adicionar pessoa". */
+  function focusAfterCoordRemoval(id: number) {
+    whileIdle(() => {
+      if (document.querySelector('[aria-modal="true"]') || document.querySelector(`[data-row="coord-${id}"]`)) {
+        return false;
+      }
+      if (focusLost()) {
+        addCoordRef.current?.focus();
+      }
+      return true;
+    }, 600);
+  }
+
+  /** "Remover": confirma, devolve a pessoa à docência e avisa com Desfazer (que nomeia de novo). */
+  function removeCoordinator(person: DirectoryUser) {
+    if (removingCoord !== null) {
+      return;
+    }
+    const name = person.fullName ?? person.email;
+    const key = `coord-${person.id}`;
+    const reloadCoordination = () => refreshRemotes(`admin:${user.id}:coordenacao`);
+    confirm({
+      title: `Remover ${name} da coordenação?`,
+      message: `${name} volta a ser docente.`,
+      confirmLabel: "Remover",
+      cancelLabel: "Manter",
+      action: async () => {
+        setRemovingCoord(person.id);
+        try {
+          await setUserRole(token, person.id, "teacher");
+          focusAfterCoordRemoval(person.id);
+          await reloadCoordination();
+          toast(`${name} voltou a ser docente.`, {
+            key,
+            undo: async () => {
+              try {
+                await setUserRole(token, person.id, "admin");
+                await reloadCoordination();
+              } catch (error) {
+                showError(error, key);
+              }
+            },
+          });
+        } catch (error) {
+          void reloadCoordination();
+          showError(error, key);
+        } finally {
+          setRemovingCoord(null);
+        }
+      },
+    });
+  }
+
+  const coordinationCard = (
+    <section
+      className="card pad admin-coord"
+      aria-labelledby="coordenacao-titulo"
+      aria-busy={coordFirstLoad || undefined}
+    >
+      <div className="admin-head">
+        <SectionTitle id="coordenacao-titulo" title="Coordenação" subtitle={coordSub} />
+        <button
+          ref={addCoordRef}
+          className={secondaryButton}
+          onClick={() => openPanel({ kind: "addCoordinator" })}
+          type="button"
+        >
+          <UserPlus className="h-4 w-4" aria-hidden />
+          Adicionar pessoa
+        </button>
+      </div>
+      {coordFirstLoad ? (
+        <div className="mt-4">
+          <ClassRowsSkeleton compact />
+        </div>
+      ) : coordination.error && !coordination.data ? (
+        <div className="mt-4">
+          <ErrorState
+            title="Não deu para carregar a coordenação"
+            text={errorMessage(coordination.error)}
+            onRetry={() => void coordination.reload()}
+          />
+        </div>
+      ) : (
+        <ul className="admin-coord-list" aria-label="Pessoas da coordenação">
+          {coordPeople.map((person) => {
+            const name = person.fullName ?? person.email;
+            const self = person.isSelf || person.id === user.id;
+            return (
+              <li key={person.id} className="admin-coord-item" data-row={`coord-${person.id}`} tabIndex={-1}>
+                <span className="admin-coord-av" aria-hidden>
+                  {initialsOf(name)}
+                </span>
+                <span className="admin-s-main">
+                  <span className="admin-coord-name">
+                    <span className="admin-s-name">{name}</span>
+                    {person.isRoot ? (
+                      <span className="pill stat stat-conc" title="Definida na configuração do servidor">
+                        <ShieldCheck aria-hidden />
+                        Principal
+                      </span>
+                    ) : null}
+                    {self ? <span className="pill stat">Você</span> : null}
+                    {/* "Salvo agora" em pílula própria: a SavedPill, com o .pill da rodada 10, vira um retângulo */}
+                    {savedRow === `coord-${person.id}` ? (
+                      <span className="pill stat admin-saved">
+                        <CheckCircle2 aria-hidden />
+                        Salvo agora
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="admin-s-mail">{person.email}</span>
+                </span>
+                {/* a coordenação principal e a própria pessoa não saem pela tela */}
+                {person.isRoot || self ? null : (
+                  <button
+                    className={cx(secondaryButton, "btn-sm admin-coord-rm", busyLook)}
+                    aria-disabled={removingCoord !== null || undefined}
+                    aria-label={`Remover ${name} da coordenação`}
+                    onClick={() => removeCoordinator(person)}
+                    type="button"
+                  >
+                    <UserMinus className="h-4 w-4" aria-hidden />
+                    Remover
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+
   const nothingCard = (
     <section className="card pad" aria-labelledby="busca-vazia-titulo">
       <h2 id="busca-vazia-titulo" className="sr-only">
@@ -1484,7 +1674,21 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
           ) : (
             <div className="duo admin-duo">
               {(subjectsFirst ? ["disciplinas", "turmas"] : ["turmas", "disciplinas"]).map((card) => (
-                <Fragment key={card}>{card === "turmas" ? classesCard : subjectsCard}</Fragment>
+                <Fragment key={card}>
+                  {card === "disciplinas" ? (
+                    subjectsCard
+                  ) : term || !canManageCoordination ? (
+                    classesCard
+                  ) : (
+                    // Coordenação fica embaixo de Turmas, na coluna larga: ocupa o vão ao lado de Disciplinas em
+                    // vez de virar uma faixa solta na largura toda. Sai durante a busca do menu, que não procura aqui,
+                    // e não aparece para quem não é a administração principal (a tela fica como antes do card)
+                    <div className="duo-col duo-main admin-main-col">
+                      {classesCard}
+                      {coordinationCard}
+                    </div>
+                  )}
+                </Fragment>
               ))}
             </div>
           )}

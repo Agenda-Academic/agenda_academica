@@ -1,4 +1,4 @@
-import vine from '@vinejs/vine'
+import vine, { SimpleMessagesProvider } from '@vinejs/vine'
 
 /**
  * Shared rules for email and password.
@@ -55,6 +55,18 @@ export const resetPasswordValidator = vine.create({
   token: vine.string().trim().minLength(20).maxLength(128),
   password: password(),
   passwordConfirmation: password().sameAs('password'),
+})
+
+/**
+ * PATCH /users/:id/role: a coordenação nomeia uma docente para a coordenação (`admin`) ou devolve
+ * alguém da coordenação à docência (`teacher`). Aluno e responsável nunca entram por aqui.
+ */
+export const updateUserRoleValidator = vine.create({
+  role: vine.enum(['admin', 'teacher'] as const),
+})
+updateUserRoleValidator.messagesProvider = new SimpleMessagesProvider({
+  'role.required': 'Escolha o papel da pessoa: coordenação ou docente.',
+  'role.enum': 'O papel precisa ser coordenação (admin) ou docente (teacher).',
 })
 
 export const updateProfileValidator = vine.create({

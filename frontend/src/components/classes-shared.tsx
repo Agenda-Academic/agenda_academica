@@ -91,7 +91,9 @@ export type PanelView =
   | { kind: "addOffer"; classId: number; added?: number[] }
   | { kind: "offer"; classId: number; subjectId: number }
   | { kind: "addStudents"; classId: number; text?: string; dirty?: boolean }
-  | { kind: "student"; classId: number | null; userId: number; name?: string };
+  | { kind: "student"; classId: number | null; userId: number; name?: string }
+  /** "Adicionar pessoa" do card Coordenação: busca de docentes para nomear. */
+  | { kind: "addCoordinator" };
 
 /** O que cada conteúdo do painel recebe para trocar de conteúdo, fechar e avisar a tela. */
 export type PanelApi = {

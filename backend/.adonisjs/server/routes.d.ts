@@ -79,6 +79,7 @@ export type ScannedRoutes = {
     'guardian_links.create_student_code': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'guardian_links.revoke_student_code': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'codeId': ParamValue} }
     'users.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'users.update_role': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'notifications.index': { paramsTuple?: []; params?: {} }
     'notifications.read_all': { paramsTuple?: []; params?: {} }
     'notifications.read': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -222,6 +223,7 @@ export type ScannedRoutes = {
     'class_members.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'guardian_links.update_mine': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'users.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'users.update_role': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
 }
 declare module '@adonisjs/core/types/http' {

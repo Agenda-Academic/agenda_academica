@@ -1,6 +1,20 @@
 "use client";
 
-import { Archive, ArchiveRestore, Check, ChevronRight, CircleAlert, Info, Plus, School, Search, Trash2, UserMinus, UserPlus } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Check,
+  ChevronRight,
+  CircleAlert,
+  Info,
+  Plus,
+  School,
+  Search,
+  ShieldPlus,
+  Trash2,
+  UserMinus,
+  UserPlus,
+} from "lucide-react";
 import { useId, useRef, useState, type FormEvent } from "react";
 import {
   addClassStudentsByEmail,
@@ -16,12 +30,21 @@ import {
   getClass,
   restoreSubject,
   searchUsers,
+  setUserRole,
   updateSubject,
   updateTeachingAssignment,
 } from "@/lib/api";
 import { classLabel, classTermLabel, cx, errorMessage, fieldErrors, isIntegratedCourse, normalizeText } from "@/lib/format";
 import { teachingRoleLabels } from "@/lib/meta";
-import type { AddStudentsResult, ClassDetail, ClassOffer, Subject, TeachingRole, UserSummary } from "@/lib/types";
+import type {
+  AddStudentsResult,
+  ClassDetail,
+  ClassOffer,
+  DirectoryUser,
+  Subject,
+  TeachingRole,
+  UserSummary,
+} from "@/lib/types";
 import { useAppActions } from "./app-actions";
 import { PanelSubtitle, type PanelProps } from "./classes-class-panel";
 import {
@@ -1395,6 +1418,158 @@ export function AddStudentsPanel({ api, subtitle, view }: PanelProps<"addStudent
         <button className={cx(primaryButton, busyLook)} aria-disabled={busy || undefined} form={formId} type="submit">
           <UserPlus className="h-4 w-4" aria-hidden />
           Adicionar alunos
+        </button>
+      </PanelFooter>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Adicionar à coordenação (card Coordenação)                          */
+/* ------------------------------------------------------------------ */
+
+/** A API devolve no máximo 20 docentes por busca (backend, UsersController). */
+const TEACHER_API_LIMIT = 20;
+
+/**
+ * Busca de docentes para nomear para a coordenação. Antes de nomear, a confirmação diz o que muda; depois, o painel
+ * fecha, a pessoa aparece no card com "Salvo agora" e o aviso traz o Desfazer. Só conta de docente aparece aqui: a
+ * API recusa aluno e responsável.
+ */
+export function AddCoordinatorPanel({ api }: PanelProps<"addCoordinator">) {
+  const { token, confirm, toast, showError } = useAppActions();
+  const [query, setQuery] = useState("");
+  const settled = useDebounced(query.trim(), 300);
+  const teachers = useRemote<DirectoryUser[]>(`admin:coord-docentes:${normalizeText(settled)}`, () =>
+    searchUsers(token, { role: "teacher", q: settled || undefined })
+  );
+  const { working, run } = useWorking(api);
+  const searchId = useId();
+  const busyAttr = working !== null || undefined;
+  const results = teachers.data ?? [];
+
+  function nominate(person: DirectoryUser) {
+    if (working) {
+      return;
+    }
+    const name = person.fullName ?? person.email;
+    const key = `coord-${person.id}`;
+    confirm({
+      title: `Nomear ${name} para a coordenação?`,
+      message: `${name} passa a ser coordenação: vê e organiza todas as turmas, e deixa de lançar notas nas disciplinas dela.`,
+      confirmLabel: "Nomear",
+      cancelLabel: "Voltar",
+      tone: "primary",
+      action: () =>
+        run(key, async () => {
+          try {
+            await setUserRole(token, person.id, "admin");
+            api.changed();
+            toast(`${name} agora faz parte da coordenação.`, {
+              key,
+              undo: async () => {
+                try {
+                  await setUserRole(token, person.id, "teacher");
+                  api.changed();
+                } catch (error) {
+                  showError(error, key);
+                }
+              },
+            });
+            api.saved(key);
+          } catch (error) {
+            // a pessoa mudou de papel no meio do caminho: a lista mostra como está agora
+            void teachers.reload();
+            api.changed();
+            showError(error, key);
+          }
+        }),
+    });
+  }
+
+  return (
+    <>
+      <section className="admin-sec !pt-1" aria-labelledby={`${searchId}-busca`}>
+        <div className="admin-sec-head">
+          <div className="min-w-0">
+            <h3 id={`${searchId}-busca`} className="admin-sec-t drawer-h3" data-panel-start tabIndex={-1}>
+              Escolher a docente
+            </h3>
+            <p className="admin-sec-s">
+              Só uma conta de docente entra na coordenação. A coordenação vê e organiza todas as turmas e acompanha as
+              notas sem lançar.
+            </p>
+          </div>
+        </div>
+        <Field label="Buscar docente">
+          <input
+            className="input"
+            autoComplete="off"
+            data-panel-focus=""
+            placeholder="Nome ou e-mail"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </Field>
+        <div className="mt-3" aria-live="polite" aria-busy={teachers.loading || undefined}>
+          {teachers.loading && !teachers.data ? (
+            <SkeletonRows rows={3} label="Buscando docentes" />
+          ) : teachers.error && !teachers.data ? (
+            <ErrorState
+              title="Não deu para buscar as docentes"
+              text={errorMessage(teachers.error)}
+              onRetry={() => void teachers.reload()}
+            />
+          ) : results.length ? (
+            <>
+              <ul className="admin-people" aria-label="Docentes encontradas">
+                {results.map((person) => {
+                  const name = person.fullName ?? person.email;
+                  return (
+                    <li key={person.id} className="admin-irow">
+                      <span className="admin-av-xs" aria-hidden>
+                        {initialsOf(name)}
+                      </span>
+                      <span className="admin-s-main">
+                        <span className="admin-s-name">{name}</span>
+                        <span className="admin-s-mail">{person.email}</span>
+                      </span>
+                      <button
+                        className={cx(primaryButton, "btn-sm", busyLook)}
+                        aria-disabled={busyAttr}
+                        aria-label={`Nomear ${name} para a coordenação`}
+                        onClick={() => nominate(person)}
+                        type="button"
+                      >
+                        <ShieldPlus className="h-4 w-4" aria-hidden />
+                        Nomear
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {results.length >= TEACHER_API_LIMIT ? (
+                <p className="field-help mt-2">
+                  Mostrando as primeiras {TEACHER_API_LIMIT}. Busque pelo nome ou pelo e-mail para achar outras.
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <EmptyState
+              compact
+              icon={Search}
+              text={settled ? `Nenhuma docente com "${settled}"` : "Nenhuma docente para nomear"}
+              hint="Confira o nome ou o e-mail. Aluno e responsável não entram na coordenação."
+            />
+          )}
+        </div>
+      </section>
+
+      <PanelFooter api={api}>
+        <span className="admin-foot-gap" />
+        <button className={secondaryButton} onClick={() => api.cancel()} type="button">
+          Fechar
         </button>
       </PanelFooter>
     </>

@@ -153,6 +153,8 @@ router
         ])
 
         router.patch('users/:id', [UsersController, 'update'])
+        // Coordenação: nomear uma docente ou devolver alguém à docência (só a administração principal).
+        router.patch('users/:id/role', [UsersController, 'updateRole'])
 
         router.get('notifications', [NotificationsController, 'index'])
         router.post('notifications/read-all', [NotificationsController, 'readAll'])

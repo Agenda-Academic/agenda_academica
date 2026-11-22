@@ -214,8 +214,8 @@ const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
 /** Pílula "Salvo agora" (a mesma da Gestão). */
 export function SavedPill() {
   return (
-    <span className="pill bg-brand text-white">
-      <CheckCircle2 className="h-3 w-3" aria-hidden />
+    <span className="pill stat green">
+      <CheckCircle2 aria-hidden />
       Salvo agora
     </span>
   );

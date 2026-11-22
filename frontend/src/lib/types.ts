@@ -29,6 +29,12 @@ export type User = {
   initials?: string;
   /** Aluno menor de idade (curso integrado ou marcado pela secretaria). Vem no login, cadastro, perfil e /context. */
   isMinor?: boolean;
+  /**
+   * Administração principal (e-mail na configuração do servidor): só ela nomeia e remove pessoas da coordenação, e
+   * só ela vê o card Coordenação da tela Turmas. Vem no login, cadastro, perfil e /context; ausente numa sessão
+   * guardada antes do campo existir (vale como falso até o /context responder).
+   */
+  canManageCoordination?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -39,6 +45,14 @@ export type UserSummary = {
   fullName: string | null;
   email: string;
   role: UserRole;
+};
+
+/** Pessoa da busca da administração (GET /users), com as marcas do card Coordenação. */
+export type DirectoryUser = UserSummary & {
+  /** Coordenação principal, definida na configuração do servidor: a tela não remove. */
+  isRoot: boolean;
+  /** É quem está logado: ninguém tira o próprio acesso. */
+  isSelf: boolean;
 };
 
 /* ------------------------------------------------------------------ */
@@ -821,4 +835,6 @@ export type ApiConflictCode =
   | "NOT_DRAFT"
   | "EDITED_AFTER_IMPORT"
   | "HAS_GRADES"
-  | "TOO_MANY_ATTEMPTS";
+  | "TOO_MANY_ATTEMPTS"
+  | "OWN_ACCESS"
+  | "ROOT_ADMIN";

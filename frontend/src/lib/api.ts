@@ -20,6 +20,7 @@ import type {
   CourseModality,
   Dashboard,
   DecideStudentsResult,
+  DirectoryUser,
   EnrollmentStatus,
   EventGradeRow,
   EventGrades,
@@ -51,7 +52,6 @@ import type {
   UnpublishGradesResult,
   User,
   UserRole,
-  UserSummary,
 } from "./types";
 import { instantIso, mapInstants, wallIso } from "./zone";
 
@@ -768,9 +768,21 @@ export function endTeachingAssignment(token: string, id: number) {
 
 /* Busca de pessoas (só administração) -------------------------------- */
 
-/** Até 20 resultados, só com id, fullName, email e role. q busca no nome ou no e-mail. */
+/**
+ * Até 20 resultados (a coordenação, com role "admin", vem inteira), com id, fullName, email, role e as marcas
+ * isRoot e isSelf do card Coordenação. q busca no nome ou no e-mail.
+ */
 export function searchUsers(token: string, filters: { role?: UserRole; q?: string } = {}) {
-  return requestData<UserSummary[]>(token, `/users${query(filters)}`);
+  return requestData<DirectoryUser[]>(token, `/users${query(filters)}`);
+}
+
+/**
+ * Nomeia uma docente para a coordenação ("admin") ou devolve alguém da coordenação à docência ("teacher"). Só a
+ * administração principal (user.canManageCoordination); as outras recebem 403. Aluno ou responsável: 422 em role. A própria pessoa: 409 OWN_ACCESS. A coordenação principal: 409
+ * ROOT_ADMIN.
+ */
+export function setUserRole(token: string, userId: number, role: "admin" | "teacher") {
+  return requestData<DirectoryUser>(token, `/users/${userId}/role`, { method: "PATCH", body: { role } });
 }
 
 /**

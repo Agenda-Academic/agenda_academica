@@ -100,6 +100,7 @@ export interface ApiDefinition {
   users: {
     index: typeof routes['users.index']
     update: typeof routes['users.update']
+    updateRole: typeof routes['users.update_role']
   }
   guardianLinks: {
     claim: typeof routes['guardian_links.claim']

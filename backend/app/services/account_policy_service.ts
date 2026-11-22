@@ -53,6 +53,14 @@ export default class AccountPolicyService {
   }
 
   /**
+   * Administração principal (raiz): conta de administração com o e-mail em ADMIN_EMAILS. Só ela nomeia e remove
+   * pessoas da coordenação (PATCH /users/:id/role); as outras administrações cuidam do resto.
+   */
+  static isRootAdmin(user: { role: string; email: string }) {
+    return user.role === 'admin' && this.isAdminEmail(user.email)
+  }
+
+  /**
    * O cadastro com senha não confere se o e-mail é de quem cadastra. Por isso os e-mails da
    * instituição e os da administração só entram pelo Google: senão, alguém cadastraria o e-mail
    * de outra pessoa antes dela e ficaria com a senha da conta.

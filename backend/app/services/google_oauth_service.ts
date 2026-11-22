@@ -261,6 +261,8 @@ export default class GoogleOAuthService {
             trx
           )
         }
+        // Só promove quem está em ADMIN_EMAILS; nunca rebaixa. Assim a nomeação e a remoção feitas
+        // pela tela (PATCH /users/:id/role) continuam valendo depois de um novo login com o Google.
         const before = existing.role
         if (admin && before !== 'admin') {
           existing.role = 'admin'
