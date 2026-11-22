@@ -1398,41 +1398,25 @@ export function EmptyState({
   icon?: LucideIcon;
   text: string;
 }) {
-  const button = action ? (
-    <button className={cx(secondaryButton, compact ? "btn-sm mt-2.5" : "mt-3")} onClick={action.onClick} type="button">
-      {action.label}
-    </button>
-  ) : null;
-
-  // compacto: ícone ao lado do texto (layout do .empty-inline.compact); a ação fica embaixo do texto
-  if (compact) {
-    return (
-      <div className="empty-inline compact">
-        {Icon ? (
-          <span className="empty-ico">
-            <Icon className="h-5 w-5" aria-hidden />
-          </span>
-        ) : null}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-ink wrap-anywhere">{text}</p>
-          {/* a dica pode trazer o título de um evento ("Próxima prova: ...") */}
-          {hint ? <p className="mt-0.5 text-sm leading-5 text-muted wrap-anywhere">{hint}</p> : null}
-          {button}
-        </div>
-      </div>
-    );
-  }
-
+  // estado vazio único (decisão 3 da rodada 8): sem caixa, ícone num círculo claro de 40 px, título 15/600,
+  // texto 14 em muted e a ação em btn-s btn-sm. O desenho fica em ux.css (.empty-inline, .empty-t, .empty-s).
   return (
-    <div className="empty-inline">
+    <div className={cx("empty-inline", compact && "compact")}>
       {Icon ? (
         <span className="empty-ico">
-          <Icon className="h-6 w-6" aria-hidden />
+          <Icon aria-hidden />
         </span>
       ) : null}
-      <p className="mt-2 text-[15px] font-bold text-ink wrap-anywhere">{text}</p>
-      {hint ? <p className="max-w-sm text-sm leading-5 text-muted wrap-anywhere">{hint}</p> : null}
-      {button}
+      <div className="empty-body">
+        {/* o texto pode trazer o termo da busca ou o título de um evento: uma palavra longa quebra */}
+        <p className="empty-t">{text}</p>
+        {hint ? <p className="empty-s">{hint}</p> : null}
+        {action ? (
+          <button className={cx(secondaryButton, "btn-sm")} onClick={action.onClick} type="button">
+            {action.label}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1517,13 +1501,17 @@ export function ErrorState({
   retrying?: boolean;
 }) {
   return (
-    <div className="empty-inline gap-2 bg-[#fff3f5] px-6 py-10" role="alert">
-      <span className="empty-ico bg-[#ffe4e8] text-[#be123c]">
-        <TriangleAlert className="h-6 w-6" aria-hidden />
+    // o mesmo desenho do estado vazio (ícone num círculo de 40 px, título 15/600, texto 14, ação btn-s btn-sm),
+    // num card branco com borda; só o círculo do ícone é vermelho claro (ux.css, .empty-inline.is-error)
+    <div className="empty-inline is-error" role="alert">
+      <span className="empty-ico">
+        <TriangleAlert aria-hidden />
       </span>
-      <p className="mt-2 text-[17px] font-bold text-ink">{title}</p>
-      {text ? <p className="max-w-md text-sm leading-6 text-muted">{text}</p> : null}
-      {onRetry ? <RetryButton className={cx(primaryButton, "mt-3")} icon onRetry={onRetry} retrying={retrying} /> : null}
+      <div className="empty-body">
+        <p className="empty-t">{title}</p>
+        {text ? <p className="empty-s">{text}</p> : null}
+        {onRetry ? <RetryButton className={cx(secondaryButton, "btn-sm")} icon onRetry={onRetry} retrying={retrying} /> : null}
+      </div>
     </div>
   );
 }
@@ -1697,6 +1685,72 @@ export function SectionTitle({
   );
 }
 
+/**
+ * Cabeçalho da tela (amostra A): título de 26 px (22 no celular), subtítulo curto e ações à direita. O título é
+ * um h2: o h1 da tela (nome do item do menu) fica na casca, para leitores de tela.
+ */
+export function PageHeader({
+  actions,
+  id,
+  subtitle,
+  title,
+}: {
+  /** Botões à direita (no celular, embaixo do título). */
+  actions?: ReactNode;
+  id?: string;
+  subtitle?: ReactNode;
+  title: ReactNode;
+}) {
+  return (
+    <header className="pagehead">
+      <div className="min-w-0">
+        <h2 className="pagehead-t wrap-anywhere" id={id}>
+          {title}
+        </h2>
+        {subtitle ? <p className="pagehead-s">{subtitle}</p> : null}
+      </div>
+      {actions ? <div className="pagehead-a">{actions}</div> : null}
+    </header>
+  );
+}
+
+/**
+ * Interruptor (amostra A): um clique liga ou desliga. É um botão com role="switch"; o rótulo fica ao lado.
+ * Use `hint` para a linha de apoio embaixo do rótulo ("Aviso hoje, 18:00").
+ */
+export function Switch({
+  checked,
+  className,
+  disabled,
+  hint,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  className?: string;
+  disabled?: boolean;
+  hint?: ReactNode;
+  label: ReactNode;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      className={cx("sw", checked && "on", className)}
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      type="button"
+    >
+      <i aria-hidden />
+      <span className="grid min-w-0">
+        <span>{label}</span>
+        {hint ? <span className="sw-hint">{hint}</span> : null}
+      </span>
+    </button>
+  );
+}
+
 /** Grupo de botões segmentados (ex.: Agenda / Calendário). */
 export function Segmented({ children, label }: { children: ReactNode; label?: string }) {
   return (
@@ -1864,6 +1918,10 @@ export type DrawerProps = {
   open: boolean;
   title: string;
   subtitle?: ReactNode;
+  /** Linha pequena acima do título (ex.: a categoria, <span className="cat c-prova">Prova</span>). */
+  eyebrow?: ReactNode;
+  /** Logo abaixo do título e do subtítulo, ainda no cabeçalho fixo (ex.: abas .tabs, resumo, passos). */
+  headerExtra?: ReactNode;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
@@ -1878,7 +1936,9 @@ export type DrawerProps = {
 export function Drawer({
   busy,
   children,
+  eyebrow,
   footer,
+  headerExtra,
   initialFocusRef,
   labelClose = "Fechar painel",
   onClose,
@@ -1926,32 +1986,37 @@ export function Drawer({
         aria-modal="true"
         tabIndex={-1}
       >
-        <div className="drawer-head">
-          <div className="min-w-0">
-            <h2 id={titleId} className="disp text-[22px] font-bold leading-tight">
-              {title}
-            </h2>
-            {/* o subtítulo traz o título do evento ou a disciplina e a turma: os itens encolhem (o título
-                cortado com reticências cabe no painel) e uma palavra longa quebra */}
-            {subtitle ? (
-              <div
-                id={subtitleId}
-                className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted wrap-anywhere *:min-w-0"
-              >
-                {subtitle}
-              </div>
-            ) : null}
+        <div className={cx("drawer-head", headerExtra ? "has-extra" : null)}>
+          <div className="drawer-head-row">
+            <div className="min-w-0">
+              {eyebrow ? <div className="drawer-eyebrow">{eyebrow}</div> : null}
+              {/* no celular o título fica em até 2 linhas (ux.css); o title mostra o texto inteiro */}
+              <h2 id={titleId} className="disp text-[22px] font-bold leading-tight" title={title}>
+                {title}
+              </h2>
+              {/* o subtítulo traz o título do evento ou a disciplina e a turma: os itens encolhem (o título
+                  cortado com reticências cabe no painel) e uma palavra longa quebra */}
+              {subtitle ? (
+                <div
+                  id={subtitleId}
+                  className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted wrap-anywhere *:min-w-0"
+                >
+                  {subtitle}
+                </div>
+              ) : null}
+            </div>
+            <button
+              className={cx(iconButton, "shrink-0", busyLook)}
+              onClick={requestClose}
+              aria-disabled={busy || undefined}
+              aria-label={labelClose}
+              title={labelClose}
+              type="button"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
           </div>
-          <button
-            className={cx(iconButton, "shrink-0", busyLook)}
-            onClick={requestClose}
-            aria-disabled={busy || undefined}
-            aria-label={labelClose}
-            title={labelClose}
-            type="button"
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </button>
+          {headerExtra ? <div className="drawer-head-extra">{headerExtra}</div> : null}
         </div>
         <div className="drawer-body">{children}</div>
         {footer ? <div className="drawer-foot">{footer}</div> : null}

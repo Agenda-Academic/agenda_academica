@@ -183,7 +183,7 @@ function PasswordField({
           />
           {onToggle ? (
             <button
-              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink pointer-coarse:right-px pointer-coarse:h-11 pointer-coarse:w-11"
+              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink pointer-coarse:right-px pointer-coarse:h-11 pointer-coarse:w-11 max-md:right-px max-md:h-11 max-md:w-11"
               onClick={onToggle}
               aria-label="Mostrar senha"
               aria-pressed={shown}
@@ -354,7 +354,7 @@ function PasswordRecovery({
         {brand}
         {/* depois do envio, o "Voltar para entrar" fica só no botão grande */}
         {sentTo ? null : backButton}
-        <h1 ref={titleRef} className="disp text-[30px] font-bold leading-tight outline-none" tabIndex={-1}>
+        <h1 ref={titleRef} className="disp text-[26px] font-bold leading-tight outline-none" tabIndex={-1}>
           Esqueci minha senha
         </h1>
         <p className="mt-2 text-[14.5px] leading-6 text-muted">
@@ -434,7 +434,7 @@ function PasswordRecovery({
     <form className="ent-form" onSubmit={submitReset} noValidate>
       {brand}
       {backButton}
-      <h1 ref={titleRef} className="disp text-[30px] font-bold leading-tight outline-none" tabIndex={-1}>
+      <h1 ref={titleRef} className="disp text-[26px] font-bold leading-tight outline-none" tabIndex={-1}>
         Criar senha nova
       </h1>
       <p className="mt-2 text-[14.5px] leading-6 text-muted">Escolha a senha nova da sua conta. Depois de salvar, você já entra.</p>

@@ -1,0 +1,1048 @@
+/* ==================================================================
+   Componentes compartilhados da direção A ("Claro e organizado"):
+   Select próprio (components/select.tsx) e seletor de mês, mês vazio e
+   pé com os meses vizinhos (components/month-pager.tsx).
+   Os tokens vêm do :root (globals.css); cada var tem o valor da amostra A
+   como reserva, para o componente ficar certo antes e depois da troca.
+   ================================================================== */
+
+/* ---------- Select ---------- */
+.select {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.select.is-auto {
+  display: inline-flex;
+  max-width: 100%;
+}
+.select-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+  line-height: 1.3;
+  cursor: default;
+}
+.select-req {
+  color: var(--red, #b91c1c);
+}
+.select-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong, #cbd5e1);
+  border-radius: var(--r-md, 10px);
+  background: var(--surface, #fff);
+  color: var(--ink, #0f172a);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+/* o botão e, no filtro ligado, o X de limpar por cima do canto direito dele */
+.select-ctl {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.select.is-auto .select-ctl {
+  display: inline-flex;
+  max-width: 100%;
+}
+.select.is-auto .select-btn {
+  width: auto;
+  max-width: 100%;
+}
+.select-ctl.has-clear .select-btn {
+  padding-right: 36px;
+}
+.select-clear {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--brand-h, #1d4ed8);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+.select-clear svg {
+  width: 16px;
+  height: 16px;
+}
+.select-clear:hover {
+  background: var(--brand-100, #dbeafe);
+}
+.select-clear:focus-visible {
+  outline: 2px solid var(--brand, #2563eb);
+  outline-offset: 1px;
+}
+.select-btn:hover {
+  border-color: var(--faint, #94a3b8);
+}
+.select-btn:focus-visible,
+.select-btn.is-open {
+  outline: none;
+  border-color: var(--brand, #2563eb);
+  box-shadow: var(--ring, 0 0 0 3px rgb(37 99 235 / 0.18));
+}
+.select-btn.is-invalid {
+  border-color: var(--red-bar, #ef4444);
+}
+.select-btn.is-invalid:focus-visible,
+.select-btn.is-invalid.is-open {
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.18);
+}
+/* desligado: borda inteira (nunca tracejada) e texto que ainda se lê; o fundo cinza diz que não responde */
+.select-btn:disabled {
+  cursor: not-allowed;
+  background: var(--fill, #f1f5f9);
+  border-style: solid;
+  border-color: var(--line, #e2e8f0);
+  color: var(--ink-3, #475569);
+  box-shadow: none;
+}
+.select-btn:disabled .select-chev,
+.select-btn:disabled .select-prefix,
+.select-btn:disabled .select-value.is-placeholder {
+  color: var(--ink-3, #475569);
+}
+.select-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+/* sem valor: cinza legível (#64748B, 4,7:1 no branco), não o cinza de enfeite */
+.select-value.is-placeholder {
+  color: var(--muted, #64748b);
+  font-weight: 400;
+}
+.select-prefix {
+  flex: none;
+  color: var(--muted, #64748b);
+  font-weight: 400;
+}
+.select-chev {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  color: var(--ink-3, #475569);
+  transition: transform 0.15s;
+}
+.select-btn.is-open .select-chev {
+  color: var(--brand, #2563eb);
+  transform: rotate(180deg);
+}
+/* compacto */
+.select-btn.sm {
+  height: 36px;
+  padding: 0 10px;
+  font-size: 14px;
+  border-radius: var(--r-sm, 8px);
+}
+.select-btn.sm .select-chev {
+  width: 16px;
+  height: 16px;
+}
+/* filtro ("Curso: Todos"): retangular como os outros controles da linha (raio 10, 38 px), não pílula */
+.select-btn.is-filter {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--r-md, 10px);
+  font-size: 14px;
+  gap: 6px;
+}
+.select-btn.is-filter .select-value {
+  flex: 0 1 auto;
+}
+.select-btn.is-filter .select-chev {
+  width: 15px;
+  height: 15px;
+  margin-left: 2px;
+}
+.select-btn.is-filter.is-on {
+  background: var(--brand-50, #eff6ff);
+  border-color: var(--brand-200, #bfdbfe);
+  color: var(--brand-h, #1d4ed8);
+}
+.select-btn.is-filter.is-on .select-value {
+  font-weight: 600;
+}
+.select-btn.is-filter.is-on .select-prefix,
+.select-btn.is-filter.is-on .select-chev {
+  color: var(--brand-h, #1d4ed8);
+}
+/* o erro é o mesmo .field-error dos outros campos (ícone e texto); aqui só a distância do botão */
+.select > .field-error {
+  margin-top: -2px;
+}
+.select-hint {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted, #64748b);
+}
+
+/* popover */
+.select-pop {
+  position: fixed;
+  z-index: 75;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 6px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--r-lg, 12px);
+  box-shadow: var(--sh-pop, 0 16px 40px -12px rgb(15 23 42 / 0.22), 0 2px 6px rgb(15 23 42 / 0.06));
+  font-size: 15px;
+  color: var(--ink-2, #334155);
+  animation: select-pop-in 0.12s ease-out;
+}
+.select-pop[data-side="top"] {
+  animation-name: select-pop-up;
+}
+@keyframes select-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes select-pop-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.select-search {
+  position: relative;
+  flex: none;
+  margin: 0 0 6px;
+}
+.select-search-ico {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--muted, #64748b);
+  pointer-events: none;
+}
+.select-search input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px 0 34px;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--r-sm, 8px);
+  background: var(--surface-2, #f8fafc);
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink, #0f172a);
+}
+.select-search input::placeholder {
+  color: var(--faint, #94a3b8);
+}
+.select-search input:focus {
+  outline: none;
+  border-color: var(--brand, #2563eb);
+  background: var(--surface, #fff);
+  box-shadow: var(--ring, 0 0 0 3px rgb(37 99 235 / 0.18));
+}
+.select-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  outline: none;
+}
+.select-group + .select-group,
+.select-list > [role="presentation"] + .select-group,
+.select-group + [role="presentation"] {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line-2, #f1f5f9);
+}
+.select-group-title {
+  padding: 8px 10px 4px 38px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+}
+.select-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm, 8px);
+  cursor: pointer;
+  user-select: none;
+}
+.select-pop.sm .select-opt {
+  min-height: 36px;
+}
+.select-opt.is-active {
+  background: var(--fill, #f1f5f9);
+}
+.select-opt[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.select-ck {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  color: var(--brand, #2563eb);
+}
+.select-ico {
+  display: inline-flex;
+  flex: none;
+  color: var(--ink-3, #475569);
+}
+.select-txt {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.select-txt b {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink, #0f172a);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.select-txt span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  line-height: 1.35;
+}
+.select-opt.is-selected .select-txt b {
+  color: var(--brand-h, #1d4ed8);
+  font-weight: 600;
+}
+.select-badge {
+  flex: none;
+  display: inline-flex;
+  max-width: 55%;
+}
+.select-count {
+  flex: none;
+  min-width: 22px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+  font-variant-numeric: tabular-nums;
+}
+.select-opt.is-selected .select-count {
+  color: var(--brand-h, #1d4ed8);
+}
+.select-empty {
+  padding: 14px 10px;
+  font-size: 14px;
+  color: var(--muted, #64748b);
+  text-align: center;
+}
+.select-foot {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 6px 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line-2, #f1f5f9);
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+/* tecla e ação juntas ("Enter escolher"): o par não quebra; a linha quebra entre os pares */
+.select-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.select-foot .kbd {
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--ink-3, #475569);
+  border: 1px solid var(--line, #e2e8f0);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 2px 5px;
+  background: var(--surface, #fff);
+}
+@media (pointer: coarse) {
+  .select-foot {
+    display: none;
+  }
+}
+
+/* folha de baixo (celular) */
+.select-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 74;
+  background: rgb(15 23 42 / 0.32);
+  animation: select-fade 0.15s ease-out;
+}
+@keyframes select-fade {
+  from {
+    opacity: 0;
+  }
+}
+.select-pop.is-sheet,
+.mpick-pop.is-sheet {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  width: auto;
+  max-height: min(78dvh, 560px);
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+  border-radius: 16px 16px 0 0;
+  border-bottom: 0;
+  animation: select-sheet-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.select-pop.is-sheet::before,
+.mpick-pop.is-sheet::before {
+  content: "";
+  flex: none;
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  margin: 2px auto 8px;
+  border-radius: 99px;
+  background: var(--line-strong, #cbd5e1);
+}
+@keyframes select-sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+.select-sheet-head {
+  flex: none;
+  padding: 2px 10px 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink, #0f172a);
+}
+.select-pop.is-sheet .select-opt {
+  min-height: 48px;
+}
+.select-pop.is-sheet .select-search input {
+  height: 44px;
+  font-size: 16px;
+}
+
+/* 44 px no toque e abaixo de 768 px (decisão 2 da rodada 8) */
+@media (pointer: coarse), (max-width: 767px) {
+  .select-btn,
+  .select-btn.sm,
+  .select-btn.is-filter {
+    min-height: 44px;
+  }
+  /* o X continua com 24 px desenhados; a área de toque cresce até 44 px por dentro do botão */
+  .select-clear::after {
+    content: "";
+    position: absolute;
+    inset: -10px;
+  }
+  .select-opt,
+  .select-pop.sm .select-opt {
+    min-height: 44px;
+  }
+}
+
+/* ---------- Seletor de mês ---------- */
+.mpick-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mpick-bar.is-card {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+.mpick-step {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line-strong, #cbd5e1);
+  border-radius: var(--r-sm, 8px);
+  background: var(--surface, #fff);
+  color: var(--ink-3, #475569);
+  cursor: pointer;
+}
+.mpick-step:hover {
+  background: var(--fill, #f1f5f9);
+  color: var(--ink, #0f172a);
+}
+.mpick-step[aria-disabled="true"] {
+  cursor: default;
+  background: var(--surface, #fff);
+  border-color: var(--line, #e2e8f0);
+  color: var(--faint, #94a3b8);
+}
+.mpick-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md, 10px);
+  background: transparent;
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink, #0f172a);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mpick-title:hover,
+.mpick-title.is-open {
+  background: var(--fill, #f1f5f9);
+  border-color: var(--line, #e2e8f0);
+}
+/* largura estável: o mês da tela (.mpick-now) e os outros 11 nomes, invisíveis (.mpick-sizer), na mesma célula;
+   a coluna mede o nome mais largo, e as setas ficam no mesmo lugar em todos os meses. Se a tela não tem espaço
+   para o mais largo, a coluna encolhe e só o mês da tela ganha reticências. */
+.mpick-label {
+  display: inline-grid;
+  grid-template-columns: minmax(0, max-content);
+  min-width: 0;
+  letter-spacing: -0.02em;
+}
+.mpick-label > span {
+  grid-area: 1 / 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mpick-sizer {
+  visibility: hidden;
+}
+.mpick-year {
+  color: var(--muted, #64748b);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.mpick-chev {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--ink-3, #475569);
+  transition: transform 0.15s;
+}
+.mpick-title.is-open .mpick-chev {
+  transform: rotate(180deg);
+}
+.mpick-count {
+  margin-left: 6px;
+  font-size: 14px;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.mpick-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.mpick-today[aria-disabled="true"] {
+  background: var(--fill, #f1f5f9);
+  color: var(--faint, #94a3b8);
+  border-color: var(--line, #e2e8f0);
+  box-shadow: none;
+  cursor: default;
+}
+
+/* popover do mês */
+.mpick-pop {
+  position: fixed;
+  z-index: 75;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--r-lg, 12px);
+  box-shadow: var(--sh-pop, 0 16px 40px -12px rgb(15 23 42 / 0.22), 0 2px 6px rgb(15 23 42 / 0.06));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: select-pop-in 0.12s ease-out;
+}
+.mpick-pop[data-side="top"] {
+  animation-name: select-pop-up;
+}
+.mpick-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 10px;
+}
+.mpick-head b {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink, #0f172a);
+  font-variant-numeric: tabular-nums;
+}
+.mpick-yr {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm, 8px);
+  background: transparent;
+  color: var(--ink-3, #475569);
+  cursor: pointer;
+}
+.mpick-yr:hover {
+  background: var(--fill, #f1f5f9);
+}
+.mpick-yr[aria-disabled="true"] {
+  color: var(--faint, #94a3b8);
+  background: transparent;
+  cursor: default;
+}
+.mpick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.mpick-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  height: 58px;
+  padding: 0;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--r-md, 10px);
+  background: var(--surface-2, #f8fafc);
+  font: inherit;
+  cursor: pointer;
+}
+.mpick-cell b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+  line-height: 1.25;
+}
+.mpick-cell small {
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+.mpick-cell:hover {
+  border-color: var(--line-strong, #cbd5e1);
+  background: var(--fill, #f1f5f9);
+}
+.mpick-cell.is-empty {
+  background: transparent;
+  border-color: transparent;
+}
+.mpick-cell.is-empty b {
+  color: var(--faint, #94a3b8);
+  font-weight: 500;
+}
+.mpick-cell.is-empty small {
+  color: var(--faint, #94a3b8);
+}
+.mpick-cell.is-empty:hover {
+  background: var(--fill, #f1f5f9);
+}
+.mpick-cell.is-now {
+  box-shadow: 0 0 0 2px var(--brand-200, #bfdbfe);
+}
+.mpick-cell.is-sel,
+.mpick-cell.is-sel:hover {
+  background: var(--brand, #2563eb);
+  border-color: var(--brand, #2563eb);
+}
+.mpick-cell.is-sel b,
+.mpick-cell.is-sel small {
+  color: #fff;
+}
+.mpick-cell.is-sel.is-now {
+  box-shadow: 0 0 0 3px var(--brand-200, #bfdbfe);
+}
+.mpick-cell[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+}
+.mpick-cell:focus-visible {
+  outline: 2px solid var(--brand, #2563eb);
+  outline-offset: 2px;
+}
+.mpick-pd {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-prova, #dc2626);
+}
+.mpick-cell.is-sel .mpick-pd {
+  background: #fff;
+}
+.mpick-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 2px 0;
+  margin-top: 12px;
+  border-top: 1px solid var(--line-2, #f1f5f9);
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+.mpick-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mpick-leg i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-prova, #dc2626);
+}
+.mpick-link {
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--link, var(--brand-h, #1d4ed8));
+  cursor: pointer;
+}
+.mpick-link:hover {
+  text-decoration: underline;
+}
+.mpick-pop.is-sheet .mpick-cell {
+  height: 60px;
+}
+.mpick-pop.is-sheet .mpick-yr {
+  width: 44px;
+  height: 44px;
+}
+.mpick-pop.is-sheet .mpick-link {
+  min-height: 44px;
+  padding: 0 4px;
+}
+
+@media (max-width: 639px) {
+  .mpick-bar {
+    gap: 4px;
+  }
+  .mpick-bar.is-card {
+    padding: 12px;
+  }
+  .mpick-step {
+    width: 40px;
+    height: 40px;
+  }
+  .mpick-title {
+    flex: 1 1 auto;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 4px;
+    font-size: 18px;
+  }
+  /* no celular o título fica no meio: o mês da tela também, dentro da largura do nome mais largo */
+  .mpick-now {
+    justify-self: center;
+  }
+  .mpick-year {
+    font-size: 15px;
+  }
+  .mpick-chev {
+    width: 16px;
+    height: 16px;
+  }
+  .mpick-count {
+    display: none;
+  }
+  .mpick-end {
+    margin-left: 4px;
+  }
+  .mpick-today {
+    padding: 0 8px;
+  }
+}
+@media (max-width: 400px) {
+  .mpick-bar.is-card {
+    padding: 12px 10px;
+  }
+  .mpick-today {
+    padding: 0 6px;
+  }
+  .mpick-title {
+    gap: 2px;
+    padding: 0 2px;
+    font-size: 16px;
+  }
+  .mpick-year {
+    font-size: 14px;
+  }
+  .mpick-chev {
+    width: 14px;
+    height: 14px;
+  }
+  .month-nb-c {
+    display: none;
+  }
+}
+@media (pointer: coarse), (max-width: 767px) {
+  .mpick-step,
+  .mpick-title {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .mpick-today {
+    min-height: 44px;
+  }
+  /* popover (fora da folha): setas do ano e "Ir para hoje" com 44 px, como na folha do celular */
+  .mpick-yr {
+    width: 44px;
+    height: 44px;
+  }
+  .mpick-link {
+    min-height: 44px;
+    padding: 0 4px;
+  }
+}
+
+/* ---------- Mês vazio ----------
+   O mesmo desenho do estado vazio único (ux.css, .empty-inline): ícone num círculo claro de 40 px, título 15/600
+   em ink, texto 14 em muted (até 44ch) e as ações em btn-s btn-sm. */
+.month-empty {
+  padding: 32px 24px 36px;
+  text-align: center;
+}
+.month-empty-ico {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: var(--fill, #f1f5f9);
+  color: var(--ink-3, #475569);
+}
+.month-empty-ico svg {
+  width: 20px;
+  height: 20px;
+}
+.month-empty h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: var(--ink, #0f172a);
+  text-wrap: balance;
+}
+.month-empty p {
+  margin: 2px auto 0;
+  max-width: 44ch;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted, #64748b);
+}
+.month-empty-acts {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+/* "Próximo: Janeiro de 2027, 2 eventos": quando quebra, quebra em linhas equilibradas (o número e a palavra
+   já vêm unidos por espaço sem quebra, em month-pager.tsx) */
+.month-empty-acts .btn {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  text-align: center;
+  text-wrap: balance;
+  font-variant-numeric: tabular-nums;
+}
+.month-empty-acts .btn > span {
+  text-wrap: balance;
+}
+.month-empty p.month-empty-hid {
+  margin-top: 16px;
+  font-size: 13px;
+}
+.month-empty-link,
+.month-note-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: var(--link, var(--brand-h, #1d4ed8));
+  cursor: pointer;
+}
+.month-empty-link:hover,
+.month-note-link:hover {
+  text-decoration: underline;
+}
+@media (max-width: 639px) {
+  .month-empty {
+    padding: 28px 16px 32px;
+  }
+  .month-empty-acts .btn {
+    min-height: 44px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+}
+
+/* nota fina (Calendário) */
+.month-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--r-md, 10px);
+  background: var(--surface-2, #f8fafc);
+  font-size: 14px;
+  color: var(--ink-2, #334155);
+}
+.month-note-ico {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3, #475569);
+}
+.month-note-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 14px;
+}
+.month-note-end {
+  color: var(--muted, #64748b);
+}
+/* toque e abaixo de 768 px (decisão 2): 44 px. O "Mostrar todas" fica no meio da frase, então só a área de
+   toque cresce (::after), sem mudar a altura da linha */
+@media (pointer: coarse), (max-width: 767px) {
+  .month-note-link {
+    min-height: 44px;
+  }
+  .month-empty-link {
+    position: relative;
+  }
+  .month-empty-link::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc(50% - 22px)) -4px;
+  }
+}
+
+/* ---------- Pé com os meses vizinhos ---------- */
+.month-nb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line, #e2e8f0);
+}
+.month-nb-btn {
+  min-width: 0;
+  font-weight: 400;
+  color: var(--ink-3, #475569);
+}
+.month-nb-btn span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.month-nb-btn b {
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+}
+.month-nb-btn.next {
+  margin-left: auto;
+}
+@media (max-width: 639px) {
+  .month-nb {
+    padding: 12px;
+    gap: 8px;
+  }
+  .month-nb-btn {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+  .month-nb-btn.prev:not(.btn-s) {
+    flex: 0 1 auto;
+  }
+}
+@media (pointer: coarse) {
+  .month-nb-btn {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .select-pop,
+  .select-pop.is-sheet,
+  .mpick-pop,
+  .mpick-pop.is-sheet,
+  .select-scrim {
+    animation: none;
+  }
+  .select-chev,
+  .mpick-chev {
+    transition: none;
+  }
+}

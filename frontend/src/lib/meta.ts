@@ -35,7 +35,7 @@ export const categoryMeta: Record<Category, CategoryMeta> = {
     accent: "d-prova",
     pill: "border-transparent c-prova",
     tint: "c-prova",
-    rail: "border-l-[#E11D48]",
+    rail: "border-l-[color:var(--c-prova)]",
     chip: "c-prova hover:brightness-95",
   },
   assignment: {
@@ -44,7 +44,7 @@ export const categoryMeta: Record<Category, CategoryMeta> = {
     accent: "d-trab",
     pill: "border-transparent c-trab",
     tint: "c-trab",
-    rail: "border-l-[#7C3AED]",
+    rail: "border-l-[color:var(--c-trab)]",
     chip: "c-trab hover:brightness-95",
   },
   activity: {
@@ -53,7 +53,7 @@ export const categoryMeta: Record<Category, CategoryMeta> = {
     accent: "d-ativ",
     pill: "border-transparent c-ativ",
     tint: "c-ativ",
-    rail: "border-l-[#0284C7]",
+    rail: "border-l-[color:var(--c-ativ)]",
     chip: "c-ativ hover:brightness-95",
   },
   extracurricular: {
@@ -62,7 +62,7 @@ export const categoryMeta: Record<Category, CategoryMeta> = {
     accent: "d-extra",
     pill: "border-transparent c-extra",
     tint: "c-extra",
-    rail: "border-l-[#D97706]",
+    rail: "border-l-[color:var(--c-extra)]",
     chip: "c-extra hover:brightness-95",
   },
   institutional: {
@@ -71,7 +71,7 @@ export const categoryMeta: Record<Category, CategoryMeta> = {
     accent: "d-inst",
     pill: "border-transparent c-inst",
     tint: "c-inst",
-    rail: "border-l-[#2563EB]",
+    rail: "border-l-[color:var(--c-inst)]",
     chip: "c-inst hover:brightness-95",
   },
   holiday: {
@@ -80,7 +80,7 @@ export const categoryMeta: Record<Category, CategoryMeta> = {
     accent: "d-fer",
     pill: "border-transparent c-fer",
     tint: "c-fer",
-    rail: "border-l-[#059669]",
+    rail: "border-l-[color:var(--c-fer)]",
     chip: "c-fer hover:brightness-95",
   },
   recess: {
@@ -89,7 +89,7 @@ export const categoryMeta: Record<Category, CategoryMeta> = {
     accent: "d-rec",
     pill: "border-transparent c-rec",
     tint: "c-rec",
-    rail: "border-l-[#65A30D]",
+    rail: "border-l-[color:var(--c-rec)]",
     chip: "c-rec hover:brightness-95",
   },
 };

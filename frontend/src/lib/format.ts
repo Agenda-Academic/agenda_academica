@@ -596,6 +596,28 @@ export function formatOnDayAt(value: string | Date, now: Date | number = new Dat
   return `${formatOnDay(date)}, às ${clock(date)}`;
 }
 
+/**
+ * Quando algo vai acontecer (ex.: quando o aviso chega): "hoje às 18:00", "amanhã às 18:00" ou
+ * "qui, 26/11, às 18:00". O ano só aparece fora do ano corrente ("sex, 01/01/2027, às 08:00").
+ * Use no toast, no detalhe do evento e em Lembretes, para as telas falarem igual.
+ */
+export function formatRelativeWhen(iso: string, now: Date | number = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const today = new Date(now);
+  const days = Math.round((startOfDay(date).getTime() - startOfDay(today).getTime()) / (24 * 60 * 60 * 1000));
+  if (days === 0) {
+    return `hoje às ${clock(date)}`;
+  }
+  if (days === 1) {
+    return `amanhã às ${clock(date)}`;
+  }
+  const year = date.getFullYear() === today.getFullYear() ? "" : `/${date.getFullYear()}`;
+  return `${shortWeekdays[date.getDay()].toLowerCase()}, ${two(date.getDate())}/${two(date.getMonth() + 1)}${year}, às ${clock(date)}`;
+}
+
 /** "2026-11-01" no fuso local (para chaves por dia). */
 export function localDateKey(value: Date) {
   const month = String(value.getMonth() + 1).padStart(2, "0");

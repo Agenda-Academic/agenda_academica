@@ -1,12 +1,12 @@
-/* Visual novo (azul bebê, cores pastel).
-   Este arquivo entra por último na camada components e reveste os componentes do globals.css.
-   Os seletores começam com "html" para valer por cima das regras de lá (mesma camada); os
-   utilitários do Tailwind continuam valendo por cima de tudo.
+/* Pele do app: direção A, "Claro e organizado" (rodada 7, 2026-11-22).
+   Referência fiel: amostra-a-claro (amostra.css e os prints). Este arquivo entra na camada components
+   depois dos arquivos de área e reveste os componentes do globals.css. Os seletores começam com "html"
+   para valer por cima das regras de lá (mesma camada); os utilitários do Tailwind continuam por cima.
    Ideias principais:
-   - menu lateral claro, cada ícone num quadrado pastel com a cor da tela;
-   - o destaque de cada painel em azul bebê, com o pontilhado de caderno e a data circulada;
-   - categoria e situação como ponto + palavra, sem pílula colorida;
-   - botão principal em azul pastel com texto escuro. */
+   - menu lateral claro, encostado à esquerda, com borda de 1px; item ativo em cinza claro com o ícone azul;
+   - cards brancos com borda de 1px e sombra mínima; nada de blocos pastel;
+   - categoria como ponto + palavra; situação como etiqueta com fundo e borda;
+   - controle segmentado em pílula (fundo cinza, opção escolhida branca) e abas sublinhadas (.tabs). */
 
 @property --risco {
   syntax: "<angle>";
@@ -14,54 +14,154 @@
   initial-value: 0deg;
 }
 
+/* ---------- casca: menu encostado à esquerda e conteúdo com respiro ---------- */
+html .app {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+}
+html .content {
+  padding: 32px 40px 48px;
+  gap: 20px;
+}
+@media (min-width: 1600px) {
+  html .content {
+    padding-inline: 48px;
+  }
+}
+@media (max-width: 1023px) {
+  html .content {
+    padding: 16px 16px 32px;
+    gap: 16px;
+  }
+}
+@media (max-width: 1023px) {
+  html #conteudo {
+    margin-bottom: max(0px, var(--toast-foot, 0px) - 32px);
+  }
+}
+
 /* ---------- menu lateral ---------- */
 html .side {
-  background: var(--surface);
-  color: var(--ink);
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  width: 264px;
+  gap: 18px;
+  padding: 20px 16px 16px;
+  border-radius: 0;
   border: 0;
-  box-shadow:
-    0 1px 2px rgb(var(--shadow-rgb) / 0.04),
-    0 10px 30px -18px rgb(23 50 92 / 0.22);
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  box-shadow: none;
 }
 html .brand {
-  border-bottom-color: var(--line);
+  padding: 4px 8px 0;
+  border-bottom: 0;
+}
+html .brand-name {
+  font-family: var(--font);
+  font-size: var(--fs-15);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 html .brand-sub {
+  margin-top: 0;
+  font-size: var(--fs-12);
   color: var(--muted);
 }
 html .mark {
-  background: var(--bebe-botao);
-  color: var(--bebe-ink);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--brand);
+  color: #fff;
+}
+html .mark svg {
+  width: 20px;
+  height: 20px;
+}
+html .brand.in-drawer {
+  padding: 2px 4px 14px;
+  border-bottom: 1px solid var(--line);
+}
+html .brand.in-drawer .mark {
+  width: 36px;
+  height: 36px;
+}
+html .brand.in-drawer .brand-name {
+  font-size: var(--fs-15);
+}
+html .side-tools {
+  gap: 10px;
 }
 html .side-search svg {
+  left: 11px;
+  width: 16px;
+  height: 16px;
   color: var(--muted);
 }
 html .side-search input {
-  border-color: var(--line-strong);
-  background: var(--surface-2);
+  height: 38px;
+  padding-left: 35px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
   color: var(--ink);
+  font-size: var(--fs-14);
 }
 html .side-search input::placeholder {
-  color: var(--faint);
-}
-html .side-search input:focus {
-  border-color: var(--brand);
-  background: #fff;
-  box-shadow: 0 0 0 3px rgb(var(--brand-rgb) / 0.15);
-}
-html .side-search .kbd {
-  border-color: var(--line);
-  background: #fff;
   color: var(--muted);
 }
+html .side-search:not(:focus-within) input:hover {
+  border-color: var(--line-strong);
+}
+/* foco em qualquer parte da busca (o campo ou o X de limpar): a caixa toda fica com a borda azul e o anel,
+   como os outros campos; o campo não ganha um contorno a mais por cima */
+html .side-search:focus-within input,
+html .side-search input:focus {
+  border-color: var(--brand);
+  background: var(--surface);
+  box-shadow: var(--ring);
+  outline: none;
+}
+html .side-search .kbd {
+  right: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font: 500 var(--fs-12)/1 var(--font);
+}
+html .side-tools .btn {
+  min-height: 38px;
+}
 html .nav-label {
-  color: var(--ink-3);
+  margin: 4px 0 6px 10px;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--muted);
+}
+html .navlist {
+  gap: 2px;
 }
 html .nav {
-  height: 46px;
-  padding: 0 8px;
+  height: 40px;
+  padding: 0 10px;
   gap: 12px;
+  border-radius: var(--r-md);
   color: var(--ink-3);
+  font-size: var(--fs-14);
+  font-weight: 500;
+}
+html .nav svg {
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
 }
 html .nav:hover {
   background: var(--surface-2);
@@ -69,67 +169,110 @@ html .nav:hover {
 }
 html .nav.on,
 html .nav.on:hover {
-  background: var(--surface-2);
+  background: var(--fill);
   color: var(--ink);
-  font-weight: 700;
+  font-weight: 600;
 }
+html .nav.on svg {
+  color: var(--brand);
+}
+/* o ícone do item: sem quadrado colorido, só o traço (cinza; azul no item ativo) */
 html .nav-ico {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 30px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-  border-radius: 10px;
-  background: var(--np, #eceff3);
-  color: var(--npi, #56616b);
-  transition:
-    transform 0.25s cubic-bezier(0.34, 1.4, 0.5, 1),
-    box-shadow 0.2s ease,
-    background-color 0.2s ease;
+  background: none;
+  color: inherit;
 }
-html .nav:hover .nav-ico {
-  transform: translateY(-1px) scale(1.04);
-}
-html .nav.on .nav-ico {
-  background: color-mix(in srgb, var(--npi) 22%, var(--np));
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--npi) 40%, transparent);
-}
-/* uma cor pastel por tela */
-html .nav[data-view="dashboard"] { --np: #dceaff; --npi: #2e5fa8; }
-html .nav[data-view="calendar"] { --np: #d5f2f5; --npi: #17707a; }
-html .nav[data-view="grades"] { --np: #ebe3ff; --npi: #6a4bc4; }
-html .nav[data-view="manage"] { --np: #ffe3d8; --npi: #b0502f; }
-html .nav[data-view="classes"] { --np: #d4f4e3; --npi: #1d7a51; }
-html .nav[data-view="reminders"] { --np: #fff1c2; --npi: #8a6400; }
-html .nav[data-view="sync"] { --np: #ffe0ea; --npi: #b23a62; }
 html .nav .count {
-  background: var(--accent);
-  color: #fff;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--amber-line);
+  background: var(--amber-bg);
+  color: var(--amber);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+html .nav .count.dot {
+  min-width: 8px;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  padding: 0;
+  border: 0;
+  background: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-100);
+}
+html .side-foot {
+  gap: 8px;
 }
 html .semestre {
-  background: var(--surface-2);
-  border-color: var(--line);
+  padding: 12px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: var(--fs-12);
   color: var(--muted);
 }
+html .semestre .row1 {
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 0;
+}
 html .semestre b {
-  color: var(--ink);
+  color: var(--ink-2);
+  font-weight: 600;
 }
 html .semestre .bar {
-  background: var(--line);
+  margin-top: 8px;
+  background: var(--fill);
 }
 html .semestre .bar span {
-  background: var(--brand-400);
+  background: var(--brand);
+}
+/* pessoa: avatar redondo, nome e papel; o botão de sair fica ao lado (app-shell.tsx, .me) */
+html .me {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 html .ucard {
-  background: var(--surface-2);
-  border-color: var(--line);
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--r-lg);
+  border: 0;
+  background: transparent;
 }
 html button.ucard:hover {
-  background: var(--neutral-tint);
+  background: var(--surface-2);
 }
 html .avatar {
-  background: var(--bebe-botao);
-  color: var(--bebe-ink);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--brand-100);
+  color: var(--brand-h);
+  font-size: var(--fs-13);
+  font-weight: 700;
+}
+html .uname {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  line-height: 1.3;
+  max-height: 1.3em;
+  color: var(--ink);
+}
+html .urole {
+  margin-top: 0;
+  font-size: var(--fs-12);
+  color: var(--muted);
 }
 html .urole,
 html .pick-s,
@@ -137,223 +280,559 @@ html .sync {
   color: var(--muted);
 }
 html .student-pick {
-  background: var(--surface-2);
-  border-color: var(--line);
+  margin-top: -4px;
+  min-height: 52px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
   color: var(--ink);
+}
+html .student-pick .avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
 }
 html .student-pick svg {
   color: var(--muted);
 }
 html .student-pick.is-select:hover {
-  background: var(--neutral-tint);
+  border-color: var(--line-strong);
+  background: var(--surface-2);
 }
 html .student-pick:has(select:focus-visible) {
   outline-color: var(--brand);
 }
 html .ubtn {
-  color: var(--muted);
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  color: var(--ink-3);
 }
 html .ubtn:hover {
-  background: var(--neutral-tint);
+  background: var(--fill);
   color: var(--ink);
 }
-
-/* ---------- botões ---------- */
-html .btn-p {
-  background: var(--bebe-botao);
-  color: var(--bebe-ink);
+html .sync {
+  padding: 0 8px;
+  font-size: var(--fs-12);
 }
-html .btn-p:hover:not(:disabled) {
-  background: var(--bebe-botao-h);
-}
-html .btn-s:hover:not(:disabled) {
-  background: var(--surface-2);
-  border-color: var(--line-hover);
+html .sync .ok {
+  background: var(--green-bar);
 }
 
-/* ---------- controle segmentado vira abas com sublinhado ---------- */
-html .seg {
-  padding: 0;
-  gap: 4px;
-  border-radius: 0;
+/* ---------- barra do topo no celular e tablet (app-shell.tsx, .mtop) ----------
+   Faixa branca de 56 px com borda embaixo: menu à esquerda, a marca do app (logo e "Agenda Acadêmica") e a
+   busca à direita. O nome da tela não entra aqui: o título da página já vem logo abaixo. */
+html .mtop {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+html .mtop .ib {
+  width: 44px;
+  height: 44px;
+  border-color: transparent;
   background: transparent;
-  box-shadow: inset 0 -1px 0 var(--line);
+  box-shadow: none;
+  color: var(--ink-2);
+}
+html .mtop .ib:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--fill);
+  color: var(--ink);
+}
+html .mtop-t {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: var(--fs-15);
+  font-weight: 700;
+  color: var(--ink);
+}
+html .mtop-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+}
+html .mtop-mark svg {
+  width: 16px;
+  height: 16px;
+}
+html .mtop-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- controle segmentado em pílula (Agenda / Calendário, Próximos / Passados / Todos) ---------- */
+html .seg {
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-md);
+  background: var(--fill);
+  box-shadow: none;
 }
 html .seg button {
-  height: 42px;
+  height: 32px;
   padding: 0 12px;
-  border-radius: 0;
-  color: var(--muted);
+  gap: 8px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-14);
+  font-weight: 500;
+  color: var(--ink-3);
 }
 html .seg button:hover {
   color: var(--ink);
 }
-/* toque: as abas sublinhadas ("Agenda / Calendário", "Próximos / Passados / Todos", "Ativas / Arquivadas") com
-   44 px de altura (no toque) */
-@media (pointer: coarse) {
-  html .seg button {
-    height: 44px;
-  }
+html .seg button svg {
+  width: 16px;
+  height: 16px;
 }
-html .seg .on {
-  background: transparent;
+html .seg button .n,
+html .seg button .badge {
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+html .seg .on,
+html .seg .on:hover {
+  background: var(--surface);
   color: var(--ink);
-  box-shadow: inset 0 -2.5px 0 var(--brand);
+  font-weight: 600;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.08),
+    0 0 0 1px rgb(15 23 42 / 0.04);
 }
-
-/* ---------- filtros: ponto + palavra, sem pílula ---------- */
-html .chip,
-html .chip[class*="c-"] {
-  height: 34px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
+html .seg .on .n {
   color: var(--ink-3);
 }
-html .chip:hover {
-  background: var(--surface-2);
+/* toque e telas estreitas: 44 px (regra única "toque: 44 px" em ux.css) */
+
+/* ---------- abas sublinhadas (.tabs): "Eventos / Minhas turmas", "Dados do evento / Notas" ----------
+   Uso: <div className="tabs" role="tablist"><button className="tab on" role="tab">Eventos <span className="n">6</span></button>...</div> */
+/* O .tabs rola na horizontal (overflow-x), e isso corta o que passa da caixa. Por isso ele ganha 6 px de respiro
+   nas laterais (devolvidos pela margem negativa, as abas não mudam de lugar), onde cabe o anel de foco da aba
+   (globals.css), e a linha de baixo vira um fundo de 1 px do tamanho de antes, sem os 6 px de cada lado */
+html .tabs {
+  display: flex;
+  gap: 24px;
+  max-width: calc(100% + 12px);
+  margin-inline: -6px;
+  padding-inline: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: linear-gradient(var(--line), var(--line)) 6px 100% / calc(100% - 12px) 1px no-repeat;
+}
+html .tabs > :is(.tab, button, a) {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 0 12px;
+  margin-bottom: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-size: var(--fs-14);
+  font-weight: 500;
+  color: var(--ink-3);
+  white-space: nowrap;
+  text-decoration: none;
+}
+html .tabs > :is(.tab, button, a):hover {
   color: var(--ink);
 }
-html .chip.all {
-  background: transparent;
-  border-radius: 0;
-  color: var(--ink);
-  font-weight: 700;
-  box-shadow: inset 0 -2px 0 var(--brand);
-}
-html .chip.all .n {
+html .tabs > :is(.tab, button, a) .n {
+  font-size: var(--fs-12);
+  font-weight: 600;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
-html .chip.picked {
-  background: var(--surface-2);
+html .tabs > :is(.on, [aria-selected="true"], [aria-current="page"]) {
   color: var(--ink);
-  font-weight: 700;
+  font-weight: 600;
+  border-bottom-color: var(--brand);
 }
 
-/* ---------- categoria e situação: ponto + palavra ---------- */
+/* ---------- chips de filtro (categorias): ponto + palavra + número ----------
+   Branco com borda; o escolhido (.on, .all ou .picked) fica azul claro, com o check (svg .ck) se houver. */
+html .chip,
+html .chip[class*="c-"] {
+  height: 32px;
+  padding: 0 12px;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  box-shadow: none;
+}
+html .chip .n {
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+html .chip .dot {
+  width: 8px;
+  height: 8px;
+}
+html .chip:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+html .chip:is(.on, .all, .picked),
+html .chip[class*="c-"]:is(.on, .picked),
+html .chip[aria-pressed="true"] {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  color: var(--brand-h);
+  font-weight: 600;
+  box-shadow: none;
+}
+html .chip:is(.on, .all, .picked) .n,
+html .chip[aria-pressed="true"] .n {
+  color: var(--brand-h);
+}
+html .chip:is(.on, .all, .picked) svg:not(.dot),
+html .chip[aria-pressed="true"] svg:not(.dot) {
+  color: var(--brand);
+}
+html .chip:is(.on, .all, .picked):hover {
+  border-color: var(--brand-200);
+  background: var(--brand-100);
+}
+html .chip.off {
+  color: var(--muted);
+}
+html .chip.lock {
+  border-style: dashed;
+  background: var(--surface-2);
+  color: var(--faint);
+}
+@media (pointer: coarse) {
+  html .chip,
+  html .chip[class*="c-"] {
+    height: 36px;
+  }
+}
+
+/* ---------- categoria: ponto + palavra, sem fundo ----------
+   .pill com a classe da categoria (c-prova, c-trab...): ponto da cor forte e palavra na cor de texto. */
 html .pill {
   height: auto;
   padding: 0;
   gap: 6px;
   border-radius: 0;
   background: transparent;
+  font-size: var(--fs-13);
+  font-weight: 600;
 }
 html .pill::before {
   content: "";
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: currentColor;
+  background: var(--pill-dot, currentColor);
   flex-shrink: 0;
 }
+html .pill.c-prova { --pill-dot: var(--c-prova); background: transparent; }
+html .pill.c-trab { --pill-dot: var(--c-trab); background: transparent; }
+html .pill.c-ativ { --pill-dot: var(--c-ativ); background: transparent; }
+html .pill.c-extra { --pill-dot: var(--c-extra); background: transparent; }
+html .pill.c-inst { --pill-dot: var(--c-inst); background: transparent; }
+html .pill.c-fer { --pill-dot: var(--c-fer); background: transparent; }
+html .pill.c-rec { --pill-dot: var(--c-rec); background: transparent; }
 html .pill.stat::before,
 html .pill.prio::before {
   display: none;
 }
 html .pill.prio {
-  color: var(--brand-ink);
+  color: var(--brand-h);
 }
 html .pill.bg-brand {
-  color: var(--brand-ink);
+  color: var(--brand-h);
+}
+/* nome canônico novo: .cat (igual ao .pill de categoria) */
+html .cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  white-space: nowrap;
+}
+html .cat::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pill-dot, currentColor);
+  flex-shrink: 0;
+}
+html .cat.c-prova, html .cat.prova { --pill-dot: var(--c-prova); color: var(--c-prova-t); background: transparent; }
+html .cat.c-trab, html .cat.trab { --pill-dot: var(--c-trab); color: var(--c-trab-t); background: transparent; }
+html .cat.c-ativ { --pill-dot: var(--c-ativ); color: var(--c-ativ-t); background: transparent; }
+html .cat.c-extra { --pill-dot: var(--c-extra); color: var(--c-extra-t); background: transparent; }
+html .cat.c-inst, html .cat.inst { --pill-dot: var(--c-inst); color: var(--c-inst-t); background: transparent; }
+html .cat.c-fer, html .cat.fer { --pill-dot: var(--c-fer); color: var(--c-fer-t); background: transparent; }
+html .cat.c-rec, html .cat.rec { --pill-dot: var(--c-rec); color: var(--c-rec-t); background: transparent; }
+
+/* ---------- etiqueta de situação (.stat, também .pill.stat) ----------
+   Fundo claro, borda e texto da cor: green (publicada, concluído), amber (atenção, amanhã), red (erro,
+   cancelado), gray (neutra), blue (informação). */
+html .stat,
+html .pill.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--fill);
+  color: var(--ink-3);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  white-space: nowrap;
+}
+html .stat svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+html :is(.stat.green, .pill.stat.stat-conc) { color: var(--green); background: var(--green-bg); border-color: var(--green-line); }
+html :is(.stat.amber, .pill.stat.stat-alt) { color: var(--amber); background: var(--amber-bg); border-color: var(--amber-line); }
+html :is(.stat.red, .pill.stat.stat-canc) { color: var(--red); background: var(--red-bg); border-color: var(--red-line); }
+html .stat.gray { color: var(--ink-3); background: var(--fill); border-color: var(--line); }
+html .stat.blue { color: var(--brand-h); background: var(--brand-50); border-color: var(--brand-200); }
+/* contador pequeno ao lado de um título ("Precisa de atenção 2") */
+html .badge:not(.ib .badge) {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-full);
+  background: var(--fill);
+  color: var(--ink-3);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+html .badge.amber { background: var(--amber-bg); color: var(--amber); }
+
+/* ---------- selo de data (.dbadge): "QUI / 05" das listas ---------- */
+html .dbadge {
+  width: 48px;
+  flex: none;
+  padding: 5px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: center;
+}
+/* tamanho, peso, letter-spacing e MAIÚSCULAS do dia da semana: regra única com .ev-date .dw em ux.css */
+html .dbadge small {
+  display: block;
+  color: var(--muted);
+}
+html .dbadge b {
+  display: block;
+  font-size: var(--fs-18);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+html .dbadge.today {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+}
+html .dbadge.today :is(small, b) {
+  color: var(--brand-h);
 }
 
-/* ---------- destaque: azul bebê com pontilhado de caderno ---------- */
+/* ---------- metadado, separador, atalho de teclado ---------- */
+html .meta {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+html .kbd,
+html kbd.kbd {
+  display: inline-block;
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink-3);
+  font: 600 var(--fs-12)/1.2 var(--font);
+}
+
+/* ---------- switch (.sw): botão role="switch" com <i> dentro ---------- */
+html .sw {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  font-size: var(--fs-14);
+  font-weight: 500;
+  color: var(--ink-2);
+  text-align: left;
+}
+html .sw > i {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  border-radius: 99px;
+  background: var(--line-strong);
+  transition: background-color 0.16s ease;
+}
+html .sw > i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.25);
+  transition: left 0.16s ease;
+}
+html .sw:is(.on, [aria-checked="true"]) > i {
+  background: var(--brand);
+}
+html .sw:is(.on, [aria-checked="true"]) > i::after {
+  left: 18px;
+}
+html .sw:disabled {
+  opacity: 0.5;
+}
+html .sw-hint {
+  font-size: var(--fs-13);
+  font-weight: 400;
+  color: var(--muted);
+}
+/* interruptor no fim da linha (rótulo à esquerda, ocupa a largura): <Switch className="end" .../> */
+html .sw.end {
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  width: 100%;
+}
+
+/* ---------- popover (.popover): caixa flutuante (seletor de mês, menu "...") ---------- */
+html .popover {
+  position: absolute;
+  z-index: 30;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-pop);
+}
+
+/* ---------- destaque do Painel (.hero): card branco, data em selo azul claro ---------- */
 html .hero {
-  --ink: var(--bebe-ink);
-  --ink-2: color-mix(in srgb, var(--bebe-ink) 86%, transparent);
-  --ink-3: color-mix(in srgb, var(--bebe-ink) 74%, transparent);
-  --muted: color-mix(in srgb, var(--bebe-ink) 64%, transparent);
-  --line: color-mix(in srgb, var(--bebe-ink) 13%, transparent);
-  border-color: transparent;
-  background:
-    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 14%, transparent) 1.1px, transparent 1.6px) 0 0 / 20px 20px,
-    radial-gradient(90% 120% at 100% 0%, var(--bebe-2) 0%, transparent 62%),
-    var(--bebe);
-  box-shadow:
-    0 18px 44px -26px rgb(21 48 92 / 0.4),
-    0 1px 2px rgb(0 0 0 / 0.04);
-  color: var(--bebe-ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-card);
+  color: var(--ink-2);
+  padding: 24px;
 }
-html .hero-kicker .eyebrow {
-  color: var(--bebe-ink);
+html .hero-kicker .eyebrow,
+html .hero-label {
+  color: var(--brand-h);
 }
-/* a data vira a página da agenda circulada a caneta */
+html .hero-title {
+  font-size: var(--fs-26);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+}
 html .hero .datebig {
   position: relative;
-  background: transparent;
-  color: var(--bebe-ink);
+  gap: 2px;
+  min-height: 112px;
+  border: 1px solid var(--brand-200);
+  border-radius: var(--r-lg);
+  background: var(--brand-50);
+  color: var(--brand-h);
 }
 html .hero .datebig .dw,
 html .hero .datebig .mo {
-  color: color-mix(in srgb, var(--bebe-ink) 62%, transparent);
-}
-html .hero .datebig {
-  gap: 16px;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--brand-h);
 }
 html .hero .datebig .dn {
-  font-size: 60px;
-  font-weight: 750;
-  letter-spacing: -0.04em;
+  font-family: var(--font);
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--brand-h);
+  font-variant-numeric: tabular-nums;
 }
-html .hero .datebig::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 104px;
-  height: 80px;
-  translate: -50% -50%;
-  rotate: -8deg;
-  pointer-events: none;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 56'%3E%3Cpath d='M35 5C52 4 62 16 59 30C56 45 38 53 22 49C7 45 2 31 7 19C12 8 26 3 40 6C45 7 49 9 51 11' fill='none' stroke='%23f07f86' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
-  -webkit-mask: conic-gradient(from 80deg, #000 var(--risco), transparent 0);
-  mask: conic-gradient(from 80deg, #000 var(--risco), transparent 0);
-  animation: caneta 1s 0.5s cubic-bezier(0.6, 0.1, 0.3, 1) forwards;
-}
-@keyframes caneta {
-  to {
-    --risco: 360deg;
-  }
-}
-/* contagem em números grandes, sem a caixa verde */
 html .hero .countdown b {
+  margin-top: 4px;
   padding: 0;
+  border-radius: 0;
   background: transparent;
-  color: var(--bebe-ink);
-  font-size: 40px;
-  font-weight: 750;
-  letter-spacing: -0.03em;
-}
-html .hero .btn-p {
-  background: var(--bebe-ink);
-  color: #fff;
-}
-html .hero .btn-p:hover:not(:disabled) {
-  background: #0d2246;
-}
-html .hero .btn-s {
-  background: rgb(255 255 255 / 0.72);
-  border-color: rgb(255 255 255 / 0.9);
-  color: var(--bebe-ink);
-}
-html .hero .btn-s:hover:not(:disabled) {
-  background: #fff;
-}
-
-/* ---------- avisos (toasts) claros ---------- */
-html .toast {
-  background: #fff;
   color: var(--ink);
-  border-color: transparent;
-  box-shadow: 0 18px 40px rgb(var(--shadow-rgb) / 0.18);
+  font-family: var(--font);
+  font-size: var(--fs-26);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+html .hero .countdown .eyebrow,
+html .hero .countdown small {
+  color: var(--muted);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html .hero .datebig::after {
-    animation: none;
-    --risco: 360deg;
-  }
+/* ---------- avisos (toasts): brancos com borda ---------- */
+html .toast {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--ink-2);
+  box-shadow: var(--sh-pop);
+}
+html .toast.err {
+  border-color: var(--red-line);
+}
+html .toast.ok .t-ico {
+  background: var(--green-bg);
+  color: var(--green);
+}
+html .t-ico {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+}
+html .toast.ok :focus-visible {
+  outline-color: var(--brand);
 }
 
 /* ---------- entrar: a tela inteira, sem rolagem ----------
@@ -367,9 +846,7 @@ html .entrada {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 11%, transparent) 1.1px, transparent 1.6px) 0 0 / 22px 22px,
-    var(--bg);
+  background: var(--bg);
 }
 html .entrada-card {
   display: grid;
@@ -406,10 +883,9 @@ html .entrada::after {
     flex: 0 1 auto;
     width: min(100%, 460px);
     margin-inline: auto;
-    border-radius: 28px;
-    box-shadow:
-      0 1px 2px rgb(var(--shadow-rgb) / 0.04),
-      0 30px 70px -40px rgb(23 50 92 / 0.38);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 24px 48px -32px rgb(15 23 42 / 0.18);
   }
 }
 @media (min-width: 1280px) {
@@ -446,7 +922,7 @@ html .ent-tabs {
   margin-bottom: var(--g);
 }
 html .ent-title {
-  font-size: clamp(24px, 3.6dvh, 30px);
+  font-size: clamp(22px, 3.4dvh, 26px);
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.02em;
@@ -503,16 +979,17 @@ html .ent-or span {
   background: var(--line);
 }
 html .ent-google {
-  background: #f2f2f2;
-  color: #1f1f1f;
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-2);
 }
 html .ent-google:hover:not(:disabled) {
-  background: #e7e7e7;
+  background: var(--surface-2);
 }
 html .ent-hint {
   margin-top: 6px;
   text-align: center;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 18px;
   color: var(--muted);
 }
@@ -533,7 +1010,7 @@ html .ent-demo-t {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--ink-3);
 }
@@ -550,11 +1027,12 @@ html .ent-demo-btn {
   height: 42px;
   min-width: 0;
   padding: 0 10px 0 6px;
-  border-radius: 12px;
-  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
   color: var(--ink-2);
-  font-size: 14px;
-  font-weight: 650;
+  font-size: var(--fs-14);
+  font-weight: 600;
   text-align: left;
   transition:
     background-color 0.16s ease,
@@ -562,15 +1040,17 @@ html .ent-demo-btn {
     transform 0.16s ease;
 }
 html .ent-demo-btn:hover {
-  background: var(--fill);
+  border-color: var(--line-strong);
+  background: var(--surface-2);
 }
 html .ent-demo-btn:active {
   transform: scale(0.98);
 }
 html .ent-demo-btn.on {
-  background: var(--bebe);
-  color: var(--bebe-ink);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brand) 50%, transparent);
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  color: var(--brand-h);
+  box-shadow: none;
 }
 html .ent-demo-ico {
   display: grid;
@@ -578,14 +1058,12 @@ html .ent-demo-ico {
   width: 30px;
   height: 30px;
   flex-shrink: 0;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   background: var(--tom-bg);
   color: var(--tom);
 }
-html .ent-demo-btn[data-tom="0"] { --tom-bg: #dceaff; --tom: #2e5fa8; }
-html .ent-demo-btn[data-tom="1"] { --tom-bg: #ebe3ff; --tom: #6a4bc4; }
-html .ent-demo-btn[data-tom="2"] { --tom-bg: #ffe3d8; --tom: #b0502f; }
-html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
+html .ent-demo-btn[data-tom] { --tom-bg: var(--fill); --tom: var(--ink-3); }
+html .ent-demo-btn.on[data-tom] { --tom-bg: var(--brand-100); --tom: var(--brand-h); }
 /* tela baixa: o título sai da vista (continua para o leitor de tela). O de criar conta é maior
    e sai antes; a aba e a frase de baixo já dizem que é a conta do responsável. */
 @media (max-height: 859px) {
@@ -675,11 +1153,8 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   gap: clamp(12px, 2.6dvh, 24px);
   min-height: 0;
   padding: clamp(20px, 4dvh, 36px) 34px clamp(20px, 4dvh, 34px);
-  background:
-    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 13%, transparent) 1.1px, transparent 1.6px) 0 0 / 22px 22px,
-    radial-gradient(70% 70% at 10% 10%, var(--bebe) 0%, transparent 70%),
-    radial-gradient(60% 60% at 90% 100%, #e6f2ff 0%, transparent 70%),
-    var(--bg);
+  border-right: 1px solid var(--line);
+  background: var(--surface-2);
 }
 .ls-marca {
   display: flex;
@@ -694,11 +1169,11 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
 }
 .ls-titulo {
   max-width: 17ch;
-  font-family: var(--disp);
-  font-size: clamp(30px, min(3vw, 5.6dvh), 46px);
-  font-weight: 750;
-  line-height: 1.03;
-  letter-spacing: -0.035em;
+  font-family: var(--font);
+  font-size: clamp(28px, min(2.8vw, 5.2dvh), 42px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
   color: var(--ink);
 }
 .ls-titulo em {
@@ -706,7 +1181,7 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   z-index: 0;
   font-style: normal;
   white-space: nowrap;
-  color: var(--bebe-ink);
+  color: var(--brand);
 }
 .ls-titulo em::after {
   content: "";
@@ -717,7 +1192,7 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   bottom: 0.06em;
   height: 0.32em;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--marca-texto) 80%, transparent);
+  background: var(--brand-100);
   transform-origin: left;
   animation: ls-marca-texto 0.7s 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -729,17 +1204,16 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
 .ls-folha {
   flex: none;
   padding: 18px 18px 14px;
-  border-radius: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   background: #fff;
-  box-shadow:
-    0 30px 60px -32px rgb(21 48 92 / 0.32),
-    0 1px 3px rgb(var(--shadow-rgb) / 0.06);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 20px 40px -28px rgb(15 23 42 / 0.2);
   animation: ls-sobe 0.7s 0.1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .ls-mes {
   margin-bottom: 8px;
-  font-family: var(--disp);
-  font-size: 22px;
+  font-family: var(--font);
+  font-size: var(--fs-22);
   font-weight: 700;
   letter-spacing: -0.02em;
   text-transform: capitalize;
@@ -751,17 +1225,17 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
 }
 .ls-grade {
   display: grid;
-  grid-template-columns: repeat(7, 40px);
+  grid-template-columns: repeat(7, 38px);
   grid-auto-rows: clamp(30px, 4.4dvh, 38px);
 }
 .ls-dow {
   display: grid;
   place-items: center;
   height: 24px;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--faint);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
 }
 .ls-dia {
   position: relative;
@@ -770,8 +1244,8 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   align-items: center;
   justify-content: center;
   gap: 4px;
-  font-family: var(--disp);
-  font-size: 17px;
+  font-family: var(--font);
+  font-size: var(--fs-15);
   font-weight: 500;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
@@ -782,11 +1256,23 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   color: var(--faint);
 }
 .ls-dia.domingo {
-  color: color-mix(in srgb, var(--faint) 75%, #e2566a);
+  color: var(--faint);
 }
 .ls-dia.hoje {
   font-weight: 700;
-  color: var(--accent);
+  color: #fff;
+}
+.ls-dia.hoje .ls-num::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--brand);
+  translate: -50% -50%;
 }
 .ls-num {
   position: relative;
@@ -797,8 +1283,8 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   position: absolute;
   z-index: -1;
   inset: 22% -6px 4% -6px;
-  border-radius: 4px 7px 5px 6px;
-  background: color-mix(in srgb, var(--marca-texto) 85%, transparent);
+  border-radius: 6px;
+  background: var(--amber-line);
   transform: scaleX(0) skewX(-8deg);
   transform-origin: left;
   animation: ls-marca-texto 0.45s 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
@@ -820,6 +1306,9 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   overflow: visible;
   transform: translate(-50%, -50%) rotate(-6deg);
   pointer-events: none;
+}
+.ls-anel {
+  display: none;
 }
 .ls-anel path {
   fill: none;
@@ -850,11 +1339,10 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   gap: 2px 10px;
   align-items: start;
   padding: 12px 14px;
-  border-radius: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   background: #fff;
-  box-shadow:
-    0 14px 34px -16px rgb(21 48 92 / 0.3),
-    0 1px 2px rgb(var(--shadow-rgb) / 0.05);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 12px 28px -20px rgb(15 23 42 / 0.2);
   animation: ls-chega 0.6s cubic-bezier(0.34, 1.4, 0.5, 1) both;
 }
 .ls-nota.prova { animation-delay: 1.7s; }
@@ -866,19 +1354,19 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: 11px;
+  border-radius: var(--r-md);
 }
-.ls-nota.prova .ls-ic { background: #ffe4e8; color: #c43a52; }
-.ls-nota.email .ls-ic { background: var(--bebe); color: var(--bebe-ink); }
-.ls-nota.nota .ls-ic { background: var(--accent-tint); color: #1b7049; }
+.ls-nota.prova .ls-ic { background: var(--c-prova-bg); color: var(--c-prova-t); }
+.ls-nota.email .ls-ic { background: var(--brand-50); color: var(--brand-h); }
+.ls-nota.nota .ls-ic { background: var(--green-bg); color: var(--green); }
 .ls-k {
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
 }
 .ls-nota b {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.3;
   color: var(--ink);
 }
@@ -890,15 +1378,16 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   grid-column: 3;
   grid-row: 1 / span 3;
   align-self: center;
-  font-family: var(--disp);
-  font-size: 30px;
-  font-weight: 750;
-  letter-spacing: -0.03em;
+  font-family: var(--font);
+  font-size: var(--fs-26);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
 .ls-valor small {
   font-family: var(--font);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0;
   color: var(--faint);
@@ -934,76 +1423,6 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: #fff1c2; --tom: #8a6400; }
   }
 }
 
-/* ---------- Notas: "Próxima avaliação" também em azul bebê ---------- */
-html .kpi.notas-kpi-next {
-  border-color: transparent;
-  background:
-    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 14%, transparent) 1.1px, transparent 1.6px) 0 0 / 20px 20px,
-    var(--bebe);
-  color: var(--bebe-ink);
-}
-html .notas-kpi-next .kpi-label,
-html .notas-kpi-next .kpi-val,
-html .notas-kpi-next .kpi-val.notas-kpi-none {
-  color: var(--bebe-ink);
-}
-html .notas-kpi-next .kpi-ico {
-  background: rgb(255 255 255 / 0.72);
-  color: var(--bebe-ink);
-}
-html .notas-kpi-next .kpi-hint {
-  color: color-mix(in srgb, var(--bebe-ink) 72%, transparent);
-}
-@media (hover: hover) and (pointer: fine) {
-  html .kpi.notas-kpi-next.is-link:hover {
-    border-color: transparent;
-    background: var(--bebe-2);
-  }
-}
-
-/* ---------- Lembretes: "Próximo aviso" em azul bebê ---------- */
-html .kpi.rem-next {
-  border-color: transparent;
-  background:
-    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bebe-ink) 14%, transparent) 1.1px, transparent 1.6px) 0 0 / 20px 20px,
-    var(--bebe);
-  color: var(--bebe-ink);
-}
-html .rem-next .kpi-label,
-html .rem-next .kpi-val {
-  color: var(--bebe-ink);
-}
-html .rem-next .kpi-ico {
-  background: rgb(255 255 255 / 0.72);
-  color: var(--bebe-ink);
-}
-html .rem-next .kpi-hint {
-  color: color-mix(in srgb, var(--bebe-ink) 72%, transparent);
-}
-
-/* ---------- Cronograma (mês), no molde do protótipo ----------
-   Sem caixa nem grade: cada dia é só uma linha fina em cima, com respiro entre as colunas, como
-   folha de agenda. Número na fonte de título, evento = ponto da categoria + nome, hoje circulado a
-   caneta e o dia escolhido com uma faixa azul em cima. */
-html .cal {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-html .cal-head {
-  column-gap: 6px;
-  border-bottom: 0;
-  background: var(--surface);
-}
-/* dias da semana no alto do calendário: cabeçalho de coluna em frase ("Seg", "Ter"), como o .tbl th */
-html .cal-head span {
-  padding: 6px 6px 10px;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: capitalize;
-  color: var(--ink-3);
-}
 html .week {
   column-gap: 6px;
   border-bottom: 0;
@@ -1033,141 +1452,20 @@ html .day.sel {
   background: var(--brand-50);
   box-shadow: inset 0 2px 0 var(--brand);
 }
-html .dnum {
-  justify-content: flex-start;
-  width: 28px;
-  height: 26px;
-  margin: 0 0 2px -1px;
-  padding-left: 3px;
-  border-radius: 0;
-  font-family: var(--disp);
-  font-size: 15px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-html .day.out .dnum {
-  color: var(--muted);
-  font-weight: 550;
-}
-html .day.out .ce {
-  opacity: 0.6;
-}
-/* evento: ponto + nome em até duas linhas; a hora fica na dica e na lista do dia */
-html .ce {
-  position: relative;
-  padding: 2px 4px 2px 13px;
-  border-radius: 6px;
-  background: transparent;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-html .ce::before {
-  content: "";
-  position: absolute;
-  left: 3px;
-  top: 7px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-/* o ponto usa a cor viva da categoria (a mesma da legenda), não a do texto da etiqueta */
-html .ce.c-prova::before { background: #e11d48; }
-html .ce.c-trab::before { background: #7c3aed; }
-html .ce.c-ativ::before { background: #0284c7; }
-html .ce.c-extra::before { background: #d97706; }
-html .ce.c-inst::before { background: #2563eb; }
-html .ce.c-fer::before { background: #059669; }
-html .ce.c-rec::before { background: #65a30d; }
-html .ce:hover {
-  background: var(--surface-2);
-}
-html .ce .t {
-  font-size: 12px;
-  color: var(--ink-2);
-}
-html .ce .h {
-  display: none;
-}
-html .day.today .dnum {
-  position: relative;
-  justify-content: center;
-  padding-left: 0;
-  background: transparent;
-  color: #1b7049;
-  font-weight: 800;
-}
-html .day.today .dnum::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 40px;
-  height: 34px;
-  translate: -50% -50%;
-  rotate: -6deg;
-  pointer-events: none;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 56'%3E%3Cpath d='M35 5C52 4 62 16 59 30C56 45 38 53 22 49C7 45 2 31 7 19C12 8 26 3 40 6C45 7 49 9 51 11' fill='none' stroke='%232fae76' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
-  -webkit-mask: conic-gradient(from 80deg, #000 var(--risco), transparent 0);
-  mask: conic-gradient(from 80deg, #000 var(--risco), transparent 0);
-  animation: caneta 0.9s 0.3s cubic-bezier(0.6, 0.1, 0.3, 1) forwards;
-}
-/* lista do dia, aberta embaixo da semana: bloco preenchido, sem as linhas em volta */
-html .cal-day {
-  margin: 4px 0 12px;
-  border: 0;
-  border-radius: 18px;
-  background: var(--surface-2);
-}
-html .cal-day .ev:not(.sel):hover {
-  background: #fff;
-}
-/* legenda das cores: no pé da grade */
-html .cal-leg {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
-  margin-top: 14px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--ink-3);
-}
-html .cal-leg li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-html .cal-leg .dot {
-  width: 7px;
-  height: 7px;
-}
+
 /* celular e tablet: o dia vira um número com os pontos embaixo */
 @media (max-width: 1023px) {
-  html .cal-head,
   html .week {
     column-gap: 2px;
   }
-  html .cal-head span {
-    padding: 4px 0 8px;
-    font-size: 12px;
-  }
+
   html .day {
     min-height: 58px;
     padding: 6px 2px;
     align-items: center;
     gap: 4px;
   }
-  html .dnum {
-    justify-content: center;
-    margin: 0;
-    padding-left: 0;
-  }
-  html .day.today .dnum::after {
-    width: 36px;
-    height: 32px;
-  }
+
 }
 @keyframes cal-surge {
   from {
@@ -1183,100 +1481,47 @@ html .cal-leg .dot {
   html .day {
     animation: none;
   }
-  html .day.today .dnum::after {
-    animation: none;
-    --risco: 360deg;
-  }
 }
 
-/* ---------- menos bordas ----------
-   Cartão separa do fundo pela sombra; caixa dentro do cartão separa pelo preenchimento.
-   Fica com contorno só o que é estado (opção escolhida, foco) e as áreas de soltar arquivo. */
+/* ---------- bordas da direção A ----------
+   Card branco com borda de 1px e sombra mínima. Botão secundário e campo: brancos com borda (o foco
+   ganha a borda azul e o anel). Caixa informativa dentro do card: cinza bem claro, com borda. */
 html :is(.card, .surface) {
-  border-color: transparent;
-  box-shadow:
-    0 1px 2px rgb(var(--shadow-rgb) / 0.04),
-    0 10px 30px -18px rgb(23 50 92 / 0.22);
-}
-html :is(
-    .semestre, .ucard, .student-pick, .side-search .kbd,
-    .ev-date, .mini, .mini-ico, .aviso, .rem-row, .empty-inline,
-    .admin-code.wt, .admin-annual, .admin-subform, .admin-offer, .admin-pill-wt, .admin-pill-warn,
-    .admin-pend-box, .admin-codebox, .admin-guard,
-    .callout.aluno-review, .aluno-guard, .aluno-codebox, .aluno-code-row, .aluno-code-ico,
-    .docente-oferta, .docente-code-chip, .docente-pill-wt, .docente-pend-box, .docente-codebox,
-    .notas-docente-imp, .notas-docente-grades, .notas-docente-file, .notas-docente-rows,
-    .notas-who, .notas-stage, .notas-howto,
-    .resp-vinc-side, .resp-sees-notes, .resp-aluno
-  ) {
-  border-color: transparent;
-}
-/* o que era branco com borda dentro do cartão branco ganha preenchimento */
-html :is(.rem-row, .notas-howto) {
-  background: var(--surface-2);
-}
-html .rem-row.past {
-  background: color-mix(in srgb, var(--surface-2) 55%, #fff);
-}
-html :is(.admin-code.wt, .admin-pill-wt, .docente-code-chip, .docente-pill-wt) {
-  background: var(--fill);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--sh-card);
 }
 html .ev.sel .ev-date {
   background: #fff;
 }
-html button.mini:hover,
-html a.mini:hover {
-  border-color: transparent;
+html :is(.rem-row, .notas-howto) {
+  border-color: var(--line);
+  background: var(--surface-2);
 }
 
-/* botões e campos: preenchidos, sem contorno (o foco continua com a borda azul) */
-html .btn-s,
-html .ib {
-  border-color: transparent;
-  background: var(--fill);
-}
-html .btn-s:hover:not(:disabled),
-html .ib:hover:not(:disabled) {
-  border-color: transparent;
-  background: var(--fill-h);
-}
-html .btn-danger {
-  border-color: transparent;
-  background: #fdecef;
-}
-html .input,
-html .side-search input {
-  border-color: transparent;
-  background-color: var(--fill);
-}
-html .input:hover:not(:focus) {
-  background-color: var(--fill-h);
-}
-html .input:focus,
-html .side-search input:focus {
-  border-color: var(--brand);
-  background-color: #fff;
-}
-html .input[aria-invalid="true"] {
-  border-color: var(--danger);
-}
-html .rem-offset {
-  border-color: transparent;
-  background-color: #fff;
-}
-html .rem-offset:hover {
-  border-color: transparent;
-  background-color: var(--fill);
-}
 html .opt {
-  border-color: transparent;
-  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+html .opt:hover {
+  border-color: var(--line-strong);
 }
 html .opt.on {
   border-color: var(--brand);
   background: var(--brand-50);
+  box-shadow: var(--ring);
 }
 html .notas-docente-step-n {
-  border-color: transparent;
+  border-color: var(--line);
   background: var(--fill);
+}
+/* entrar no celular: o cartão é a tela toda, sem borda nem cantos */
+@media (max-width: 639px) {
+  html .entrada-card {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }

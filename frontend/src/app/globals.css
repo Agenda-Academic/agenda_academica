@@ -18,63 +18,129 @@
 @import "./styles/gestao.css" layer(components);
 @import "./styles/lembretes.css" layer(components);
 @import "./styles/ux.css" layer(components);
+@import "./styles/componentes.css" layer(components);
 
 /* ==================================================================
-   Tokens do produto: visual novo (azul bebê). O verde ficou só para
-   "hoje" e para o que deu certo.
+   Tokens do produto: direção A, "Claro e organizado" (rodada 7, 2026-11-22).
+   Referência: amostra-a-claro/amostra.css. Cinzas slate, azul #2563EB, fundo
+   #F8FAFC, linhas #E2E8F0, cards brancos com borda de 1px e sombra mínima,
+   raios de 8, 10 e 12 px. Os nomes antigos (--night, --bebe, --accent...)
+   continuam valendo como apelidos dos valores novos, para as telas que ainda
+   usam esses nomes não quebrarem.
    ================================================================== */
 :root {
-  /* neutros (cinza frio puxado para o azul) */
-  --bg: #f4f7fc;
+  /* neutros (slate) */
+  --bg: #f8fafc;
   --surface: #ffffff;
-  --surface-2: #f2f6fc;
-  --fill: #ebf1f9;
-  --fill-h: #dfe8f5;
-  --line: #e3e9f3;
-  --line-2: #edf1f8;
-  --line-strong: #ccd7e8;
-  --line-hover: #a8b8d2;
-  --seg-bg: #e9f0fa;
-  --neutral-tint: #eef3fa;
-  --ink: #14203a;
-  --ink-2: #26324a;
-  --ink-3: #45526a;
-  --muted: #5f6b85;
-  --muted-2: #6b7790;
-  --faint: #a1abbf;
+  --surface-2: #f8fafc;
+  --fill: #f1f5f9;
+  --fill-h: #e2e8f0;
+  --line: #e2e8f0;
+  --line-2: #f1f5f9;
+  --line-strong: #cbd5e1;
+  --line-hover: #94a3b8;
+  --seg-bg: #f1f5f9;
+  --neutral-tint: #f1f5f9;
+  --ink: #0f172a; /* títulos */
+  --ink-2: #334155; /* corpo */
+  --ink-3: #475569; /* secundário */
+  --muted: #64748b; /* metadado (4,8:1 no branco) */
+  --muted-2: #64748b;
+  --faint: #94a3b8; /* desabilitado, placeholder */
   /* cor de ação: azul */
-  --brand: #2f6fd6;
-  --brand-600: #245bb5;
-  --brand-50: #eaf2ff;
-  --brand-100: #d6e6ff;
-  --brand-200: #b5d2ff;
-  --brand-400: #5e9bf0;
-  --brand-ink: #1c4a96;
-  --brand-rgb: 47 111 214;
-  /* azul escuro (detalhes) */
-  --night: #1f3a68;
-  --night-2: #2a4a80;
-  --night-3: #3a5c96;
-  --night-rgb: 20 32 58;
-  --on-night: #dce7f7;
-  --on-night-2: #b6c8e4;
+  --brand: #2563eb;
+  --brand-h: #1d4ed8;
+  --brand-600: #1d4ed8;
+  --link: #1d4ed8;
+  --brand-50: #eff6ff;
+  --brand-100: #dbeafe;
+  --brand-200: #bfdbfe;
+  --brand-400: #60a5fa;
+  --brand-ink: #1d4ed8;
+  --brand-rgb: 37 99 235;
+  /* apelidos antigos do azul escuro: viram o slate escuro */
+  --night: #0f172a;
+  --night-2: #1e293b;
+  --night-3: #334155;
+  --night-rgb: 15 23 42;
+  --on-night: #e2e8f0;
+  --on-night-2: #cbd5e1;
+  /* situação: âmbar (atenção), verde (deu certo), vermelho (erro) */
+  --amber: #b45309;
+  --amber-bg: #fffbeb;
+  --amber-line: #fde68a;
+  --amber-bar: #f59e0b;
+  --green: #047857;
+  --green-bg: #ecfdf5;
+  --green-line: #a7f3d0;
+  --green-bar: #10b981;
+  --red: #b91c1c;
+  --red-bg: #fef2f2;
+  --red-line: #fecaca;
+  --red-bar: #ef4444;
   /* verde: hoje, ao vivo, deu certo */
-  --accent: #2fae76;
-  --accent-tint: #dcf5e9;
-  --accent-rgb: 47 174 118;
-  --shadow-rgb: 20 32 58;
-  --danger: #b4234a;
-  --danger-rgb: 180 35 74;
-  /* azul bebê do destaque e dos botões principais */
-  --bebe: #e4f0ff;
-  --bebe-2: #d0e5ff;
-  --bebe-ink: #15305c;
-  --bebe-botao: #cfe3ff;
-  --bebe-botao-h: #bbd7ff;
-  --marca-texto: #ffe27a;
+  --accent: #059669;
+  --accent-tint: #ecfdf5;
+  --accent-rgb: 5 150 105;
+  --shadow-rgb: 15 23 42;
+  --danger: #b91c1c;
+  --danger-rgb: 185 28 28;
+  /* apelidos do antigo "azul bebê": viram o azul claro da direção A */
+  --bebe: #eff6ff;
+  --bebe-2: #dbeafe;
+  --bebe-ink: #1e3a8a;
+  --bebe-botao: #dbeafe;
+  --bebe-botao-h: #bfdbfe;
+  --marca-texto: #fde68a;
 
-  --font: var(--font-figtree), system-ui, sans-serif;
-  --disp: var(--font-bricolage), var(--font-figtree), system-ui, sans-serif;
+  /* categorias: cor forte (ponto e faixa), texto e fundo 50 */
+  --c-prova: #dc2626;
+  --c-prova-t: #b91c1c;
+  --c-prova-bg: #fef2f2;
+  --c-trab: #7c3aed;
+  --c-trab-t: #6d28d9;
+  --c-trab-bg: #f5f3ff;
+  --c-ativ: #4f46e5;
+  --c-ativ-t: #4338ca;
+  --c-ativ-bg: #eef2ff;
+  --c-extra: #ea580c;
+  --c-extra-t: #c2410c;
+  --c-extra-bg: #fff7ed;
+  --c-inst: #0284c7;
+  --c-inst-t: #0369a1;
+  --c-inst-bg: #f0f9ff;
+  --c-fer: #059669;
+  --c-fer-t: #047857;
+  --c-fer-bg: #ecfdf5;
+  --c-rec: #ca8a04;
+  --c-rec-t: #a16207;
+  --c-rec-bg: #fefce8;
+
+  /* escala de texto: 12 13 14 15 16 18 22 26 */
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-15: 15px;
+  --fs-16: 16px;
+  --fs-18: 18px;
+  --fs-22: 22px;
+  --fs-26: 26px;
+
+  /* raios, sombras e anel de foco */
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 12px;
+  --r-full: 999px;
+  --sh-card: 0 1px 2px rgb(15 23 42 / 0.04);
+  --sh-btn: 0 1px 2px rgb(15 23 42 / 0.05);
+  --sh-pop: 0 16px 40px -12px rgb(15 23 42 / 0.22), 0 2px 6px rgb(15 23 42 / 0.06);
+  --sh-drawer: -24px 0 48px -24px rgb(15 23 42 / 0.35);
+  --ring: 0 0 0 3px rgb(37 99 235 / 0.18);
+  --scrim: rgb(15 23 42 / 0.32);
+
+  --font: var(--font-jakarta), system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* uma família só: --disp aponta para a mesma fonte (quem usa .disp continua certo) */
+  --disp: var(--font-jakarta), system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
@@ -103,6 +169,20 @@
   --color-line-2: var(--line-2);
   --color-line-strong: var(--line-strong);
   --color-surface-2: var(--surface-2);
+  --color-surface: var(--surface);
+  --color-fill: var(--fill);
+  --color-brand-h: var(--brand-h);
+  --color-danger: var(--danger);
+  --color-amber: var(--amber);
+  --color-amber-bg: var(--amber-bg);
+  --color-amber-line: var(--amber-line);
+  --color-amber-bar: var(--amber-bar);
+  --color-green: var(--green);
+  --color-green-bg: var(--green-bg);
+  --color-green-line: var(--green-line);
+  --color-red: var(--red);
+  --color-red-bg: var(--red-bg);
+  --color-red-line: var(--red-line);
   --font-sans: var(--font);
   --font-display: var(--disp);
   --font-mono: var(--mono);
@@ -110,10 +190,19 @@
 
 body {
   background: var(--bg);
-  color: var(--ink);
+  color: var(--ink-2);
   font-family: var(--font);
+  font-size: var(--fs-15);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* números tabulares onde eles se comparam: datas, notas, contagens (classe .num ou .tnum, e <time>) */
+.num,
+.tnum,
+time {
+  font-variant-numeric: tabular-nums;
 }
 
 button,
@@ -245,7 +334,7 @@ button:disabled {
   }
   .brand-sub {
     margin-top: 2px;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--on-night-2);
   }
   /* gaveta do celular (Figma 18): o X fica dentro da faixa da marca e a linha de baixo atravessa a
@@ -347,7 +436,7 @@ button:disabled {
     padding: 0 14px;
     border-radius: 12px;
     color: var(--on-night);
-    font-size: 14.5px;
+    font-size: 14px;
     font-weight: 600;
     text-align: left;
   }
@@ -395,7 +484,7 @@ button:disabled {
   }
   .semestre b {
     color: #fff;
-    font-weight: 650;
+    font-weight: 600;
   }
   .semestre .bar {
     margin-top: 9px;
@@ -444,7 +533,7 @@ button:disabled {
      title. Uma palavra só maior que a linha (um e-mail) termina em reticência. */
   .uname {
     font-size: 14px;
-    font-weight: 650;
+    font-weight: 600;
     line-height: 1.5;
     max-height: 1.5em;
     overflow: hidden;
@@ -675,7 +764,7 @@ button:disabled {
   }
   /* rótulo curto acima de um título ("Próximo compromisso"): em frase, sem caixa alta (regra do Diogo) */
   .eyebrow {
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 0;
     line-height: 1.35;
@@ -694,18 +783,7 @@ button:disabled {
     color: var(--muted);
     line-height: 1.5;
   }
-  /* duas colunas que terminam na mesma linha */
-  .cols {
-    display: grid;
-    gap: 20px;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
-  }
-  @media (min-width: 1200px) {
-    .cols {
-      grid-template-columns: minmax(0, 1fr) 340px;
-    }
-  }
+
   .col {
     min-width: 0;
     display: flex;
@@ -715,29 +793,7 @@ button:disabled {
   .col > .grow {
     flex: 1;
   }
-  /* grade de cards: na mesma linha, todos começam e terminam juntos (a linha fica com a
-     altura do card mais alto); cada card cresce com o conteúdo e quem rola é a página */
-  .board {
-    display: grid;
-    gap: 20px;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
-  }
-  .board > .card {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  @media (min-width: 1200px) {
-    /* coluna de apoio de 330 px, a do Figma */
-    .board {
-      grid-template-columns: minmax(0, 1fr) 330px;
-      grid-auto-rows: auto;
-    }
-    .board > .tall {
-      grid-row: span 2;
-    }
-  }
+
   /* Painéis da docente e da administração (Figma): coluna larga e coluna de apoio de 330 px (flex
      999 e 1, como no Figma), uma embaixo da outra quando as duas não cabem. Lado a lado, as colunas
      terminam juntas: o card de baixo de cada uma (.duo-fill) estica até o fim da mais alta e guarda
@@ -853,7 +909,7 @@ button:disabled {
     border-radius: 8px;
     text-align: left;
     font-size: 14px;
-    font-weight: 650;
+    font-weight: 600;
     line-height: 1.35;
     overflow-wrap: anywhere;
   }
@@ -887,11 +943,7 @@ button:disabled {
       radial-gradient(farthest-side at 50% 0, rgb(var(--shadow-rgb) / 0.12), transparent) top / 100% 10px no-repeat scroll,
       radial-gradient(farthest-side at 50% 100%, rgb(var(--shadow-rgb) / 0.12), transparent) bottom / 100% 10px no-repeat scroll;
   }
-  /* nos cards da grade o miolo tem a altura do conteúdo: nada de rolagem dentro do card */
-  .board .scroll {
-    overflow: visible;
-    background: none;
-  }
+
   /* rodapé do card ("Ver todos (N)"): fica no pé quando o card estica para alinhar a linha */
   .card-foot {
     margin-top: auto;
@@ -978,7 +1030,7 @@ button:disabled {
     align-items: center;
     gap: 6px;
     font-size: 14px;
-    font-weight: 650;
+    font-weight: 600;
     color: var(--brand);
   }
   .link:hover {
@@ -995,7 +1047,7 @@ button:disabled {
     padding: 0 18px;
     border-radius: 12px;
     font-size: 14px;
-    font-weight: 650;
+    font-weight: 600;
     border: 1px solid transparent;
     white-space: nowrap;
     background: none;
@@ -1058,7 +1110,7 @@ button:disabled {
     padding: 0 10px;
     border-radius: 999px;
     font-size: 12px;
-    font-weight: 650;
+    font-weight: 600;
     white-space: nowrap;
   }
   .dot {
@@ -1068,36 +1120,35 @@ button:disabled {
     border-radius: 999px;
     flex-shrink: 0;
   }
-  .c-prova { background: #ffe4e8; color: #9f1239; }
-  .d-prova { background: #e11d48; }
-  .c-trab { background: #ede9fe; color: #5b21b6; }
-  .d-trab { background: #7c3aed; }
-  .c-ativ { background: #e0f2fe; color: #075985; }
-  .d-ativ { background: #0284c7; }
-  .c-extra { background: #fef3c7; color: #92400e; }
-  .d-extra { background: #d97706; }
-  .c-inst { background: #dbeafe; color: #1e40af; }
-  .d-inst { background: #2563eb; }
-  .c-fer { background: #d1fae5; color: #065f46; }
-  .d-fer { background: #059669; }
-  .c-rec { background: #ecfccb; color: #3f6212; }
-  .d-rec { background: #65a30d; }
-  .st-ag { background: var(--neutral-tint); color: var(--ink-3); }
-  .st-alt { background: #fef3c7; color: #92400e; }
-  .st-conc { background: #d1fae5; color: #065f46; }
-  .st-canc { background: #ffe4e8; color: #9f1239; }
-  .prio { background: var(--night); color: var(--accent); }
+  .c-prova { background: var(--c-prova-bg); color: var(--c-prova-t); }
+  .d-prova { background: var(--c-prova); }
+  .c-trab { background: var(--c-trab-bg); color: var(--c-trab-t); }
+  .d-trab { background: var(--c-trab); }
+  .c-ativ { background: var(--c-ativ-bg); color: var(--c-ativ-t); }
+  .d-ativ { background: var(--c-ativ); }
+  .c-extra { background: var(--c-extra-bg); color: var(--c-extra-t); }
+  .d-extra { background: var(--c-extra); }
+  .c-inst { background: var(--c-inst-bg); color: var(--c-inst-t); }
+  .d-inst { background: var(--c-inst); }
+  .c-fer { background: var(--c-fer-bg); color: var(--c-fer-t); }
+  .d-fer { background: var(--c-fer); }
+  .c-rec { background: var(--c-rec-bg); color: var(--c-rec-t); }
+  .d-rec { background: var(--c-rec); }
+  .st-ag { background: var(--fill); color: var(--ink-3); }
+  .st-alt { background: var(--amber-bg); color: var(--amber); }
+
+  .prio { background: var(--brand-50); color: var(--brand-h); }
   /* situação do evento em pílula cheia, como no Figma (Guia visual): as mesmas cores de
      .st-ag, .st-alt, .st-conc e .st-canc. Texto sobre o fundo: 6,8:1, 6,4:1, 6,8:1 e 6,7:1 */
-  .pill.stat { background: var(--neutral-tint); color: var(--ink-3); }
+  .pill.stat { background: var(--fill); color: var(--ink-3); border: 1px solid var(--line); }
   .pill.stat svg {
     width: 12px;
     height: 12px;
     flex-shrink: 0;
   }
-  .pill.stat.stat-canc { background: #ffe4e8; color: #9f1239; }
-  .pill.stat.stat-alt { background: #fef3c7; color: #92400e; }
-  .pill.stat.stat-conc { background: #d1fae5; color: #065f46; }
+  .pill.stat.stat-canc { background: var(--red-bg); color: var(--red); border-color: var(--red-line); }
+  .pill.stat.stat-alt { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-line); }
+  .pill.stat.stat-conc { background: var(--green-bg); color: var(--green); border-color: var(--green-line); }
   /* alto contraste do Windows: sem o fundo, a borda mostra o contorno da pílula */
   @media (forced-colors: active) {
     .pill.stat {
@@ -1113,7 +1164,7 @@ button:disabled {
     border: 1px solid var(--line-strong);
     background: #fff;
     padding: 0 14px;
-    font-size: 14.5px;
+    font-size: 14px;
     color: var(--ink);
     outline: none;
     transition:
@@ -1144,7 +1195,7 @@ button:disabled {
     justify-content: space-between;
     gap: 8px;
     font-size: 14px;
-    font-weight: 650;
+    font-weight: 600;
     color: var(--ink-2);
   }
   .lbl .hint {
@@ -1205,8 +1256,8 @@ button:disabled {
     border: 0;
     border-radius: 10px;
     background: transparent;
-    font-size: 13.5px;
-    font-weight: 650;
+    font-size: 13px;
+    font-weight: 600;
     color: var(--ink-3);
   }
   .seg .on {
@@ -1279,15 +1330,7 @@ button:disabled {
     border: 1.5px solid currentColor;
     font-weight: 700;
   }
-  /* chip escolhido ganha a cor da sua categoria */
-  .chip.c-prova { background: #ffe4e8; color: #9f1239; }
-  .chip.c-trab { background: #ede9fe; color: #5b21b6; }
-  .chip.c-ativ { background: #e0f2fe; color: #075985; }
-  .chip.c-extra { background: #fef3c7; color: #92400e; }
-  .chip.c-inst { background: #dbeafe; color: #1e40af; }
-  .chip.c-fer { background: #d1fae5; color: #065f46; }
-  .chip.c-rec { background: #ecfccb; color: #3f6212; }
-
+  /* chip escolhido: o fundo azul claro da direção A (ux.css); a categoria fica no ponto */
   /* indicadores */
   .kpis {
     display: grid;
@@ -1334,7 +1377,7 @@ button:disabled {
     gap: 8px;
   }
   .kpi-label {
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--ink-3);
   }
@@ -1354,15 +1397,15 @@ button:disabled {
     color: var(--brand);
   }
   /* ícone do indicador na cor da categoria */
-  .kpi-ico.c-prova { background: #ffe4e8; color: #9f1239; }
-  .kpi-ico.c-trab { background: #ede9fe; color: #5b21b6; }
-  .kpi-ico.c-ativ { background: #e0f2fe; color: #075985; }
-  .kpi-ico.c-extra { background: #fef3c7; color: #92400e; }
-  .kpi-ico.c-inst { background: #dbeafe; color: #1e40af; }
+  .kpi-ico.c-prova { background: var(--c-prova-bg); color: var(--c-prova-t); }
+  .kpi-ico.c-trab { background: var(--c-trab-bg); color: var(--c-trab-t); }
+  .kpi-ico.c-ativ { background: var(--c-ativ-bg); color: var(--c-ativ-t); }
+  .kpi-ico.c-extra { background: var(--c-extra-bg); color: var(--c-extra-t); }
+  .kpi-ico.c-inst { background: var(--c-inst-bg); color: var(--c-inst-t); }
   .kpi-val {
     margin-top: 14px;
     font-family: var(--disp);
-    font-size: 40px;
+    font-size: 26px;
     font-weight: 700;
     line-height: 1;
     letter-spacing: -0.01em;
@@ -1724,7 +1767,7 @@ button:disabled {
     .hero.with-date > .datebig .dw,
     .hero.with-date > .datebig .mo {
       font-size: 12px;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.04em;
     }
     .hero.with-date > .datebig svg {
       width: 26px;
@@ -1858,7 +1901,7 @@ button:disabled {
     align-items: center;
     gap: 12px;
     margin: 20px 0 6px;
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 0;
     color: var(--ink-3);
@@ -1921,7 +1964,7 @@ button:disabled {
   /* até duas linhas, com reticências no fim; a palavra que não cabe na linha quebra em vez de sumir */
   .ev-title {
     font-size: 15px;
-    font-weight: 650;
+    font-weight: 600;
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -1948,7 +1991,7 @@ button:disabled {
   }
   .ev-time {
     font-size: 14px;
-    font-weight: 650;
+    font-weight: 600;
   }
   .ev-rel {
     margin-top: 3px;
@@ -1956,8 +1999,8 @@ button:disabled {
     color: var(--muted);
   }
   .ev-rel.soon {
-    color: var(--danger);
-    font-weight: 650;
+    color: var(--amber);
+    font-weight: 600;
   }
   /* hora junto das pílulas ("19:00, em 2 dias"): só na coluna estreita */
   .ev-at {
@@ -1965,8 +2008,8 @@ button:disabled {
     white-space: nowrap;
   }
   .ev-at .soon {
-    color: var(--danger);
-    font-weight: 650;
+    color: var(--amber);
+    font-weight: 600;
   }
   /* coluna estreita (celular, card de até 400px), como no Figma 15 e 16: linha compacta, a hora desce
      para junto das pílulas e o título usa a largura toda. Fica depois das regras da linha para valer. */
@@ -2049,7 +2092,7 @@ button:disabled {
   }
   .mini-t {
     font-size: 14px;
-    font-weight: 650;
+    font-weight: 600;
     line-height: 1.35;
   }
   .mini-s {
@@ -2089,8 +2132,8 @@ button:disabled {
   .aviso-t {
     flex: 1 1 260px;
     min-width: 0;
-    font-size: 14.5px;
-    font-weight: 650;
+    font-size: 14px;
+    font-weight: 600;
     line-height: 1.4;
   }
   .aviso-acts {
@@ -2122,16 +2165,23 @@ button:disabled {
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    padding: 14px 16px;
-    border-radius: 14px;
+    padding: 12px 14px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink-2);
     font-size: 14px;
     line-height: 1.5;
   }
-  .callout.green { background: var(--brand-50); color: var(--brand-ink); }
-  .callout.blue { background: #eaf1fe; color: #1e3a8a; }
-  .callout.amber { background: #fff7e0; color: #7a3b06; }
-  .callout.rose { background: #fff1f3; color: #9f1239; }
+  .callout.green { background: var(--green-bg); border-color: var(--green-line); color: #065f46; }
+  .callout.blue { background: var(--brand-50); border-color: var(--brand-200); color: #1e3a8a; }
+  .callout.amber { background: var(--amber-bg); border-color: var(--amber-line); color: #78350f; }
+  .callout.rose { background: var(--red-bg); border-color: var(--red-line); color: #991b1b; }
   .callout.past { background: var(--surface-2); color: var(--ink-3); }
+  .callout.blue > svg { color: var(--brand); }
+  .callout.amber > svg { color: var(--amber); }
+  .callout.rose > svg { color: var(--red); }
+  .callout.green > svg { color: var(--green); }
 
   /* tabela */
   .tbl {
@@ -2143,9 +2193,9 @@ button:disabled {
     padding: 12px 16px;
     text-align: left;
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0;
-    color: var(--ink-3);
+    color: var(--muted);
     background: var(--surface-2);
     border-bottom: 1px solid var(--line);
   }
@@ -2158,7 +2208,7 @@ button:disabled {
     border-bottom: 0;
   }
   .tbl .t {
-    font-weight: 650;
+    font-weight: 600;
   }
   .tbl .s {
     margin-top: 4px;
@@ -2171,409 +2221,6 @@ button:disabled {
     gap: 6px;
   }
 
-  /* Gestão: o card ao lado da lista (disciplinas e turmas da docente, datas oficiais da administração)
-     tem a altura do conteúdo e fica parado no alto enquanto a lista rola, no respiro do menu (20px), só
-     quando cabe inteiro na tela (data-stick e --side-h vêm da manage-view). Mais alto que a tela, ele
-     rola com a página, e o título não some. Com aviso no canto (--toast-corner, do ui.tsx), o card parado
-     sobe para o pé ficar acima do aviso e volta quando ele sai, mas no máximo até 16px acima do alto da
-     tela (sai só parte do respiro de cima): o título continua à vista. Se nem assim ele cabe entre esse
-     limite e o aviso, a manage-view tira o data-stick enquanto houver aviso, e ele rola com a página.
-     Ao lado da lista só a partir de 1600px (a manage-view usa a mesma largura); abaixo disso ele desce
-     e não gruda. */
-  @media (min-width: 1600px) {
-    .manage-side[data-stick] {
-      position: sticky;
-      top: max(-16px, min(20px, calc(100vh - var(--side-h, 0px) - max(20px, var(--toast-corner, 0px)))));
-      transition: top 0.2s ease;
-    }
-  }
-  /* itens do card ao lado: um embaixo do outro na coluna de 300px; com o card embaixo da lista, na
-     largura toda, eles se dividem em colunas de pelo menos 280px (cada linha começa e termina junto) */
-  .manage-side-list {
-    margin-top: 16px;
-    display: grid;
-    gap: 8px;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  }
-
-  /* ------------------------------------------------------------------ */
-  /* Lembretes e Importar calendário (Figma, telas 5 e 10)               */
-  /* ------------------------------------------------------------------ */
-  /* coluna principal e coluna lateral lado a lado (a partir de 1200px) terminam juntas (decisão 2):
-     a mais baixa estica. Na lateral, o último card cresce e a sobra fica no pé dele (.tela-gap); no
-     principal, quem cresce é a lista de "Aguardando aviso" ou o campo do JSON. Quando o principal passa
-     da lateral por mais que uma sobra pequena, a lateral fica do tamanho do conteúdo e parada no alto
-     enquanto a página rola (.is-stuck, de useSideFit em reminders-view.tsx), como na Gestão; mais alta
-     que a tela, ela para com o pé à vista (--side-h). Abaixo de 1200px, uma coluna só. */
-  .tela-cols {
-    display: grid;
-    gap: 20px;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-  }
-  .tela-main,
-  .tela-side {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-  .tela-gap {
-    flex: 1 1 0;
-    min-height: 0;
-  }
-  @media (min-width: 1200px) {
-    .tela-cols {
-      grid-template-columns: minmax(0, 1fr) 340px;
-      align-items: stretch;
-    }
-    .tela-main > .card:last-child,
-    .tela-side > .card:last-child {
-      flex: 1 1 auto;
-    }
-    .tela-side > .card:last-child,
-    .imp-json-card {
-      display: flex;
-      flex-direction: column;
-    }
-    .tela-cols.is-stuck > .tela-side {
-      align-self: start;
-      position: sticky;
-      top: min(20px, calc(100vh - var(--side-h, 0px) - 20px));
-    }
-    /* Importar: o card do JSON estica pelo campo, que fica mais alto */
-    .imp-json-card > .input.imp-json {
-      flex: 1 0 auto;
-    }
-  }
-  /* "Aguardando aviso": esticado, a lista fica com a sobra (o vazio, no meio dela) e o "Ver todos" no pé */
-  .rem-pend {
-    display: flex;
-    flex-direction: column;
-  }
-  .rem-pend-body {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .rem-pend-body > .empty-inline {
-    flex: 1 1 auto;
-    justify-content: center;
-  }
-  /* sem lembrete esperando: o aviso numa linha (ícone à esquerda) e as sugestões na largura toda do card */
-  .rem-empty {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
-  .rem-empty-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px 16px;
-    padding: 16px 18px;
-    border-radius: 16px;
-    background: var(--surface-2);
-  }
-  .rem-empty-head .empty-ico {
-    margin: 0;
-  }
-  .rem-empty-t {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--ink);
-  }
-  .rem-empty-s {
-    margin-top: 2px;
-    font-size: 14px;
-    line-height: 1.5;
-    color: var(--muted);
-  }
-  .rem-sugg-t {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--ink-2);
-  }
-  .rem-sugg-list {
-    margin-top: 10px;
-    display: flex;
-    flex-direction: column;
-  }
-  .rem-sugg-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 12px 4px;
-    border-top: 1px solid var(--line-2);
-  }
-  .rem-sugg-row:first-child {
-    border-top: 0;
-  }
-  .rem-sugg-date {
-    display: grid;
-    place-items: center;
-    width: 52px;
-    height: 54px;
-    flex-shrink: 0;
-    border-radius: 14px;
-    background: var(--surface-2);
-    line-height: 1.05;
-  }
-  .rem-sugg-date .dw {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  .rem-sugg-date .dn {
-    font-family: var(--disp);
-    font-size: 21px;
-    font-weight: 750;
-    color: var(--ink);
-  }
-  .rem-sugg-title {
-    font-size: 15px;
-    font-weight: 650;
-    line-height: 1.35;
-  }
-  .rem-sugg-meta {
-    margin-top: 4px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 10px;
-    font-size: 14px;
-    color: var(--muted);
-  }
-  @media (max-width: 639px) {
-    .rem-sugg-row {
-      flex-wrap: wrap;
-    }
-    .rem-sugg-row > .btn {
-      margin-left: 66px;
-    }
-  }
-  /* "Ver todos" logo embaixo da lista, quando o grupo dos cancelados vem depois dela */
-  .rem-more {
-    display: flex;
-  }
-
-  /* Lembretes: três indicadores; até 1100px o "Próximo aviso" ocupa a linha toda */
-  .rem-kpis > .rem-next {
-    grid-column: span 2;
-  }
-  @media (min-width: 1100px) {
-    .kpis.rem-kpis {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-    .rem-kpis > .rem-next {
-      grid-column: auto;
-    }
-  }
-  .kpi.rem-next {
-    background: var(--night);
-    border-color: var(--night);
-    color: #fff;
-  }
-  .rem-next .kpi-label {
-    color: var(--on-night);
-  }
-  .rem-next .kpi-ico {
-    background: rgb(255 255 255 / 0.1);
-    color: var(--accent);
-  }
-  .rem-next .kpi-val {
-    color: var(--accent);
-    overflow-wrap: anywhere;
-  }
-  .rem-next .kpi-val.long {
-    font-size: 28px;
-    line-height: 1.15;
-  }
-  .rem-next .kpi-hint {
-    color: var(--on-night-2);
-  }
-  /* linha de lembrete: ícone, evento com os dados, quando avisa e Remover */
-  .rem-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .rem-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px 16px;
-    padding: 16px;
-    border-radius: 16px;
-    border: 1px solid var(--line);
-    background: #fff;
-    /* a linha que muda de lugar ao salvar a antecedência rola inteira até a vista (reminders-view.tsx),
-       com as folgas dos campos: acima dos avisos do celular e, nele, abaixo do cabeçalho grudado */
-    scroll-margin-bottom: var(--toast-room, 0px);
-  }
-  @media (max-width: 1023px) {
-    .rem-row {
-      scroll-margin-top: 96px;
-    }
-  }
-  .rem-row.past {
-    border-color: var(--line-2);
-    background: var(--surface-2);
-  }
-  .rem-ico {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
-    flex-shrink: 0;
-    background: #e0f2fe;
-    color: #075985;
-  }
-  .rem-row.past .rem-ico {
-    background: #d1fae5;
-    color: #065f46;
-  }
-  .rem-row.void .rem-ico {
-    background: var(--neutral-tint);
-    color: var(--ink-3);
-  }
-  .rem-body {
-    flex: 1 1 320px;
-    min-width: 0;
-  }
-  .rem-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-  }
-  .rem-title {
-    min-width: 0;
-    border-radius: 6px;
-    text-align: left;
-    font-size: 15.5px;
-    font-weight: 650;
-    line-height: 1.35;
-    text-underline-offset: 4px;
-  }
-  button.rem-title:hover {
-    color: var(--brand-ink);
-    text-decoration-line: underline;
-  }
-  /* toque: o título que abre o evento tem alvo de 44 px de altura sem mudar o desenho. O ::after vazio
-     cresce mais para cima (o respiro da linha) do que para baixo (os dados do evento, 8 px abaixo) */
-  @media (any-pointer: coarse) {
-    button.rem-title {
-      position: relative;
-    }
-    button.rem-title::after {
-      content: "";
-      position: absolute;
-      inset: min(0px, calc(100% - 37px)) 0 min(0px, max(-7px, calc(100% - 44px)));
-    }
-  }
-  .rem-row .ev-meta {
-    margin-top: 8px;
-    gap: 6px 16px;
-  }
-  .rem-meta-i {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .rem-meta-i svg {
-    width: 14px;
-    height: 14px;
-    flex-shrink: 0;
-  }
-  /* antecedência do aviso, trocada na própria linha (sem disabled enquanto salva: o foco fica nela) */
-  .rem-offset {
-    height: 34px;
-    padding: 0 30px 0 10px;
-    border-radius: 9px;
-    border: 1px solid var(--line-strong);
-    background: #fff
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
-      no-repeat right 9px center;
-    appearance: none;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--ink-2);
-    cursor: pointer;
-  }
-  .rem-offset:hover {
-    border-color: var(--line-hover);
-  }
-  .rem-acts {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    margin-left: auto;
-  }
-  .rem-when {
-    height: 30px;
-    padding: 0 12px;
-    background: #e0f2fe;
-    color: #075985;
-  }
-  .rem-row.past .rem-when {
-    background: #d1fae5;
-    color: #065f46;
-  }
-  /* card estreito (celular): sem o ícone grande, o evento usa a largura toda */
-  @container (max-width: 520px) {
-    .rem-ico {
-      display: none;
-    }
-    .rem-acts {
-      margin-left: 0;
-    }
-  }
-  .rem-steps {
-    margin-top: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .rem-steps li {
-    display: flex;
-    gap: 12px;
-    font-size: 14px;
-    line-height: 1.5;
-    color: var(--ink-2);
-  }
-  .rem-step-n {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-    flex-shrink: 0;
-    background: var(--brand-50);
-    color: var(--brand);
-    font-weight: 700;
-  }
-
-  /* Importar calendário: indicadores com valor curto (24px), como no Figma */
-  .imp-kpi-val {
-    margin-top: 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--disp);
-    font-size: 24px;
-    font-weight: 700;
-    line-height: 1.2;
-    letter-spacing: -0.01em;
-    overflow-wrap: anywhere;
-  }
   .kpi.imp-kpi-ok {
     background: var(--brand-50);
     border-color: var(--brand-200);
@@ -2582,16 +2229,13 @@ button:disabled {
   .imp-kpi-ok .kpi-hint {
     color: var(--brand-ink);
   }
-  .imp-kpi-ok .imp-kpi-val {
-    color: var(--brand);
-  }
+
   .kpi.imp-kpi-warn {
     background: #fff7e0;
     border-color: #f3d38b;
   }
   .imp-kpi-warn .kpi-label,
-  .imp-kpi-warn .kpi-hint,
-  .imp-kpi-warn .imp-kpi-val {
+  .imp-kpi-warn .kpi-hint {
     color: #7a3b06;
   }
   .imp-ico {
@@ -2613,32 +2257,7 @@ button:disabled {
     background: #fdecec;
     color: #b42318;
   }
-  /* área de soltar o PDF do calendário (mesmo desenho da área do CSV de notas) */
-  .imp-pdf-drop {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 12px;
-    padding: 14px;
-    border-radius: 14px;
-    border: 1.5px dashed var(--line-strong);
-    background: var(--surface-2);
-    transition:
-      border-color 0.16s ease,
-      background-color 0.16s ease;
-  }
-  .imp-pdf-drop.is-over {
-    border-color: var(--brand);
-    background: var(--brand-50);
-  }
-  .imp-pdf-drop.is-bad {
-    border-color: #f3c6d0;
-    background: #fff8f9;
-  }
-  .imp-pdf-main {
-    flex: 1 1 220px;
-    min-width: 0;
-  }
+
   /* PDF arrastado sobre o app (administração): aviso de onde ele vai */
   .drop-overlay {
     position: fixed;
@@ -2674,83 +2293,12 @@ button:disabled {
       animation: none;
     }
   }
-  .imp-demo {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 18px;
-  }
-  /* o texto ocupa o resto da linha do ícone e o botão desce para baixo, como no Figma */
-  .imp-demo-text {
-    flex: 1 1 calc(100% - 70px);
-    min-width: 0;
-  }
-  @container (max-width: 520px) {
-    .imp-demo > .btn {
-      width: 100%;
-      white-space: normal;
-    }
-  }
-  /* campo do JSON escuro, como no Figma. Cresce com o texto, sem limite de altura: nada rola por
-     dentro dele, quem rola é a página (sem field-sizing, a sync-view ajusta a altura pelo script) */
-  .input.imp-json {
-    min-height: 15rem;
-    field-sizing: content;
-    border-color: var(--ink);
-    background: var(--ink);
-    color: var(--on-night);
-    font-family: var(--mono);
-    font-size: 13px;
-    line-height: 1.65;
-  }
-  .input.imp-json::placeholder {
-    color: #9aa7bd;
-  }
-  .input.imp-json:focus {
-    border-color: var(--brand-400);
-    box-shadow: 0 0 0 4px rgb(var(--brand-rgb) / 0.22);
-  }
-  .input.imp-json[aria-invalid="true"] {
-    border-color: #f43f5e;
-  }
-  .input.imp-json[aria-invalid="true"]:focus {
-    border-color: #f43f5e;
-    box-shadow: 0 0 0 4px rgb(var(--danger-rgb) / 0.3);
-  }
-  .kpi-ico.imp-night {
-    background: var(--night);
-    color: var(--accent);
-  }
+
   .empty-ico.imp-lock {
     background: #dbeafe;
     color: #1e40af;
   }
-  .imp-prio-n {
-    margin-top: 12px;
-    font-family: var(--disp);
-    font-size: 56px;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: -0.01em;
-  }
-  .imp-prio-t {
-    margin-top: 6px;
-    font-size: 14.5px;
-    font-weight: 650;
-  }
-  .info.imp-fields {
-    margin-top: 14px;
-    gap: 10px 14px;
-  }
-  .info.imp-fields dt {
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--ink-3);
-  }
-  .imp-opt {
-    font-weight: 500;
-    color: var(--muted);
-  }
+
   /* tabela de importações de ponta a ponta no card, como no Figma */
   .imp-hist {
     overflow: hidden;
@@ -2759,45 +2307,7 @@ button:disabled {
   .imp-hist-head {
     padding: 22px 24px 18px;
   }
-  @media (pointer: coarse) {
-    .rem-offset {
-      height: 40px;
-      font-size: 16px;
-    }
-  }
 
-  /* calendário mensal ("clip" corta os cantos sem virar caixa de rolagem, para o
-     cabeçalho dos dias poder grudar no topo enquanto a página rola) */
-  .cal {
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    overflow: hidden;
-    overflow: clip;
-    background: #fff;
-  }
-  .cal-head {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    background: var(--surface-2);
-    border-bottom: 1px solid var(--line);
-  }
-  /* no celular e no tablet, abaixo do cabeçalho fixo do app */
-  @media (max-width: 1023px) {
-    .cal-head {
-      top: 88px;
-    }
-  }
-  .cal-head span {
-    padding: 11px 12px;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
   .week {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -2828,99 +2338,10 @@ button:disabled {
   .day.we {
     background: var(--surface-2);
   }
-  /* dias de fora do mês: mais claros que os do mês, mas com contraste de 5:1 ou mais no branco,
-     no fim de semana e no dia escolhido (o --faint do Figma ficava em 2,3:1) */
-  .day.out .dnum {
-    color: var(--muted);
-  }
-  .dnum {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 650;
-    color: var(--ink-2);
-  }
-  .day.today .dnum {
-    background: var(--brand);
-    color: #fff;
-  }
+
   .day.sel {
     box-shadow: inset 0 0 0 2px var(--brand);
     background: var(--brand-50);
-  }
-  .ce {
-    display: block;
-    min-width: 0;
-    padding: 5px 8px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 650;
-    line-height: 1.3;
-  }
-  .ce .t {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    font-size: 13px;
-  }
-  /* o título quebra só entre as palavras (sem hífen). Cada palavra é um bloco que termina em
-     reticências quando é mais larga que o chip ("Matemá..."), em qualquer linha, em vez de partir ao
-     meio ("Seminári / o") ou perder as últimas letras na borda ("Matemát") */
-  .ce .t > span {
-    display: inline-block;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: top;
-  }
-  /* a palavra que cabe no chip (o calendar-view.tsx mede) volta a ser texto: com mais de 2 linhas, o
-     line-clamp corta a última palavra da 2ª linha com reticências ("de Engenh..."), em vez de esconder
-     a palavra inteira, como faz com um bloco */
-  .ce .t > span.fits {
-    display: inline;
-    vertical-align: baseline;
-  }
-  /* evento cancelado: o risco do chip não entra sozinho no bloco de cada palavra */
-  .ce .t,
-  .ce .t > span {
-    text-decoration: inherit;
-  }
-  .ce .h {
-    display: block;
-    margin-top: 2px;
-    font-size: 12px;
-    font-weight: 500;
-    opacity: 0.85;
-  }
-  /* pontos de categoria do dia (mês compacto) */
-  .cal-dots {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-    margin-top: 2px;
-  }
-  .cal-dots .dot {
-    width: 7px;
-    height: 7px;
-  }
-  /* lista do dia escolhido: dentro da grade, logo abaixo da semana dele e na largura toda, para o
-     dia e os eventos dele caberem juntos na tela (a borda de cima cobre a linha da semana) */
-  .cal-day {
-    position: relative;
-    margin-top: -1px;
-    padding: 16px;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-    background: #fff;
-  }
-  .cal-day:last-child {
-    border-bottom: 0;
   }
 
   /* modal: cabe sempre na tela (o corpo rola por dentro, com o X e o rodapé à vista);
@@ -3099,9 +2520,9 @@ button:disabled {
     gap: 6px;
     padding: 32px 16px;
     text-align: center;
-    border-radius: 16px;
-    border: 1px dashed var(--line-strong);
-    background: var(--surface-2);
+    /* sem caixa tracejada: o desenho do vazio (decisão 3 da rodada 8) fica em ux.css */
+    border: 0;
+    background: transparent;
   }
   /* vazio compacto: uma linha com ícone e texto, sem esticar o card */
   .empty-inline.compact {
@@ -3133,7 +2554,7 @@ button:disabled {
     background: #fff;
     color: var(--ink);
     font-size: 14px;
-    font-weight: 650;
+    font-weight: 600;
     transform: translateY(calc(-100% - 24px));
   }
   .skip-link:focus,
@@ -3216,8 +2637,8 @@ button:disabled {
     flex-shrink: 0;
   }
   .toast.ok .t-ico { background: rgb(var(--accent-rgb) / 0.16); color: var(--accent); }
-  .toast.err .t-ico { background: #ffe4e8; color: #be123c; }
-  .toast.info .t-ico { background: #dbeafe; color: #1e40af; }
+  .toast.err .t-ico { background: var(--red-bg); color: var(--red); }
+  .toast.info .t-ico { background: var(--brand-50); color: var(--brand-h); }
 
   .card,
   .ev,
@@ -3277,7 +2698,7 @@ button:disabled {
      o desenho: um ::after vazio centrado no botão. */
   @media (any-pointer: coarse) {
     .modal-head > .ib.sm,
-    .drawer-head > .ib.sm {
+    .drawer-head-row > .ib.sm {
       width: 44px;
       height: 44px;
       min-width: 44px;
@@ -3484,6 +2905,22 @@ button.day:focus-visible {
 .admin-drow:focus-visible,
 .admin-srow:focus-visible {
   outline-offset: -2px;
+}
+
+/* abas sublinhadas (.tabs: Eventos / Minhas turmas, Dados do evento / Notas): o .tabs rola na horizontal
+   (overflow-x) e cortava o anel de fora, que virava uma linha solta ao lado da aba. O anel é desenhado num ::after
+   que passa 6 px das laterais da aba (o .tabs tem esse respiro, em visual-novo.css) e fica 4 px para dentro em
+   cima e embaixo: inteiro, sem encostar no texto nem cobrir o sublinhado */
+.tabs > :is(.tab, button, a, [role="tab"]):focus-visible {
+  outline: 2px solid transparent;
+}
+.tabs > :is(.tab, button, a, [role="tab"]):focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 4px -6px 5px;
+  border: 2px solid var(--brand);
+  border-radius: 8px;
+  pointer-events: none;
 }
 
 /* KPI clicável: o anel contorna o card inteiro (desenhado no ::after) */

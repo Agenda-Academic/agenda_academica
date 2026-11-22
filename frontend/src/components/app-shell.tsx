@@ -17,17 +17,16 @@ import {
   RefreshCw,
   School,
   Search,
-  Settings2,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { cx, firstName, formatTime, startOfDay } from "@/lib/format";
+import { cx, firstName, formatTime, isAnnualClass, startOfDay } from "@/lib/format";
 import { roleLabels } from "@/lib/meta";
 import { personClasses, semesterWeek, type SemesterWeek } from "@/lib/semester";
 import type { AcademicClass, AcademicContext, LinkedStudent, User, UserRole } from "@/lib/types";
-import { isOnTopLayer, primaryButton, secondaryButton, useDialogLayer } from "./ui";
+import { isOnTopLayer, primaryButton, useDialogLayer } from "./ui";
 
 /** Telas do app. O endereço de cada uma (?tela=) fica em app/page.tsx (viewSlugs). */
 export type View = "dashboard" | "calendar" | "grades" | "manage" | "classes" | "reminders" | "sync";
@@ -273,7 +272,6 @@ function SideTools({
   inPlace,
   inputRef,
   newEventLabel,
-  quietNewEvent = false,
   resultCount,
   scope = eventSearch,
   search,
@@ -286,12 +284,8 @@ function SideTools({
   inPlace: boolean;
   /** Campo da busca: o Ctrl+K leva o foco até ele. */
   inputRef: RefObject<HTMLInputElement | null>;
+  /** O atalho de criação, sempre azul cheio: o mesmo botão no mesmo lugar em todas as telas. */
   newEventLabel: string | null;
-  /**
-   * O atalho de criação com contorno (não azul cheio): na Gestão, o "Novo evento" do alto da lista já é a ação
-   * principal, e dois botões azuis iguais na mesma tela disputavam a atenção.
-   */
-  quietNewEvent?: boolean;
   resultCount?: number;
   /** O que a busca procura nesta tela (padrão: eventos). */
   scope?: SearchScope;
@@ -331,7 +325,7 @@ function SideTools({
         <input
           ref={inputRef}
           // vazio, o texto não passa por baixo do chip do atalho (que some no toque)
-          className={search ? "pr-10 pointer-coarse:pr-12" : "pr-[66px] pointer-coarse:pr-3.5"}
+          className={search ? "pr-10 pointer-coarse:pr-12 max-md:pr-12" : "pr-[66px] pointer-coarse:pr-3.5"}
           placeholder={scope.placeholder}
           aria-label={scope.label}
           aria-keyshortcuts={shortcut.aria}
@@ -349,7 +343,7 @@ function SideTools({
         {search ? (
           // no toque, alvo de 44px
           <button
-            className="absolute right-1.5 grid h-8 w-8 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink pointer-coarse:right-0 pointer-coarse:h-11 pointer-coarse:w-11"
+            className="absolute right-1.5 grid h-8 w-8 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink pointer-coarse:right-0 pointer-coarse:h-11 pointer-coarse:w-11 max-md:right-0 max-md:h-11 max-md:w-11"
             onClick={() => {
               onSearchChange("");
               inputRef.current?.focus();
@@ -374,13 +368,13 @@ function SideTools({
         {status}
       </p>
       {showButton ? (
-        <button className="nav nav-sm -mt-1 justify-between bg-surface-2 pointer-coarse:h-11" onClick={onSubmit} type="button">
+        <button className="nav nav-sm -mt-1 justify-between bg-surface-2 pointer-coarse:h-11 max-md:h-11" onClick={onSubmit} type="button">
           Ver {count} {count === 1 ? one : many}
           <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
         </button>
       ) : null}
       {newEventLabel ? (
-        <button className={cx(quietNewEvent ? secondaryButton : primaryButton, "w-full")} onClick={onNewEvent} type="button">
+        <button className={cx(primaryButton, "w-full")} onClick={onNewEvent} type="button">
           <CalendarPlus className="h-4 w-4" aria-hidden />
           {newEventLabel}
         </button>
@@ -518,36 +512,30 @@ function SideFoot({
   return (
     <div className="side-foot">
       {semester ? <SemesterBar semester={semester} /> : null}
-      {/* o cartão inteiro abre as configurações do perfil */}
-      <button
-        className="ucard group"
-        onClick={onOpenProfile}
-        aria-label={`${name}, configurações do perfil`}
-        title="Configurações do perfil"
-        type="button"
-      >
-        <span className="avatar">{user.initials ?? name.slice(0, 2).toUpperCase()}</span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          {/* numa linha só: o que não cabe sai por palavras inteiras, e o nome inteiro aparece ao passar o mouse */}
-          <span className="uname" title={name}>
-            {cardName(name)}
-          </span>
-          <span className="urole" title={role}>
-            {role}
-          </span>
-        </span>
-        {/* 24 px de largura (o ícone tem 18): sobra lugar para "Estudante, ALU-002" sem cortar a matrícula */}
-        <span
-          className="ml-auto grid h-8 w-6 shrink-0 place-items-center rounded-[10px] text-muted transition group-hover:text-ink"
-          aria-hidden
+      {/* a pessoa: o cartão abre as configurações do perfil; ao lado, o botão de sair */}
+      <div className="me">
+        <button
+          className="ucard group"
+          onClick={onOpenProfile}
+          aria-label={`${name}, configurações do perfil`}
+          title="Configurações do perfil"
+          type="button"
         >
-          <Settings2 className="h-[18px] w-[18px]" />
-        </span>
-      </button>
-      <button className="nav nav-sm" onClick={onLogout} type="button">
-        <LogOut className="h-[18px] w-[18px]" aria-hidden />
-        Sair da conta
-      </button>
+          <span className="avatar">{user.initials ?? name.slice(0, 2).toUpperCase()}</span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            {/* numa linha só: o que não cabe sai por palavras inteiras, e o nome inteiro aparece ao passar o mouse */}
+            <span className="uname" title={name}>
+              {cardName(name)}
+            </span>
+            <span className="urole" title={role}>
+              {role}
+            </span>
+          </span>
+        </button>
+        <button className="ubtn" onClick={onLogout} aria-label="Sair da conta" title="Sair da conta" type="button">
+          <LogOut className="h-[18px] w-[18px]" aria-hidden />
+        </button>
+      </div>
       <button
         className="sync w-full text-left hover:text-ink"
         aria-busy={refreshing || undefined}
@@ -564,7 +552,7 @@ function SideFoot({
         {refreshing ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
         ) : (
-          <span className={cx("ok", offline && "bg-[#d97706]")} aria-hidden />
+          <span className={cx("ok", offline && "bg-amber-bar")} aria-hidden />
         )}
         {refreshing ? "Atualizando..." : offline ? "Sem conexão" : time ? `Atualizado às ${time}` : "Atualizar dados"}
         {!refreshing ? <RefreshCw className="ml-auto h-3.5 w-3.5" aria-hidden /> : null}
@@ -657,10 +645,16 @@ export function AppShell({
   const guardian = user.role === "guardian";
   // o responsável vê o semestre das turmas do aluno escolhido
   const termClasses: AcademicClass[] = guardian ? (student?.classes ?? []) : personClasses(context);
-  const semester = semesterWeek(today, termClasses);
+  // só turma anual (curso integrado, "ano letivo 2026"): não há semestre a mostrar, e a barra sai. Sem ela, o pé do
+  // menu não diz "Semestre 2026/2" ao lado de um Painel que fala em ano letivo.
+  const annualOnly = termClasses.length > 0 && termClasses.every(isAnnualClass);
+  // enquanto as turmas não chegam (contexto, ou o aluno no caso do responsável), a barra espera: sem isso ela
+  // aparecia com o semestre do calendário durante a carga e sumia depois, para quem só tem turma anual
+  const termsKnown = guardian ? Boolean(student) : Boolean(context) || user.role === "admin";
+  const semester = !termsKnown || annualOnly ? null : semesterWeek(today, termClasses);
   const semesterFits = useSemesterFits(sideRef, Boolean(semester));
-  // o responsável só lê: nunca cria evento
-  const newEventLabel = canWrite && !guardian ? (user.role === "admin" ? "Evento oficial" : "Novo evento") : null;
+  // o responsável só lê: nunca cria evento. O rótulo é o mesmo do botão da página.
+  const newEventLabel = canWrite && !guardian ? (user.role === "admin" ? "Novo evento oficial" : "Novo evento") : null;
   const pageTitle = visibleNavItems(user.role).find((item) => item.view === activeView)?.label ?? "Agenda Acadêmica";
 
   // gaveta do celular: foco em "Fechar menu", Tab preso dentro e, ao fechar, volta para "Abrir menu".
@@ -795,7 +789,6 @@ export function AppShell({
         inPlace={searchInPlace && !inDrawer}
         inputRef={inDrawer ? drawerSearchRef : sideSearchRef}
         newEventLabel={newEventLabel}
-        quietNewEvent={activeView === "manage"}
         resultCount={searchResultCount}
         scope={searchScope}
         search={search}
@@ -821,27 +814,44 @@ export function AppShell({
         Pular para o conteúdo
       </a>
 
-      {/* Barra do topo (celular): presa no topo, com uma faixa da cor do fundo atrás */}
-      <header className="sticky top-0 z-40 bg-app px-3 pt-3 pb-2 lg:hidden">
-        <div className="card flex items-center justify-between gap-3 px-3 py-2.5">
-          <Brand subtitle={pageTitle} />
-          <button
-            ref={menuButtonRef}
-            className="ib h-11 w-11"
-            onClick={() => {
-              setDrawerStart("close");
-              onMenuChange(true);
-            }}
-            aria-controls="menu-gaveta"
-            aria-expanded={drawerOpen}
-            aria-haspopup="dialog"
-            aria-label="Abrir menu"
-            title="Abrir menu"
-            type="button"
-          >
-            <Menu className="h-[18px] w-[18px]" aria-hidden />
-          </button>
-        </div>
+      {/* Barra do topo (celular e tablet): faixa branca presa no topo, com o menu à esquerda, a marca do app e a
+          busca à direita (a busca abre o menu já com o foco no campo). A marca, e não o nome da tela: o título da
+          página já aparece logo abaixo, e repetir "Cronograma" duas vezes seguidas só gastava espaço */}
+      <header className="mtop lg:hidden">
+        <button
+          ref={menuButtonRef}
+          className="ib"
+          onClick={() => {
+            setDrawerStart("close");
+            onMenuChange(true);
+          }}
+          aria-controls="menu-gaveta"
+          aria-expanded={drawerOpen}
+          aria-haspopup="dialog"
+          aria-label="Abrir menu"
+          title="Abrir menu"
+          type="button"
+        >
+          <Menu className="h-5 w-5" aria-hidden />
+        </button>
+        <p className="mtop-t" aria-hidden>
+          <span className="mark mtop-mark">
+            <GraduationCap aria-hidden />
+          </span>
+          <span className="mtop-name">Agenda Acadêmica</span>
+        </p>
+        <button
+          className="ib"
+          onClick={() => {
+            setDrawerStart("search");
+            onMenuChange(true);
+          }}
+          aria-label="Buscar"
+          title="Buscar"
+          type="button"
+        >
+          <Search className="h-5 w-5" aria-hidden />
+        </button>
       </header>
 
       {/* Menu lateral (celular), por cima de tudo */}
@@ -849,7 +859,7 @@ export function AppShell({
         ? createPortal(
             <div
               ref={sheetRef}
-              className="fixed inset-0 z-50 bg-[rgb(15_30_58/0.48)] animate-fade-in lg:hidden"
+              className="fixed inset-0 z-50 bg-[var(--scrim)] animate-fade-in lg:hidden"
               role="dialog"
               aria-label="Menu de navegação"
               aria-modal="true"
@@ -895,7 +905,7 @@ export function AppShell({
           )
         : null}
 
-      <div className="app max-lg:block max-lg:min-h-0 max-lg:px-3 max-lg:pt-2">
+      <div className="app max-lg:block max-lg:min-h-0">
         {/* Menu lateral fixo, da altura da tela (tablet/desktop) */}
         <aside ref={sideRef} className="side max-lg:hidden" aria-label="Menu">
           <Brand onDark />

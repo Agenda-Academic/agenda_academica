@@ -6,10 +6,8 @@
    - os números importantes (indicadores, notas) ficam maiores e mais fortes.
    Os seletores começam com "html" pelo mesmo motivo do visual-novo.css. */
 
-/* ---------- largura da página e colunas ---------- */
-html .app {
-  max-width: 1880px;
-}
+/* ---------- largura da página e colunas ----------
+   A casca (menu encostado e o respiro do conteúdo) fica no visual-novo.css. */
 /* --side-w: a largura da coluna de apoio (à direita). É a mesma em todas as telas, para os indicadores do alto,
    o destaque e as colunas de baixo ficarem alinhados. Em tela grande ela cresce um pouco, para a coluna
    principal não virar uma faixa comprida. */
@@ -19,13 +17,6 @@ html {
 @media (min-width: 1600px) {
   html {
     --side-w: clamp(340px, 22vw, 400px);
-  }
-}
-@media (min-width: 1200px) {
-  html .board,
-  html .tela-cols,
-  html .cols {
-    grid-template-columns: minmax(0, 1fr) var(--side-w);
   }
 }
 @media (min-width: 1280px) {
@@ -41,104 +32,168 @@ html {
     grid-template-columns: repeat(3, minmax(0, 1fr)) var(--side-w);
   }
 }
-@media (min-width: 1200px) {
-  /* Lembretes: três indicadores; o "Próximo aviso" fica em cima da coluna lateral */
-  html .kpis.rem-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) var(--side-w);
-  }
-}
 
-/* ---------- botões ---------- */
+/* ---------- botões (direção A) ----------
+   .btn-p: azul cheio (#2563EB, #1D4ED8 no hover). .btn-s: branco com borda. .btn-g: só texto, ganha fundo no
+   hover. .btn-danger: branco com borda e texto vermelhos; .btn-d: vermelho cheio (confirmação). .btn-sm: 32 px.
+   Altura 38 px com mouse e 44 px no toque. */
 html .btn {
-  border-width: 1px;
-  border-style: solid;
+  min-height: 38px;
+  padding: 0 14px;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  font-size: var(--fs-14);
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
 }
-/* principal: azul cheio, texto branco */
+html .btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
 html .btn-p {
   border-color: transparent;
   background: var(--brand);
   color: #fff;
   box-shadow:
-    0 1px 2px rgb(var(--shadow-rgb) / 0.12),
-    0 8px 16px -10px rgb(var(--brand-rgb) / 0.75);
+    0 1px 2px rgb(37 99 235 / 0.25),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
 }
 html .btn-p:hover:not(:disabled):not([aria-disabled="true"]) {
-  background: var(--brand-600);
-  box-shadow:
-    0 1px 2px rgb(var(--shadow-rgb) / 0.14),
-    0 10px 20px -10px rgb(var(--brand-rgb) / 0.85);
+  background: var(--brand-h);
+  box-shadow: 0 1px 2px rgb(37 99 235 / 0.3);
 }
-/* secundário: branco com contorno, fica azul ao passar o mouse */
 html .btn-s {
   border-color: var(--line-strong);
-  background: #fff;
-  color: var(--ink);
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
+  background: var(--surface);
+  color: var(--ink-2);
+  box-shadow: var(--sh-btn);
+}
+html .btn-s svg {
+  color: var(--ink-3);
 }
 html .btn-s:hover:not(:disabled):not([aria-disabled="true"]) {
-  border-color: var(--brand-200);
-  background: var(--brand-50);
-  color: var(--brand-ink);
+  border-color: var(--line-hover);
+  background: var(--surface-2);
+  color: var(--ink);
 }
-/* perigo: branco com contorno vermelho; o vermelho cheio fica para a confirmação (.btn-d) */
 html .btn-danger {
-  border-color: #efbccb;
-  background: #fff;
-  color: var(--danger);
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
+  border-color: var(--red-line);
+  background: var(--surface);
+  color: var(--red);
+  box-shadow: var(--sh-btn);
 }
 html .btn-danger:hover:not(:disabled):not([aria-disabled="true"]) {
-  border-color: #e28aa3;
-  background: #fff1f4;
+  border-color: #fca5a5;
+  background: var(--red-bg);
 }
 html .btn-d {
   border-color: transparent;
-  box-shadow: 0 8px 16px -10px rgb(var(--danger-rgb) / 0.8);
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(220 38 38 / 0.25);
 }
-/* discreto: sem contorno, ganha fundo ao passar o mouse */
+html .btn-d:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--red);
+}
 html .btn-g {
   border-color: transparent;
+  background: transparent;
+  color: var(--ink-3);
   box-shadow: none;
 }
-/* desabilitado: some a sombra e fica claro que ainda não dá para clicar */
+html .btn-g:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--fill);
+  color: var(--ink);
+}
+html .btn-sm {
+  min-height: 32px;
+  padding: 0 10px;
+  gap: 6px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-13);
+}
+html .btn-sm svg {
+  width: 15px;
+  height: 15px;
+}
+/* desabilitado: cinza, sem sombra */
 html .btn:disabled,
-html .btn[aria-disabled="true"] {
-  opacity: 0.45;
+html .btn[aria-disabled="true"]:not([aria-busy="true"]) {
+  opacity: 1;
+  border-color: var(--line);
+  background: var(--fill);
+  color: var(--faint);
   box-shadow: none;
 }
-/* no destaque azul bebê: um só azul de botão principal no app inteiro (o mesmo do menu e da Gestão); o
-   secundário fica branco com contorno visível, como no resto, e não um rótulo branco sem borda */
-html .hero .btn-p {
-  background: var(--brand);
-  box-shadow:
-    0 1px 2px rgb(var(--shadow-rgb) / 0.12),
-    0 10px 22px -12px rgb(var(--brand-rgb) / 0.85);
+html .btn:disabled svg,
+html .btn[aria-disabled="true"]:not([aria-busy="true"]) svg {
+  color: var(--faint);
 }
-html .hero .btn-p:hover:not(:disabled):not([aria-disabled="true"]) {
-  background: var(--brand-600);
+/* toque e telas estreitas: o alvo de 44 px de todos os controles fica na regra única "toque: 44 px" mais abaixo */
+/* botão dividido (ação + seta de mais opções): <div className="split"><button .btn-p/><button .btn-p/></div> */
+html .split {
+  display: inline-flex;
 }
-html .hero .btn-s {
-  border-color: color-mix(in srgb, var(--bebe-ink) 24%, transparent);
-  background: #fff;
-  color: var(--bebe-ink);
+html .split > .btn:first-child {
+  border-radius: var(--r-md) 0 0 var(--r-md);
 }
-html .hero .btn-s:hover:not(:disabled):not([aria-disabled="true"]) {
-  border-color: var(--brand-200);
-  background: var(--brand-50);
-  color: var(--brand-ink);
+html .split > .btn:last-child {
+  padding: 0 10px;
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  border-left: 1px solid rgb(255 255 255 / 0.28);
+}
+html .split > .btn-s:last-child {
+  border-left-color: var(--line-strong);
+  margin-left: -1px;
 }
 
-/* botão de ícone (ações das tabelas): branco com contorno, como o secundário */
+/* botão de ícone: 34 px (30 no .sm), transparente; com .bd, branco com borda */
 html .ib {
-  border-color: var(--line-strong);
-  background: #fff;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
   color: var(--ink-3);
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
+  box-shadow: var(--sh-btn);
+}
+html .ib.sm {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+}
+html .ib.ghost {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 html .ib:hover:not(:disabled) {
-  border-color: var(--brand-200);
-  background: var(--brand-50);
-  color: var(--brand-ink);
+  border-color: var(--line-hover);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+html .ib.ghost:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--fill);
+}
+html .ib svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* link de texto */
+html .link {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--link);
+}
+html .link:hover {
+  color: var(--brand-h);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ---------- bloco clicável ----------
@@ -147,14 +202,14 @@ html .ib:hover:not(:disabled) {
    lembretes do Painel) seguem a regra dos botões. */
 html button.mini,
 html a.mini {
-  border-color: var(--line-strong);
-  background: #fff;
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-card);
 }
 html button.mini:hover:not(:disabled),
 html a.mini:hover {
-  border-color: var(--brand-200);
-  background: var(--brand-50);
+  border-color: var(--line-strong);
+  background: var(--surface-2);
 }
 /* o ícone azul-claro; os blocos com ícone de cor própria (pendências da administração) ficam com a cor deles */
 html button.mini:not(.admin-mini) .mini-ico,
@@ -164,60 +219,43 @@ html a.mini:not(.admin-mini) .mini-ico {
 }
 html button.mini:not(.admin-mini):hover .mini-ico,
 html a.mini:not(.admin-mini):hover .mini-ico {
-  background: #fff;
-}
-
-/* ---------- etiqueta de situação ("Agendado", "Concluído", "Já existe") ----------
-   O visual novo tirou o respiro das pílulas (ponto + palavra); a de situação continua com fundo e virava um
-   marca-texto colado na palavra. Volta a ser uma etiqueta com respiro e cantos redondos. */
-html .pill.stat {
-  height: 24px;
-  padding: 0 9px;
-  border-radius: 999px;
-  font-size: 12.5px;
-}
-
-/* ---------- rodapé da edição de evento (event-editor.tsx) ----------
-   Em cima, o grupo "Situação do evento" (Concluir, Cancelar evento ou Reativar, e Excluir na ponta), separado por
-   uma linha; embaixo, Salvar (azul cheio) e Fechar. Assim fica claro o que muda na hora e o que precisa salvar. */
-.ed-status {
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line-2);
-}
-.ed-status-l {
-  margin-right: 4px;
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--muted);
+  background: var(--brand-100);
 }
 
 /* ---------- números em destaque ---------- */
 html .kpi-val {
-  font-size: 44px;
-  font-weight: 750;
-  letter-spacing: -0.03em;
+  margin-top: 10px;
+  font-family: var(--font);
+  font-size: var(--fs-26);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 html .kpi-val small {
-  font-size: 15px;
-  font-weight: 650;
+  font-family: var(--font);
+  font-size: var(--fs-15);
+  font-weight: 500;
   letter-spacing: 0;
+  color: var(--ink-3);
 }
 /* valor que é data ("01 jan 2027"): numa linha só e um pouco menor, para não virar "01" em cima e "jan 2027"
    embaixo no celular. Os números dos outros indicadores não mudam. Quem monta o indicador marca o valor com
    .is-date (InsightTile valueClassName="is-date", como a "Próxima data da instituição" do Painel do docente) */
 html .kpi-val.is-date {
-  font-size: clamp(26px, 7.4vw, 40px);
-  /* a mesma altura de linha dos números (44 px): a dica de baixo fica na mesma altura da do card vizinho */
-  line-height: 44px;
+  font-size: var(--fs-26);
+  /* a mesma altura de linha dos números: a dica de baixo fica na mesma altura da do card vizinho */
+  line-height: 1.1;
   white-space: nowrap;
 }
 /* o ano ("2027") pequeno ao lado: line-height 1, senão herda os 44 px com fonte de 13 px e alinhado pela base
    estica a linha (a dica de baixo descia 9 px em relação à do card vizinho) */
+@media (max-width: 479px) {
+  html .kpi-val.is-date {
+    font-size: var(--fs-22);
+  }
+}
 html .kpi-val.is-date small {
   margin-left: 4px;
   font-size: 13px;
@@ -228,8 +266,8 @@ html .kpi-val.is-date small {
    "de 10" pequeno ao lado e, embaixo, a barra de quanto da avaliação a nota vale.
    --tom: verde de 70% para cima, âmbar de 50% a 69%, vermelho abaixo de 50%. */
 .score {
-  --tom: #1b7a4c;
-  --tom-bg: #e3f6ec;
+  --tom: var(--green);
+  --tom-bg: var(--green-bg);
   display: inline-grid;
   justify-items: end;
   gap: 6px;
@@ -237,31 +275,31 @@ html .kpi-val.is-date small {
   font-variant-numeric: tabular-nums;
 }
 .score.mid {
-  --tom: #9a6400;
-  --tom-bg: #fff3d1;
+  --tom: var(--amber);
+  --tom-bg: var(--amber-bg);
 }
 .score.low {
-  --tom: #b4234a;
-  --tom-bg: #ffe6ec;
+  --tom: var(--red);
+  --tom-bg: var(--red-bg);
 }
 .score-n {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  padding: 4px 12px 5px;
-  border-radius: 14px;
+  padding: 4px 10px 5px;
+  border-radius: var(--r-md);
   background: var(--tom-bg);
   color: var(--tom);
-  font-family: var(--disp);
-  font-size: 30px;
-  font-weight: 800;
+  font-family: var(--font);
+  font-size: var(--fs-26);
+  font-weight: 700;
   line-height: 1;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 .score-n small {
   font-family: var(--font);
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0;
   color: color-mix(in srgb, var(--tom) 72%, transparent);
 }
@@ -279,9 +317,9 @@ html .kpi-val.is-date small {
   background: var(--tom);
 }
 .score.sm .score-n {
-  padding: 3px 9px 4px;
-  border-radius: 11px;
-  font-size: 22px;
+  padding: 3px 8px 4px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-22);
 }
 .score.sm {
   min-width: 70px;
@@ -299,7 +337,7 @@ html .kpi-val.is-date small {
   border-top: 1px solid var(--line-2);
 }
 .pager-info {
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--muted);
 }
 .pager-info b {
@@ -318,15 +356,15 @@ html .kpi-val.is-date small {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-width: 38px;
-  height: 38px;
+  min-width: 34px;
+  height: 34px;
   padding: 0 10px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line-strong);
-  background: #fff;
+  background: var(--surface);
   color: var(--ink-2);
-  font-size: 14px;
-  font-weight: 650;
+  font-size: var(--fs-14);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   transition:
     background-color 0.16s ease,
@@ -334,9 +372,9 @@ html .kpi-val.is-date small {
     color 0.16s ease;
 }
 .pager-b:hover:not(:disabled):not(.on) {
-  border-color: var(--brand-200);
-  background: var(--brand-50);
-  color: var(--brand-ink);
+  border-color: var(--line-hover);
+  background: var(--surface-2);
+  color: var(--ink);
 }
 .pager-b.on {
   border-color: var(--brand);
@@ -363,8 +401,10 @@ html .kpi-val.is-date small {
     display: none;
   }
 }
-@media (pointer: coarse) {
-  .pager-b {
+/* 44 px no toque e abaixo de 768 px, também com mouse (decisão 2 da rodada 8) */
+@media (pointer: coarse), (max-width: 767px) {
+  .pager-b,
+  .pager button {
     min-width: 44px;
     height: 44px;
   }
@@ -376,36 +416,87 @@ html .kpi-val.is-date small {
 html .hero-label,
 html .hero-kicker .eyebrow,
 html .hero-kicker .resp-kicker {
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: var(--fs-13);
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
-  color: var(--bebe-ink);
+  color: var(--brand-h);
 }
 html .countdown .eyebrow {
-  font-size: 13.5px;
+  font-size: var(--fs-13);
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
-  color: color-mix(in srgb, var(--bebe-ink) 70%, transparent);
+  color: var(--muted);
 }
 
 /* ---------- título de bloco dentro dos painéis laterais e diálogos ----------
    Um só estilo para "Como todos vão ver", "Situação do evento", "Dados da turma", os meses das datas
    importadas...: 16.5 px, 700, fonte de título. */
 .drawer-h3 {
-  font-family: var(--disp);
-  font-size: 16.5px;
+  font-family: var(--font);
+  font-size: var(--fs-16);
   font-weight: 700;
   line-height: 1.3;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
   color: var(--ink);
+}
+
+/* ---------- toque: 44 px de altura em todo controle clicável (decisão 2 da rodada 8) ----------
+   Vale com dedo (pointer: coarse) e também abaixo de 768 px de largura, mesmo com mouse: botões (inclusive
+   .btn-sm), opções do segmentado, abas, chips de filtro, botões de ícone e o Select (componentes.css). A altura
+   cresce de verdade (não é só área invisível), para a medida com toque emulado dar 44. Os links soltos de cada
+   tela ficam com o dono da tela. */
+@media (pointer: coarse), (max-width: 767px) {
+  /* .btn.btn: o mesmo peso de "html .side-tools .btn" (38 px no menu), para o toque valer também lá */
+  html .btn.btn {
+    min-height: 44px;
+  }
+  html .seg {
+    padding: 2px;
+  }
+  html .seg > :is(button, a, [role="tab"]) {
+    height: auto;
+    min-height: 44px;
+  }
+  html .tabs > :is(.tab, button, a, [role="tab"]) {
+    min-height: 44px;
+  }
+  html .chip,
+  html .chip[class*="c-"] {
+    height: auto;
+    min-height: 44px;
+  }
+  html .ib,
+  html .ib.sm {
+    width: 44px;
+    height: 44px;
+  }
+  /* menu (fixo ou gaveta): itens, "Ver N eventos", campo de busca e "Sair da conta" com 44 px. O
+     visual-novo.css fixa ".nav" em 40 px e ".ubtn" em 34 px com "html .x", por isso o seletor mais forte */
+  html .navlist .nav,
+  html .side-foot .nav-sm,
+  html .side-tools .nav-sm {
+    height: 44px;
+  }
+  html .side-search input {
+    height: 44px;
+  }
+  html .ubtn {
+    width: 44px;
+    height: 44px;
+  }
+  /* "Atualizado às" no pé do menu: o mesmo 44 px que o globals.css dá no toque */
+  html .sync {
+    min-height: 44px;
+  }
 }
 
 /* ---------- toque: alvos de 44 px sem mudar o desenho ----------
    Links de texto ("Ver todas (2)", "Gerenciar lembretes"), chips de data dos indicadores, chips de filtro e o
    "Atualizado às" do menu. Uma área invisível (::after) centrada no elemento cresce até 44 px de altura e,
-   nos estreitos, de largura; a linha não muda de altura nem de lugar. */
-@media (pointer: coarse) {
+   nos estreitos, de largura; a linha não muda de altura nem de lugar. Vale também abaixo de 768 px com mouse. */
+@media (pointer: coarse), (max-width: 767px) {
   /* :where() deixa este "relative" mais fraco que qualquer posição já dada ao elemento (o "Esqueci minha senha"
      é absolute na linha do rótulo da senha; com relative ele caía para baixo do campo e a área cobria o campo) */
   :where(html) .link,
@@ -458,10 +549,16 @@ html .countdown .eyebrow {
     height: 44px;
   }
 }
+/* abaixo de 768 px com mouse (decisão 2) as contas de demonstração também ficam com 44 */
+@media (max-width: 767px) and (min-height: 641px) {
+  html .ent-demo-btn {
+    height: 44px;
+  }
+}
 
 /* busca do menu no toque: o campo com 44 px (era 42). Um input não tem ::after para crescer a área, então a
-   própria altura cresce; o botão de limpar (44 px) já cabe nele sem passar da borda */
-@media (pointer: coarse) {
+   própria altura cresce; o botão de limpar (44 px) já cabe nele sem passar da borda. Também abaixo de 768 px */
+@media (pointer: coarse), (max-width: 767px) {
   html .side-search input {
     height: 44px;
   }
@@ -600,12 +697,603 @@ html .countdown .eyebrow {
 
 /* ---------- menu: ponto de novidade (Lembretes) ----------
    Em Lembretes o número contava avisos, e um "1" ao lado de "Lembretes" parecia um lembrete. Vira um
-   ponto verde; o "1 aviso novo" fica no title e no texto do leitor de tela (app-shell.tsx, badgeAsDot). */
-html .nav .count.dot {
-  min-width: 10px;
-  width: 10px;
-  height: 10px;
-  margin-right: 6px;
-  padding: 0;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+   ponto azul (visual-novo.css, .nav .count.dot); o "1 aviso novo" fica no title e no leitor de tela. */
+
+/* ==================================================================
+   Direção A, "Claro e organizado" (rodada 7, 2026-11-22): tipografia, campos, cards, listas, indicadores,
+   painéis e diálogos. Tokens no :root do globals.css; casca, menu, abas e chips no visual-novo.css.
+   ================================================================== */
+
+/* ---------- tipografia ----------
+   Escala 12, 13, 14, 15, 16, 18, 22, 26. Títulos de 20 px ou mais com -0.02em. */
+html :is(h1, h2, h3, h4) {
+  color: var(--ink);
+}
+html .disp {
+  font-family: var(--font);
+  letter-spacing: -0.02em;
+}
+html .h2 {
+  font-family: var(--font);
+  font-size: var(--fs-18);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+html .h2.lg {
+  font-size: var(--fs-22);
+  letter-spacing: -0.02em;
+}
+html .sub {
+  margin-top: 4px;
+  font-size: var(--fs-14);
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+html .eyebrow {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--muted);
+}
+html .muted {
+  color: var(--muted);
+}
+
+/* cabeçalho da tela (PageHeader, ui.tsx): título de 26 px, subtítulo e ações à direita */
+.pagehead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.pagehead-t {
+  font-size: var(--fs-26);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.pagehead-s {
+  margin-top: 4px;
+  font-size: var(--fs-15);
+  color: var(--ink-3);
+}
+.pagehead-a {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+@media (max-width: 1023px) {
+  .pagehead {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .pagehead-t {
+    font-size: var(--fs-22);
+  }
+  .pagehead-s {
+    font-size: var(--fs-14);
+  }
+}
+
+/* ---------- campos ----------
+   Branco com borda #CBD5E1, 40 px (44 no toque), raio 10; hover escurece a borda; foco com borda azul e anel. */
+html .input {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background-color: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-14);
+  box-shadow: var(--sh-btn);
+}
+html .input::placeholder {
+  color: var(--faint);
+}
+html .input:hover:not(:focus):not(:disabled) {
+  border-color: var(--line-hover);
+  background-color: var(--surface);
+}
+html .input:focus {
+  border-color: var(--brand);
+  background-color: var(--surface);
+  box-shadow: var(--ring);
+}
+html .input:disabled,
+html .input[readonly] {
+  background-color: var(--surface-2);
+  color: var(--ink-3);
+  box-shadow: none;
+}
+html .input[aria-invalid="true"] {
+  border-color: var(--red-bar);
+}
+html .input[aria-invalid="true"]:focus {
+  border-color: var(--red-bar);
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.18);
+}
+html textarea.input {
+  padding: 10px 12px;
+}
+html select.input {
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 12px center;
+}
+/* campos (texto, data e hora, seleção nativa) com 44 px no toque e abaixo de 768 px, também dentro do Drawer
+   (decisão 2 da rodada 8) */
+@media (pointer: coarse), (max-width: 767px) {
+  html .input,
+  html .drawer .input {
+    min-height: 44px;
+  }
+}
+html .lbl {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+html .lbl .hint,
+html .field-help {
+  font-weight: 400;
+  color: var(--muted);
+}
+html .field-help {
+  font-size: var(--fs-13);
+}
+html .field-error {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--red);
+}
+/* caixa de marcar e rádio nativos na cor da marca */
+html input[type="checkbox"],
+html input[type="radio"] {
+  accent-color: var(--brand);
+}
+
+/* ---------- cards ---------- */
+html .pad {
+  padding: 24px;
+}
+@media (max-width: 639px) {
+  html .pad {
+    padding: 16px;
+  }
+}
+html .card-foot {
+  border-top-color: var(--line);
+}
+html .divider {
+  background: var(--line);
+}
+
+/* ---------- indicadores ----------
+   Ícone pequeno antes do rótulo (a ordem muda só no desenho), número de 28 px e dica de 13 px. */
+html .kpi {
+  padding: 18px 20px;
+}
+html .kpi-top {
+  justify-content: flex-start;
+  gap: 8px;
+}
+html .kpi-ico {
+  order: -1;
+  width: 18px;
+  height: 18px;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+}
+html .kpi-ico svg {
+  width: 16px;
+  height: 16px;
+}
+html .kpi-ico:is(.c-prova, .c-trab, .c-ativ, .c-extra, .c-inst) {
+  background: none;
+}
+html .kpi-label {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+html .kpi-hint {
+  margin-top: 6px;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+html .kpi-hit::after {
+  border-radius: var(--r-lg);
+}
+html .kpi.is-link:hover {
+  border-color: var(--line-strong);
+}
+/* indicador que pede atenção (âmbar) */
+html .kpi.attn {
+  border-color: var(--amber-line);
+  background: var(--amber-bg);
+}
+html .kpi.attn :is(.kpi-label, .kpi-ico) {
+  color: var(--amber);
+}
+html .kpi.attn .kpi-val {
+  color: #92400e;
+}
+
+/* ---------- listas de evento ---------- */
+html .ev-group {
+  margin: 18px 0 6px;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--muted);
+}
+html .ev-group::after {
+  background: var(--line);
+}
+html .ev {
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+}
+html button.ev:hover,
+html a.ev:hover {
+  background: var(--surface-2);
+}
+html .ev.sel {
+  background: var(--brand-50);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+html .ev-date {
+  width: 48px;
+  padding: 5px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+/* selo de data: o dia da semana sai sempre em MAIÚSCULAS ("SEG 23"), igual no Painel, no Cronograma, nas Notas e
+   na Gestão (decisão 1 da rodada 8). .ev-date .dw e .dbadge small usam a mesma regra; a cor fica em cada um
+   (o selo de hoje é azul). */
+html :is(.ev-date .dw, .dbadge small, .datebig .dw) {
+  font-size: var(--fs-12);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+html .ev-date .dw {
+  color: var(--muted);
+}
+html .ev-date .dn {
+  font-family: var(--font);
+  font-size: var(--fs-18);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+html .ev-title {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  color: var(--ink);
+}
+html .ev-meta {
+  margin-top: 4px;
+  font-size: var(--fs-13);
+}
+html .ev-time {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+html .ev-rel {
+  font-size: var(--fs-13);
+}
+/* "amanhã", "em 2 dias": âmbar no desktop (.ev-rel) e no celular (.ev-at), como na amostra */
+html :is(.ev-rel.soon, .ev-at .soon) {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+/* ---------- blocos pequenos, avisos e vazio ---------- */
+html .mini {
+  border-radius: var(--r-md);
+}
+html .mini-ico {
+  border-radius: var(--r-sm);
+  background: var(--brand-50);
+  color: var(--brand);
+}
+html .mini-t {
+  font-weight: 600;
+  color: var(--ink);
+}
+html .aviso {
+  border-color: var(--line);
+  border-radius: var(--r-md);
+}
+/* ---------- estado vazio único (decisão 3 da rodada 8) ----------
+   Sem caixa tracejada nem fundo: o vazio fica solto no card, do tamanho do conteúdo. Ícone num círculo claro de
+   40 px, título 15/600 em ink, texto 14 em muted (até 44ch) e a ação opcional em btn btn-s btn-sm.
+   Marcação (EmptyState de ui.tsx faz igual):
+     <div className="empty-inline [compact]">
+       <span className="empty-ico"><Icone aria-hidden /></span>
+       <div className="empty-body">
+         <p className="empty-t">Título</p>
+         <p className="empty-s">Texto</p>
+         <button className="btn btn-s btn-sm">Ação</button>
+       </div>
+     </div>
+   .compact põe o ícone ao lado do texto (cards baixos e listas). */
+html .empty-inline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: center;
+}
+html .empty-inline.compact {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  text-align: left;
+}
+html .empty-ico,
+html .empty-inline.compact .empty-ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--ink-3);
+}
+html .empty-ico svg {
+  width: 20px;
+  height: 20px;
+}
+html .empty-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+html .empty-inline.compact .empty-body {
+  flex: 1 1 auto;
+  align-items: flex-start;
+  /* o título fica na altura do meio do círculo quando é uma linha só */
+  padding-top: 9px;
+}
+html .empty-t {
+  margin: 0;
+  font-size: var(--fs-15);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+html .empty-s {
+  max-width: 44ch;
+  margin: 2px 0 0;
+  font-size: var(--fs-14);
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+html .empty-body > .btn {
+  margin-top: 12px;
+}
+/* ErrorState (ui.tsx): o estado vazio dentro de um card branco com borda e canto; só o círculo do ícone fica
+   vermelho claro. Já dentro de um .card, mesmo aninhado num div de respiro (tela de erro do Painel e de Notas,
+   Minhas turmas), o card de fora basta: sem borda dupla */
+html .empty-inline.is-error {
+  padding: 32px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+html .card .empty-inline.is-error {
+  padding: 24px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+html .empty-inline.is-error .empty-ico {
+  background: var(--red-bg);
+  color: var(--red);
+}
+html .skel {
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+/* ---------- tabela ---------- */
+html .tbl th {
+  padding: 10px 16px;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+html .tbl td {
+  padding: 12px 16px;
+  border-bottom-color: var(--line-2);
+}
+html .tbl .t {
+  font-weight: 600;
+  color: var(--ink);
+}
+html .tbl .s {
+  margin-top: 2px;
+  font-size: var(--fs-13);
+}
+
+/* ---------- detalhe (lista de dados: Turma, Disciplina, Local) ---------- */
+html .info {
+  gap: 0 16px;
+  font-size: var(--fs-14);
+}
+html .info dt,
+html .info dd {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+html .info dt {
+  color: var(--muted);
+  font-weight: 500;
+}
+html .info dt svg {
+  color: var(--faint);
+}
+html .info dd {
+  font-weight: 500;
+  color: var(--ink);
+}
+html .info > :nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+/* ---------- painel lateral (Drawer) e diálogo (Modal) ----------
+   Véu slate a 32%; painel branco encostado à direita, com borda e sombra; cabeçalho com título de 22 px,
+   subtítulo e X com borda; corpo que rola; rodapé com borda em cima e as ações à direita. */
+html :is(.drawer-veil, .modal-veil) {
+  background: var(--scrim);
+}
+html .drawer {
+  border-radius: 0;
+  border-left: 1px solid var(--line);
+  box-shadow: var(--sh-drawer);
+}
+html .drawer-head,
+html .modal-head {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+html .drawer-head h2,
+html .modal-head h2 {
+  font-family: var(--font);
+  font-size: var(--fs-22);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+html .drawer-head-row > .ib,
+html .modal-head > .ib {
+  width: 34px;
+  height: 34px;
+}
+/* X de fechar com 44 px no toque e abaixo de 768 px, também com mouse; a margem negativa tira parte da folga,
+   para o cabeçalho quase não crescer */
+@media (pointer: coarse), (max-width: 767px) {
+  html .drawer-head-row > .ib,
+  html .modal-head > .ib {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    margin: -5px -6px -5px 0;
+  }
+}
+/* no celular, um título comprido no painel lateral fica em até 2 linhas (o título inteiro está no title e no
+   corpo do painel) */
+@media (max-width: 639px) {
+  html .drawer-head h2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+}
+html .drawer-head {
+  display: block;
+}
+html .drawer-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+html .drawer-eyebrow {
+  margin-bottom: 4px;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--muted);
+}
+html .drawer-head-extra {
+  margin-top: 16px;
+}
+/* abas no cabeçalho: a linha delas encosta na borda de baixo do cabeçalho */
+html .drawer-head.has-extra:has(> .drawer-head-extra > .tabs:last-child) {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+html .drawer-head-extra > .tabs:last-child {
+  margin-bottom: 0;
+}
+html .drawer-body,
+html .modal-body {
+  padding: 20px 24px 24px;
+}
+html .drawer-foot,
+html .modal-foot {
+  gap: 10px;
+  padding: 14px 24px calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+html .modal-box {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-pop);
+}
+/* a partir de 640 px o modal fica preso pelo topo (margem fixa), e não centrado: quando o conteúdo muda de altura
+   (o perfil trocando de aba) a caixa cresce ou encolhe para baixo, sem pular de lugar. O que não cabe rola dentro
+   do corpo (.modal-body), com o cabeçalho e o pé parados. Abaixo de 640 px ele continua como folha de baixo. */
+@media (min-width: 640px) {
+  html .modal-veil {
+    --modal-top: clamp(24px, 9vh, 96px);
+    align-items: flex-start;
+    padding: var(--modal-top) 16px 24px;
+  }
+  html .modal-box,
+  html .modal-box.wide {
+    max-height: calc(100dvh - var(--modal-top) - 24px);
+  }
+}
+@media (max-width: 639px) {
+  html .modal-box,
+  html .modal-box.wide {
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
+  html .drawer-head,
+  html .modal-head {
+    padding: 16px 16px 14px;
+  }
+  html .drawer-body,
+  html .modal-body {
+    padding: 16px;
+  }
+  html .drawer-foot,
+  html .modal-foot {
+    padding-inline: 16px;
+  }
+}
+@media (any-pointer: coarse), (max-width: 767px) {
+  html .drawer-head-row > .ib,
+  html .modal-head > .ib {
+    width: 44px;
+    height: 44px;
+  }
 }
