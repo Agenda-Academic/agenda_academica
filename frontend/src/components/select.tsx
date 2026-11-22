@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import { Check, ChevronDown, CircleAlert, Search, X } from "lucide-react";
 import {
   useCallback,
@@ -487,7 +488,7 @@ export function Select<V extends string = string>({
   useOutsidePress(open && !sheet, [ownButtonRef, popRef], () => closeList(false));
 
   function typeAhead(key: string) {
-    const now = Date.now();
+    const now = zonedNowMs();
     const state = typed.current;
     state.text = now - state.at > 600 ? key : state.text + key;
     state.at = now;

@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow } from "@/lib/zone";
 import {
   ArrowRight,
   BookOpen,
@@ -151,7 +152,7 @@ function shortDayMonth(value: string) {
 /** O ano ao lado do número, só fora do ano corrente. */
 function yearUnit(value: string) {
   const year = new Date(value).getFullYear();
-  return year === new Date().getFullYear() ? undefined : String(year);
+  return year === zonedNow().getFullYear() ? undefined : String(year);
 }
 
 /** O que muda a altura da semana (para as colunas refazerem a conta). */

@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import {
   AlertTriangle,
   BookOpen,
@@ -533,7 +534,7 @@ export function ManageView({
   // erro, o 4º indicador deixa o esqueleto na hora e mostra as turmas do contexto
   const [classesError, setClassesError] = useState<unknown>(null);
   const paneTabsRef = useRef<HTMLDivElement>(null);
-  const [now] = useState(() => Date.now());
+  const [now] = useState(() => zonedNowMs());
   const [period, setPeriod] = useState<Period>(admin ? "upcoming" : "overview");
   // origem (administração): todas, só as datas oficiais da instituição ou só os eventos das turmas
   const [origin, setOrigin] = useState<Origin>("all");

@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow, zonedNowMs } from "@/lib/zone";
 import {
   AlertTriangle,
   ArrowRight,
@@ -600,7 +601,7 @@ function monthPicker<T>(groups: MonthGroup<T>[], active: string | null, go: (key
     }
   };
   // "Hoje" só quando o mês atual tem datas no arquivo (um PDF de outro ano não tem para onde ir)
-  const now = new Date();
+  const now = zonedNow();
   const showToday = counts.has(now.getFullYear() * 12 + now.getMonth());
   return { value, counts, min, max, onChange, showToday };
 }
@@ -927,7 +928,7 @@ export function SyncView({
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [resultFocus, setResultFocus] = useState(0);
   // horário de referência fixado na montagem (render precisa ser puro)
-  const [now] = useState(() => Date.now());
+  const [now] = useState(() => zonedNowMs());
   // "Descartar" com Desfazer: o aviso fica no card, no lugar da leitura, por 10 s (no celular, o toast cobria a lista
   // de datas do painel que abrisse em seguida)
   const [discarded, setDiscarded] = useState<{ undo: () => void } | null>(null);
@@ -1395,7 +1396,7 @@ export function SyncView({
         setLastResult({
           importId: outcome.result?.import?.id ?? null,
           sourceName: check.sourceName,
-          importedAt: outcome.result?.import?.importedAt ?? new Date().toISOString(),
+          importedAt: outcome.result?.import?.importedAt ?? zonedNow().toISOString(),
           events: outcome.result?.events ?? [],
           sent: payload.events.length,
           undone: false,

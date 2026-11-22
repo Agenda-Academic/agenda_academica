@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import { ArrowRight, ClipboardCheck, Lock, TriangleAlert, Users } from "lucide-react";
 import { useEffect, useId, useState, type Ref } from "react";
 import { getMyGrades, getStudentGrades } from "@/lib/api";
@@ -282,7 +283,7 @@ export function LatestGradesCard({
   const targetId = role === "guardian" ? (studentId ?? student?.id ?? null) : (studentId ?? null);
   const grades = useStudentGrades(targetId);
   // referência de "agora" fixada na montagem (render precisa ser puro): separa as que já aconteceram
-  const [now] = useState(() => Date.now());
+  const [now] = useState(() => zonedNowMs());
   const data = grades.data;
   const list = data && data.shareGrades ? publishedGrades(data) : [];
   const shown = list.slice(0, Math.max(1, limit));

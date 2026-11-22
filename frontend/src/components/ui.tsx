@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import {
   Check,
   CircleAlert,
@@ -939,11 +940,11 @@ function ToastView({
     if (!total || hovered || focused || paused) {
       return;
     }
-    const started = Date.now();
+    const started = zonedNowMs();
     const timer = window.setTimeout(() => dismissRef.current(toast.id), Math.max(remaining.current, 1500));
     return () => {
       window.clearTimeout(timer);
-      remaining.current -= Date.now() - started;
+      remaining.current -= zonedNowMs() - started;
     };
   }, [focused, hovered, paused, toast.id, total]);
 

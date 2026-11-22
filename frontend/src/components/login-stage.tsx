@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow } from "@/lib/zone";
 import { CalendarCheck2, GraduationCap, Mail, PencilLine } from "lucide-react";
 
 // Lado esquerdo da tela de entrar: uma folha de agenda do mês atual, com o dia de hoje
@@ -27,7 +28,7 @@ const MARCAS: Record<number, "prova" | "trab" | "ativ" | "fer"> = {
 const ANEL = "M35 5C52 4 62 16 59 30C56 45 38 53 22 49C7 45 2 31 7 19C12 8 26 3 40 6C45 7 49 9 51 11";
 
 export function LoginStage() {
-  const hoje = new Date();
+  const hoje = zonedNow();
   const ano = hoje.getFullYear();
   const mes = hoje.getMonth();
   const primeiro = new Date(ano, mes, 1).getDay();

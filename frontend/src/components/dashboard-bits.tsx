@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow, zonedNowMs } from "@/lib/zone";
 import {
   ArrowRight,
   BellRing,
@@ -800,7 +801,7 @@ export function CategoryBreakdown({
 
 /** A data cai hoje (o selo cheio das listas do Painel). */
 function isToday(value: string) {
-  return isSameDay(new Date(value), new Date());
+  return isSameDay(new Date(value), zonedNow());
 }
 
 /** Rodapé "Ver todos (N)" de uma lista do Painel. */
@@ -1055,7 +1056,7 @@ export function heroWhen(event: AcademicEvent) {
   // a contagem ao lado já diz os dias ("6 dias"): de 2 dias em diante, a linha diz o dia ("seg, 23/11"), como no
   // destaque do responsável; hoje e amanhã continuam relativos
   const day =
-    calendarDays(event.startsAt, new Date()) >= 2
+    calendarDays(event.startsAt, zonedNow()) >= 2
       ? capitalize(formatShortDate(event.startsAt))
       : capitalize(relativeDue(event.startsAt));
   if (isWholeDay(event.startsAt, event.endsAt)) {
@@ -1086,12 +1087,12 @@ export type HeroFact = { key: string; icon: LucideIcon; text: ReactNode };
 
 /** "Agora" que anda no começo de cada minuto: a contagem troca junto com o relógio, sem pular nem atrasar. */
 function useMinuteNow() {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(() => zonedNow());
   useEffect(() => {
     let timer = 0;
-    const wait = () => 60000 - (Date.now() % 60000) + 40;
+    const wait = () => 60000 - (zonedNowMs() % 60000) + 40;
     const tick = () => {
-      setNow(new Date());
+      setNow(zonedNow());
       timer = window.setTimeout(tick, wait());
     };
     timer = window.setTimeout(tick, wait());
@@ -1254,7 +1255,7 @@ export function PanelHero({
   until?: string;
 }) {
   // hoje fixado na montagem (render precisa ser puro): a folha do destaque vazio
-  const [today] = useState(() => new Date().toISOString());
+  const [today] = useState(() => zonedNow().toISOString());
   const meta = category ? categoryMeta[category] : null;
   const corner = state === undefined ? (startsAt ? "contando" : "em dia") : state;
   return (
@@ -1440,7 +1441,7 @@ function avisoWhen(event: AcademicEvent) {
 
 /** Quando chegou o aviso do sistema: "hoje, 14:20", "ontem, 09:05" ou "qua, 04/11". */
 function noticeWhen(value: string) {
-  const days = Math.round((startOfDay(new Date()).getTime() - startOfDay(new Date(value)).getTime()) / 86400000);
+  const days = Math.round((startOfDay(zonedNow()).getTime() - startOfDay(new Date(value)).getTime()) / 86400000);
   if (days === 0) {
     return `hoje, ${formatTime(value)}`;
   }
@@ -1502,7 +1503,7 @@ let drawerOpened: { eventId: number; at: number } | null = null;
 const DRAWER_RETURN_MS = 30 * 60 * 1000;
 
 function drawerReturnEvent() {
-  return drawerOpened && Date.now() - drawerOpened.at < DRAWER_RETURN_MS ? drawerOpened.eventId : null;
+  return drawerOpened && zonedNowMs() - drawerOpened.at < DRAWER_RETURN_MS ? drawerOpened.eventId : null;
 }
 
 /** Hora para ordenar (data inválida vai para o fim). */
@@ -1713,7 +1714,7 @@ export function AvisosCard({
               // pelo painel lateral: ele fecha primeiro (e sai do histórico); o foco vai para o "Ver evento" do
               // mesmo evento no card ou, sem ele, para o "Ver todos os avisos", que passa a abrir esse evento; só
               // então o detalhe abre, e ao fechar ele devolve o foco para lá (o botão do painel lateral já saiu)
-              drawerOpened = { eventId, at: Date.now() };
+              drawerOpened = { eventId, at: zonedNowMs() };
               setReturnEvent(eventId);
               afterDialogs(() => {
                 const target = cardOpeners.current.get(eventId) ?? allButtonRef.current;
@@ -1866,7 +1867,7 @@ export function AvisosCard({
 
 /** Barras por semana (próximas cinco) para o KPI de 30 dias, com a legenda curta "por semana" embaixo (painel.css). */
 export function WeekSpark({ events }: { events: AcademicEvent[] }) {
-  const today = new Date();
+  const today = zonedNow();
   today.setHours(0, 0, 0, 0);
   const weeks = [0, 0, 0, 0, 0];
   for (const event of events) {

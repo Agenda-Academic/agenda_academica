@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow, zonedNowMs } from "@/lib/zone";
 import {
   CalendarRange,
   CalendarX2,
@@ -86,7 +87,7 @@ function inPeriod(event: AcademicEvent, period: TimeFilter) {
     return true;
   }
   // vale o último dia do evento (término às 00:00 não conta aquele dia)
-  const todayStart = startOfDay(new Date()).getTime();
+  const todayStart = startOfDay(zonedNow()).getTime();
   const lastDay = eventLastDay(event).getTime();
   return period === "upcoming" ? lastDay >= todayStart : lastDay < todayStart;
 }
@@ -126,7 +127,7 @@ function monthName(cursor: MonthCursor) {
 /** "5 de novembro" e, fora do ano corrente, "1 de março de 2027". */
 function dayAndMonth(date: Date) {
   const text = date.toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
-  return date.getFullYear() === new Date().getFullYear() ? text : `${text} de ${date.getFullYear()}`;
+  return date.getFullYear() === zonedNow().getFullYear() ? text : `${text} de ${date.getFullYear()}`;
 }
 
 /** "Quinta, 5 de novembro" ("Segunda, 1 de março de 2027" fora do ano corrente) */
@@ -234,7 +235,7 @@ const MAX_LINES = 3;
 
 function buildWeeks(cursor: MonthCursor, events: AcademicEvent[]): CalWeek[] {
   const { start, end } = gridRange(cursor);
-  const todayKey = dayKey(new Date());
+  const todayKey = dayKey(zonedNow());
   const spans = events.map((event) => ({ event, ...eventSpan(event) }));
   const weeks: CalWeek[] = [];
   // um período que atravessa semanas entra no Tab só uma vez, na primeira semana em que aparece
@@ -354,7 +355,7 @@ function monthIndexOf(time: number) {
 }
 
 function thisMonth(): MonthCursor {
-  const now = new Date();
+  const now = zonedNow();
   return { year: now.getFullYear(), month: now.getMonth() };
 }
 
@@ -368,7 +369,7 @@ function indexTitle(index: number) {
  * Dias do evento que contam no período. Nos Próximos, os dias que já passaram de um evento em andamento
  * ficam de fora: ele aparece no mês de hoje, e não no mês em que começou.
  */
-function periodSpan(event: AcademicEvent, period: TimeFilter, todayStart = startOfDay(new Date()).getTime()) {
+function periodSpan(event: AcademicEvent, period: TimeFilter, todayStart = startOfDay(zonedNow()).getTime()) {
   const span = eventSpan(event);
   return period === "upcoming" ? { first: Math.max(span.first, todayStart), last: span.last } : span;
 }
@@ -392,7 +393,7 @@ type MonthItem = { event: AcademicEvent; day: number };
  * meses (um recesso de dezembro a janeiro) entra em cada um deles, como na grade do Calendário.
  */
 function bucketByMonth(events: AcademicEvent[], period: TimeFilter) {
-  const todayStart = startOfDay(new Date()).getTime();
+  const todayStart = startOfDay(zonedNow()).getTime();
   const months = new Map<number, MonthItem[]>();
   for (const event of events) {
     const span = periodSpan(event, period, todayStart);
@@ -475,7 +476,7 @@ type ListGroup = { label: string; range?: string; items: MonthItem[] };
 
 /** Eventos do mês por semana, de domingo a sábado ("Esta semana 22 a 28 de nov", "29 de nov a 5 de dez"). */
 function groupByWeek(items: MonthItem[], refYear: number) {
-  const currentWeek = weekStartOf(Date.now());
+  const currentWeek = weekStartOf(zonedNowMs());
   const groups: ListGroup[] = [];
   for (const item of items) {
     const { label, range } = weekLabel(weekStartOf(item.day), currentWeek, refYear);
@@ -491,7 +492,7 @@ function groupByWeek(items: MonthItem[], refYear: number) {
 
 /** Resultado da busca na ordem dos dias, todos os meses juntos (em Passados, do mais recente). */
 function searchOrder(events: AcademicEvent[], period: TimeFilter): MonthItem[] {
-  const todayStart = startOfDay(new Date()).getTime();
+  const todayStart = startOfDay(zonedNow()).getTime();
   const ordered = events
     .map((event) => ({ event, day: periodSpan(event, period, todayStart).first }))
     .sort((a, b) => a.day - b.day || byStart(a.event, b.event));
@@ -525,7 +526,7 @@ function monthInText(index: number, withYear: boolean) {
 
 /** Meses da busca: "em março de 2027", "de março a dezembro de 2027", "de novembro de 2026 a março de 2027". */
 function monthSpanText(first: number, last: number) {
-  const thisYear = new Date().getFullYear();
+  const thisYear = zonedNow().getFullYear();
   const a = indexMonth(Math.min(first, last));
   const b = indexMonth(Math.max(first, last));
   if (a.year === b.year && a.month === b.month) {
@@ -2264,7 +2265,7 @@ export function CalendarView({
     const forward = timeFilter !== "past";
     // o que começou num mês anterior (um recesso de maio que entra em junho) fica num grupo próprio, "Continua
     // de maio", fora das semanas. Na ordem da lista: no alto, ou no fim em Passados (do mais recente ao mais antigo)
-    const todayStart = startOfDay(new Date()).getTime();
+    const todayStart = startOfDay(zonedNow()).getTime();
     const startedBefore = (item: MonthItem) => monthIndexOf(periodSpan(item.event, timeFilter, todayStart).first) < index;
     const carried = shownItems.filter(startedBefore);
     const ownGroups = groupByWeek(
@@ -2464,7 +2465,7 @@ export function CalendarView({
               placeholder="Ir para o mês"
               prefix="Mês:"
               size="sm"
-              value={String(monthIndexOf(searchPage.items[0]?.day ?? Date.now()))}
+              value={String(monthIndexOf(searchPage.items[0]?.day ?? zonedNowMs()))}
               variant="filter"
               width="auto"
               onChange={(value) => jump(Number(value))}

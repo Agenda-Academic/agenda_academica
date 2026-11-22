@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import { CheckCircle2, Clock, Info, Link2, Loader2 } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { claimGuardianLink, conflictOf } from "@/lib/api";
@@ -153,7 +154,7 @@ export function GuardianLinkCard({
         setWaitUntil(null);
         setWaitMessage(null);
       },
-      Math.max(0, waitUntil - Date.now())
+      Math.max(0, waitUntil - zonedNowMs())
     );
     return () => window.clearTimeout(timer);
   }, [waitUntil]);
@@ -219,7 +220,7 @@ export function GuardianLinkCard({
         setWaitMessage(
           seconds > 0 ? `Muitas tentativas com código errado. ${retryAfterText(seconds)}` : tooMany.message
         );
-        setWaitUntil(Date.now() + (seconds > 0 ? seconds : 60) * 1000);
+        setWaitUntil(zonedNowMs() + (seconds > 0 ? seconds : 60) * 1000);
         codeRef.current?.focus();
       } else {
         showError(err, "vincular-aluno");

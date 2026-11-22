@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow } from "@/lib/zone";
 import { ArrowLeft, ArrowRight, CalendarX2, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   useId,
@@ -61,7 +62,7 @@ export type MonthCounts = ReadonlyMap<number, number> | ((key: number) => number
 export type MonthMarks = ReadonlySet<number> | ((key: number) => boolean);
 
 /** Chave do mês de hoje (ano * 12 + mês). */
-export function currentMonthKey(now = new Date()) {
+export function currentMonthKey(now = zonedNow()) {
   return now.getFullYear() * 12 + now.getMonth();
 }
 

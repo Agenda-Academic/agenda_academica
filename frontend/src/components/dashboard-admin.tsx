@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import {
   ArrowRight,
   BookOpen,
@@ -94,7 +95,7 @@ export function AdminDashboard({
   onSelect: (id: number) => void;
 }) {
   // referência de "agora" fixada na montagem (render precisa ser puro)
-  const [now] = useState(() => Date.now());
+  const [now] = useState(() => zonedNowMs());
   const { rootRef, savedId } = useSavedReveal<HTMLDivElement>(lastSavedId, savedTick, upcomingEvents);
   const classes = context?.catalog.classes ?? [];
   // mais de 8 turmas: uma página por vez (a lista não cresce no lugar)

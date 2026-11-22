@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow, zonedNowMs } from "@/lib/zone";
 import {
   BookOpen,
   CalendarClock,
@@ -92,7 +93,7 @@ const MAX_EVENT_POINTS = 100;
 
 /** Próximo dia útil (seg a sex) às 19:00, horário das aulas da noite. */
 function nextClassDay() {
-  const today = new Date();
+  const today = zonedNow();
   const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 19, 0);
   while (day.getDay() === 0 || day.getDay() === 6) {
     day.setDate(day.getDate() + 1);
@@ -1893,7 +1894,7 @@ function EditorForm({
   const isAdmin = role === "admin";
   const base = useId();
   const fid = (name: string) => `${base}${name}`;
-  const [now] = useState(() => Date.now());
+  const [now] = useState(() => zonedNowMs());
   const [initial] = useState(form);
   const [touched, setTouched] = useState<Partial<Record<FieldKey, true>>>({});
   const [submitted, setSubmitted] = useState(false);

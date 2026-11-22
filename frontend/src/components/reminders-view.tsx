@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow, zonedNowMs } from "@/lib/zone";
 import {
   ArrowRight,
   Bell,
@@ -145,7 +146,7 @@ export function ReminderChannels({ email }: { email?: string | null }) {
 /** Ao lado do selo de data: "18:00, amanhã"; dia todo: "Dia todo, em 40 dias"; fora do ano, com a data inteira. */
 function eventWhen(event: AcademicEvent) {
   const whole = isWholeDay(event.startsAt, event.endsAt);
-  if (new Date(event.startsAt).getFullYear() !== new Date().getFullYear()) {
+  if (new Date(event.startsAt).getFullYear() !== zonedNow().getFullYear()) {
     return `${formatShortDate(event.startsAt)}, ${whole ? "dia todo" : formatTime(event.startsAt)}`;
   }
   return `${whole ? "Dia todo" : formatTime(event.startsAt)}, ${relativeDue(event.startsAt)}`;
@@ -510,7 +511,7 @@ export function RemindersView({
   const panelId = `${baseId}-painel`;
   const tabIds: Record<Tab, string> = { next: `${baseId}-aba-proximos`, sent: `${baseId}-aba-avisados` };
 
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => zonedNowMs());
   const [tab, setTab] = useState<Tab>("next");
   // evento salvando, o "Salvo" de agora e o interruptor ligado ou desligado antes de a página confirmar
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -526,7 +527,7 @@ export function RemindersView({
   const flashTimer = useRef<number | null>(null);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), CLOCK_TICK);
+    const timer = window.setInterval(() => setNow(zonedNowMs()), CLOCK_TICK);
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => () => {

@@ -139,6 +139,12 @@ node ace db:seed
 > Datas: o backend normaliza datas para UTC ao gravar; entradas sem offset são
 > interpretadas no fuso da instituição (`APP_TIMEZONE`, padrão `America/Campo_Grande`,
 > o horário de Mato Grosso do Sul). O frontend sempre envia ISO com offset.
+>
+> No frontend, a tela conta o tempo pelo relógio de MS e não pelo do computador (veja
+> `frontend/src/lib/zone.ts`). Todo `Date` do front é "de parede": `getHours()` etc. mostram a hora
+> de MS. O `apiFetch` converte os instantes ISO na ida e na volta. Para o "agora", use `zonedNow()`
+> ou `zonedNowMs()`; o ESLint barra `new Date()` e `Date.now()`. `npm test` (na pasta `frontend`)
+> confere a conversão com o relógio do computador em seis fusos diferentes.
 
 ## Deploy (Vercel + Render)
 

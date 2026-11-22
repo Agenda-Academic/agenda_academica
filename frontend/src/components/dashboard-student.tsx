@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import {
   ArrowRight,
   Bell,
@@ -150,7 +151,7 @@ export function StudentDashboard({
 }) {
   const { notices, token, navigate, openProfile, toast } = useAppActions();
   // referência de "agora" fixada na montagem (render precisa ser puro)
-  const [now] = useState(() => Date.now());
+  const [now] = useState(() => zonedNowMs());
   // evento do destaque cujo lembrete está sendo criado
   const [quickId, setQuickId] = useState<number | null>(null);
   // quando a página termina de salvar, some o giro (mesmo se deu erro)

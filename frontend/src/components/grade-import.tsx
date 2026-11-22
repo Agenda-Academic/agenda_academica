@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import {
   Check,
   CircleAlert,
@@ -112,7 +113,7 @@ export type GradeImportFlow = ReturnType<typeof useGradeImport>;
 
 /** Espera o andamento ficar à vista por um instante (a planilha pequena é lida num piscar). */
 function atLeast(started: number, ms: number) {
-  const left = ms - (Date.now() - started);
+  const left = ms - (zonedNowMs() - started);
   return left > 0 ? new Promise<void>((resolve) => window.setTimeout(resolve, left)) : Promise.resolve();
 }
 
@@ -252,7 +253,7 @@ export function useGradeImport({
   /** Escolheu a planilha: lê, acha as colunas e, se der, confere na hora (sem perguntar nada). */
   async function chooseFile(selected: File | null | undefined) {
     if (!selected || busy) return;
-    const started = Date.now();
+    const started = zonedNowMs();
     setReadingName(selected.name);
     setReading(true);
     setFileError("");
@@ -285,7 +286,7 @@ export function useGradeImport({
    * Depois de ler: a planilha da turma ainda sem notas volta com o aviso; sem a pontuação, pede a pontuação; sem
    * a coluna do aluno ou da nota, mostra as colunas; com tudo, cria o rascunho e vai para Conferir.
    */
-  async function proceed(read: GradesFile, choice: ColumnChoice, started = Date.now()) {
+  async function proceed(read: GradesFile, choice: ColumnChoice, started = zonedNowMs()) {
     const verdict = columnsVerdict(read.sheet, choice);
     if (verdict === "empty-score") {
       setFile(null);
@@ -310,7 +311,7 @@ export function useGradeImport({
   }
 
   /** Cria o rascunho (POST /grade-imports) e vai para Conferir. */
-  async function send(read: GradesFile, choice: ColumnChoice, from: "send" | "columns", started = Date.now()) {
+  async function send(read: GradesFile, choice: ColumnChoice, from: "send" | "columns", started = zonedNowMs()) {
     if (!info || busy) return;
     const fail = (message: string) => {
       if (from === "columns") {

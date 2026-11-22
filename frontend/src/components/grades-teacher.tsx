@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import {
   CalendarDays,
   ChevronRight,
@@ -150,7 +151,7 @@ export function GradesTeacher({
   search,
 }: GradesTeacherProps) {
   const { loading, navigate, token, user } = useAppActions();
-  const [now] = useState(() => Date.now());
+  const [now] = useState(() => zonedNowMs());
   // null: a aba escolhida pela tela (a da avaliação destacada, "Pendentes" quando há, ou "Passadas")
   const [chosenTab, setChosenTab] = useState<Tab | null>(null);
   // turma e disciplina escolhidas no filtro (null: todas)

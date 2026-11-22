@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import { Bell, BellRing, CalendarDays, Clock, Info, UserPlus } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { classPeriodLine, classTermLabel, cx, firstName, shiftLabel } from "@/lib/format";
@@ -108,7 +109,7 @@ export function GuardianDashboard({
 }: GuardianDashboardProps) {
   const { linkedStudents, reload } = useAppActions();
   // referência de "agora" fixada na montagem (render precisa ser puro); trocar de aluno remonta o painel
-  const [now] = useState(() => Date.now());
+  const [now] = useState(() => zonedNowMs());
   const [dataOpen, setDataOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   // avaliação do destaque cujo lembrete está sendo criado

@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNowMs } from "@/lib/zone";
 import {
   ArrowRight,
   Bell,
@@ -163,7 +164,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
   const grades = useStudentGrades(isGuardian ? (student?.id ?? null) : null);
   const myGuardians = useMyGuardians(role === "student");
   // referência de "agora" fixada na montagem (render precisa ser puro)
-  const [now] = useState(() => Date.now());
+  const [now] = useState(() => zonedNowMs());
   const [dataOpen, setDataOpen] = useState(false);
   // disciplina aberta no painel lateral ("Ver todas")
   const [openGroup, setOpenGroup] = useState<string | null>(null);

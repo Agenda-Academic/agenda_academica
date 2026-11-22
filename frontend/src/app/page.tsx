@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow, zonedNowMs } from "@/lib/zone";
 import { FileText, GraduationCap, WifiOff } from "lucide-react";
 import {
   useCallback,
@@ -378,7 +379,7 @@ function tellRouter() {
 
 function newEntryKey() {
   entrySeq += 1;
-  return `${Date.now().toString(36)}-${entrySeq}`;
+  return `${zonedNowMs().toString(36)}-${entrySeq}`;
 }
 
 function setEntryOwner(userId: number) {
@@ -1334,7 +1335,7 @@ export default function Home() {
 
   // o tempo de cada aviso fica com o ToastStack
   const pushToast = useCallback((tone: ToastTone, text: string, options: ToastOptions = {}) => {
-    const id = Date.now() + Math.random();
+    const id = zonedNowMs() + Math.random();
     const { action, duration, keys, offline } = options;
     setToasts((current) => [
       // um aviso novo do mesmo assunto tira o antigo (o Desfazer dele já não vale); aviso igual sem botão não se
@@ -1373,7 +1374,7 @@ export default function Home() {
       return;
     }
     goTo("sync");
-    setIncomingPdf({ file, id: Date.now() });
+    setIncomingPdf({ file, id: zonedNowMs() });
   });
 
   // arrastar um arquivo sobre o app mostra para onde ele vai; soltar fora de uma área própria (o CSV de notas,
@@ -1507,8 +1508,8 @@ export default function Home() {
         setUnreadCount(noticesData.unreadCount);
       }
       setLoadFailure(null);
-      setLastLoadedAt(new Date());
-      setReferenceNow(Date.now());
+      setLastLoadedAt(zonedNow());
+      setReferenceNow(zonedNowMs());
       const loaded: LoadedData = { events: eventsData, context: contextData };
       // primeira carga que deu certo depois de entrar ou do F5 (mesmo pelo Tentar de novo): rolagem, detalhe e
       // rascunho; e a publicação que ficou sem resposta no prazo, se ela já aparece
@@ -1740,7 +1741,7 @@ export default function Home() {
       }
       return;
     }
-    if (!back || Date.now() - back.at > 1500) {
+    if (!back || zonedNowMs() - back.at > 1500) {
       return;
     }
     const toOpener = () => {
@@ -2557,7 +2558,7 @@ export default function Home() {
       const y = known ?? entry.scrollY ?? 0;
       requestScroll(y, true);
       // só entrada de antes de um F5 (rolagem fora do mapa): se o Next ainda subir ao topo logo depois, a trava devolve
-      scrollGuardRef.current = known === undefined && y > 0 ? { y, until: Date.now() + 800 } : null;
+      scrollGuardRef.current = known === undefined && y > 0 ? { y, until: zonedNowMs() + 800 } : null;
       // de volta do detalhe aberto nesta tela (X, Esc ou Voltar): o foco vai para quem abriu, depois que a tela
       // montar e a rolagem voltar; nas outras trocas, para o título da tela
       const opener =
@@ -2583,7 +2584,7 @@ export default function Home() {
       detailFocusRef.current = {
         eventId: left.eventId,
         spot: entry.opener === left.eventId ? readSpot(entry.openerSpot) : undefined,
-        at: Date.now(),
+        at: zonedNowMs(),
       };
     }
   });
@@ -3246,9 +3247,9 @@ export default function Home() {
       return false;
     }
     const offsetMinutes =
-      minutes !== undefined && new Date(event.startsAt).getTime() - minutes * 60000 > Date.now()
+      minutes !== undefined && new Date(event.startsAt).getTime() - minutes * 60000 > zonedNowMs()
         ? minutes
-        : bestReminderOffset(event.startsAt, active.user.defaultReminderMinutes, Date.now());
+        : bestReminderOffset(event.startsAt, active.user.defaultReminderMinutes, zonedNowMs());
     if (offsetMinutes === null) {
       pushToast("danger", "Esse evento começa em menos de 15 minutos. Não dá mais para criar lembrete.");
       return false;
@@ -3288,7 +3289,7 @@ export default function Home() {
       if (reminderByEvent.get(event.id)) {
         continue;
       }
-      const offsetMinutes = bestReminderOffset(event.startsAt, active.user.defaultReminderMinutes, Date.now());
+      const offsetMinutes = bestReminderOffset(event.startsAt, active.user.defaultReminderMinutes, zonedNowMs());
       if (offsetMinutes === null) {
         failed += 1;
         continue;
@@ -3534,7 +3535,7 @@ export default function Home() {
       return false;
     }
     const event = eventsById.get(reminder.academicEventId) ?? reminder.academicEvent;
-    if (event && new Date(event.startsAt).getTime() - minutes * 60000 <= Date.now()) {
+    if (event && new Date(event.startsAt).getTime() - minutes * 60000 <= zonedNowMs()) {
       pushToast("danger", "Esse horário de aviso já passou. Escolha uma antecedência menor.");
       return false;
     }
@@ -4057,7 +4058,7 @@ export default function Home() {
     let saveTimer = 0;
     const handleScroll = () => {
       const guard = scrollGuardRef.current;
-      if (guard && Date.now() <= guard.until && window.scrollY === 0) {
+      if (guard && zonedNowMs() <= guard.until && window.scrollY === 0) {
         scrollGuardRef.current = null;
         window.scrollTo({ top: guard.y, behavior: "instant" });
         return;
@@ -4166,7 +4167,7 @@ export default function Home() {
     if (!session) {
       return;
     }
-    const timer = window.setInterval(() => setReferenceNow(Date.now()), 30000);
+    const timer = window.setInterval(() => setReferenceNow(zonedNowMs()), 30000);
     return () => window.clearInterval(timer);
   }, [session]);
 

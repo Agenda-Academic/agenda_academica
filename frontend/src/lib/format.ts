@@ -1,3 +1,4 @@
+import { zonedNow, zonedNowMs } from "./zone";
 import { isTimeoutError } from "./api";
 import {
   enrollmentSourceLabels,
@@ -73,7 +74,7 @@ export const NBSP = String.fromCharCode(0xa0);
  * número e "dias" ficam juntos (espaço não separável). Não repete a data, que já aparece ao lado.
  */
 export function relativeDue(value: string | Date) {
-  const diff = startOfDay(new Date(value)).getTime() - startOfDay(new Date()).getTime();
+  const diff = startOfDay(new Date(value)).getTime() - startOfDay(zonedNow()).getTime();
   const days = Math.round(diff / (24 * 60 * 60 * 1000));
 
   if (days < 0) {
@@ -113,7 +114,7 @@ export function isSameDay(a: Date, b: Date) {
 }
 
 export function isToday(value: Date) {
-  return isSameDay(value, new Date());
+  return isSameDay(value, zonedNow());
 }
 
 /**
@@ -500,14 +501,14 @@ export function dateParts(value: string) {
     day: String(date.getDate()).padStart(2, "0"),
     month: shortMonths[date.getMonth()],
     year: date.getFullYear(),
-    otherYear: date.getFullYear() !== new Date().getFullYear(),
+    otherYear: date.getFullYear() !== zonedNow().getFullYear(),
   };
 }
 
 /** "/2027" quando a data não é do ano corrente (decisão da rodada de UX: o ano aparece fora do ano corrente). */
 export function yearSuffix(value: string | Date) {
   const year = new Date(value).getFullYear();
-  return year === new Date().getFullYear() ? "" : `/${year}`;
+  return year === zonedNow().getFullYear() ? "" : `/${year}`;
 }
 
 const monthNames = [
@@ -526,7 +527,7 @@ const monthNames = [
 ];
 
 /** "Dezembro" no ano corrente; "Janeiro de 2027" fora dele (cabeçalho de grupo por mês). */
-export function monthGroupLabel(value: string | Date, now = new Date()) {
+export function monthGroupLabel(value: string | Date, now = zonedNow()) {
   const date = new Date(value);
   const name = monthNames[date.getMonth()];
   const label = date.getFullYear() === now.getFullYear() ? name : `${name} de ${date.getFullYear()}`;
@@ -534,7 +535,7 @@ export function monthGroupLabel(value: string | Date, now = new Date()) {
 }
 
 /** "1 de jan de 2027" ou, no ano corrente, "23 de nov". */
-export function dayMonthText(value: string | Date, now = new Date()) {
+export function dayMonthText(value: string | Date, now = zonedNow()) {
   const date = new Date(value);
   const base = `${date.getDate()} de ${shortMonths[date.getMonth()].toLowerCase()}`;
   return date.getFullYear() === now.getFullYear() ? base : `${base} de ${date.getFullYear()}`;
@@ -584,7 +585,7 @@ export function formatOnDay(value: string | Date) {
  * um aviso sai ou uma importação foi feita). Hoje e ontem dizem só o dia relativo, para o Painel, o Importar e as
  * listas falarem a mesma coisa da mesma hora.
  */
-export function formatOnDayAt(value: string | Date, now: Date | number = new Date()) {
+export function formatOnDayAt(value: string | Date, now: Date | number = zonedNow()) {
   const date = new Date(value);
   const days = Math.round((startOfDay(new Date(now)).getTime() - startOfDay(date).getTime()) / (24 * 60 * 60 * 1000));
   if (days === 0) {
@@ -601,7 +602,7 @@ export function formatOnDayAt(value: string | Date, now: Date | number = new Dat
  * "qui, 26/11, às 18:00". O ano só aparece fora do ano corrente ("sex, 01/01/2027, às 08:00").
  * Use no toast, no detalhe do evento e em Lembretes, para as telas falarem igual.
  */
-export function formatRelativeWhen(iso: string, now: Date | number = new Date()): string {
+export function formatRelativeWhen(iso: string, now: Date | number = zonedNow()): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
     return "";
@@ -627,7 +628,7 @@ export function localDateKey(value: Date) {
 
 /** Dias corridos entre hoje e a data (negativo = passado). */
 export function daysUntil(value: string) {
-  const diff = startOfDay(new Date(value)).getTime() - startOfDay(new Date()).getTime();
+  const diff = startOfDay(new Date(value)).getTime() - startOfDay(zonedNow()).getTime();
   return Math.round(diff / (24 * 60 * 60 * 1000));
 }
 
@@ -654,7 +655,7 @@ export function isWholeDay(startsAt: string, endsAt?: string | null) {
 }
 
 /** "1d 11h 18m" até o início. */
-export function countdown(value: string, now = new Date()) {
+export function countdown(value: string, now = zonedNow()) {
   const ms = new Date(value).getTime() - now.getTime();
   if (ms <= 0) {
     return "agora";
@@ -675,7 +676,7 @@ export function shiftLabel(value?: string | null) {
  * Intervalo de uma semana, o mesmo no Painel e no Cronograma: "22 a 28 de nov" e, quando muda o mês,
  * "29 de nov a 5 de dez". Fora do ano corrente, o ano vai no fim ("27 de dez a 2 de jan de 2027").
  */
-export function weekRangeLabel(start: Date, end: Date, now = new Date()) {
+export function weekRangeLabel(start: Date, end: Date, now = zonedNow()) {
   const month = (date: Date) => shortMonths[date.getMonth()].toLowerCase();
   const year = end.getFullYear() === now.getFullYear() && start.getFullYear() === now.getFullYear() ? "" : ` de ${end.getFullYear()}`;
   return start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
@@ -692,7 +693,7 @@ export function dayMonthRange(start: Date, end: Date) {
  * Agrupa eventos futuros em "Esta semana", "Próxima semana, 22 a 28 de nov" e, depois, um grupo por mês
  * ("Dezembro", "Janeiro de 2027"): numa lista que atravessa meses, cada data fica com o mês à vista.
  */
-export function groupByWeek<T extends { startsAt: string }>(items: T[], now = new Date()) {
+export function groupByWeek<T extends { startsAt: string }>(items: T[], now = zonedNow()) {
   const today = startOfDay(now);
   const nextWeekStart = addDays(today, 7 - today.getDay());
   const nextWeekEnd = addDays(nextWeekStart, 6);
@@ -719,7 +720,7 @@ export function groupByWeek<T extends { startsAt: string }>(items: T[], now = ne
 }
 
 /** Agrupa por mês ("Dezembro", "Janeiro de 2027"), na ordem em que os itens vêm. */
-export function groupByMonth<T extends { startsAt: string }>(items: T[], now = new Date()) {
+export function groupByMonth<T extends { startsAt: string }>(items: T[], now = zonedNow()) {
   const groups: Array<{ label: string; items: T[] }> = [];
   for (const item of items) {
     const label = monthGroupLabel(item.startsAt, now);
@@ -797,7 +798,7 @@ export function classTermLabel(value: Pick<AcademicClass, "year" | "semester">, 
  * O semestre mais recente entre as turmas ("2026/2"), sem contar as anuais (o 0 não é semestre). Sem turma
  * semestral, o semestre do dia (1 até junho, 2 depois). Serve para "semestre atual" no Painel e nos filtros.
  */
-export function latestTermLabel(classes: Array<Pick<AcademicClass, "year" | "semester">>, now = Date.now()) {
+export function latestTermLabel(classes: Array<Pick<AcademicClass, "year" | "semester">>, now = zonedNowMs()) {
   let latest: Pick<AcademicClass, "year" | "semester"> | null = null;
   for (const item of classes) {
     if (!item.semester) {

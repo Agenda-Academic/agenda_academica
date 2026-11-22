@@ -53,6 +53,7 @@ import type {
   UserRole,
   UserSummary,
 } from "./types";
+import { instantIso, mapInstants, wallIso } from "./zone";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333/api/v1";
 
@@ -215,7 +216,8 @@ export async function apiFetch<T>(path: string, token?: string, options: Request
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...headers,
         },
-        body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
+        // saída: todo instante ISO do corpo volta de "hora de MS" para o instante real (ver lib/zone.ts)
+        body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(mapInstants(body, instantIso)),
         signal: controller.signal,
       });
     } catch (error) {
@@ -242,7 +244,8 @@ export async function apiFetch<T>(path: string, token?: string, options: Request
     }
 
     try {
-      return (await response.json()) as T;
+      // entrada: todo instante ISO da resposta vira "hora de MS" (o new Date(...) do resto do front lê a hora do campus)
+      return mapInstants((await response.json()) as T, wallIso);
     } catch (error) {
       // a resposta começou a chegar e parou: o prazo acabou no meio dela
       if (timedOut) {

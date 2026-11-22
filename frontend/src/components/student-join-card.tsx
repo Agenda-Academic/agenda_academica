@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow, zonedNowMs } from "@/lib/zone";
 import { CircleAlert, Hourglass, Loader2, LogIn, Users } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from "react";
 import { conflictOf, joinClass } from "@/lib/api";
@@ -100,7 +101,7 @@ export function useJoinClass(): JoinClassState {
       setError("O código tem 8 letras e números, como H4TR-92QK. Confira o que a docente ou a secretaria passou.");
       return null;
     }
-    const wait = blockedUntil.current - Date.now();
+    const wait = blockedUntil.current - zonedNowMs();
     if (wait > 0) {
       setError(tooManyText(wait / 1000));
       return null;
@@ -117,7 +118,7 @@ export function useJoinClass(): JoinClassState {
       const limit = conflictOf(err, "TOO_MANY_ATTEMPTS");
       if (limit) {
         const seconds = limit.retryAfter ?? 900;
-        blockedUntil.current = Date.now() + seconds * 1000;
+        blockedUntil.current = zonedNowMs() + seconds * 1000;
         setError(tooManyText(seconds));
       } else {
         // 422 do código: sempre a mesma frase da API ("Código inválido ou expirado. Confira com quem passou o código.")
@@ -278,7 +279,7 @@ export function StudentJoinCard({
   const inputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   // "agora" fixado na montagem (render precisa ser puro): serve para o "Enviado hoje, 14:20"
-  const [now] = useState(() => Date.now());
+  const [now] = useState(() => zonedNowMs());
   const [sent, setSent] = useState<{ result: JoinClassResult; at: string } | null>(null);
   // frase do último envio para o leitor de tela (a região fica sempre montada)
   const [announce, setAnnounce] = useState("");
@@ -313,7 +314,7 @@ export function StudentJoinCard({
       toast(result.message || `Você entrou em ${name}.`, { key: "entrar-turma" });
       return;
     }
-    setSent({ result, at: new Date().toISOString() });
+    setSent({ result, at: zonedNow().toISOString() });
     setAnnounce(result.message || `Pedido enviado para ${name}. A docente ou a secretaria confirma.`);
   }
 

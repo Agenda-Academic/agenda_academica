@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow } from "@/lib/zone";
 import {
   Archive,
   ArchiveRestore,
@@ -514,7 +515,7 @@ function YearField({
   onBlur?: () => void;
   onChange: (year: string) => void;
 }) {
-  const base = /^\d{4}$/.test(value) ? Number(value) : new Date().getFullYear();
+  const base = /^\d{4}$/.test(value) ? Number(value) : zonedNow().getFullYear();
   return (
     <Block id={id} label="Ano" error={error}>
       <div className={cx("admin-year", error && "is-invalid")} role="group" aria-labelledby={`${id}-l`}>
@@ -1075,7 +1076,7 @@ function stepOfField(field: string): ClassStep {
 /** Rascunho novo: nada de curso, período ou turno herdados de outra turma; o ano e o semestre de agora (ou os últimos usados). */
 function freshClassDraft(courses: Course[]): ClassDraft {
   const last = readLastClass();
-  const today = new Date();
+  const today = zonedNow();
   return {
     courseId: courses.length === 1 ? String(courses[0].id) : "",
     name: "",

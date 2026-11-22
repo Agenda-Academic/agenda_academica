@@ -1,5 +1,6 @@
 "use client";
 
+import { zonedNow, zonedNowMs } from "@/lib/zone";
 import {
   Bell,
   BellOff,
@@ -495,7 +496,7 @@ export function EventRow({
           {showMonth ? (
             <span className="ev-mo">
               {parts.month}
-              {parts.year !== (refYear ?? new Date().getFullYear()) ? <span className="ev-yr">{parts.year}</span> : null}
+              {parts.year !== (refYear ?? zonedNow().getFullYear()) ? <span className="ev-yr">{parts.year}</span> : null}
             </span>
           ) : null}
         </span>
@@ -571,7 +572,7 @@ function longDay(date: Date, withWeekday = true) {
 }
 
 function yearSuffixLong(date: Date) {
-  return date.getFullYear() === new Date().getFullYear() ? "" : ` de ${date.getFullYear()}`;
+  return date.getFullYear() === zonedNow().getFullYear() ? "" : ` de ${date.getFullYear()}`;
 }
 
 /** "16 a 18 de novembro" ou "30 de novembro a 2 de dezembro" (com o ano no fim, fora do ano corrente). */
@@ -684,9 +685,9 @@ export function EventDetailContent({
   const ids = useId();
 
   // horário de referência (render precisa ser puro); atualiza a cada 30 s
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => zonedNowMs());
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    const timer = window.setInterval(() => setNow(zonedNowMs()), 30000);
     return () => window.clearInterval(timer);
   }, []);
 

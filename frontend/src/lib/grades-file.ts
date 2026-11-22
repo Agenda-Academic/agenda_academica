@@ -7,6 +7,7 @@
  */
 import type { SheetData } from "write-excel-file/browser";
 import type { GradeEventInfo, GradeImportMapping, GradeImportRow, GradeImportRowInput, GradeStatus } from "./types";
+import { zonedDate } from "./zone";
 
 /** Teto do corpo do POST /grade-imports (bodyparser da API: 1 MB). */
 export const MAX_BODY_BYTES = 1_000_000;
@@ -300,7 +301,8 @@ export async function readGradesFile(file: File): Promise<GradesFile> {
     const { text, encoding } = decode(bytes);
     sheet = parseSheet(text, encoding);
   }
-  const modifiedAt = file.lastModified > 0 ? new Date(file.lastModified).toISOString() : null;
+  // o lastModified é um instante real (não veio da API): vira hora de MS aqui, e o apiFetch devolve o instante certo ao enviar
+  const modifiedAt = file.lastModified > 0 ? zonedDate(file.lastModified).toISOString() : null;
   return { name: file.name, size: file.size, modifiedAt, checksum: await checksumOf(bytes), sheet };
 }
 
@@ -776,7 +778,7 @@ export async function downloadTemplate(info: GradeEventInfo, students: TemplateS
     ];
   });
   const withGrades = students.some((student) => student.grade);
-  const date = new Date(info.startsAt).toLocaleDateString("pt-BR", { timeZone: "America/Campo_Grande" });
+  const date = new Date(info.startsAt).toLocaleDateString("pt-BR");
   const label = { fontWeight: "bold" as const };
   const howTo: SheetData = [
     [{ value: `Notas de ${info.title}`, fontWeight: "bold" as const, fontSize: 14 }],
