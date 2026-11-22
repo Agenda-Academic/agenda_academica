@@ -64,9 +64,21 @@ html .crono-mode .seg .on:focus-visible {
   outline-color: var(--ink) !important;
 }
 /* Próximos | Passados | Todos: também em pílula, na mesma linha */
-html .crono-frow > .seg,
-html .crono-frow > .seg button {
+html :is(.crono-frow, .crono-pwrap) > .seg,
+html :is(.crono-frow, .crono-pwrap) > .seg button {
   border-radius: var(--r-full, 999px);
+}
+/* as abas do período e o "120 eventos no total" juntos: a contagem fica logo à direita das abas e, quando não cabe
+   ao lado (administração a 1024 px, celular), desce para baixo delas, em vez de virar uma linha solta no canto. A
+   base é a largura das abas (min-content) e o bloco cresce até caber a contagem (max-content) */
+.crono-pwrap {
+  display: flex;
+  flex: 1 1 min-content;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  min-width: 0;
+  max-width: max-content;
 }
 .crono-frow {
   display: flex;
@@ -85,6 +97,10 @@ html .crono-frow > .seg button {
   color: var(--muted);
 }
 .crono-total {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .crono-cats {
@@ -707,6 +723,7 @@ html .cg-card {
 /* grade arejada, como no artefato: os dias com um vão de 6 px entre as colunas e só um fio claro em cima de cada
    dia (sem as linhas verticais), dentro de um recuo de 14 px do card */
 .cg {
+  position: relative;
   margin-top: 12px;
   padding: 0 14px 4px;
 }
@@ -736,14 +753,15 @@ html .cg-card {
   grid-template-columns: repeat(7, minmax(0, 1fr));
   column-gap: 6px;
 }
-/* altura fixa do dia: número (30 px) e 3 linhas de 20 px (faixas, chips e o "+N", calendar-view DAY_ROWS). Toda
-   semana fica com a mesma altura; o que não cabe vai para o "+N". O fio de cima é uma sombra por dentro (e não
-   uma borda), para não mexer na altura nem na posição das faixas (.cg-bars, top: 38px) */
+/* altura fixa do dia (112 px), de cima para baixo: as linhas finas dos períodos (3 de 5 px, de 3 a 24 px, em
+   .cg-lines), o número (de 22 a 48 px, o algarismo de 29 a 41) e 3 linhas de 18 px para os eventos de um dia (chips e o "+N", de 50 a
+   108 px; calendar-view DAY_ROWS). Toda semana fica com a mesma altura, com ou sem períodos; o que não cabe vai
+   para o "+N". O fio de cima é uma sombra por dentro (e não uma borda), para não mexer nas medidas */
 .cg-c {
   position: relative;
   min-width: 0;
   min-height: 112px;
-  padding: 8px;
+  padding: 8px 8px 4px;
   border-radius: 0 0 14px 14px;
   box-shadow: inset 0 1px 0 var(--line);
   /* a largura do dia decide se a hora cabe no chip do evento (.cg-ev .tm) */
@@ -784,14 +802,15 @@ html .cg-card {
     box-shadow: inset 0 1px 0 var(--line-strong);
   }
 }
-/* o botão do dia cobre a célula: o espaço livre abre a lista do dia. O número fica no canto. */
+/* o botão do dia cobre a célula: o espaço livre abre a lista do dia. O número fica no canto, logo abaixo das
+   linhas finas dos períodos */
 html .cg-hit {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: flex-start;
   gap: 2px;
-  padding: 8px;
+  padding: 22px 8px 8px;
   border: 0;
   border-radius: inherit;
   background: transparent;
@@ -836,7 +855,7 @@ html .cg-hit:focus-visible {
   color: var(--brand-ink);
   font-weight: 800;
 }
-/* eventos de um dia: por cima do botão do dia, cada um abre o evento */
+/* eventos de um dia: por cima do botão do dia, cada um abre o evento (de 50 a 108 px da célula) */
 .cg-items {
   position: relative;
   z-index: 1;
@@ -844,17 +863,11 @@ html .cg-hit:focus-visible {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  margin-top: 30px;
+  margin-top: 42px;
   pointer-events: none;
 }
 .cg-items > button {
   pointer-events: auto;
-}
-/* as linhas das faixas que passam pelo dia (20 px cada, 2 px entre elas) */
-.cg-lanes {
-  display: block;
-  flex: none;
-  height: calc(var(--lanes) * 22px - 2px);
 }
 .cg-c.out .cg-items {
   opacity: 0.55;
@@ -878,12 +891,12 @@ html .cg-ev {
   gap: 0 6px;
   width: 100%;
   min-width: 0;
-  height: 20px;
+  height: 18px;
   padding: 0 6px;
   overflow: hidden;
   border: 0;
   /* pílula (raio da metade da altura) */
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   font-size: var(--fs-12);
   font-weight: 500;
@@ -907,13 +920,13 @@ html .cg-ev .tx {
   max-width: calc(100% - 12px);
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 20px;
+  line-height: 18px;
 }
 /* o título vem primeiro e fica com o espaço; a hora só aparece no fim do chip quando o dia é largo (1920) */
 html .cg-ev .tm {
   flex: none;
   margin-left: auto;
-  line-height: 20px;
+  line-height: 18px;
   font-weight: 600;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
@@ -979,8 +992,9 @@ html .cg-more {
   flex: none;
   align-items: center;
   max-width: 100%;
-  height: 20px;
+  height: 18px;
   padding: 0 9px;
+  overflow: hidden;
   border: 0;
   border-radius: var(--r-full, 999px);
   background: var(--surface);
@@ -1005,88 +1019,185 @@ html .cg-more.open {
   box-shadow: none;
   color: #fff;
 }
-/* faixas dos eventos de vários dias: uma camada por cima da semana, nas mesmas linhas de 20 px dos chips, presa
-   às colunas dos dias do evento (4 px de folga de cada ponta), uma linha só com o nome cortado e inteiro na dica */
-.cg-bars {
+/* períodos (eventos de vários dias): linhas finas de 5 px na cor da categoria, no alto da semana (até 3), presas às
+   colunas dos dias do período, com 5 px de folga em cada ponta (dois períodos seguidos na mesma linha não se
+   juntam). Sem texto: o nome fica na dica (.cg-tip), no title, no nome acessível, na lista do dia e no detalhe.
+   Cada linha é um botão de 8 px de altura (a área do mouse, sem vão entre as linhas) com o traço de 5 px dentro
+   (3 px de vão entre dois traços: as linhas da mesma cor não viram uma faixa só) */
+.cg-lines {
   position: absolute;
-  top: 38px;
+  top: 2px;
   left: 0;
   right: 0;
   z-index: 2;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  /* o mesmo vão das colunas dos dias (.cg-wk): a faixa fica presa às colunas do evento */
+  /* o mesmo vão das colunas dos dias (.cg-wk): a linha fica presa às colunas do período */
   column-gap: 6px;
-  grid-auto-rows: 20px;
-  row-gap: 2px;
+  grid-auto-rows: 8px;
   pointer-events: none;
 }
-/* faixa em pílula, no fundo suave da categoria, com o ponto da cor forte no começo */
-.cg-bar {
-  display: flex;
-  align-self: center;
-  align-items: center;
-  gap: 6px;
+html .cg-line {
+  position: relative;
+  display: block;
   min-width: 0;
-  height: 18px;
-  margin: 0 4px;
-  padding: 0 8px 0 7px;
-  overflow: hidden;
-  border-radius: 9px;
-  background: var(--k-bg);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 18%, transparent);
-  font-size: var(--fs-12);
-  font-weight: 600;
-  line-height: 18px;
-  color: var(--k-t);
-  white-space: nowrap;
+  height: 8px;
+  margin: 0 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
   cursor: pointer;
   pointer-events: auto;
-  transition: box-shadow 0.15s var(--ease);
   /* surge com o dia em que começa (--d; o --k é a cor da categoria) */
   animation: cg-surge 0.4s var(--ease) backwards;
   animation-delay: calc(var(--d, 0) * 8ms);
 }
-.cg-bar::before {
+.cg-line::before {
   content: "";
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+  position: absolute;
+  inset: 1px 0 2px;
+  border-radius: 3px;
   background: var(--k);
+  transition:
+    box-shadow 0.15s var(--ease),
+    opacity 0.15s var(--ease);
 }
-.cg-bar:hover {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 45%, transparent);
+/* mouse ou foco: um halo da cor da categoria em volta do traço (a dica aparece acima dele) */
+.cg-line:hover::before,
+.cg-line.tip::before {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--k) 30%, transparent);
 }
-/* continua da semana anterior ou na próxima: a ponta fica reta e encosta na borda (sem o ponto, que marca o
-   começo do evento) */
-.cg-bar.from-before {
+html .cg-line:focus-visible {
+  outline-offset: 1px;
+}
+/* continua da semana anterior ou na próxima: a ponta fica reta e encosta na borda da semana */
+.cg-line.from-before {
   margin-left: 0;
-  padding-left: 9px;
+}
+.cg-line.from-before::before {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
-.cg-bar.from-before::before {
-  display: none;
-}
-.cg-bar.to-after {
+.cg-line.to-after {
   margin-right: 0;
+}
+.cg-line.to-after::before {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
-.cg-bar.out {
-  opacity: 0.6;
+.cg-line.out::before {
+  opacity: 0.4;
 }
-.cg-bar.sel {
-  box-shadow: inset 0 0 0 2px var(--brand);
+/* período aberto no detalhe: um anel verde afastado do traço */
+.cg-line.sel::before {
+  box-shadow:
+    0 0 0 1.5px var(--surface),
+    0 0 0 3px var(--brand);
 }
-.cg-bar.cancel .cg-bar-t {
-  text-decoration: line-through;
+/* cancelado: tracejado */
+.cg-line.cancel::before {
+  background: repeating-linear-gradient(90deg, var(--k) 0 6px, transparent 6px 10px);
 }
-.cg-bar-t {
+/* mais de 3 períodos na semana: "+1 período", discreto, à direita do número do dia em que o primeiro começa, com
+   um traço como o das linhas. Nunca passa do dia: o texto corta e, no dia estreito, fica só "+1" */
+html .cg-lmore {
+  position: absolute;
+  top: 26px;
+  right: 5px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 44px);
+  height: 18px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--r-full, 999px);
+  background: transparent;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 18px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s var(--ease),
+    color 0.15s var(--ease);
+}
+.cg-lmore > i {
+  flex: none;
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.8;
+}
+.cg-lmore .w {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+html .cg-lmore:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+/* dia com o mês ao lado do número ("1 mar"): a pílula para antes dele */
+html .cg-c.mo .cg-lmore {
+  max-width: calc(100% - 72px);
+}
+/* "+1 período" a partir de 1366 px; abaixo (1024), só "+1" com o traço (o nome inteiro fica no title e no nome) */
+@container cg-cell (max-width: 139px) {
+  .cg-lmore .w {
+    display: none;
+  }
+}
+/* dica da linha fina, acima dela: o nome inteiro (quebra em linhas), a categoria e o intervalo ("01 a 05/03").
+   Posição (left e top) vinda do calendar-view, presa às bordas da grade */
+.cg-tip {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: max-content;
+  max-width: min(340px, calc(100% - 16px));
+  padding: 9px 12px 10px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: var(--sh-pop);
+  transform: translateY(calc(-100% - 8px));
+  pointer-events: none;
+  animation: cg-tip-in 0.15s var(--ease) both;
+}
+@keyframes cg-tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-100% - 3px));
+  }
+}
+.cg-tip-t {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.cg-tip-m {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.78);
+  font-variant-numeric: tabular-nums;
+}
+.cg-tip-m .dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.85);
 }
 /* celular e tablet: o dia vira o número com os pontos das categorias embaixo */
 .cg-dots {
@@ -1117,7 +1228,9 @@ html .cg-more.open {
   }
   .cg-mon,
   .cg-items,
-  .cg-bars {
+  .cg-lines,
+  .cg-tip,
+  html .cg-lmore {
     display: none;
   }
   .cg-dots {
@@ -1134,6 +1247,12 @@ html .cg-more.open {
   .cg-dots .dot {
     width: 6px;
     height: 6px;
+  }
+  /* dia com período: um traço na cor dele antes dos pontos (a linha fina do computador, em miniatura) */
+  .cg-dots .cg-dash {
+    width: 10px;
+    height: 4px;
+    border-radius: 2px;
   }
   .cg-count {
     margin-left: 1px;
@@ -1254,6 +1373,14 @@ html .cg-day-new .btn:hover {
   width: 7px;
   height: 7px;
 }
+/* "Linha fina = período de vários dias": o traço no lugar do ponto */
+.cg-leg .cg-leg-line > i {
+  flex: none;
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ink-3);
+}
 @media (max-width: 1023px), (pointer: coarse) {
   .cg-keys {
     display: none;
@@ -1274,15 +1401,20 @@ html .cg-day-new .btn:hover {
   /* Agenda e Calendário dividem a largura; o período também */
   .crono-mode,
   html .crono-mode .seg,
-  .crono-frow > .seg {
+  :is(.crono-frow, .crono-pwrap) > .seg {
     display: flex;
     width: 100%;
   }
   html .crono-mode .seg button,
-  .crono-frow > .seg button {
+  :is(.crono-frow, .crono-pwrap) > .seg button {
     flex: 1 1 0;
     justify-content: center;
     padding: 0 6px;
+  }
+  /* as abas na largura toda e a contagem logo embaixo delas */
+  .crono-pwrap {
+    flex: 1 1 100%;
+    max-width: none;
   }
   .crono-fbar {
     gap: 10px;
@@ -1291,13 +1423,10 @@ html .cg-day-new .btn:hover {
   .crono-frow {
     gap: 8px 12px;
   }
-  /* o total fica à vista numa linha própria, logo abaixo das abas do período ("115 eventos no total") */
+  /* o "Limpar filtros" numa linha própria */
   .crono-frow > .crono-fright {
     flex: 1 1 100%;
     margin-left: 0;
-  }
-  .crono-total {
-    white-space: nowrap;
   }
   .crono-list {
     padding: 0 12px 8px;
@@ -1367,7 +1496,7 @@ html .crono-listcard .month-empty-acts .btn {
   text-wrap: balance;
 }
 @media (max-width: 479px) {
-  html .crono-frow > .seg button {
+  html :is(.crono-frow, .crono-pwrap) > .seg button {
     gap: 4px;
     font-size: var(--fs-13);
   }
@@ -1385,7 +1514,8 @@ html .crono-listcard .month-empty-acts .btn {
 @media (prefers-reduced-motion: reduce) {
   .crono-list .crono-item,
   .cg-c,
-  .cg-bar {
+  html .cg-line,
+  .cg-tip {
     animation: none;
   }
   html .crono :is(.crono-list, .cg-day) .ev-date,
@@ -1394,7 +1524,8 @@ html .crono-listcard .month-empty-acts .btn {
   .cg-c,
   html .cg-ev,
   html .cg-more,
-  .cg-bar {
+  html .cg-lmore,
+  .cg-line::before {
     transition: none;
   }
   html .crono .crono-list .ev:hover .ev-date {

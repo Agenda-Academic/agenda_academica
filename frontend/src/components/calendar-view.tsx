@@ -190,47 +190,60 @@ type DayCell = {
   today: boolean;
   /** Todos os eventos do dia, na ordem de prioridade. */
   events: AcademicEvent[];
+  /** Eventos de um dia só, na ordem de prioridade (os de vários dias viram as linhas finas da semana). */
+  singles: AcademicEvent[];
+  /** Eventos de vários dias que passam pelo dia (no celular, o traço junto dos pontos). */
+  periods: AcademicEvent[];
   /** Eventos de um dia só que aparecem como chip no dia. */
   chips: AcademicEvent[];
-  /** Eventos do dia que não aparecem (nem chip, nem faixa): o "+N". */
+  /** Eventos de um dia só que não cabem no dia: o "+N". */
   hidden: number;
-  /** Linhas do dia ocupadas pelas faixas (até a mais baixa que passa por ele); os chips vêm logo abaixo. */
-  lanes: number;
 };
 
-/** Faixa de um evento de vários dias numa semana: coluna de início (0 a 6), quantos dias e a linha dela. */
-type WeekBar = {
+/**
+ * Linha fina de um período (evento de vários dias) numa semana: coluna de início (0 a 6), quantos dias e a
+ * linha dela (0 a 2, de cima para baixo).
+ */
+type WeekLine = {
   event: AcademicEvent;
   col: number;
   span: number;
   lane: number;
   fromBefore: boolean;
   toAfter: boolean;
-  /** Todos os dias da faixa são de fora do mês (mais clara, como os chips desses dias). */
+  /** Todos os dias da linha são de fora do mês (mais clara, como os chips desses dias). */
   out: boolean;
   dayKey: string;
+  /** Primeiro pedaço do período na grade: só ele entra no Tab (um período, uma parada). */
+  tab: boolean;
 };
-type CalWeek = { cells: DayCell[]; bars: WeekBar[] };
+/** Períodos da semana que não ganharam linha (mais de 3): o "+N períodos", no dia em que o primeiro deles começa. */
+type WeekMore = { col: number; dayKey: string; events: AcademicEvent[] };
+type CalWeek = { cells: DayCell[]; lines: WeekLine[]; more: WeekMore | null };
+/** Dica da linha fina: qual linha (semana e evento), o mês da grade e o ponto (x, y) dentro da grade. */
+type LineTip = { key: string; month: number; event: AcademicEvent; x: number; y: number; cx: number };
 
 /**
- * Linhas de cada dia, abaixo do número: faixas, chips e o "+N" dividem estas 3 linhas de uma linha de texto cada.
- * Assim toda semana tem a mesma altura, por mais eventos e por maiores que sejam os nomes (o nome inteiro fica na
- * dica, na lista do dia e no detalhe).
+ * Itens de um dia só em cada dia, abaixo do número: até 3 chips de uma linha (o nome cortado com reticências e
+ * inteiro na dica, na lista do dia e no detalhe); com mais de 3, 2 chips e o "+N". Os períodos não tomam lugar
+ * dos chips: viram linhas finas no alto da semana. Assim toda semana tem a mesma altura.
  */
 const DAY_ROWS = 3;
-/** Faixas por semana: no máximo 2, para sobrar sempre uma linha para um chip ou para o "+N" do dia. */
-const MAX_LANES = 2;
+/** Linhas finas por semana; com mais períodos, o "+N períodos". */
+const MAX_LINES = 3;
 
 function buildWeeks(cursor: MonthCursor, events: AcademicEvent[]): CalWeek[] {
   const { start, end } = gridRange(cursor);
   const todayKey = dayKey(new Date());
   const spans = events.map((event) => ({ event, ...eventSpan(event) }));
   const weeks: CalWeek[] = [];
+  // um período que atravessa semanas entra no Tab só uma vez, na primeira semana em que aparece
+  const tabbed = new Set<number>();
   for (let weekStart = start; weekStart.getTime() <= end.getTime(); weekStart = addDays(weekStart, 7)) {
     const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
     const first = days[0].getTime();
     const last = days[6].getTime();
-    // eventos de vários dias da semana viram faixas: o que é da turma primeiro, depois o que começa antes e o mais longo
+    // períodos da semana: o que é da turma primeiro, depois o que começa antes e o mais longo
     const multi = spans
       .filter((span) => span.last > span.first && span.first <= last && span.last >= first)
       .sort(
@@ -240,29 +253,29 @@ function buildWeeks(cursor: MonthCursor, events: AcademicEvent[]): CalWeek[] {
           b.last - b.first - (a.last - a.first) ||
           byStart(a.event, b.event)
       );
-    const laneEnds: number[] = [];
-    const bars: WeekBar[] = [];
-    const hiddenMulti = Array.from({ length: 7 }, () => 0);
-    // linhas ocupadas em cada dia: a faixa mais baixa que passa por ele (um dia sem faixa usa as 3 para chips)
-    const dayLanes = Array.from({ length: 7 }, () => 0);
+    // dias ocupados em cada linha: um período entra na primeira linha livre em todos os dias dele
+    const used: boolean[][] = [];
+    const lines: WeekLine[] = [];
+    const hidden: Array<{ event: AcademicEvent; col: number }> = [];
     for (const span of multi) {
       const col = Math.round((Math.max(span.first, first) - first) / DAY_MS);
       const endCol = Math.round((Math.min(span.last, last) - first) / DAY_MS);
-      let lane = laneEnds.findIndex((laneEnd) => laneEnd < col);
+      const cols = Array.from({ length: endCol - col + 1 }, (_, index) => col + index);
+      let lane = used.findIndex((row) => cols.every((index) => !row[index]));
       if (lane === -1) {
-        lane = laneEnds.length;
+        lane = used.length;
       }
-      if (lane >= MAX_LANES) {
-        for (let index = col; index <= endCol; index += 1) {
-          hiddenMulti[index] += 1;
-        }
+      if (lane >= MAX_LINES) {
+        hidden.push({ event: span.event, col });
         continue;
       }
-      laneEnds[lane] = endCol;
-      for (let index = col; index <= endCol; index += 1) {
-        dayLanes[index] = Math.max(dayLanes[index], lane + 1);
+      used[lane] = used[lane] ?? Array.from({ length: 7 }, () => false);
+      for (const index of cols) {
+        used[lane][index] = true;
       }
-      bars.push({
+      const tab = !tabbed.has(span.event.id);
+      tabbed.add(span.event.id);
+      lines.push({
         event: span.event,
         col,
         span: endCol - col + 1,
@@ -271,9 +284,14 @@ function buildWeeks(cursor: MonthCursor, events: AcademicEvent[]): CalWeek[] {
         toAfter: span.last > last,
         out: days.slice(col, endCol + 1).every((day) => day.getMonth() !== cursor.month),
         dayKey: dayKey(days[col]),
+        tab,
       });
     }
-    const cells = days.map((day, index) => {
+    const moreCol = hidden.length ? Math.min(...hidden.map((item) => item.col)) : -1;
+    const more: WeekMore | null = hidden.length
+      ? { col: moreCol, dayKey: dayKey(days[moreCol]), events: hidden.map((item) => item.event) }
+      : null;
+    const cells = days.map((day) => {
       const time = day.getTime();
       const dayEvents = spans
         .filter((span) => span.first <= time && span.last >= time)
@@ -283,27 +301,32 @@ function buildWeeks(cursor: MonthCursor, events: AcademicEvent[]): CalWeek[] {
         const span = eventSpan(event);
         return span.last === span.first;
       });
-      // o que sobra das 3 linhas depois das faixas: chips; se algo fica de fora, a última linha é do "+N"
-      const free = DAY_ROWS - dayLanes[index];
-      let shown = Math.min(singles.length, free);
-      if (singles.length - shown + hiddenMulti[index] > 0) {
-        shown = Math.min(singles.length, free - 1);
-      }
-      const chips = singles.slice(0, shown);
+      // até 3 chips; passando disso, 2 chips e a 3ª linha fica com o "+N"
+      const chips = singles.length > DAY_ROWS ? singles.slice(0, DAY_ROWS - 1) : singles;
       return {
         key: dayKey(day),
         date: day,
         inMonth: day.getMonth() === cursor.month,
         today: dayKey(day) === todayKey,
         events: dayEvents,
+        singles,
+        periods: dayEvents.filter((event) => !singles.includes(event)),
         chips,
-        hidden: singles.length - chips.length + hiddenMulti[index],
-        lanes: dayLanes[index],
+        hidden: singles.length - chips.length,
       };
     });
-    weeks.push({ cells, bars });
+    weeks.push({ cells, lines, more });
   }
   return weeks;
+}
+
+/** "de 1 a 5 de março" ou "de 28 de fevereiro a 3 de março" (com o ano fora do ano corrente), para o leitor de tela. */
+function rangeSpoken(event: AcademicEvent) {
+  const first = startOfDay(new Date(event.startsAt));
+  const last = eventLastDay(event);
+  return first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()
+    ? `de ${first.getDate()} a ${dayAndMonth(last)}`
+    : `de ${dayAndMonth(first)} a ${dayAndMonth(last)}`;
 }
 
 /** Mesmo dia num mês vizinho (31/01 vira 28/02). */
@@ -940,6 +963,10 @@ function MonthCalendar({
   const [activeDay, setActiveDay] = useState<string | null>(null);
   const pendingFocus = useRef<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  // dica flutuante da linha fina (mouse ou foco do teclado): o nome inteiro, a categoria e o intervalo
+  const [tip, setTip] = useState<LineTip | null>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+  const shownTip = tip && tip.month === monthIndex(cursor) ? tip : null;
 
   const cells = weeks.flatMap((week) => week.cells);
   const keys = new Set(cells.map((cell) => cell.key));
@@ -951,6 +978,42 @@ function MonthCalendar({
   const present = allCategories.filter((category) =>
     cells.some((cell) => cell.inMonth && cell.events.some((event) => event.category === category))
   );
+  const hasPeriods = cells.some((cell) => cell.inMonth && cell.periods.length > 0);
+
+  // a dica fica dentro da grade: centrada no ponto de onde veio e presa às bordas dela (medida antes de pintar)
+  useLayoutEffect(() => {
+    const node = tipRef.current;
+    const grid = gridRef.current;
+    if (!shownTip || !node || !grid) {
+      return;
+    }
+    const width = node.offsetWidth;
+    const left = Math.min(Math.max(shownTip.x - width / 2, 8), grid.clientWidth - width - 8);
+    node.style.left = `${Math.round(left)}px`;
+  }, [shownTip]);
+
+  function showTip(line: WeekLine, key: string, target: HTMLElement, clientX?: number) {
+    const grid = gridRef.current;
+    if (!grid) {
+      return;
+    }
+    const box = grid.getBoundingClientRect();
+    const rect = target.getBoundingClientRect();
+    // pelo mouse, onde ele está; pelo teclado, perto do começo da linha
+    const x = clientX ?? rect.left + Math.min(rect.width / 2, 120);
+    setTip({ key, month: monthIndex(cursor), event: line.event, x: Math.round(x - box.left), y: Math.round(rect.top - box.top), cx: x });
+  }
+
+  function hideTip(key: string) {
+    setTip((current) => (current?.key === key ? null : current));
+  }
+
+  /** A linha abre o período (e a lista do dia em que ela começa na semana); o foco fica nela, e volta para ela. */
+  function openLine(line: WeekLine) {
+    setTip(null);
+    setActiveDay(line.dayKey);
+    onOpenEvent(line.event.id, line.dayKey);
+  }
 
   useEffect(() => {
     const key = pendingFocus.current;
@@ -1031,9 +1094,12 @@ function MonthCalendar({
               {week.cells.map((cell, dayIndex) => {
                 const weekend = cell.date.getDay() === 0 || cell.date.getDay() === 6;
                 const selected = cell.key === selectedDay;
-                const dots = Array.from(new Set(cell.events.map((event) => event.category))).slice(0, 4);
+                // celular: um traço na cor do período (a linha fina em miniatura) e os pontos dos eventos de um dia
+                const periodCat = cell.periods[0]?.category ?? null;
+                const dots = Array.from(new Set(cell.singles.map((event) => event.category))).slice(0, periodCat ? 3 : 4);
                 // o nome do mês no 1º dia dele e no 1º dia da grade ("31 jan", "1 fev")
                 const showMonth = cell.date.getDate() === 1 || (weekIndex === 0 && dayIndex === 0);
+                const more = week.more && week.more.col === dayIndex ? week.more : null;
                 return (
                   <div
                     key={cell.key}
@@ -1043,6 +1109,7 @@ function MonthCalendar({
                       cell.today && "today",
                       weekend && "we",
                       selected && "sel",
+                      showMonth && "mo",
                       cell.events.length >= 4 && "busy"
                     )}
                     // ordem do dia na grade: a entrada em cascata (8 ms por dia)
@@ -1065,12 +1132,25 @@ function MonthCalendar({
                       </span>
                       {showMonth ? <span className="cg-mon">{shortMonths[cell.date.getMonth()]}</span> : null}
                     </button>
-                    {cell.events.length ? (
+                    {/* mais de 3 períodos na semana: "+N períodos" discreto, ao lado do número do dia em que o
+                        primeiro deles começa; abre a lista desse dia (os nomes inteiros ficam na dica) */}
+                    {more ? (
+                      <button
+                        aria-label={`Mais ${plural(more.events.length, "período", "períodos")} nesta semana: ${joinAnd(
+                          more.events.map((event) => event.title)
+                        )}`}
+                        className="cg-lmore"
+                        tabIndex={-1}
+                        onClick={() => onSelectDay(more.dayKey)}
+                        title={more.events.map((event) => `${event.title}, ${formatDayRange(event)}`).join("\n")}
+                        type="button"
+                      >
+                        <i aria-hidden />+{more.events.length}
+                        <span className="w">{more.events.length === 1 ? "período" : "períodos"}</span>
+                      </button>
+                    ) : null}
+                    {cell.chips.length || cell.hidden ? (
                       <div className="cg-items">
-                        {/* lugar das faixas que passam por este dia (desenhadas por cima, na semana) */}
-                        {cell.lanes ? (
-                          <span className="cg-lanes" style={{ ["--lanes" as string]: cell.lanes }} aria-hidden />
-                        ) : null}
                         {cell.chips.map((event) => (
                           <button
                             key={event.id}
@@ -1109,8 +1189,9 @@ function MonthCalendar({
                         ) : null}
                       </div>
                     ) : null}
-                    {dots.length ? (
+                    {periodCat || dots.length ? (
                       <span className="cg-dots" aria-hidden>
+                        {periodCat ? <span className={cx("dot cg-dash", categoryMeta[periodCat].accent)} /> : null}
                         {dots.map((category) => (
                           <span key={category} className={cx("dot", categoryMeta[category].accent)} />
                         ))}
@@ -1120,36 +1201,70 @@ function MonthCalendar({
                   </div>
                 );
               })}
-              {/* eventos de vários dias: uma faixa por semana, do primeiro ao último dia dela, com o nome uma vez só
-                  e o nome inteiro na dica. O clique abre o evento; pelo teclado, ele está na lista do dia. */}
-              {week.bars.length ? (
-                <div className="cg-bars" aria-hidden>
-                  {week.bars.map((bar) => (
-                    <span
-                      key={bar.event.id}
-                      className={cx(
-                        "cg-bar",
-                        `k-${categoryMeta[bar.event.category].tint}`,
-                        bar.fromBefore && "from-before",
-                        bar.toAfter && "to-after",
-                        bar.out && "out",
-                        selectedEventId === bar.event.id && "sel",
-                        bar.event.status === "cancelled" && "cancel"
-                      )}
-                      style={
-                        {
-                          gridColumn: `${bar.col + 1} / span ${bar.span}`,
-                          gridRow: bar.lane + 1,
-                          // surge junto com o dia em que começa (--k é a cor da categoria)
-                          "--d": weekIndex * 7 + bar.col,
-                        } as CSSProperties
-                      }
-                      title={`${bar.event.title}, ${formatDayRange(bar.event)}`}
-                      onClick={() => openEvent(bar.event.id, bar.dayKey)}
-                    >
-                      <span className="cg-bar-t">{bar.event.title}</span>
-                    </span>
-                  ))}
+              {/* períodos (eventos de vários dias): uma linha fina na cor da categoria no alto da semana, presa aos
+                  dias dele, sem texto. O nome inteiro fica no nome acessível, no title, na dica flutuante (mouse e
+                  foco), na lista do dia e no detalhe. O clique abre o período, como a faixa de antes. */}
+              {week.lines.length ? (
+                <div className="cg-lines">
+                  {week.lines.map((line) => {
+                    const key = `${weekIndex}-${line.event.id}`;
+                    const meta = categoryMeta[line.event.category];
+                    return (
+                      <button
+                        key={line.event.id}
+                        aria-label={[
+                          line.event.title,
+                          meta.short,
+                          line.event.status === "cancelled" ? "cancelado" : null,
+                          rangeSpoken(line.event),
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                        className={cx(
+                          "cg-line",
+                          `k-${meta.tint}`,
+                          line.fromBefore && "from-before",
+                          line.toAfter && "to-after",
+                          line.out && "out",
+                          selectedEventId === line.event.id && "sel",
+                          shownTip?.key === key && "tip",
+                          line.event.status === "cancelled" && "cancel"
+                        )}
+                        style={
+                          {
+                            gridColumn: `${line.col + 1} / span ${line.span}`,
+                            gridRow: line.lane + 1,
+                            // surge junto com o dia em que começa (--k é a cor da categoria)
+                            "--d": weekIndex * 7 + line.col,
+                          } as CSSProperties
+                        }
+                        tabIndex={line.tab ? 0 : -1}
+                        type="button"
+                        onBlur={() => hideTip(key)}
+                        onClick={() => openLine(line)}
+                        onFocus={(event) => {
+                          // pelo teclado (o foco que volta do detalhe também); o clique já mostrou a dica no mouse
+                          if (event.currentTarget.matches(":focus-visible")) {
+                            showTip(line, key, event.currentTarget);
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape" && shownTip?.key === key) {
+                            event.preventDefault();
+                            setTip(null);
+                          }
+                        }}
+                        onMouseEnter={(event) => showTip(line, key, event.currentTarget, event.clientX)}
+                        onMouseLeave={() => hideTip(key)}
+                        onMouseMove={(event) => {
+                          // a dica acompanha o mouse ao longo de uma linha comprida
+                          if (shownTip?.key === key && Math.abs(event.clientX - shownTip.cx) > 48) {
+                            showTip(line, key, event.currentTarget, event.clientX);
+                          }
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               ) : null}
             </div>
@@ -1157,6 +1272,22 @@ function MonthCalendar({
             {selectedDay && week.cells.some((cell) => cell.key === selectedDay) ? dayPanel : null}
           </Fragment>
         ))}
+        {/* dica da linha fina, acima dela: o nome inteiro (quebra em linhas), a categoria e o intervalo. Só para
+            quem vê: o leitor de tela já ouve tudo isso no nome da linha */}
+        {shownTip ? (
+          <div
+            ref={tipRef}
+            aria-hidden
+            className="cg-tip"
+            style={{ left: shownTip.x, top: shownTip.y }}
+          >
+            <span className="cg-tip-t">{shownTip.event.title}</span>
+            <span className="cg-tip-m">
+              <i className={cx("dot", categoryMeta[shownTip.event.category].accent)} />
+              {categoryMeta[shownTip.event.category].short}, {formatDayRange(shownTip.event)}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       {/* pé: legenda das cores e os atalhos do teclado */}
@@ -1169,7 +1300,13 @@ function MonthCalendar({
           </span>
         </p>
         {present.length ? (
-          <ul className="cg-leg" aria-label="Cores das categorias">
+          <ul className="cg-leg" aria-label="Legenda do calendário">
+            {hasPeriods ? (
+              <li className="cg-leg-line">
+                <i aria-hidden />
+                Linha fina = período de vários dias
+              </li>
+            ) : null}
             {present.map((category) => (
               <li key={category}>
                 <span className={cx("dot", categoryMeta[category].accent)} aria-hidden />
@@ -2440,8 +2577,8 @@ export function CalendarView({
     );
   }
 
-  // contador no fim da linha dos filtros da Agenda: sem filtro, o total; com filtro, quanto sobra. No
-  // Calendário, a contagem fica no seletor de mês. No celular ele fica só para o leitor de tela
+  // contador da Agenda, discreto, logo à direita das abas Próximos, Passados e Todos (embaixo delas quando não cabe
+  // ao lado): sem filtro, o total; com filtro, quanto sobra. No Calendário, a contagem fica no seletor de mês
   const counter =
     calendarMode === "list" && !(term && listEvents.length) ? (
       <span className="crono-total" role="status">
@@ -2626,14 +2763,16 @@ export function CalendarView({
         <div className="crono-fbar">
           <div className="crono-frow">
             {modeSwitch}
-            {periodSeg}
+            {periodSeg || counter ? (
+              <div className="crono-pwrap">
+                {periodSeg}
+                {counter}
+              </div>
+            ) : null}
             {searchChip}
             {mineSwitch}
             {classSelect}
-            <span className="crono-fright">
-              {counter}
-              {clearLink}
-            </span>
+            {clearLink ? <span className="crono-fright max-sm:hidden">{clearLink}</span> : null}
           </div>
           {categoryChips}
         </div>
