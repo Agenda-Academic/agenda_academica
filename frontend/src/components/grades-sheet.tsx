@@ -469,12 +469,15 @@ export function GradesStatus({
   launched,
   onUnpublish,
   publishing,
+  viewOnly = false,
 }: {
   archived: boolean;
   data: EventGrades;
   launched: number;
   onUnpublish: () => void;
   publishing: boolean;
+  /** A coordenação (administração) acompanha: sem o menu de ocultar e com as frases de quem só vê. */
+  viewOnly?: boolean;
 }) {
   const { counts, event: info } = data;
   const publishedAt = info.gradesPublishedAt;
@@ -484,7 +487,15 @@ export function GradesStatus({
 
   let status: ReactNode;
   let note: string;
-  if (publishedAt) {
+  if (publishedAt && viewOnly) {
+    note = "Alunos e responsáveis veem estas notas";
+    status = (
+      <span className="stat green">
+        <Eye aria-hidden />
+        {`Publicadas em ${formatDateBR(publishedAt)}`}
+      </span>
+    );
+  } else if (publishedAt) {
     note = "Alunos e responsáveis veem estas notas";
     status = (
       <MenuButton
@@ -507,7 +518,11 @@ export function GradesStatus({
       </MenuButton>
     );
   } else if (launched) {
-    note = archived ? "Turma arquivada: só leitura" : "Só você vê estas notas até publicar";
+    note = viewOnly
+      ? "Alunos ainda não veem estas notas"
+      : archived
+        ? "Turma arquivada: só leitura"
+        : "Só você vê estas notas até publicar";
     status = (
       <span className="stat amber">
         <EyeOff aria-hidden />
@@ -515,7 +530,11 @@ export function GradesStatus({
       </span>
     );
   } else {
-    note = archived ? "Turma arquivada: só leitura" : "Lance na tabela ou importe a planilha";
+    note = viewOnly
+      ? "Nenhuma nota lançada ainda"
+      : archived
+        ? "Turma arquivada: só leitura"
+        : "Lance na tabela ou importe a planilha";
     status = <span className="stat gray">Sem notas</span>;
   }
 
@@ -575,8 +594,10 @@ const SEARCH_FROM = 10;
 export type GradesSheetProps = {
   data: EventGrades;
   sheet: GradeSheetState;
-  /** Turma arquivada: só leitura. */
+  /** Só leitura: turma arquivada, ou a coordenação (administração), que acompanha sem alterar. */
   locked: boolean;
+  /** Frase da legenda quando `locked` (padrão: a da turma arquivada). */
+  lockedNote?: string;
   isAdmin: boolean;
   /** Primeiro foco da parte (sr-only "Notas dos alunos"). */
   headingRef: RefObject<HTMLHeadingElement | null>;
@@ -617,6 +638,7 @@ export function GradesSheet({
   importRef,
   isAdmin,
   locked,
+  lockedNote = "Turma arquivada: as notas ficam só para leitura.",
   onDownload,
   onImport,
   onImportFile,
@@ -956,7 +978,7 @@ export function GradesSheet({
         <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <p id={legendId} className="min-w-0">
           {locked ? (
-            "Turma arquivada: as notas ficam só para leitura."
+            lockedNote
           ) : (
             <>
               <span className="nd-legend-keys">

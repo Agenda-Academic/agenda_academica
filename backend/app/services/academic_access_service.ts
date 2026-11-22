@@ -270,15 +270,15 @@ export default class AcademicAccessService {
   }
 
   /**
-   * Lançar, importar e publicar notas de um evento: a administração, ou a docente com vínculo
-   * em vigor na oferta do evento (turma e disciplina). Evento de turma sem disciplina não tem
-   * oferta: aí só a docente autora, com vínculo em vigor na turma, e não qualquer docente dela.
-   * Ninguém mais.
+   * Lançar, importar e publicar notas de um evento: só a docente com vínculo em vigor na oferta
+   * do evento (turma e disciplina). Evento de turma sem disciplina não tem oferta: aí só a
+   * docente autora, com vínculo em vigor na turma, e não qualquer docente dela. A administração
+   * (coordenação) acompanha as notas sem alterar: ver `canViewGrades`. Ninguém mais.
    */
   static async canManageGrades(user: User, event: AcademicEvent) {
     switch (user.role) {
       case 'admin':
-        return true
+        return false
       case 'teacher':
         if (!event.academicClassId) {
           return false
@@ -296,9 +296,24 @@ export default class AcademicAccessService {
   }
 
   /**
+   * Ver as notas de um evento (a lista da turma e o histórico de importações): a administração,
+   * que acompanha sem alterar, e a docente que lança (a mesma regra de `canManageGrades`).
+   */
+  static async canViewGrades(user: User, event: AcademicEvent) {
+    switch (user.role) {
+      case 'admin':
+        return true
+      case 'teacher':
+        return this.canManageGrades(user, event)
+      default:
+        return false
+    }
+  }
+
+  /**
    * Quem vê uma importação de notas pelo id: a administração, quem criou e a docente da oferta
-   * do evento. Aplicar e desfazer são só de quem criou (com a oferta em vigor) e da
-   * administração; isso o controller confere à parte.
+   * do evento. Aplicar, descartar e desfazer são só de quem criou (desfazer com a oferta em
+   * vigor); isso o controller confere à parte.
    */
   static async canSeeGradeImport(user: User, gradeImport: GradeImport, event: AcademicEvent) {
     switch (user.role) {

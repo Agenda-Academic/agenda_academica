@@ -8,6 +8,7 @@ import {
   conflict,
   fieldError,
   forbidden,
+  GRADES_READ_ONLY,
   notFound,
   routeId,
   STUDENT_NOT_FOUND,
@@ -22,8 +23,7 @@ import db from '@adonisjs/lucid/services/db'
 
 const EVENT_NOT_FOUND = 'Evento não encontrado.'
 const ROLE_FORBIDDEN = 'Seu perfil não lança nem publica notas.'
-const OFFER_FORBIDDEN =
-  'Só a docente da disciplina e a administração mexem nas notas desta avaliação.'
+const OFFER_FORBIDDEN = 'Só a docente da disciplina mexe nas notas desta avaliação.'
 const NOT_GRADABLE = 'Só prova e trabalho de turma recebem nota.'
 const CLASS_ARCHIVED =
   'Esta turma está arquivada e fica somente leitura. Restaure a turma para mudar as notas.'
@@ -41,8 +41,8 @@ type EventLoad =
     }
 
 /**
- * Notas de uma avaliação (docente da oferta e administração): lista, lançamento, publicação.
- * E as notas publicadas que o aluno e o responsável veem.
+ * Notas de uma avaliação: a docente da oferta lista, lança e publica; a administração
+ * (coordenação) só vê a lista. E as notas publicadas que o aluno e o responsável veem.
  */
 export default class GradesController {
   /** GET /events/:id/grades: todos os alunos ativos da turma, com e sem nota. */
@@ -51,7 +51,7 @@ export default class GradesController {
     if (!AcademicAccessService.allow(user, ['admin', 'teacher'])) {
       return forbidden(response, 'Seu perfil não vê as notas da turma.')
     }
-    const loaded = await this.loadEvent(user, params.id, response)
+    const loaded = await this.loadEvent(user, params.id, response, 'view')
     if (!loaded.ok) {
       return loaded.reply
     }
@@ -69,7 +69,7 @@ export default class GradesController {
     if (!AcademicAccessService.allow(user, ['admin', 'teacher'])) {
       return forbidden(response, ROLE_FORBIDDEN)
     }
-    const loaded = await this.loadEvent(user, params.id, response)
+    const loaded = await this.loadEvent(user, params.id, response, 'manage')
     if (!loaded.ok) {
       return loaded.reply
     }
@@ -189,7 +189,7 @@ export default class GradesController {
     if (!AcademicAccessService.allow(user, ['admin', 'teacher'])) {
       return forbidden(response, ROLE_FORBIDDEN)
     }
-    const loaded = await this.loadEvent(user, params.id, response)
+    const loaded = await this.loadEvent(user, params.id, response, 'manage')
     if (!loaded.ok) {
       return loaded.reply
     }
@@ -357,7 +357,7 @@ export default class GradesController {
     if (!AcademicAccessService.allow(user, ['admin', 'teacher'])) {
       return forbidden(response, ROLE_FORBIDDEN)
     }
-    const loaded = await this.loadEvent(user, params.id, response)
+    const loaded = await this.loadEvent(user, params.id, response, 'manage')
     if (!loaded.ok) {
       return loaded.reply
     }
@@ -421,7 +421,7 @@ export default class GradesController {
     if (!AcademicAccessService.allow(user, ['admin', 'teacher'])) {
       return forbidden(response, ROLE_FORBIDDEN)
     }
-    const loaded = await this.loadEvent(user, params.id, response)
+    const loaded = await this.loadEvent(user, params.id, response, 'manage')
     if (!loaded.ok) {
       return loaded.reply
     }
@@ -516,11 +516,18 @@ export default class GradesController {
   }
 
   /**
-   * O evento pela rota, se a pessoa mexe nas notas dele. Evento que a docente nem vê: 404.
-   * Evento que ela vê, mas de outra disciplina ou com o vínculo encerrado: 403. Evento que
-   * não é prova nem trabalho de turma: 409 NOT_GRADABLE.
+   * O evento pela rota, se a pessoa vê (`view`) ou lança (`manage`) as notas dele. Evento que
+   * a docente nem vê: 404. Evento que ela vê, mas de outra disciplina ou com o vínculo
+   * encerrado: 403. A administração vê as notas de qualquer evento, mas para lançar, publicar
+   * ou ocultar recebe 403 (`GRADES_READ_ONLY`). Evento que não é prova nem trabalho de turma:
+   * 409 NOT_GRADABLE.
    */
-  private async loadEvent(user: User, rawId: unknown, response: Response): Promise<EventLoad> {
+  private async loadEvent(
+    user: User,
+    rawId: unknown,
+    response: Response,
+    mode: 'view' | 'manage'
+  ): Promise<EventLoad> {
     const event = await AcademicEvent.query()
       .where('id', routeId(rawId))
       .preload('subject')
@@ -529,7 +536,14 @@ export default class GradesController {
     if (!event || !(await AcademicAccessService.canViewEvent(user, event))) {
       return { ok: false, reply: notFound(response, EVENT_NOT_FOUND) }
     }
-    if (!(await AcademicAccessService.canManageGrades(user, event))) {
+    if (mode === 'manage' && AcademicAccessService.isAdmin(user)) {
+      return { ok: false, reply: forbidden(response, GRADES_READ_ONLY) }
+    }
+    const allowed =
+      mode === 'view'
+        ? await AcademicAccessService.canViewGrades(user, event)
+        : await AcademicAccessService.canManageGrades(user, event)
+    if (!allowed) {
       return { ok: false, reply: forbidden(response, OFFER_FORBIDDEN) }
     }
     if (!isGradable(event)) {

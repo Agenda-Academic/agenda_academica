@@ -3,7 +3,14 @@ import GradeImport, { type GradeImportMapping } from '#models/grade_import'
 import GradeImportRow from '#models/grade_import_row'
 import type User from '#models/user'
 import AcademicAccessService from '#services/academic_access_service'
-import { conflict, fieldError, forbidden, notFound, routeId } from '#services/api_errors'
+import {
+  conflict,
+  fieldError,
+  forbidden,
+  GRADES_READ_ONLY,
+  notFound,
+  routeId,
+} from '#services/api_errors'
 import AuditLogService from '#services/audit_log_service'
 import { parseIsoDateTime } from '#services/date_time_service'
 import GradeService, { formatScore, isGradable, maxScoreOf } from '#services/grade_service'
@@ -17,8 +24,7 @@ import db from '@adonisjs/lucid/services/db'
 const EVENT_NOT_FOUND = 'Evento não encontrado.'
 const IMPORT_NOT_FOUND = 'Importação não encontrada.'
 const ROLE_FORBIDDEN = 'Seu perfil não importa notas.'
-const OFFER_FORBIDDEN =
-  'Só a docente da disciplina e a administração importam as notas desta avaliação.'
+const OFFER_FORBIDDEN = 'Só a docente da disciplina importa as notas desta avaliação.'
 const NOT_GRADABLE = 'Só prova e trabalho de turma recebem nota.'
 const CLASS_ARCHIVED =
   'Esta turma está arquivada e fica somente leitura. Restaure a turma para mudar as notas.'
@@ -34,6 +40,7 @@ function grades(count: number, singular: string, plural: string) {
  * Importação de notas em quatro passos: o front lê o arquivo e manda só as linhas (rascunho
  * com a prévia), a docente confere e aplica, e pode desfazer depois. O arquivo nunca é
  * guardado. Importar não é publicar: as notas ficam ocultas até a docente publicar.
+ * A administração (coordenação) vê o histórico, mas não importa, aplica, descarta nem desfaz.
  */
 export default class GradeImportsController {
   /**
@@ -49,7 +56,7 @@ export default class GradeImportsController {
     const payload = await request.validateUsing(createGradeImportValidator)
 
     const event = await AcademicEvent.find(payload.academicEventId)
-    const access = await this.eventAccess(user, event)
+    const access = await this.eventAccess(user, event, 'manage')
     if (access !== 'ok') {
       return this.denyEvent(response, access)
     }
@@ -175,7 +182,7 @@ export default class GradeImportsController {
       return fieldError(response, 'eventId', 'Escolha a avaliação.', 'required')
     }
     const event = await AcademicEvent.find(routeId(rawEventId))
-    const access = await this.eventAccess(user, event)
+    const access = await this.eventAccess(user, event, 'view')
     if (access !== 'ok') {
       return this.denyEvent(response, access)
     }
@@ -209,7 +216,7 @@ export default class GradeImportsController {
 
   /**
    * POST /grade-imports/:id/apply: grava as notas do rascunho em transação, com o histórico em
-   * grade_changes. Só quem criou (com a oferta em vigor) e a administração.
+   * grade_changes. Só quem criou, com a oferta em vigor. A administração recebe 403.
    */
   async apply({ auth, params, request, response, serialize }: HttpContext) {
     const user = auth.getUserOrFail()
@@ -221,8 +228,11 @@ export default class GradeImportsController {
       return notFound(response, IMPORT_NOT_FOUND)
     }
     const { gradeImport, event } = found
+    if (AcademicAccessService.isAdmin(user)) {
+      return forbidden(response, GRADES_READ_ONLY)
+    }
     if (!(await this.canApply(user, gradeImport, event))) {
-      return forbidden(response, 'Só quem importou e a administração aplicam esta importação.')
+      return forbidden(response, 'Só quem importou aplica esta importação.')
     }
     if (gradeImport.status !== 'draft') {
       return conflict(
@@ -289,6 +299,7 @@ export default class GradeImportsController {
   /**
    * DELETE /grade-imports/:id: rascunho é descartado; importação aplicada é desfeita, com cada
    * nota de volta ao valor anterior. Se alguma nota mudou depois, 409 com a lista e nada muda.
+   * Só quem criou. A administração recebe 403.
    */
   async destroy({ auth, params, response, serialize }: HttpContext) {
     const user = auth.getUserOrFail()
@@ -300,10 +311,11 @@ export default class GradeImportsController {
       return notFound(response, IMPORT_NOT_FOUND)
     }
     const { gradeImport, event } = found
-    const isOwnerOrAdmin =
-      AcademicAccessService.isAdmin(user) || gradeImport.createdById === user.id
-    if (!isOwnerOrAdmin) {
-      return forbidden(response, 'Só quem importou e a administração descartam ou desfazem.')
+    if (AcademicAccessService.isAdmin(user)) {
+      return forbidden(response, GRADES_READ_ONLY)
+    }
+    if (gradeImport.createdById !== user.id) {
+      return forbidden(response, 'Só quem importou descarta ou desfaz esta importação.')
     }
 
     if (gradeImport.status === 'discarded' || gradeImport.status === 'undone') {
@@ -432,10 +444,8 @@ export default class GradeImportsController {
     ).toObject()
   }
 
+  /** Aplicar e desfazer: só quem criou, com a oferta em vigor (a administração nunca). */
   private async canApply(user: User, gradeImport: GradeImport, event: AcademicEvent) {
-    if (AcademicAccessService.isAdmin(user)) {
-      return true
-    }
     return (
       gradeImport.createdById === user.id &&
       (await AcademicAccessService.canManageGrades(user, event))
@@ -447,7 +457,11 @@ export default class GradeImportsController {
     gradeImport: GradeImport,
     event: AcademicEvent
   ): Promise<GradeImportPermissions> {
-    const ownerOrAdmin = AcademicAccessService.isAdmin(user) || gradeImport.createdById === user.id
+    // A administração acompanha o histórico sem nenhuma ação.
+    if (!AcademicAccessService.isTeacher(user)) {
+      return { canApply: false, canDiscard: false, canUndo: false }
+    }
+    const owner = gradeImport.createdById === user.id
     const draft = gradeImport.status === 'draft'
     const applied = gradeImport.status === 'applied'
     // Turma arquivada fica somente leitura: aplicar e desfazer devolveriam 409, então os botões
@@ -459,31 +473,40 @@ export default class GradeImportsController {
       const { conflicts } = await GradeService.undoConflicts(gradeImport)
       canUndo = conflicts.length === 0
     }
-    return { canApply, canDiscard: draft && ownerOrAdmin, canUndo }
+    return { canApply, canDiscard: draft && owner, canUndo }
   }
 
   /**
-   * Quem chega ao evento para importar: a administração e a docente da oferta. Evento que a
-   * docente nem vê é 404; evento que ela vê, mas de outra disciplina ou com o vínculo
-   * encerrado, é 403.
+   * Quem chega ao evento para ver o histórico (`view`: a administração e a docente da oferta)
+   * ou para importar (`manage`: só a docente da oferta; a administração recebe `read_only`).
+   * Evento que a docente nem vê é 404; evento que ela vê, mas de outra disciplina ou com o
+   * vínculo encerrado, é 403.
    */
-  private async eventAccess(user: User, event: AcademicEvent | null) {
+  private async eventAccess(user: User, event: AcademicEvent | null, mode: 'view' | 'manage') {
     if (!event) {
       return 'not_found' as const
     }
     if (!(await AcademicAccessService.canViewEvent(user, event))) {
       return 'not_found' as const
     }
-    if (!(await AcademicAccessService.canManageGrades(user, event))) {
+    if (mode === 'manage' && AcademicAccessService.isAdmin(user)) {
+      return 'read_only' as const
+    }
+    const allowed =
+      mode === 'view'
+        ? await AcademicAccessService.canViewGrades(user, event)
+        : await AcademicAccessService.canManageGrades(user, event)
+    if (!allowed) {
       return 'forbidden' as const
     }
     return 'ok' as const
   }
 
-  private denyEvent(response: Response, access: 'not_found' | 'forbidden') {
-    return access === 'not_found'
-      ? notFound(response, EVENT_NOT_FOUND)
-      : forbidden(response, OFFER_FORBIDDEN)
+  private denyEvent(response: Response, access: 'not_found' | 'forbidden' | 'read_only') {
+    if (access === 'not_found') {
+      return notFound(response, EVENT_NOT_FOUND)
+    }
+    return forbidden(response, access === 'read_only' ? GRADES_READ_ONLY : OFFER_FORBIDDEN)
   }
 
   private async isArchived(event: AcademicEvent) {

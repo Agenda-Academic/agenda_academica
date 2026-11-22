@@ -42,6 +42,10 @@ export function routeId(value: unknown) {
 
 export const STUDENT_NOT_FOUND = 'Aluno não encontrado.'
 
+/** 403 da administração quando tenta lançar, importar, publicar ou desfazer notas. */
+export const GRADES_READ_ONLY =
+  'Só a docente da disciplina lança e publica as notas. A coordenação acompanha sem alterar.'
+
 /**
  * Resposta quando o `studentId` do responsável não serve: sem vínculo ativo com aquele aluno,
  * 404 (igual a um aluno que não existe); acompanha mais de um aluno e não escolheu, 422.

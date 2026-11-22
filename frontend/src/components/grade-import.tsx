@@ -1362,7 +1362,7 @@ export function GradeImportFooter({ flow }: { flow: GradeImportFlow }) {
   } else if (step === "check") {
     label = importCount === 1 ? "Importar 1 nota" : `Importar ${importCount} notas`;
     hint = flow.draft && !flow.draft.canApply
-      ? "Só quem criou o rascunho, com a disciplina em vigor, ou a administração aplica"
+      ? "Só quem criou o rascunho, com a disciplina em vigor, aplica"
       : flow.published
         ? "As notas já estão publicadas: aparecem na hora para os alunos"
         : "As notas ficam ocultas até você publicar";

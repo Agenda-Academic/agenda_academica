@@ -12,6 +12,7 @@ import Notification from '#models/notification'
 import Subject from '#models/subject'
 import TeachingAssignment from '#models/teaching_assignment'
 import User from '#models/user'
+import { GRADES_READ_ONLY } from '#services/api_errors'
 import GradeService from '#services/grade_service'
 import testUtils from '@adonisjs/core/services/test_utils'
 import db from '@adonisjs/lucid/services/db'
@@ -889,15 +890,17 @@ test.group('Fase 3: notas', (group) => {
     )
     assert.deepEqual(await gradeSnapshot(), before)
 
-    // A administração aplica qualquer rascunho.
-    await expectStatus(
+    // A administração acompanha, mas não aplica o rascunho de ninguém.
+    const adminApply = await expectStatus(
       client
         .post(`${API}/grade-imports/${draft.id}/apply`)
         .bearerToken(await loginAs(client, 'admin@agenda.test'))
         .json({}),
-      200
+      403
     )
-    assert.equal(await scoreOf(mathExam.id, diogo.id), 800)
+    assert.equal((adminApply.body() as unknown as { message: string }).message, GRADES_READ_ONLY)
+    assert.equal(await importStatus(draft.id), 'draft')
+    assert.deepEqual(await gradeSnapshot(), before)
   })
 
   test('responsável: vê só as publicadas; de aluno adulto só com shareGrades; sem vínculo ativo, 404', async ({
@@ -1485,11 +1488,11 @@ test.group('Fase 3: notas', (group) => {
     assert.notInclude(JSON.stringify(anaGrades.body()), 'Diogo')
   })
 
-  test('revisão: prova sem disciplina não tem oferta, então só a autora e a administração mexem nas notas', async ({
+  test('revisão: prova sem disciplina não tem oferta, então só a autora mexe nas notas', async ({
     client,
     assert,
   }) => {
-    const { tads, diogo, maraisa, marina } = await demo()
+    const { tads, diogo, maraisa, marina, math } = await demo()
     const marinaToken = await loginAs(client, marina.email)
     const maraisaToken = await loginAs(client, maraisa.email)
     const adminToken = await loginAs(client, 'admin@agenda.test')
@@ -1547,7 +1550,8 @@ test.group('Fase 3: notas', (group) => {
     )
     assert.deepEqual(await gradeSnapshot(), before)
 
-    // Prova sem disciplina criada pela administração: nenhuma docente, só a administração.
+    // Prova sem disciplina criada pela administração: ninguém lança, nem a administração, que
+    // só acompanha. Com a disciplina posta no evento, a docente da oferta lança.
     const adminCreated = await expectStatus(
       client.post(`${API}/events`).bearerToken(adminToken).json({
         title: 'Simulado da turma',
@@ -1562,8 +1566,131 @@ test.group('Fase 3: notas', (group) => {
     const adminExam = (adminCreated.body() as unknown as Envelope<{ id: number }>).data.id
     await expectStatus(putGrade(client, maraisaToken, adminExam, diogo.id, { score: 100 }), 403)
     await expectStatus(putGrade(client, marinaToken, adminExam, diogo.id, { score: 100 }), 403)
-    await expectStatus(putGrade(client, adminToken, adminExam, diogo.id, { score: 900 }), 201)
+    const adminTry = await expectStatus(
+      putGrade(client, adminToken, adminExam, diogo.id, { score: 900 }),
+      403
+    )
+    assert.equal((adminTry.body() as unknown as { message: string }).message, GRADES_READ_ONLY)
+    assert.isUndefined(await scoreOf(adminExam, diogo.id))
+    // A administração ainda vê a lista (vazia) da prova.
+    await expectStatus(client.get(`${API}/events/${adminExam}/grades`).bearerToken(adminToken), 200)
+
+    await expectStatus(
+      client.put(`${API}/events/${adminExam}`).bearerToken(adminToken).json({ subjectId: math.id }),
+      200
+    )
+    await expectStatus(putGrade(client, maraisaToken, adminExam, diogo.id, { score: 900 }), 201)
     assert.equal(await scoreOf(adminExam, diogo.id), 900)
+  })
+
+  test('coordenação: vê a lista e o histórico de importações, mas não lança, publica, oculta, importa, aplica nem desfaz', async ({
+    client,
+    assert,
+  }) => {
+    const { tads, diogo, maraisa, mathExam } = await demo()
+    await addStudent(tads, 'bia@agenda.test', 'Bia Souza')
+    const token = await loginAs(client, maraisa.email)
+    const adminToken = await loginAs(client, 'admin@agenda.test')
+
+    // A docente lança, importa (uma aplicada e um rascunho) e deixa as notas ocultas.
+    await expectStatus(putGrade(client, token, mathExam.id, diogo.id, { score: 850 }), 201)
+    const applied = await createImport(
+      client,
+      token,
+      importBody(mathExam.id, [{ identifier: 'bia@agenda.test', score: '7' }])
+    )
+    await expectStatus(
+      client.post(`${API}/grade-imports/${applied.id}/apply`).bearerToken(token).json({}),
+      200
+    )
+    const draft = await createImport(
+      client,
+      token,
+      importBody(mathExam.id, [{ identifier: 'bia@agenda.test', score: '8' }])
+    )
+
+    type Attempt = [label: string, method: 'post' | 'put' | 'delete', url: string, body?: object]
+    const readOnly = async (attempts: Attempt[]) => {
+      for (const [label, method, url, body] of attempts) {
+        const request: any = client[method](url).bearerToken(adminToken)
+        const response = await (body ? request.json(body) : request)
+        assert.equal(response.status(), 403, label)
+        assert.equal((response.body() as { message: string }).message, GRADES_READ_ONLY, label)
+      }
+    }
+
+    const before = await gradeSnapshot()
+    await readOnly([
+      ['lançar', 'put', `${API}/events/${mathExam.id}/grades/${diogo.id}`, { score: 100 }],
+      [
+        'lançar em lote',
+        'put',
+        `${API}/events/${mathExam.id}/grades`,
+        { grades: [{ studentId: diogo.id, score: 100, status: 'graded' }] },
+      ],
+      ['publicar', 'post', `${API}/events/${mathExam.id}/grades/publish`],
+      [
+        'importar',
+        'post',
+        `${API}/grade-imports`,
+        importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '1' }]),
+      ],
+      ['aplicar', 'post', `${API}/grade-imports/${draft.id}/apply`, {}],
+      ['descartar', 'delete', `${API}/grade-imports/${draft.id}`],
+      ['desfazer', 'delete', `${API}/grade-imports/${applied.id}`],
+    ])
+    assert.deepEqual(await gradeSnapshot(), before)
+    await mathExam.refresh()
+    assert.isNull(mathExam.gradesPublishedAt)
+
+    // Publicadas pela docente, a administração também não oculta.
+    await expectStatus(
+      client.post(`${API}/events/${mathExam.id}/grades/publish`).bearerToken(token),
+      200
+    )
+    await readOnly([['ocultar', 'delete', `${API}/events/${mathExam.id}/grades/publish`]])
+    await mathExam.refresh()
+    assert.isNotNull(mathExam.gradesPublishedAt)
+    assert.deepEqual(await gradeSnapshot(), before)
+
+    // Vê a lista da turma como antes, com a matrícula escolar.
+    const list = await expectStatus(
+      client.get(`${API}/events/${mathExam.id}/grades`).bearerToken(adminToken),
+      200
+    )
+    const listData = (list.body() as unknown as Envelope<EventGrades>).data
+    assert.deepInclude(listData.counts, { graded: 2 })
+    assert.property(listData.students[0], 'registration')
+
+    // Vê o histórico de importações e a prévia do rascunho, sem nenhuma ação.
+    const history = await expectStatus(
+      client.get(`${API}/grade-imports?eventId=${mathExam.id}`).bearerToken(adminToken),
+      200
+    )
+    const items = (history.body() as unknown as Envelope<ImportDetail[]>).data
+    assert.sameMembers(
+      items.map((item) => item.id),
+      [applied.id, draft.id]
+    )
+    for (const item of items) {
+      assert.deepInclude(item, { canApply: false, canDiscard: false, canUndo: false })
+    }
+    const shown = await expectStatus(
+      client.get(`${API}/grade-imports/${draft.id}`).bearerToken(adminToken),
+      200
+    )
+    const shownData = (shown.body() as unknown as Envelope<ImportDetail>).data
+    assert.lengthOf(shownData.rows!, 1)
+    assert.isFalse(shownData.canApply)
+    assert.isFalse(shownData.canDiscard)
+
+    // A docente continua com as ações dela.
+    const own = await expectStatus(
+      client.get(`${API}/grade-imports/${draft.id}`).bearerToken(token),
+      200
+    )
+    assert.isTrue((own.body() as unknown as Envelope<ImportDetail>).data.canApply)
+    assert.isTrue((own.body() as unknown as Envelope<ImportDetail>).data.canDiscard)
   })
 
   test('revisão: matrícula ou e-mail repetido na turma depois de normalizar não casa com ninguém', async ({

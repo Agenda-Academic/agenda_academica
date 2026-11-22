@@ -457,7 +457,8 @@ export type ManageViewProps = {
   onSetStatus?: (event: AcademicEvent, status: EventStatusChange) => void;
   /**
    * Abre as notas da avaliação (aba Notas do painel do evento), pelas ações "Lançar notas", "Publicar notas" e "Ver
-   * notas" da linha (prova ou trabalho de turma; isGradable de lib/meta). A página cuida do painel.
+   * notas" da linha (prova ou trabalho de turma; isGradable de lib/meta). A página cuida do painel. A coordenação
+   * (administração) só acompanha: para ela a ação é sempre "Ver notas".
    */
   onOpenGrades?: (eventId: number) => void;
   /**
@@ -977,9 +978,10 @@ export function ManageView({
         .filter((student) => student.enrollmentStatus === "active")
         .map((student) => ({ email: student.email, fullName: student.fullName, registration: student.registration }));
       await downloadTemplate(grades.event, students);
+      // a coordenação baixa para conferir: o "envie em Lançar notas" é só da docente
       toast(
         students.length
-          ? `Planilha de ${event.title} baixada com ${countText(students.length, "aluno", "alunos")}. Depois de preencher, envie em Lançar notas.`
+          ? `Planilha de ${event.title} baixada com ${countText(students.length, "aluno", "alunos")}.${admin ? "" : " Depois de preencher, envie em Lançar notas."}`
           : `Planilha de ${event.title} baixada. A turma ainda não tem alunos ativos.`,
         { tone: "info", key: "gestao-planilha" }
       );
@@ -1044,13 +1046,16 @@ export function ManageView({
   const fullyLaunched = (summary: GradeSummary | null) =>
     Boolean(summary && summary.students > 0 && summary.launched >= summary.students);
 
-  /** Ação das notas na linha: "Lançar notas", "Publicar notas" ou "Ver notas" (só avaliação que já passou). */
+  /**
+   * Ação das notas na linha: "Lançar notas", "Publicar notas" ou "Ver notas" (só avaliação que já passou). A
+   * coordenação não lança nem publica: para ela é sempre "Ver notas".
+   */
   function gradeAction(event: AcademicEvent) {
     if (!onOpenGrades) {
       return null;
     }
     const state = gradeState(event);
-    if (state.kind === "published") {
+    if (state.kind === "published" || (admin && state.kind === "progress")) {
       return { label: "Ver notas", icon: ClipboardCheck, publish: false };
     }
     if (state.kind === "progress") {

@@ -7,6 +7,7 @@ import GradeChange from '#models/grade_change'
 import GuardianLink from '#models/guardian_link'
 import Notification from '#models/notification'
 import User from '#models/user'
+import { GRADES_READ_ONLY } from '#services/api_errors'
 import testUtils from '@adonisjs/core/services/test_utils'
 import { test } from '@japa/runner'
 import { DateTime } from 'luxon'
@@ -239,11 +240,11 @@ test.group('Notas em lote (planilha)', (group) => {
     assert.deepEqual(await gradesOf(mathExam.id), before)
   })
 
-  test('permissão: aluno, responsável e docente de outra disciplina não lançam; administração lança', async ({
+  test('permissão: aluno, responsável, docente de outra disciplina e administração não lançam', async ({
     client,
     assert,
   }) => {
-    const { marina, admin, diogo, maria, mathExam } = await demo()
+    const { maraisa, marina, admin, diogo, maria, mathExam } = await demo()
     const before = await gradesOf(mathExam.id)
     const body = [{ studentId: diogo.id, score: 800, status: 'graded' }]
 
@@ -262,9 +263,19 @@ test.group('Notas em lote (planilha)', (group) => {
     anonymous.assertStatus(401)
     assert.deepEqual(await gradesOf(mathExam.id), before)
 
-    // Administração lança em qualquer turma.
+    // A administração (coordenação) acompanha: vê a lista, mas o lote é 403 e nada muda.
     const adminToken = await loginAs(client, admin.email)
-    const ok = await putBulk(client, adminToken, mathExam.id, body)
+    const denied = await putBulk(client, adminToken, mathExam.id, body)
+    denied.assertStatus(403)
+    assert.equal((denied.body() as unknown as { message: string }).message, GRADES_READ_ONLY)
+    assert.deepEqual(await gradesOf(mathExam.id), before)
+    await expectStatus(
+      client.get(`${API}/events/${mathExam.id}/grades`).bearerToken(adminToken),
+      200
+    )
+
+    // A docente da disciplina lança.
+    const ok = await putBulk(client, await loginAs(client, maraisa.email), mathExam.id, body)
     ok.assertStatus(200)
     assert.equal((ok.body() as unknown as BulkReply).summary.created, 1)
   })

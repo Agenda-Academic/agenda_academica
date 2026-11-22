@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CircleAlert, FileClock, FileSpreadsheet, Info, Loader2, Lock, RotateCcw, Save, Send } from "lucide-react";
+import { ArrowLeft, CircleAlert, Eye, FileClock, FileSpreadsheet, Info, Loader2, Lock, RotateCcw, Save, Send } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -37,6 +37,9 @@ import { Drawer, EmptyState, ErrorState, isOnTopLayer, primaryButton, secondaryB
  * no menu da etiqueta "Publicadas". O histórico de importações é um link discreto que troca o corpo pela lista,
  * e "Importar planilha" abre o seletor de arquivo e vai direto aos passos Conferir e Pronto (grade-import*.tsx).
  * Sair com pendências (X, Esc, Voltar do navegador, recarregar) pergunta antes. Nunca abre outro painel por cima.
+ *
+ * A coordenação (administração) só acompanha: a grade fica só de leitura (o mesmo modo da turma arquivada), sem
+ * importar, salvar, publicar, ocultar nem desfazer importação, com um aviso no alto. Baixar a planilha continua.
  * Dona: área Notas (docente).
  */
 export type EventGradesDrawerProps = {
@@ -422,6 +425,10 @@ function useGradesPanel({
   const info = data?.event ?? null;
   const published = Boolean(info?.gradesPublishedAt);
   const archived = archivedHit || Boolean(event?.academicClass?.archivedAt);
+  // a coordenação acompanha sem alterar: só a docente da disciplina lança, importa e publica (a API devolve 403)
+  const isAdmin = role === "admin";
+  // só leitura: turma arquivada ou coordenação
+  const readOnly = archived || isAdmin;
   const title = info?.title ?? event?.title ?? "Avaliação";
   const pending = sheet.pending;
   const errorCount = sheet.errorRows.length;
@@ -498,7 +505,7 @@ function useGradesPanel({
 
   /** "Revisar e salvar" (e o Ctrl+S): com célula errada, o foco vai até ela; sem, abre a revisão. */
   function openReview() {
-    if (!pending || saving || archived) return;
+    if (!pending || saving || readOnly) return;
     if (errorCount) {
       // pelo id do aluno (o nome pode ser começo de outro); a grade limpa a busca e o filtro se esconderem a linha
       sheetApi.current?.focusStudent(sheet.errorRows[0].row.studentId);
@@ -793,7 +800,7 @@ function useGradesPanel({
    * a importação confere contra o que está gravado, e o rascunho da grade se perderia no meio.
    */
   function askImport(pick: () => void) {
-    if (archived) return;
+    if (readOnly) return;
     if (!pending) {
       pick();
       return;
@@ -811,7 +818,7 @@ function useGradesPanel({
   }
 
   function importFile(file: File) {
-    if (archived) return;
+    if (readOnly) return;
     sheet.discard();
     flow.startWithFile(file);
     goTo("import");
@@ -914,7 +921,7 @@ function useGradesPanel({
     .join(", ");
 
   const done = (imports ?? []).filter((item) => item.status !== "discarded");
-  const nextDraft = archived ? null : (sortImports(done).find((item) => item.status === "draft" && item.canApply) ?? null);
+  const nextDraft = readOnly ? null : (sortImports(done).find((item) => item.status === "draft" && item.canApply) ?? null);
   const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
 
   let footer;
@@ -978,17 +985,19 @@ function useGradesPanel({
       </>
     );
   } else {
-    const canPublish = Boolean(data) && !published && !archived && Boolean(launched);
+    const canPublish = Boolean(data) && !published && !readOnly && Boolean(launched);
     footer = (
       <>
         <p className="nd-foot-hint">
-          {published
-            ? "Mudou uma nota? Alunos e responsáveis recebem um aviso quando você salvar."
-            : archived
-              ? "Turma arquivada: as notas ficam só para leitura."
-              : launched
-                ? "As notas ficam ocultas até você publicar."
-                : "Digite as notas na tabela ou importe a planilha."}
+          {isAdmin
+            ? "Para mudar uma nota, fale com a docente da disciplina."
+            : published
+              ? "Mudou uma nota? Alunos e responsáveis recebem um aviso quando você salvar."
+              : archived
+                ? "Turma arquivada: as notas ficam só para leitura."
+                : launched
+                  ? "As notas ficam ocultas até você publicar."
+                  : "Digite as notas na tabela ou importe a planilha."}
         </p>
         <button className={canPublish ? secondaryButton : primaryButton} onClick={requestClose} type="button">
           Fechar
@@ -1046,6 +1055,7 @@ function useGradesPanel({
         opening={opening}
         undoing={undoing}
         userId={user.id}
+        viewOnly={isAdmin}
         onContinue={(item) => void continueDraft(item)}
         onDiscard={askDiscardDraft}
         onUndo={askUndoImport}
@@ -1055,7 +1065,14 @@ function useGradesPanel({
     const noPoints = data.event.maxScore === null;
     body = (
       <SheetPane>
-        {archived ? (
+        {isAdmin ? (
+          <p className="callout past">
+            <Eye className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>
+              <b>Só a docente da disciplina lança e publica as notas.</b> Você acompanha sem alterar.
+            </span>
+          </p>
+        ) : archived ? (
           <p className="callout past">
             <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span>
@@ -1064,7 +1081,7 @@ function useGradesPanel({
             </span>
           </p>
         ) : null}
-        {noPoints && !archived ? (
+        {noPoints && !readOnly ? (
           <p className="callout amber">
             <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span>
@@ -1094,7 +1111,14 @@ function useGradesPanel({
             </button>
           </div>
         ) : null}
-        <GradesStatus archived={archived} data={data} launched={launched ?? 0} publishing={publishing} onUnpublish={() => void unpublish()} />
+        <GradesStatus
+          archived={archived}
+          data={data}
+          launched={launched ?? 0}
+          publishing={publishing}
+          viewOnly={isAdmin}
+          onUnpublish={() => void unpublish()}
+        />
         <GradesSheet
           announce={setAnnouncement}
           apiRef={sheetApi}
@@ -1103,8 +1127,9 @@ function useGradesPanel({
           historyCount={done.length}
           historyRef={historyRef}
           importRef={importRef}
-          isAdmin={role === "admin"}
-          locked={archived}
+          isAdmin={isAdmin}
+          locked={readOnly}
+          lockedNote={isAdmin ? "Só leitura: as notas aparecem como estão gravadas." : undefined}
           sheet={sheet}
           showSteps={!launched && !nextDraft && done.length === 0 && data.students.length > 0}
           onDownload={() => void flow.downloadTemplate()}
@@ -1204,6 +1229,7 @@ function HistoryView({
   opening,
   undoing,
   userId,
+  viewOnly,
 }: {
   archived: boolean;
   blockedUndo: Record<number, ConflictDetails>;
@@ -1215,6 +1241,8 @@ function HistoryView({
   opening: number | null;
   undoing: number | null;
   userId: number;
+  /** A coordenação vê o histórico sem nenhuma ação (a API já manda canApply, canDiscard e canUndo falsos). */
+  viewOnly: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const toastRoom = useToastClearance(rootRef);
@@ -1228,7 +1256,11 @@ function HistoryView({
         <h3 ref={headingRef} className="drawer-h3 outline-none" tabIndex={-1}>
           Histórico de importações <span className="badge">{ordered.length}</span>
         </h3>
-        <p className="mt-1 text-[13px] text-muted">Cada planilha importada nesta avaliação. Dá para desfazer a última, se ninguém mudou as notas depois.</p>
+        <p className="mt-1 text-[13px] text-muted">
+          {viewOnly
+            ? "Cada planilha importada nesta avaliação."
+            : "Cada planilha importada nesta avaliação. Dá para desfazer a última, se ninguém mudou as notas depois."}
+        </p>
       </div>
       {ordered.length ? (
         <ul className="grid gap-2.5">
@@ -1241,6 +1273,7 @@ function HistoryView({
               opening={opening === item.id}
               undoing={undoing === item.id}
               userId={userId}
+              viewOnly={viewOnly}
               onContinue={onContinue}
               onDiscard={onDiscard}
               onUndo={onUndo}
@@ -1248,7 +1281,12 @@ function HistoryView({
           ))}
         </ul>
       ) : (
-        <EmptyState compact icon={FileSpreadsheet} text="Nenhuma importação ainda" hint="Use Importar planilha na grade de notas." />
+        <EmptyState
+          compact
+          icon={FileSpreadsheet}
+          text="Nenhuma importação ainda"
+          hint={viewOnly ? "As planilhas que a docente importar aparecem aqui." : "Use Importar planilha na grade de notas."}
+        />
       )}
       <Pager paged={paged} noun={["importação", "importações"]} focusRef={headingRef} />
       <p className="flex items-start gap-1.5 text-[13px] leading-5 text-muted">
@@ -1269,6 +1307,7 @@ function ImportItem({
   opening,
   undoing,
   userId,
+  viewOnly,
 }: {
   archived: boolean;
   blocked: ConflictDetails | null;
@@ -1279,14 +1318,18 @@ function ImportItem({
   opening: boolean;
   undoing: boolean;
   userId: number;
+  viewOnly: boolean;
 }) {
   const status = importStatus[item.status];
   const when = importWhen(item);
   const by = item.createdBy && item.createdBy.id !== userId && item.createdBy.fullName ? `, por ${item.createdBy.fullName}` : "";
   const busyLook = "aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
 
+  // a coordenação não desfaz: o porquê de não dar para desfazer não é com ela
   let lock: string | null = null;
-  if (blocked) {
+  if (viewOnly) {
+    lock = null;
+  } else if (blocked) {
     const names = (blocked.grades ?? []).map((grade) => grade.fullName).filter(Boolean);
     lock = names.length ? `${blocked.message} Notas editadas depois: ${names.join(", ")}.` : blocked.message;
   } else if (item.status === "applied" && !item.canUndo) {
@@ -1317,7 +1360,7 @@ function ImportItem({
             <span>{lock}</span>
           </p>
         ) : null}
-        {item.status === "draft" && (item.canApply || item.canDiscard) ? (
+        {!viewOnly && item.status === "draft" && (item.canApply || item.canDiscard) ? (
           <div className="mt-2.5 flex flex-wrap gap-2">
             {item.canApply ? (
               <button
@@ -1340,7 +1383,7 @@ function ImportItem({
             ) : null}
           </div>
         ) : null}
-        {item.status === "applied" && item.canUndo && !blocked ? (
+        {!viewOnly && item.status === "applied" && item.canUndo && !blocked ? (
           <button
             className={cx(secondaryButton, "btn-sm mt-2.5", busyLook)}
             aria-busy={undoing || undefined}

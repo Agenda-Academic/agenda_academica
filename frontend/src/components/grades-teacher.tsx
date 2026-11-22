@@ -102,7 +102,8 @@ async function loadSummary(token: string, eventId: number): Promise<Summary> {
 /**
  * A docente lança nota só nas ofertas dela (api.md, fase 3): turma e disciplina com vínculo em vigor; prova ou
  * trabalho sem disciplina, só a autora. Turma arquivada fica na lista (só leitura) para quem criou a avaliação.
- * A administração vê todas.
+ * A administração (coordenação) vê todas, mas só para acompanhar: a gaveta abre só de leitura e a ação da linha é
+ * "Ver notas" (a API recusa lançar, importar e publicar com 403).
  */
 function inMyOffers(event: AcademicEvent, role: UserRole, userId: number, context: AcademicContext | null) {
   if (role === "admin") return true;
@@ -447,7 +448,11 @@ export function GradesTeacher({
         <EmptyState
           icon={ClipboardCheck}
           text={admin ? "Nenhuma prova ou trabalho de turma" : "Nenhuma prova ou trabalho nas suas disciplinas"}
-          hint="Crie uma prova ou um trabalho de turma na Gestão. Ele aparece aqui para lançar, importar e publicar as notas."
+          hint={
+            admin
+              ? "As provas e os trabalhos de turma aparecem aqui para você acompanhar as notas que as docentes lançam."
+              : "Crie uma prova ou um trabalho de turma na Gestão. Ele aparece aqui para lançar, importar e publicar as notas."
+          }
           action={{ label: "Ir para a Gestão", onClick: () => navigate("manage") }}
         />
       </div>
@@ -914,13 +919,13 @@ function EvaluationRow({
         <button
           className={cx(secondaryButton, "btn-sm notas-docente-open")}
           data-grades-open=""
-          aria-label={`Abrir as notas de ${event.title}`}
+          aria-label={`${admin ? "Ver" : "Abrir"} as notas de ${event.title}`}
           aria-haspopup="dialog"
           onClick={() => onOpenGrades(event.id)}
           type="button"
         >
           <ClipboardCheck className="h-4 w-4" aria-hidden />
-          Abrir notas
+          {admin ? "Ver notas" : "Abrir notas"}
           <ChevronRight className="h-4 w-4 opacity-70" aria-hidden />
         </button>
       </div>
