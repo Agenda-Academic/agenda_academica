@@ -67,9 +67,11 @@ type PlaceOptions = {
 };
 
 /**
- * Posiciona um popover `position: fixed` junto do botão: abaixo dele, ou acima quando falta espaço embaixo,
- * dentro da tela (8 px de folga nas bordas). Segue a rolagem de qualquer caixa (o corpo do Drawer) e a mudança
- * de tamanho. `deps` repete a conta quando o conteúdo muda (ex.: a busca filtrou a lista).
+ * Posiciona um popover `position: fixed` junto do botão: abaixo dele quando a lista inteira cabe ali; senão acima,
+ * quando cabe acima; senão do lado com mais espaço, com a altura limitada a ele (a lista rola por dentro). Fica
+ * dentro da tela (8 px de folga nas bordas). Segue a rolagem de qualquer caixa (o corpo do Drawer) e a mudança de
+ * tamanho, mas não a rolagem de dentro do próprio popover. `deps` repete a conta quando o conteúdo muda (ex.: a
+ * busca filtrou a lista).
  */
 export function useAnchoredPosition(
   open: boolean,
@@ -111,11 +113,17 @@ export function useAnchoredPosition(
       pop.parentElement?.insertBefore(probe, pop);
       const origin = probe.getBoundingClientRect();
       probe.remove();
+      // altura natural: sem o limite, a lista some com a rolagem e o navegador zera o scrollTop dela. Guarda e
+      // devolve a rolagem das caixas de dentro (senão a lista volta para o topo a cada conta)
+      const scrolled = Array.from(pop.querySelectorAll<HTMLElement>("*"))
+        .filter((element) => element.scrollTop > 0)
+        .map((element) => [element, element.scrollTop] as const);
       pop.style.maxHeight = "none";
       const natural = Math.min(pop.offsetHeight, maxHeight);
       const below = viewH - box.bottom - gap - margin;
       const above = box.top - gap - margin;
-      const down = below >= Math.min(natural, 220) || below >= above;
+      // para baixo se a lista inteira cabe; senão para cima se cabe lá; senão o lado com mais espaço
+      const down = below >= natural || (above < natural && below >= above);
       const room = Math.max(120, down ? below : above);
       const height = Math.min(natural, room);
       const top = down ? box.bottom + gap : box.top - gap - height;
@@ -124,8 +132,15 @@ export function useAnchoredPosition(
       pop.style.left = `${Math.round(left - origin.left)}px`;
       pop.style.top = `${Math.round(top - origin.top)}px`;
       pop.dataset.side = down ? "bottom" : "top";
+      for (const [element, scrollTop] of scrolled) {
+        element.scrollTop = scrollTop;
+      }
     };
-    const schedule = () => {
+    const schedule = (event?: Event) => {
+      // a rolagem da própria lista (roda, toque, barra, teclado) não muda a posição do popover
+      if (event?.type === "scroll" && event.target instanceof Node && pop.contains(event.target)) {
+        return;
+      }
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(place);
     };
@@ -429,24 +444,46 @@ export function Select<V extends string = string>({
     }
   }, [open, withSearch]);
 
-  // a opção ativa fica à vista dentro da lista
-  useEffect(() => {
-    if (!open || activeIndex < 0) {
-      return;
-    }
-    const element = document.getElementById(optionId(activeIndex));
-    element?.scrollIntoView({ block: "nearest" });
-    // optionId depende só do baseId
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activeIndex]);
-
   useAnchoredPosition(
     open,
     ownButtonRef,
     popRef,
-    { minWidth: Math.max(menuMinWidth ?? 0, variant === "filter" ? 280 : 0), sheet, maxHeight: 360 },
+    { minWidth: Math.max(menuMinWidth ?? 0, variant === "filter" ? 280 : 0), sheet, maxHeight: 420 },
     `${visible.length}-${host ? 1 : 0}`
   );
+
+  // a opção ativa fica à vista dentro da lista: ao abrir, no meio (com vizinhas dos dois lados); andando pelo
+  // teclado, só o necessário. Rola só a lista (scrollIntoView rolaria também a página por baixo). Vem depois do
+  // useAnchoredPosition: a altura da lista já está limitada quando a conta é feita.
+  const scrolledOpen = useRef(false);
+  useLayoutEffect(() => {
+    if (!open) {
+      scrolledOpen.current = false;
+      return;
+    }
+    const list = listRef.current;
+    const element = activeIndex >= 0 ? document.getElementById(optionId(activeIndex)) : null;
+    if (!list || !element) {
+      return;
+    }
+    const first = !scrolledOpen.current;
+    scrolledOpen.current = true;
+    if (list.scrollHeight <= list.clientHeight) {
+      return;
+    }
+    const box = list.getBoundingClientRect();
+    const item = element.getBoundingClientRect();
+    const pad = 4;
+    if (first) {
+      list.scrollTop += item.top + item.height / 2 - (box.top + box.height / 2);
+    } else if (item.top < box.top + pad) {
+      list.scrollTop -= box.top + pad - item.top;
+    } else if (item.bottom > box.bottom - pad) {
+      list.scrollTop += item.bottom - (box.bottom - pad);
+    }
+    // optionId depende só do baseId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeIndex, host]);
   useOutsidePress(open && !sheet, [ownButtonRef, popRef], () => closeList(false));
 
   function typeAhead(key: string) {

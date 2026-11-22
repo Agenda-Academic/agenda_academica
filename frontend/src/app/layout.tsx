@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { JetBrains_Mono, Onest, Sora } from "next/font/google";
 import "./globals.css";
 
-// Plus Jakarta Sans em tudo (texto, títulos e números), pesos 400 a 700. A mono fica para códigos e atalhos.
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+// Rodada 10 (Pantanal forte): Sora nos títulos e números (contagens, notas, indicadores, selo de data) e Onest no
+// texto. As duas são variáveis (pesos 400 a 800 usados). A mono fica para códigos e atalhos.
+const sora = Sora({
+  variable: "--font-sora",
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
+});
+
+const onest = Onest({
+  variable: "--font-onest",
+  subsets: ["latin", "latin-ext"],
   display: "swap",
 });
 
@@ -26,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${jakarta.variable} ${jetbrains.variable} h-full antialiased`}>
+    <html lang="pt-BR" className={`${sora.variable} ${onest.variable} ${jetbrains.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

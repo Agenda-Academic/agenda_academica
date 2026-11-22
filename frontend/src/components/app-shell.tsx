@@ -3,44 +3,59 @@
 import {
   ArrowRight,
   Bell,
+  BellRing,
   CalendarArrowDown,
+  CalendarCheck2,
   CalendarDays,
-  CalendarPlus,
   ChevronsUpDown,
-  ClipboardCheck,
-  Edit3,
   GraduationCap,
-  LayoutDashboard,
+  LayoutGrid,
   Loader2,
   LogOut,
-  Menu,
+  MoreHorizontal,
+  Plus,
   RefreshCw,
   School,
   Search,
+  SquarePen,
+  UserRoundCog,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { cx, firstName, formatTime, isAnnualClass, startOfDay } from "@/lib/format";
+import { cx, firstName, formatTime } from "@/lib/format";
 import { roleLabels } from "@/lib/meta";
-import { personClasses, semesterWeek, type SemesterWeek } from "@/lib/semester";
-import type { AcademicClass, AcademicContext, LinkedStudent, User, UserRole } from "@/lib/types";
-import { isOnTopLayer, primaryButton, useDialogLayer } from "./ui";
+import type { AcademicContext, LinkedStudent, User, UserRole } from "@/lib/types";
+import { isOnTopLayer, useDialogLayer } from "./ui";
 
 /** Telas do app. O endereço de cada uma (?tela=) fica em app/page.tsx (viewSlugs). */
 export type View = "dashboard" | "calendar" | "grades" | "manage" | "classes" | "reminders" | "sync";
 
-// menu por papel (desenho, tabela 5.2), na ordem da tabela; o responsável vê o Cronograma só para leitura
-const navItems: Array<{ view: View; label: string; icon: LucideIcon; roles: UserRole[] }> = [
-  { view: "dashboard", label: "Painel", icon: LayoutDashboard, roles: ["student", "teacher", "admin", "guardian"] },
-  { view: "calendar", label: "Cronograma", icon: CalendarDays, roles: ["student", "teacher", "admin", "guardian"] },
-  { view: "grades", label: "Notas", icon: ClipboardCheck, roles: ["student", "teacher", "admin", "guardian"] },
-  { view: "manage", label: "Gestão", icon: Edit3, roles: ["teacher", "admin"] },
-  { view: "classes", label: "Turmas e disciplinas", icon: School, roles: ["admin"] },
-  { view: "reminders", label: "Lembretes", icon: Bell, roles: ["student", "teacher", "admin", "guardian"] },
-  { view: "sync", label: "Importar calendário", icon: CalendarArrowDown, roles: ["admin"] },
+/** Cor do quadrado pastel do ícone de cada tela no trilho (--nv-* no globals.css). */
+type NavTone = "painel" | "crono" | "notas" | "gestao" | "turmas" | "lemb" | "import";
+
+// menu por papel (desenho, tabela 5.2), na ordem da tabela; o responsável vê o Cronograma só para leitura. O rótulo
+// curto (short) é o que cabe embaixo do ícone no trilho e na barra de baixo; o nome inteiro fica no leitor de tela
+const navItems: Array<{
+  view: View;
+  label: string;
+  short?: string;
+  icon: LucideIcon;
+  tone: NavTone;
+  roles: UserRole[];
+}> = [
+  { view: "dashboard", label: "Painel", icon: LayoutGrid, tone: "painel", roles: ["student", "teacher", "admin", "guardian"] },
+  { view: "calendar", label: "Cronograma", icon: CalendarDays, tone: "crono", roles: ["student", "teacher", "admin", "guardian"] },
+  { view: "grades", label: "Notas", icon: GraduationCap, tone: "notas", roles: ["student", "teacher", "admin", "guardian"] },
+  { view: "manage", label: "Gestão", icon: SquarePen, tone: "gestao", roles: ["teacher", "admin"] },
+  { view: "classes", label: "Turmas e disciplinas", short: "Turmas", icon: School, tone: "turmas", roles: ["admin"] },
+  { view: "reminders", label: "Lembretes", icon: BellRing, tone: "lemb", roles: ["student", "teacher", "admin", "guardian"] },
+  { view: "sync", label: "Importar calendário", short: "Importar", icon: CalendarArrowDown, tone: "import", roles: ["admin"] },
 ];
+
+/** Na barra de baixo do celular cabem 5 itens; com mais (administração), 4 e "Mais". */
+const BOTTOM_MAX = 5;
 
 // texto que acompanha o número do item (lido como "Lembretes, 2 avisos novos")
 const badgeText: Partial<Record<View, (count: number) => string>> = {
@@ -51,32 +66,18 @@ const badgeText: Partial<Record<View, (count: number) => string>> = {
 // no title e no leitor de tela
 const badgeAsDot = new Set<View>(["reminders"]);
 
-// no cartão do menu, o papel curto do Figma ("Admin, ADM-001"), para caber com a matrícula. Os outros vêm de
-// roleLabels ("Estudante" é neutro: a aluna não aparece como "Aluno")
+// no cartão da conta, o papel curto ("Admin, ADM-001"), para caber com a matrícula. Os outros vêm de roleLabels
+// ("Estudante" é neutro: a aluna não aparece como "Aluno")
 const cardRoleLabels: Record<UserRole, string> = { ...roleLabels, admin: "Admin" };
 
-// partículas do nome: não ficam sozinhas no fim da linha ("Diogo Queiroz da" vira "Diogo Queiroz")
-const nameParticles = new Set(["da", "das", "de", "do", "dos", "e"]);
-// espaço que não quebra a linha
-const nbsp = String.fromCharCode(0xa0);
+/** "Estudante, ALU-001", "Docente, DOC-001", "Admin, ADM-001"; o responsável não tem matrícula: só "Responsável". */
+function roleLine(user: User) {
+  return [cardRoleLabels[user.role], user.role === "guardian" ? null : user.registration].filter(Boolean).join(", ");
+}
 
-/**
- * Nome do cartão do menu. Ele ocupa uma linha só, e o que não cabe sai por palavras inteiras, como
- * no Figma ("Diogo Queiroz", "Coordenação"). A partícula e a abreviação ("Profa.") ficam presas à
- * palavra seguinte por um espaço que não quebra.
- */
-function cardName(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .reduce((text, word, index, words) => {
-      if (!index) {
-        return word;
-      }
-      const previous = words[index - 1];
-      const glued = nameParticles.has(previous.toLocaleLowerCase("pt-BR")) || previous.endsWith(".");
-      return `${text}${glued ? nbsp : " "}${word}`;
-    }, "");
+function initialsOf(user: User) {
+  const name = user.fullName ?? user.email;
+  return user.initials ?? name.slice(0, 2).toUpperCase();
 }
 
 export function visibleNavItems(role: UserRole) {
@@ -106,149 +107,69 @@ function isSearchShortcut(event: KeyboardEvent, mac: boolean) {
   );
 }
 
-/** Hoje (à meia-noite). Com a página aberta, vira sozinho na meia-noite seguinte. */
-function useToday() {
-  const [today, setToday] = useState(() => startOfDay(new Date()));
-  useEffect(() => {
-    const now = new Date();
-    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const timer = window.setTimeout(() => setToday(startOfDay(new Date())), next.getTime() - now.getTime() + 1000);
-    return () => window.clearTimeout(timer);
-  }, [today]);
-  return today;
+type NavItem = (typeof navItems)[number];
+
+/** "Lembretes, 1 aviso novo": o número do item para o leitor de tela e para a dica. */
+function countWords(view: View, count?: number) {
+  if (!count) {
+    return "";
+  }
+  const extra = badgeText[view]?.(count);
+  return extra ? `${count} ${extra}` : String(count);
 }
 
 /**
- * A barra do semestre só fica no menu fixo quando ele cabe inteiro na altura da janela com ela. Em
- * tela baixa (o CSS já apertou os espaços) ela sai antes de o menu rolar por dentro e cortar "Sair
- * da conta". A conta vale para os três perfis e para a busca com resultado, que deixa o menu mais alto.
+ * Item do trilho (e da barra de baixo do celular): ícone num quadrado pastel da cor da tela e o rótulo pequeno
+ * embaixo. O ativo ganha o anel e a sombra da cor dele; o número vira uma bolinha no canto do ícone (em
+ * Lembretes, só um ponto: o "1 aviso novo" fica na dica e no leitor de tela).
  */
-function useSemesterFits(sideRef: RefObject<HTMLElement | null>, active: boolean) {
-  const [fits, setFits] = useState(true);
-  // altura da barra mais o vão até o cartão, medida com ela à vista (ela começa à vista)
-  const barSpace = useRef(0);
-  useEffect(() => {
-    const side = sideRef.current;
-    if (!active || !side) {
-      return;
-    }
-    const check = () => {
-      // menu fora da tela (janela estreita): nada a medir
-      if (!side.clientHeight) {
-        return;
-      }
-      // os blocos do menu não encolhem: a soma deles é a altura de que o menu precisa
-      const style = getComputedStyle(side);
-      const blocks = Array.from(side.children);
-      let needed =
-        parseFloat(style.paddingTop) +
-        parseFloat(style.paddingBottom) +
-        (parseFloat(style.rowGap) || 0) * Math.max(0, blocks.length - 1);
-      for (const block of blocks) {
-        needed += block.getBoundingClientRect().height;
-      }
-      const bar = side.querySelector<HTMLElement>(".semestre");
-      if (bar?.parentElement) {
-        barSpace.current =
-          bar.getBoundingClientRect().height + (parseFloat(getComputedStyle(bar.parentElement).rowGap) || 0);
-        needed -= barSpace.current;
-      }
-      if (barSpace.current) {
-        setFits(needed + barSpace.current <= side.clientHeight + 0.5);
-      }
-    };
-    const observer = new ResizeObserver(check);
-    observer.observe(side);
-    for (const block of Array.from(side.children)) {
-      observer.observe(block);
-    }
-    return () => observer.disconnect();
-  }, [active, sideRef]);
-  return fits;
-}
-
-function NavButtons({
-  activeView,
-  badges,
-  role,
+function NavButton({
+  active,
+  count,
+  item,
   onNavigate,
 }: {
-  activeView: View;
-  badges?: Partial<Record<View, number>>;
-  role: UserRole;
+  active: boolean;
+  count?: number;
+  item: NavItem;
   onNavigate: (view: View) => void;
 }) {
+  const words = countWords(item.view, count);
   return (
-    <nav aria-label="Navegação principal">
-      <p className="nav-label">Menu</p>
-      <div className="navlist">
-        {visibleNavItems(role).map((item) => {
-          const count = badges?.[item.view];
-          const extra = count ? badgeText[item.view]?.(count) : undefined;
-          return (
-            <button
-              key={item.view}
-              className={cx("nav", activeView === item.view && "on")}
-              data-view={item.view}
-              aria-current={activeView === item.view ? "page" : undefined}
-              onClick={() => onNavigate(item.view)}
-              type="button"
-            >
-              <span className="nav-ico" aria-hidden>
-                <item.icon className="h-[18px] w-[18px]" />
-              </span>
-              {item.label}
-              {count && badgeAsDot.has(item.view) ? (
-                <span className="count dot" title={extra ? `${count} ${extra}` : String(count)}>
-                  <span className="sr-only">
-                    , {count}
-                    {extra ? ` ${extra}` : null}
-                  </span>
-                </span>
-              ) : count ? (
-                <span className="count">
-                  <span className="sr-only">, </span>
-                  {count}
-                  {extra ? <span className="sr-only"> {extra}</span> : null}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-    </nav>
-  );
-}
-
-function Brand({
-  action,
-  inDrawer,
-  onDark,
-  subtitle = "Prazos, notas e lembretes",
-}: {
-  /** Botão no fim da faixa da marca (o X da gaveta), dentro da linha de baixo dela. */
-  action?: ReactNode;
-  /** Gaveta do celular: marca de 40 e nome de 16 px, como no Figma, para o nome caber ao lado do X. */
-  inDrawer?: boolean;
-  onDark?: boolean;
-  subtitle?: string;
-}) {
-  return (
-    <div className={cx("flex items-center gap-3", onDark && "brand", inDrawer && "in-drawer")}>
-      <span className="mark">
-        <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
+    <button
+      className={cx("rail-item", `nv-${item.tone}`, active && "on")}
+      data-view={item.view}
+      aria-current={active ? "page" : undefined}
+      aria-label={words ? `${item.label}, ${words}` : item.label}
+      title={words ? `${item.label}, ${words}` : item.short ? item.label : undefined}
+      onClick={() => onNavigate(item.view)}
+      type="button"
+    >
+      <span className="rail-ic" aria-hidden>
+        <item.icon />
+        {count && badgeAsDot.has(item.view) ? (
+          <i className="rail-dot" />
+        ) : count ? (
+          <i className="rail-count">{count > 99 ? "99+" : count}</i>
+        ) : null}
       </span>
-      <div className={cx("min-w-0", action ? "flex-1" : null)}>
-        <p className={cx("brand-name truncate", !onDark && "text-ink")}>Agenda Acadêmica</p>
-        <p className={cx("brand-sub truncate", !onDark && "text-muted")}>{subtitle}</p>
-      </div>
-      {action}
-    </div>
+      <span className="rail-lbl" aria-hidden>
+        {item.short ?? item.label}
+      </span>
+    </button>
   );
 }
 
-/** A partir desta largura o menu fica fixo ao lado; abaixo (celular e tablet), ele é uma gaveta aberta pelo
- *  botão do cabeçalho. No tablet de 768 px o menu fixo de 264 px apertava a tela numa coluna de celular. */
+/** Logo do app: o calendário com o check num quadrado verde em gradiente. */
+function Logo({ className }: { className?: string }) {
+  return (
+    <span className={cx("logo-sq", className)} aria-hidden>
+      <CalendarCheck2 />
+    </span>
+  );
+}
+
+/** A partir desta largura o trilho fica fixo ao lado; abaixo (celular e tablet), a barra do topo e a de baixo. */
 const WIDE_MENU = "(min-width: 1024px)";
 
 /** O que a busca do menu procura na tela de agora: o texto do campo, o rótulo e o nome do resultado. */
@@ -267,16 +188,18 @@ const eventSearch: SearchScope = {
   noun: ["evento", "eventos"],
 };
 
-/** Busca geral e atalho de criação, logo abaixo da marca no menu. */
-function SideTools({
+/**
+ * A busca geral (a mesma de antes, com o mesmo Ctrl K): no computador, a pílula branca do topo do conteúdo, com a
+ * contagem e o "Ver N eventos" numa caixinha logo abaixo; no celular, dentro da folha de busca.
+ */
+function SearchBox({
   inPlace,
   inputRef,
-  newEventLabel,
   resultCount,
   scope = eventSearch,
   search,
   shortcut,
-  onNewEvent,
+  sheet,
   onSearchChange,
   onSubmit,
 }: {
@@ -284,15 +207,14 @@ function SideTools({
   inPlace: boolean;
   /** Campo da busca: o Ctrl+K leva o foco até ele. */
   inputRef: RefObject<HTMLInputElement | null>;
-  /** O atalho de criação, sempre azul cheio: o mesmo botão no mesmo lugar em todas as telas. */
-  newEventLabel: string | null;
   resultCount?: number;
   /** O que a busca procura nesta tela (padrão: eventos). */
   scope?: SearchScope;
   search: string;
   /** "Ctrl K" no chip do campo e "Control+K" para o leitor de tela (Cmd no Mac). */
   shortcut: Shortcut;
-  onNewEvent: () => void;
+  /** Dentro da folha do celular: o resultado fica embaixo do campo, sem caixinha flutuante. */
+  sheet?: boolean;
   onSearchChange: (value: string) => void;
   onSubmit: () => void;
 }) {
@@ -310,22 +232,23 @@ function SideTools({
         : `${count} ${count === 1 ? `${one} encontrado` : `${many} encontrados`}`;
   // botão que leva ao resultado: funciona no toque, onde o teclado não tem Enter (o Enter continua valendo)
   const showButton = count !== undefined && count > 0 && !inPlace;
+  // a caixinha só aparece com algo a mostrar (a contagem sem o botão, ou o botão)
+  const showPop = Boolean(status);
 
   return (
-    <div className="side-tools">
+    <div className={cx("tsearch-wrap", sheet && "in-sheet")}>
       <form
-        className="side-search"
+        className="tsearch"
         role="search"
         onSubmit={(event) => {
           event.preventDefault();
           onSubmit();
         }}
       >
-        <Search aria-hidden />
+        <Search className="tsearch-ic" aria-hidden />
         <input
           ref={inputRef}
-          // vazio, o texto não passa por baixo do chip do atalho (que some no toque)
-          className={search ? "pr-10 pointer-coarse:pr-12 max-md:pr-12" : "pr-[66px] pointer-coarse:pr-3.5"}
+          className={search ? "has-value" : undefined}
           placeholder={scope.placeholder}
           aria-label={scope.label}
           aria-keyshortcuts={shortcut.aria}
@@ -333,17 +256,17 @@ function SideTools({
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           onKeyDown={(event) => {
-            // Esc limpa a busca antes de fechar o menu
+            // Esc limpa a busca antes de fechar a folha
             if (event.key === "Escape" && search) {
               event.preventDefault();
+              event.stopPropagation();
               onSearchChange("");
             }
           }}
         />
         {search ? (
-          // no toque, alvo de 44px
           <button
-            className="absolute right-1.5 grid h-8 w-8 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink pointer-coarse:right-0 pointer-coarse:h-11 pointer-coarse:w-11 max-md:right-0 max-md:h-11 max-md:w-11"
+            className="tsearch-clear"
             onClick={() => {
               onSearchChange("");
               inputRef.current?.focus();
@@ -352,33 +275,26 @@ function SideTools({
             title="Limpar busca"
             type="button"
           >
-            <X className="static h-4 w-4 text-inherit" aria-hidden />
+            <X aria-hidden />
           </button>
         ) : (
-          <span className="kbd" aria-hidden>
+          <span className="kbd tsearch-kbd" aria-hidden>
             {shortcut.chip}
           </span>
         )}
       </form>
-      {/* a contagem é sempre anunciada; com o botão à vista, ela fica só para leitores de tela */}
-      <p
-        className={cx("-mt-1 px-1 text-[13px] leading-5 text-muted", (!status || showButton) && "sr-only")}
-        role="status"
-      >
-        {status}
-      </p>
-      {showButton ? (
-        <button className="nav nav-sm -mt-1 justify-between bg-surface-2 pointer-coarse:h-11 max-md:h-11" onClick={onSubmit} type="button">
-          Ver {count} {count === 1 ? one : many}
-          <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
-        </button>
-      ) : null}
-      {newEventLabel ? (
-        <button className={cx(primaryButton, "w-full")} onClick={onNewEvent} type="button">
-          <CalendarPlus className="h-4 w-4" aria-hidden />
-          {newEventLabel}
-        </button>
-      ) : null}
+      <div className={cx("tsearch-pop", !showPop && "is-empty")}>
+        {/* a contagem é sempre anunciada; com o botão à vista, ela fica só para leitores de tela */}
+        <p className={cx("tsearch-status", (!status || showButton) && "sr-only")} role="status">
+          {status}
+        </p>
+        {showButton ? (
+          <button className="tsearch-go" onClick={onSubmit} type="button">
+            Ver {count} {count === 1 ? one : many}
+            <ArrowRight aria-hidden />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -456,117 +372,222 @@ function StudentPick({
   );
 }
 
-/**
- * "Semestre 2026/2" e "16ª de 20 semanas", com a barra do quanto já foi (Figma, pé do menu). Ordinal e com
- * "semanas" no fim: "semana 16 de 20" se confundia com o "Semana de 16 a 20 de nov" do Painel, ao lado.
- */
-function SemesterBar({ semester }: { semester: SemesterWeek }) {
-  const weekText = `${semester.week}ª de ${semester.weeks} semanas`;
-  return (
-    // role="img": o leitor de tela lê o texto inteiro uma vez, pelo aria-label
-    <div className="semestre" role="img" aria-label={`Semestre ${semester.term}, ${weekText}`}>
-      <div className="row1">
-        <span>Semestre {semester.term}</span>
-        <b>{weekText}</b>
-      </div>
-      <div className="bar">
-        <span style={{ width: `${semester.percent}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function SideFoot({
+/** O estado do "Atualizado às": o texto à vista (na folha da conta), o do leitor de tela e se está sem conexão. */
+function syncState({
   loadError,
   refreshing,
-  semester,
   updatedAt,
-  user,
-  onLogout,
-  onOpenProfile,
-  onRefresh,
 }: {
   loadError?: string | null;
   refreshing: boolean;
-  /** Barra do semestre, só no menu fixo (no celular ela não entra, como no Figma). */
-  semester?: SemesterWeek | null;
   updatedAt?: Date | null;
-  user: User;
-  onLogout: () => void;
-  onOpenProfile: () => void;
-  onRefresh: () => void;
 }) {
-  const name = user.fullName ?? user.email;
-  // "Estudante, ALU-001", "Docente, DOC-001", "Admin, ADM-001"; o responsável não tem matrícula: só "Responsável"
-  const role = [cardRoleLabels[user.role], user.role === "guardian" ? null : user.registration].filter(Boolean).join(", ");
   const time = updatedAt ? formatTime(updatedAt.toISOString()) : null;
   const offline = Boolean(loadError) && !refreshing;
-  const refreshLabel = refreshing
+  const text = refreshing ? "Atualizando..." : offline ? "Sem conexão" : time ? `Atualizado às ${time}` : "Atualizar dados";
+  const label = refreshing
     ? "Atualizando dados"
     : offline
       ? "Atualizar dados, sem conexão"
       : time
         ? `Atualizar dados, atualizado às ${time}`
         : "Atualizar dados";
+  return { offline, text, label };
+}
 
+/**
+ * "Atualizado às 14:37" no trilho: um ponto (verde; âmbar sem conexão; girando enquanto atualiza) com o texto na
+ * dica. Um clique atualiza os dados, como antes.
+ */
+function SyncButton({
+  className,
+  loadError,
+  refreshing,
+  showText,
+  updatedAt,
+  onRefresh,
+}: {
+  className?: string;
+  loadError?: string | null;
+  refreshing: boolean;
+  /** Com o texto à vista ao lado do ponto (folha da conta no celular). */
+  showText?: boolean;
+  updatedAt?: Date | null;
+  onRefresh: () => void;
+}) {
+  const state = syncState({ loadError, refreshing, updatedAt });
   return (
-    <div className="side-foot">
-      {semester ? <SemesterBar semester={semester} /> : null}
-      {/* a pessoa: o cartão abre as configurações do perfil; ao lado, o botão de sair */}
-      <div className="me">
-        <button
-          className="ucard group"
-          onClick={onOpenProfile}
-          aria-label={`${name}, configurações do perfil`}
-          title="Configurações do perfil"
-          type="button"
-        >
-          <span className="avatar">{user.initials ?? name.slice(0, 2).toUpperCase()}</span>
-          <span className="flex min-w-0 flex-1 flex-col">
-            {/* numa linha só: o que não cabe sai por palavras inteiras, e o nome inteiro aparece ao passar o mouse */}
-            <span className="uname" title={name}>
-              {cardName(name)}
-            </span>
-            <span className="urole" title={role}>
-              {role}
-            </span>
+    <button
+      className={cx("sync-dot", showText && "with-text", className)}
+      aria-busy={refreshing || undefined}
+      aria-disabled={refreshing || undefined}
+      aria-label={state.label}
+      onClick={() => {
+        if (!refreshing) {
+          onRefresh();
+        }
+      }}
+      title={`${state.text}. Atualizar dados`}
+      type="button"
+    >
+      {refreshing ? (
+        <Loader2 className="sync-spin animate-spin" aria-hidden />
+      ) : (
+        <span className={cx("sync-ok", state.offline && "is-off")} aria-hidden />
+      )}
+      {showText ? (
+        <>
+          <span className="sync-text" aria-hidden>
+            {state.text}
           </span>
-        </button>
-        <button className="ubtn" onClick={onLogout} aria-label="Sair da conta" title="Sair da conta" type="button">
-          <LogOut className="h-[18px] w-[18px]" aria-hidden />
-        </button>
-      </div>
-      <button
-        className="sync w-full text-left hover:text-ink"
-        aria-busy={refreshing || undefined}
-        aria-disabled={refreshing || undefined}
-        aria-label={refreshLabel}
-        onClick={() => {
-          if (!refreshing) {
-            onRefresh();
-          }
-        }}
-        title="Atualizar dados"
-        type="button"
-      >
-        {refreshing ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-        ) : (
-          <span className={cx("ok", offline && "bg-amber-bar")} aria-hidden />
-        )}
-        {refreshing ? "Atualizando..." : offline ? "Sem conexão" : time ? `Atualizado às ${time}` : "Atualizar dados"}
-        {!refreshing ? <RefreshCw className="ml-auto h-3.5 w-3.5" aria-hidden /> : null}
-      </button>
-    </div>
+          {!refreshing ? <RefreshCw className="sync-re" aria-hidden /> : null}
+        </>
+      ) : null}
+    </button>
   );
 }
+
+/**
+ * Pé do trilho: o avatar (com o primeiro nome embaixo) abre uma caixinha com o nome, o papel, "Configurações do
+ * perfil" e "Sair da conta". Esc ou um clique fora fecham, e o foco volta para o avatar.
+ */
+function AccountMenu({
+  user,
+  onLogout,
+  onOpenProfile,
+}: {
+  user: User;
+  onLogout: () => void;
+  onOpenProfile: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [spot, setSpot] = useState<{ left: number; bottom: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const firstRef = useRef<HTMLButtonElement>(null);
+  const popId = useId();
+  const name = user.fullName ?? user.email;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    firstRef.current?.focus();
+    const close = (returnFocus: boolean) => {
+      setOpen(false);
+      if (returnFocus) {
+        buttonRef.current?.focus();
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close(true);
+      }
+    };
+    const onDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!popRef.current?.contains(target) && !buttonRef.current?.contains(target)) {
+        close(false);
+      }
+    };
+    const onFocus = (event: FocusEvent) => {
+      const target = event.target as Node;
+      if (!popRef.current?.contains(target) && !buttonRef.current?.contains(target)) {
+        close(false);
+      }
+    };
+    const onResize = () => close(false);
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("focusin", onFocus);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("focusin", onFocus);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        className="rail-me"
+        aria-expanded={open}
+        aria-controls={open ? popId : undefined}
+        aria-label={`${name}, conta e perfil`}
+        title={name}
+        onClick={() => {
+          const rect = buttonRef.current?.getBoundingClientRect();
+          if (rect) {
+            setSpot({ left: rect.right + 14, bottom: Math.max(12, window.innerHeight - rect.bottom) });
+          }
+          setOpen((value) => !value);
+        }}
+        type="button"
+      >
+        <span className="avatar">{initialsOf(user)}</span>
+        <span className="rail-lbl" aria-hidden>
+          {firstName(name)}
+        </span>
+      </button>
+      {open && spot ? (
+        <div
+          ref={popRef}
+          id={popId}
+          className="acct-pop"
+          style={{ left: spot.left, bottom: spot.bottom }}
+          role="group"
+          aria-label="Conta"
+        >
+          <div className="acct-who">
+            <span className="avatar" aria-hidden>
+              {initialsOf(user)}
+            </span>
+            <span className="min-w-0">
+              <span className="acct-name">{name}</span>
+              <span className="acct-role">{roleLine(user)}</span>
+            </span>
+          </div>
+          <button
+            ref={firstRef}
+            className="acct-opt"
+            onClick={() => {
+              setOpen(false);
+              onOpenProfile();
+            }}
+            type="button"
+          >
+            <UserRoundCog aria-hidden />
+            Configurações do perfil
+          </button>
+          <button
+            className="acct-opt is-out"
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+            type="button"
+          >
+            <LogOut aria-hidden />
+            Sair da conta
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** Folha do celular aberta: a busca, a conta ou os itens que não couberam na barra de baixo ("Mais"). */
+type SheetKind = "busca" | "conta" | "mais";
 
 export function AppShell({
   activeView,
   badges,
   canWrite,
   children,
-  context,
   focusHeadingToken,
   loadError,
   menuOpen: drawerOpen,
@@ -594,13 +615,13 @@ export function AppShell({
   badges?: Partial<Record<View, number>>;
   canWrite?: boolean;
   children: ReactNode;
-  /** Turmas da pessoa: o ano e o semestre da barra do semestre vêm delas (sem elas, vale o calendário de lib/semester). */
+  /** Turmas da pessoa. A barra do semestre saiu do trilho na rodada 10; a prop continua para não mudar a página. */
   context?: AcademicContext | null;
   /** Muda quando a tela troca: o título da tela recebe o foco. */
   focusHeadingToken?: number;
   /** Falha no último carregamento: o rodapé do menu mostra "Sem conexão". */
   loadError?: string | null;
-  /** Menu do celular (gaveta) aberto. Quem usa a casca cuida do histórico: o Voltar fecha só o menu. */
+  /** Folha do celular aberta (busca, conta ou "Mais"). Quem usa a casca cuida do histórico: o Voltar fecha só ela. */
   menuOpen: boolean;
   refreshing: boolean;
   search: string;
@@ -619,7 +640,7 @@ export function AppShell({
   /** Responsável: trocou de aluno no seletor do menu. */
   onChooseStudent?: (studentId: number) => void;
   onLogout: () => void;
-  /** Abrir ou fechar o menu do celular. Navegar, abrir as configurações do perfil ou o painel pelo menu já fecha. */
+  /** Abrir ou fechar a folha do celular. Navegar, abrir as configurações do perfil ou o painel por ela já fecha. */
   onMenuChange: (open: boolean) => void;
   onNavigate: (view: View) => void;
   onNewEvent: () => void;
@@ -629,56 +650,61 @@ export function AppShell({
   /** Enter ou "Ver eventos" na busca do menu. */
   onSearchSubmit?: () => void;
 }) {
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeMenuRef = useRef<HTMLButtonElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
+  const meButtonRef = useRef<HTMLButtonElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const sheetPanelRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const sideRef = useRef<HTMLElement>(null);
-  const sideSearchRef = useRef<HTMLInputElement>(null);
-  const drawerSearchRef = useRef<HTMLInputElement>(null);
-  // a gaveta abre com o foco em "Fechar menu"; aberta pelo Ctrl+K, já na busca
-  const [drawerStart, setDrawerStart] = useState<"close" | "search">("close");
+  const topSearchRef = useRef<HTMLInputElement>(null);
+  const sheetSearchRef = useRef<HTMLInputElement>(null);
+  // qual folha do celular está aberta e se ela veio do Ctrl+K (aí o foco volta para onde estava)
+  const [sheet, setSheet] = useState<SheetKind>("conta");
+  const [sheetByKey, setSheetByKey] = useState(false);
   const shortcut = useSearchShortcut();
-  const today = useToday();
   const guardian = user.role === "guardian";
-  // o responsável vê o semestre das turmas do aluno escolhido
-  const termClasses: AcademicClass[] = guardian ? (student?.classes ?? []) : personClasses(context);
-  // só turma anual (curso integrado, "ano letivo 2026"): não há semestre a mostrar, e a barra sai. Sem ela, o pé do
-  // menu não diz "Semestre 2026/2" ao lado de um Painel que fala em ano letivo.
-  const annualOnly = termClasses.length > 0 && termClasses.every(isAnnualClass);
-  // enquanto as turmas não chegam (contexto, ou o aluno no caso do responsável), a barra espera: sem isso ela
-  // aparecia com o semestre do calendário durante a carga e sumia depois, para quem só tem turma anual
-  const termsKnown = guardian ? Boolean(student) : Boolean(context) || user.role === "admin";
-  const semester = !termsKnown || annualOnly ? null : semesterWeek(today, termClasses);
-  const semesterFits = useSemesterFits(sideRef, Boolean(semester));
   // o responsável só lê: nunca cria evento. O rótulo é o mesmo do botão da página.
   const newEventLabel = canWrite && !guardian ? (user.role === "admin" ? "Novo evento oficial" : "Novo evento") : null;
-  const pageTitle = visibleNavItems(user.role).find((item) => item.view === activeView)?.label ?? "Agenda Acadêmica";
+  const items = visibleNavItems(user.role);
+  const pageTitle = items.find((item) => item.view === activeView)?.label ?? "Agenda Acadêmica";
+  // barra de baixo do celular: até 5 itens; com mais, os 4 primeiros e "Mais"
+  const bottomItems = items.length > BOTTOM_MAX ? items.slice(0, BOTTOM_MAX - 1) : items;
+  const moreItems = items.length > BOTTOM_MAX ? items.slice(BOTTOM_MAX - 1) : [];
+  const moreActive = moreItems.some((item) => item.view === activeView);
+  const moreCount = moreItems.reduce((sum, item) => sum + (badges?.[item.view] ?? 0), 0);
+  const reminderNews = badges?.reminders ?? 0;
+  const name = user.fullName ?? user.email;
+  const returnRef = sheet === "busca" ? searchButtonRef : sheet === "mais" ? moreButtonRef : meButtonRef;
 
-  // gaveta do celular: foco em "Fechar menu", Tab preso dentro e, ao fechar, volta para "Abrir menu".
-  // Aberta pelo Ctrl+K: começa na busca e, ao fechar, o foco volta para onde estava.
+  // folha do celular: foco no campo (busca) ou em "Fechar", Tab preso dentro e, ao fechar, volta para o botão que
+  // abriu. Aberta pelo Ctrl+K: começa na busca e, ao fechar, o foco volta para onde estava.
   useDialogLayer({
     open: drawerOpen,
     rootRef: sheetRef,
     panelRef: sheetPanelRef,
     onClose: () => onMenuChange(false),
-    initialFocusRef: drawerStart === "search" ? drawerSearchRef : closeMenuRef,
-    returnFocusRef: drawerStart === "search" ? undefined : menuButtonRef,
+    initialFocusRef: sheet === "busca" ? sheetSearchRef : closeMenuRef,
+    returnFocusRef: sheetByKey ? undefined : returnRef,
   });
 
-  // Aberta pelo Ctrl+K, a gaveta já entra com o foco na busca, e o que se digita filtra. Num aparelho de toque o
-  // diálogo começa no próprio painel (para não levantar o teclado da tela); quem usou o atalho tem teclado
+  // Aberta pela busca, a folha já entra com o foco no campo, e o que se digita filtra
   useEffect(() => {
-    if (drawerOpen && drawerStart === "search") {
-      const input = drawerSearchRef.current;
+    if (drawerOpen && sheet === "busca") {
+      const input = sheetSearchRef.current;
       if (input && document.activeElement !== input) {
         input.focus();
         input.select();
       }
     }
-  }, [drawerOpen, drawerStart]);
+  }, [drawerOpen, sheet]);
+
+  function openSheet(kind: SheetKind, byKey = false) {
+    setSheet(kind);
+    setSheetByKey(byKey);
+    onMenuChange(true);
+  }
 
   useEffect(() => {
     const wanted = `${pageTitle} | Agenda Acadêmica`;
@@ -711,7 +737,7 @@ export function AppShell({
     latest.current = { drawerOpen, onMenuChange };
   });
 
-  // a gaveta é só do celular: se a janela alargar, ela fecha
+  // a folha é só do celular: se a janela alargar, ela fecha
   useEffect(() => {
     if (!drawerOpen) {
       return;
@@ -726,8 +752,7 @@ export function AppShell({
     return () => wide.removeEventListener("change", onChange);
   }, [drawerOpen]);
 
-  // Ctrl+K (Cmd+K no Mac) leva à busca do menu. Com um diálogo por cima, o menu fica inerte e o
-  // atalho fica com o navegador.
+  // Ctrl+K (Cmd+K no Mac) leva à busca. Com um diálogo por cima, a casca fica inerte e o atalho fica com o navegador.
   useEffect(() => {
     function focusSearch(event: KeyboardEvent, input: HTMLInputElement | null) {
       if (input && isOnTopLayer(input)) {
@@ -741,13 +766,14 @@ export function AppShell({
         return;
       }
       if (window.matchMedia(WIDE_MENU).matches) {
-        focusSearch(event, sideSearchRef.current);
+        focusSearch(event, topSearchRef.current);
       } else if (latest.current.drawerOpen) {
-        focusSearch(event, drawerSearchRef.current);
-      } else if (isOnTopLayer(menuButtonRef.current)) {
-        // janela estreita: abre o menu já com o foco na busca
+        focusSearch(event, sheetSearchRef.current);
+      } else if (isOnTopLayer(searchButtonRef.current)) {
+        // janela estreita: abre a folha de busca já com o foco no campo
         event.preventDefault();
-        setDrawerStart("search");
+        setSheet("busca");
+        setSheetByKey(true);
         latest.current.onMenuChange(true);
       }
     }
@@ -755,25 +781,8 @@ export function AppShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [shortcut.mac]);
 
-  function closeDrawer() {
+  function closeSheet() {
     onMenuChange(false);
-  }
-
-  // navegar, abrir as configurações do perfil ou o painel pelo menu: a página fecha o menu junto
-  // (a tela nova ocupa a entrada dele)
-  function foot(inDrawer: boolean) {
-    return (
-      <SideFoot
-        loadError={loadError}
-        refreshing={refreshing}
-        semester={inDrawer || !semesterFits ? null : semester}
-        updatedAt={updatedAt}
-        user={user}
-        onLogout={onLogout}
-        onOpenProfile={onOpenProfile}
-        onRefresh={onRefresh}
-      />
-    );
   }
 
   function pick() {
@@ -782,23 +791,24 @@ export function AppShell({
     ) : null;
   }
 
-  function tools(inDrawer: boolean) {
+  function searchBox(inSheet: boolean) {
     return (
-      <SideTools
-        // na gaveta o resultado fica escondido atrás do menu: o botão aparece também no Cronograma
-        inPlace={searchInPlace && !inDrawer}
-        inputRef={inDrawer ? drawerSearchRef : sideSearchRef}
-        newEventLabel={newEventLabel}
+      <SearchBox
+        // na folha o resultado fica escondido atrás dela: o botão aparece também no Cronograma
+        inPlace={searchInPlace && !inSheet}
+        inputRef={inSheet ? sheetSearchRef : topSearchRef}
         resultCount={searchResultCount}
         scope={searchScope}
         search={search}
         shortcut={shortcut}
-        onNewEvent={onNewEvent}
+        sheet={inSheet}
         onSearchChange={onSearchChange}
         onSubmit={() => onSearchSubmit?.()}
       />
     );
   }
+
+  const sheetTitle = sheet === "busca" ? "Buscar" : sheet === "mais" ? "Mais telas" : "Sua conta";
 
   return (
     <div className="bg-app min-h-screen text-ink">
@@ -814,114 +824,212 @@ export function AppShell({
         Pular para o conteúdo
       </a>
 
-      {/* Barra do topo (celular e tablet): faixa branca presa no topo, com o menu à esquerda, a marca do app e a
-          busca à direita (a busca abre o menu já com o foco no campo). A marca, e não o nome da tela: o título da
-          página já aparece logo abaixo, e repetir "Cronograma" duas vezes seguidas só gastava espaço */}
+      {/* Barra do topo (celular e tablet): o logo e "Agenda Acadêmica"; à direita, o "+" de novo evento (docente e
+          administração), a busca (abre a folha de busca) e o avatar (abre a folha da conta) */}
       <header className="mtop lg:hidden">
+        <Logo className="mtop-logo" />
+        <span className="mtop-name">Agenda Acadêmica</span>
+        {newEventLabel ? (
+          <button className="ib mtop-new" onClick={onNewEvent} aria-label={newEventLabel} title={newEventLabel} type="button">
+            <Plus aria-hidden />
+          </button>
+        ) : null}
         <button
-          ref={menuButtonRef}
-          className="ib"
-          onClick={() => {
-            setDrawerStart("close");
-            onMenuChange(true);
-          }}
-          aria-controls="menu-gaveta"
-          aria-expanded={drawerOpen}
+          ref={searchButtonRef}
+          className="ib mtop-ib"
+          onClick={() => openSheet("busca")}
+          aria-expanded={drawerOpen && sheet === "busca"}
           aria-haspopup="dialog"
-          aria-label="Abrir menu"
-          title="Abrir menu"
-          type="button"
-        >
-          <Menu className="h-5 w-5" aria-hidden />
-        </button>
-        <p className="mtop-t" aria-hidden>
-          <span className="mark mtop-mark">
-            <GraduationCap aria-hidden />
-          </span>
-          <span className="mtop-name">Agenda Acadêmica</span>
-        </p>
-        <button
-          className="ib"
-          onClick={() => {
-            setDrawerStart("search");
-            onMenuChange(true);
-          }}
           aria-label="Buscar"
           title="Buscar"
           type="button"
         >
-          <Search className="h-5 w-5" aria-hidden />
+          <Search aria-hidden />
+        </button>
+        <button
+          ref={meButtonRef}
+          className="mtop-me"
+          onClick={() => openSheet("conta")}
+          aria-expanded={drawerOpen && sheet === "conta"}
+          aria-haspopup="dialog"
+          aria-label={`${name}, conta e perfil`}
+          title={name}
+          type="button"
+        >
+          <span className="avatar">{initialsOf(user)}</span>
         </button>
       </header>
 
-      {/* Menu lateral (celular), por cima de tudo */}
+      {/* Barra de baixo do celular: pílula branca flutuante com os itens do trilho (ícone pastel e rótulo) */}
+      <nav className="bnav lg:hidden" aria-label="Navegação principal">
+        {bottomItems.map((item) => (
+          <NavButton
+            key={item.view}
+            active={activeView === item.view}
+            count={badges?.[item.view]}
+            item={item}
+            onNavigate={onNavigate}
+          />
+        ))}
+        {moreItems.length ? (
+          <button
+            ref={moreButtonRef}
+            className={cx("rail-item nv-more", moreActive && "on")}
+            aria-current={moreActive ? "page" : undefined}
+            aria-expanded={drawerOpen && sheet === "mais"}
+            aria-haspopup="dialog"
+            aria-label={moreActive ? `Mais telas, ${pageTitle}` : "Mais telas"}
+            onClick={() => openSheet("mais")}
+            type="button"
+          >
+            <span className="rail-ic" aria-hidden>
+              <MoreHorizontal />
+              {moreCount ? <i className="rail-dot" /> : null}
+            </span>
+            <span className="rail-lbl" aria-hidden>
+              Mais
+            </span>
+          </button>
+        ) : null}
+      </nav>
+
+      {/* Folha do celular (busca, conta ou "Mais"), por cima de tudo */}
       {drawerOpen
         ? createPortal(
             <div
               ref={sheetRef}
-              className="fixed inset-0 z-50 bg-[var(--scrim)] animate-fade-in lg:hidden"
+              className={cx("msheet-veil animate-fade-in lg:hidden", sheet === "busca" && "is-top")}
               role="dialog"
-              aria-label="Menu de navegação"
+              aria-label={sheetTitle}
               aria-modal="true"
               onMouseDown={(event) => {
                 if (event.target === event.currentTarget) {
                   // sem isso o clique fora leva o foco para o body depois de fechar
                   event.preventDefault();
-                  closeDrawer();
+                  closeSheet();
                 }
               }}
             >
-              <aside
-                ref={sheetPanelRef}
-                id="menu-gaveta"
-                className="side animate-drawer-in static h-full w-[300px] max-w-[85vw] overscroll-contain rounded-l-none !outline-none"
-                tabIndex={-1}
-              >
-                {/* o X fica dentro da faixa da marca: a linha de baixo atravessa a gaveta (Figma 18) */}
-                <Brand
-                  inDrawer
-                  onDark
-                  action={
-                    // alvo de 44 px; as margens negativas deixam o lugar do X de 40 px do Figma
-                    <button
-                      ref={closeMenuRef}
-                      className="ubtn -mr-1 -ml-1 h-11 w-11"
-                      onClick={closeDrawer}
-                      aria-label="Fechar menu"
-                      title="Fechar menu"
-                      type="button"
-                    >
-                      <X className="h-5 w-5" aria-hidden />
+              <section ref={sheetPanelRef} id="menu-gaveta" className="msheet !outline-none" tabIndex={-1}>
+                <div className="msheet-head">
+                  <p className="msheet-t">{sheetTitle}</p>
+                  <button
+                    ref={closeMenuRef}
+                    className="ib"
+                    onClick={closeSheet}
+                    aria-label="Fechar"
+                    title="Fechar"
+                    type="button"
+                  >
+                    <X aria-hidden />
+                  </button>
+                </div>
+                {sheet === "busca" ? searchBox(true) : null}
+                {sheet === "mais" ? (
+                  <nav className="msheet-nav" aria-label="Mais telas">
+                    {moreItems.map((item) => (
+                      <NavButton
+                        key={item.view}
+                        active={activeView === item.view}
+                        count={badges?.[item.view]}
+                        item={item}
+                        onNavigate={onNavigate}
+                      />
+                    ))}
+                  </nav>
+                ) : null}
+                {sheet === "conta" ? (
+                  <div className="msheet-acct">
+                    <div className="acct-who">
+                      <span className="avatar" aria-hidden>
+                        {initialsOf(user)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="acct-name">{name}</span>
+                        <span className="acct-role">{roleLine(user)}</span>
+                      </span>
+                    </div>
+                    {pick()}
+                    <button className="acct-opt" onClick={onOpenProfile} type="button">
+                      <UserRoundCog aria-hidden />
+                      Configurações do perfil
                     </button>
-                  }
-                />
-                {tools(true)}
-                {pick()}
-                <NavButtons activeView={activeView} badges={badges} role={user.role} onNavigate={onNavigate} />
-                {foot(true)}
-              </aside>
+                    <SyncButton
+                      className="acct-opt"
+                      loadError={loadError}
+                      refreshing={refreshing}
+                      showText
+                      updatedAt={updatedAt}
+                      onRefresh={onRefresh}
+                    />
+                    <button className="acct-opt is-out" onClick={onLogout} type="button">
+                      <LogOut aria-hidden />
+                      Sair da conta
+                    </button>
+                  </div>
+                ) : null}
+              </section>
             </div>,
             document.body
           )
         : null}
 
-      <div className="app max-lg:block max-lg:min-h-0">
-        {/* Menu lateral fixo, da altura da tela (tablet/desktop) */}
-        <aside ref={sideRef} className="side max-lg:hidden" aria-label="Menu">
-          <Brand onDark />
-          {tools(false)}
-          {pick()}
-          <NavButtons activeView={activeView} badges={badges} role={user.role} onNavigate={onNavigate} />
-          {foot(false)}
+      <div className="app">
+        {/* Trilho lateral flutuante, preso à altura da tela (a partir de 1024 px) */}
+        <aside className="rail max-lg:hidden" aria-label="Menu">
+          <Logo className="rail-logo" />
+          {newEventLabel ? (
+            <button className="rail-new" onClick={onNewEvent} aria-label={newEventLabel} title={newEventLabel} type="button">
+              <span className="rail-new-ic" aria-hidden>
+                <Plus />
+              </span>
+              <span className="rail-lbl" aria-hidden>
+                {newEventLabel}
+              </span>
+            </button>
+          ) : null}
+          <nav className="rail-nav" aria-label="Navegação principal">
+            {items.map((item) => (
+              <NavButton
+                key={item.view}
+                active={activeView === item.view}
+                count={badges?.[item.view]}
+                item={item}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </nav>
+          <div className="rail-foot">
+            <SyncButton loadError={loadError} refreshing={refreshing} updatedAt={updatedAt} onRefresh={onRefresh} />
+            <AccountMenu user={user} onLogout={onLogout} onOpenProfile={onOpenProfile} />
+          </div>
         </aside>
 
-        <main id="conteudo" ref={mainRef} className="content" tabIndex={-1}>
-          {/* sem cabeçalho visível: o título da tela fica para leitores de tela */}
-          <h1 ref={headingRef} className="sr-only" tabIndex={-1}>
-            {pageTitle}
-          </h1>
-          {children}
-        </main>
+        <div className="main-col">
+          {/* Barra do topo do conteúdo (computador): sem título. À direita, a busca em pílula e o sino dos avisos;
+              à esquerda, só o estudante acompanhado (responsável) */}
+          <div className="topbar max-lg:hidden">
+            {guardian && student ? <div className="topbar-pick">{pick()}</div> : null}
+            {searchBox(false)}
+            <button
+              className={cx("tbell", reminderNews > 0 && "has-news")}
+              onClick={() => onNavigate("reminders")}
+              aria-label={reminderNews ? `Avisos, ${countWords("reminders", reminderNews)}` : "Avisos"}
+              title={reminderNews ? `Avisos, ${countWords("reminders", reminderNews)}` : "Avisos"}
+              type="button"
+            >
+              <Bell aria-hidden />
+            </button>
+          </div>
+
+          <main id="conteudo" ref={mainRef} className="content" tabIndex={-1}>
+            {/* sem cabeçalho visível: o título da tela fica para leitores de tela */}
+            <h1 ref={headingRef} className="sr-only" tabIndex={-1}>
+              {pageTitle}
+            </h1>
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

@@ -21,100 +21,127 @@
 @import "./styles/componentes.css" layer(components);
 
 /* ==================================================================
-   Tokens do produto: direção A, "Claro e organizado" (rodada 7, 2026-11-22).
-   Referência: amostra-a-claro/amostra.css. Cinzas slate, azul #2563EB, fundo
-   #F8FAFC, linhas #E2E8F0, cards brancos com borda de 1px e sombra mínima,
-   raios de 8, 10 e 12 px. Os nomes antigos (--night, --bebe, --accent...)
-   continuam valendo como apelidos dos valores novos, para as telas que ainda
-   usam esses nomes não quebrarem.
+   Tokens do produto: rodada 10, "Pantanal forte" com Sora (2026-11-22).
+   Referência: rodada10/amostra/amostra.html (?fonte=sora&paleta=pantanal-forte).
+   Verde mata, amarelo de ipê e o azul da bandeira de MS. Fundo #F3F7F2 com
+   cards brancos flutuando (sombra macia, sem borda dura), raios de 14 e 16
+   nos controles, 24 nos cards e 28 no destaque e nos painéis.
+   Os nomes antigos (--night, --bebe, --accent...) continuam valendo como
+   apelidos dos valores novos, para as telas que usam esses nomes não quebrarem.
    ================================================================== */
 :root {
-  /* neutros (slate) */
-  --bg: #f8fafc;
+  /* neutros (verde acinzentado) */
+  --bg: #f3f7f2;
   --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --fill: #f1f5f9;
-  --fill-h: #e2e8f0;
-  --line: #e2e8f0;
-  --line-2: #f1f5f9;
-  --line-strong: #cbd5e1;
-  --line-hover: #94a3b8;
-  --seg-bg: #f1f5f9;
-  --neutral-tint: #f1f5f9;
-  --ink: #0f172a; /* títulos */
-  --ink-2: #334155; /* corpo */
-  --ink-3: #475569; /* secundário */
-  --muted: #64748b; /* metadado (4,8:1 no branco) */
-  --muted-2: #64748b;
-  --faint: #94a3b8; /* desabilitado, placeholder */
-  /* cor de ação: azul */
-  --brand: #2563eb;
-  --brand-h: #1d4ed8;
-  --brand-600: #1d4ed8;
-  --link: #1d4ed8;
-  --brand-50: #eff6ff;
-  --brand-100: #dbeafe;
-  --brand-200: #bfdbfe;
-  --brand-400: #60a5fa;
-  --brand-ink: #1d4ed8;
-  --brand-rgb: 37 99 235;
-  /* apelidos antigos do azul escuro: viram o slate escuro */
-  --night: #0f172a;
-  --night-2: #1e293b;
-  --night-3: #334155;
-  --night-rgb: 15 23 42;
-  --on-night: #e2e8f0;
-  --on-night-2: #cbd5e1;
-  /* situação: âmbar (atenção), verde (deu certo), vermelho (erro) */
-  --amber: #b45309;
-  --amber-bg: #fffbeb;
-  --amber-line: #fde68a;
-  --amber-bar: #f59e0b;
-  --green: #047857;
-  --green-bg: #ecfdf5;
-  --green-line: #a7f3d0;
-  --green-bar: #10b981;
-  --red: #b91c1c;
-  --red-bg: #fef2f2;
-  --red-line: #fecaca;
-  --red-bar: #ef4444;
+  --surface-2: #f6faf5;
+  --fill: #e6f0e4;
+  --fill-h: #d9e8d6;
+  --line: #dfeadc;
+  /* --line-2 é a linha mais suave (separa linhas de lista); a forte (#c6d9c2) fica em --line-strong */
+  --line-2: #e9f1e7;
+  --line-strong: #c6d9c2;
+  --line-hover: #93a89a;
+  --seg-bg: #e9f1e7;
+  --neutral-tint: #eef4ec;
+  --ink: #0f2418; /* títulos */
+  --ink-2: #34503f; /* corpo */
+  --ink-3: #5b7565; /* secundário (5:1 no branco) */
+  --muted: #5b7565; /* metadado */
+  --muted-2: #5b7565;
+  --faint: #93a89a; /* desabilitado, placeholder */
+  /* cor de ação: verde mata */
+  --brand: #13863c;
+  --brand-h: #0d6e30;
+  --brand-600: #0d6e30;
+  --link: #0b5c28;
+  --brand-50: #e2f4e6;
+  --brand-100: #ccebd3;
+  --brand-200: #a9dcb5;
+  --brand-400: #4cb46b;
+  --brand-ink: #0b5c28;
+  --brand-rgb: 19 134 60;
+  /* acentos novos: ipê, azul da bandeira e o destaque verde-escuro */
+  --ipe: #f2b71f;
+  --ipe-bg: #fff4d1;
+  --ipe-ink: #7a5600;
+  --ipe-soft: #f9d56e; /* ipê claro sobre o verde-escuro do destaque */
+  --ms-azul: #2160c4;
+  --ms-azul-bg: #e5eefb;
+  --hero-a: #0b5c28;
+  --hero-b: #0a4a22;
+  --hero-glow: #1f9a48;
+  /* apelidos antigos do escuro: viram o verde quase preto */
+  --night: #0f2418;
+  --night-2: #1b3a28;
+  --night-3: #34503f;
+  --night-rgb: 15 36 24;
+  --on-night: #dfeadc;
+  --on-night-2: #c6d9c2;
+  /* situação: âmbar ipê (atenção), verde (deu certo, publicado), vermelho (erro) */
+  --amber: #7a5600;
+  --amber-bg: #fff4d1;
+  --amber-line: #f6dc8a;
+  --amber-bar: #f2b71f;
+  --green: #0d6e30;
+  --green-bg: #e2f4e6;
+  --green-line: #b4e0bf;
+  --green-bar: #13863c;
+  --red: #b42328;
+  --red-bg: #fdecee;
+  --red-line: #f7c4c7;
+  --red-bar: #e5484d;
   /* verde: hoje, ao vivo, deu certo */
-  --accent: #059669;
-  --accent-tint: #ecfdf5;
-  --accent-rgb: 5 150 105;
-  --shadow-rgb: 15 23 42;
-  --danger: #b91c1c;
-  --danger-rgb: 185 28 28;
-  /* apelidos do antigo "azul bebê": viram o azul claro da direção A */
-  --bebe: #eff6ff;
-  --bebe-2: #dbeafe;
-  --bebe-ink: #1e3a8a;
-  --bebe-botao: #dbeafe;
-  --bebe-botao-h: #bfdbfe;
-  --marca-texto: #fde68a;
+  --accent: #13863c;
+  --accent-tint: #e2f4e6;
+  --accent-rgb: 19 134 60;
+  --shadow-rgb: 15 36 24;
+  --danger: #b42328;
+  --danger-rgb: 180 35 40;
+  /* apelidos do antigo "azul bebê": viram o verde claro da marca */
+  --bebe: #e2f4e6;
+  --bebe-2: #ccebd3;
+  --bebe-ink: #0b5c28;
+  --bebe-botao: #ccebd3;
+  --bebe-botao-h: #b4e0bf;
+  --marca-texto: #fbe08a;
 
-  /* categorias: cor forte (ponto e faixa), texto e fundo 50 */
-  --c-prova: #dc2626;
-  --c-prova-t: #b91c1c;
-  --c-prova-bg: #fef2f2;
-  --c-trab: #7c3aed;
-  --c-trab-t: #6d28d9;
-  --c-trab-bg: #f5f3ff;
-  --c-ativ: #4f46e5;
-  --c-ativ-t: #4338ca;
-  --c-ativ-bg: #eef2ff;
-  --c-extra: #ea580c;
-  --c-extra-t: #c2410c;
-  --c-extra-bg: #fff7ed;
-  --c-inst: #0284c7;
-  --c-inst-t: #0369a1;
-  --c-inst-bg: #f0f9ff;
-  --c-fer: #059669;
-  --c-fer-t: #047857;
-  --c-fer-bg: #ecfdf5;
-  --c-rec: #ca8a04;
-  --c-rec-t: #a16207;
-  --c-rec-bg: #fefce8;
+  /* categorias: cor forte (ponto e faixa), texto (4,5:1 ou mais no branco) e fundo suave */
+  --c-prova: #e5484d;
+  --c-prova-t: #c22f35;
+  --c-prova-bg: #fdecee;
+  --c-trab: #8a5fd6;
+  --c-trab-t: #6a40b8;
+  --c-trab-bg: #f1ebfc;
+  --c-ativ: #0e9fb3;
+  --c-ativ-t: #0a6f7d;
+  --c-ativ-bg: #e0f5f8;
+  --c-extra: #ef7d22;
+  --c-extra-t: #b4520a;
+  --c-extra-bg: #fdeee2;
+  --c-inst: #2160c4;
+  --c-inst-t: #1d56b0;
+  --c-inst-bg: #e5eefb;
+  --c-fer: #13863c;
+  --c-fer-t: #0d6e30;
+  --c-fer-bg: #e2f4e6;
+  --c-rec: #e89b12;
+  --c-rec-t: #8a5a00;
+  --c-rec-bg: #fdf1d6;
+  /* cores do trilho (ícone em quadrado pastel): fundo e tinta de cada tela */
+  --nv-painel: #dceaff;
+  --nv-painel-i: #2e5fa8;
+  --nv-crono: #d5f2f5;
+  --nv-crono-i: #17707a;
+  --nv-notas: #ebe3ff;
+  --nv-notas-i: #6a4bc4;
+  --nv-lemb: #fff1c2;
+  --nv-lemb-i: #8a6400;
+  --nv-gestao: #ffe3d8;
+  --nv-gestao-i: #b0502f;
+  --nv-turmas: #d4f4e3;
+  --nv-turmas-i: #1d7a51;
+  --nv-import: #ffe0ea;
+  --nv-import-i: #b23a62;
 
   /* escala de texto: 12 13 14 15 16 18 22 26 */
   --fs-12: 12px;
@@ -126,21 +153,33 @@
   --fs-22: 22px;
   --fs-26: 26px;
 
-  /* raios, sombras e anel de foco */
-  --r-sm: 8px;
-  --r-md: 10px;
-  --r-lg: 12px;
+  /* raios: nada quadrado. Controles 14 (botão, campo, Select, segmentado), selo e popover 16, cards 24,
+     destaque, Drawer e Modal 28, chips e pílulas 999 */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 16px;
+  --r-ctl: 14px;
+  --r-badge: 16px;
+  --r-card: 24px;
+  --r-xl: 28px;
   --r-full: 999px;
-  --sh-card: 0 1px 2px rgb(15 23 42 / 0.04);
-  --sh-btn: 0 1px 2px rgb(15 23 42 / 0.05);
-  --sh-pop: 0 16px 40px -12px rgb(15 23 42 / 0.22), 0 2px 6px rgb(15 23 42 / 0.06);
-  --sh-drawer: -24px 0 48px -24px rgb(15 23 42 / 0.35);
-  --ring: 0 0 0 3px rgb(37 99 235 / 0.18);
-  --scrim: rgb(15 23 42 / 0.32);
+  /* sombra macia: os cards brancos flutuam no fundo verde-claro sem borda dura */
+  --sh-card: 0 1px 2px rgb(15 36 24 / 0.04), 0 6px 18px -8px rgb(15 36 24 / 0.12);
+  --sh-lift: 0 2px 4px rgb(15 36 24 / 0.05), 0 18px 32px -16px rgb(15 36 24 / 0.24);
+  --sh-btn: 0 1px 2px rgb(15 36 24 / 0.06);
+  --sh-pop: 0 20px 44px -14px rgb(15 36 24 / 0.26), 0 2px 6px rgb(15 36 24 / 0.06);
+  --sh-drawer: -24px 0 56px -24px rgb(15 36 24 / 0.4);
+  --sh-hero: 0 26px 50px -26px rgb(8 60 28 / 0.7);
+  --ring: 0 0 0 3px rgb(19 134 60 / 0.24);
+  --scrim: rgb(15 36 24 / 0.36);
+  /* movimento: entrada suave e a mola do hover (desligados em prefers-reduced-motion) */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --mola: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur: 0.25s;
 
-  --font: var(--font-jakarta), system-ui, -apple-system, "Segoe UI", sans-serif;
-  /* uma família só: --disp aponta para a mesma fonte (quem usa .disp continua certo) */
-  --disp: var(--font-jakarta), system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Sora nos títulos e números, Onest no texto */
+  --font: var(--font-onest), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --disp: var(--font-sora), var(--font-onest), system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
@@ -183,6 +222,10 @@
   --color-red: var(--red);
   --color-red-bg: var(--red-bg);
   --color-red-line: var(--red-line);
+  --color-ipe: var(--ipe);
+  --color-ipe-bg: var(--ipe-bg);
+  --color-ipe-ink: var(--ipe-ink);
+  --color-ms-azul: var(--ms-azul);
   --font-sans: var(--font);
   --font-display: var(--disp);
   --font-mono: var(--mono);
@@ -749,7 +792,7 @@ button:disabled {
     border: 1px solid var(--line);
     border-radius: 20px;
     /* sombra suave puxada para o azul (mesmo padrão do galasales) */
-    box-shadow: 0 8px 18px -14px rgb(23 50 92 / 0.28);
+    box-shadow: var(--sh-card);
     container-type: inline-size;
   }
   .pad {
@@ -959,8 +1002,8 @@ button:disabled {
     .card.lift:hover,
     .kpi.is-link:hover {
       transform: translateY(-2px);
-      border-color: #c9d4e8;
-      box-shadow: 0 18px 30px -18px rgb(23 50 92 / 0.45);
+      border-color: transparent;
+      box-shadow: var(--sh-lift);
     }
     button.ev:hover,
     a.ev:hover {
@@ -2173,12 +2216,12 @@ button:disabled {
     font-size: 14px;
     line-height: 1.5;
   }
-  .callout.green { background: var(--green-bg); border-color: var(--green-line); color: #065f46; }
-  .callout.blue { background: var(--brand-50); border-color: var(--brand-200); color: #1e3a8a; }
-  .callout.amber { background: var(--amber-bg); border-color: var(--amber-line); color: #78350f; }
+  .callout.green { background: var(--green-bg); border-color: var(--green-line); color: #0a4a22; }
+  .callout.blue { background: var(--ms-azul-bg); border-color: #c4d6f3; color: #173f80; }
+  .callout.amber { background: var(--amber-bg); border-color: var(--amber-line); color: #5c4100; }
   .callout.rose { background: var(--red-bg); border-color: var(--red-line); color: #991b1b; }
   .callout.past { background: var(--surface-2); color: var(--ink-3); }
-  .callout.blue > svg { color: var(--brand); }
+  .callout.blue > svg { color: var(--ms-azul); }
   .callout.amber > svg { color: var(--amber); }
   .callout.rose > svg { color: var(--red); }
   .callout.green > svg { color: var(--green); }
@@ -2267,7 +2310,7 @@ button:disabled {
     align-items: center;
     justify-content: center;
     padding: 16px;
-    background: rgb(15 23 42 / 0.45);
+    background: rgb(15 36 24 / 0.45);
     pointer-events: none;
     animation: drop-overlay-in 0.14s ease-out;
   }
@@ -2281,7 +2324,7 @@ button:disabled {
     border: 2px dashed var(--brand);
     background: var(--surface);
     text-align: center;
-    box-shadow: 0 18px 50px rgb(15 23 42 / 0.25);
+    box-shadow: 0 18px 50px rgb(15 36 24 / 0.25);
   }
   @keyframes drop-overlay-in {
     from {
@@ -2295,8 +2338,8 @@ button:disabled {
   }
 
   .empty-ico.imp-lock {
-    background: #dbeafe;
-    color: #1e40af;
+    background: var(--ms-azul-bg);
+    color: var(--ms-azul);
   }
 
   /* tabela de importações de ponta a ponta no card, como no Figma */

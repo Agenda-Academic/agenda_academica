@@ -1,6 +1,6 @@
 "use client";
 
-import { GraduationCap, Mail, PencilLine } from "lucide-react";
+import { CalendarCheck2, GraduationCap, Mail, PencilLine } from "lucide-react";
 
 // Lado esquerdo da tela de entrar: uma folha de agenda do mês atual, com o dia de hoje
 // circulado a caneta, uma prova marcada com marca-texto e os avisos chegando ao lado.
@@ -54,7 +54,7 @@ export function LoginStage() {
     <div className="ls-palco">
       <div className="ls-marca">
         <span className="mark">
-          <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
+          <CalendarCheck2 className="h-[22px] w-[22px]" aria-hidden />
         </span>
         <div>
           <p className="brand-name">Agenda Acadêmica</p>

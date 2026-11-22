@@ -1701,13 +1701,14 @@ export function PageHeader({
   subtitle?: ReactNode;
   title: ReactNode;
 }) {
+  // Rodada 10: sem cabeçalho de página visível (o nome da tela já está no trilho e o h1 da casca fica só para leitor
+  // de tela). O título e o subtítulo continuam aqui só para o leitor de tela (o id segue valendo para quem aponta
+  // para ele com aria-labelledby); as ações, se houver, ficam à vista, à direita
   return (
-    <header className="pagehead">
-      <div className="min-w-0">
-        <h2 className="pagehead-t wrap-anywhere" id={id}>
-          {title}
-        </h2>
-        {subtitle ? <p className="pagehead-s">{subtitle}</p> : null}
+    <header className={cx("pagehead", !actions && "is-bare")}>
+      <div className="sr-only">
+        <h2 id={id}>{title}</h2>
+        {subtitle ? <p>{subtitle}</p> : null}
       </div>
       {actions ? <div className="pagehead-a">{actions}</div> : null}
     </header>

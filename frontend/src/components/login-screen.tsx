@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ArrowLeft,
   BookOpen,
+  CalendarCheck2,
   CircleAlert,
   CircleCheckBig,
   Eye,
@@ -342,7 +343,7 @@ function PasswordRecovery({
   const brand = (
     <div className="ent-brand xl:hidden">
       <span className="mark">
-        <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
+        <CalendarCheck2 className="h-[22px] w-[22px]" aria-hidden />
       </span>
       <p className="brand-name text-ink">Agenda Acadêmica</p>
     </div>
@@ -776,7 +777,7 @@ export function LoginScreen({
             <form className={cx("ent-form", mode === "signup" && "criar")} onSubmit={handleSubmit} noValidate>
               <div className="ent-brand xl:hidden">
                 <span className="mark">
-                  <GraduationCap className="h-[22px] w-[22px]" aria-hidden />
+                  <CalendarCheck2 className="h-[22px] w-[22px]" aria-hidden />
                 </span>
                 <p className="brand-name text-ink">Agenda Acadêmica</p>
               </div>

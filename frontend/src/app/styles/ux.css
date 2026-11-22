@@ -33,37 +33,53 @@ html {
   }
 }
 
-/* ---------- botões (direção A) ----------
-   .btn-p: azul cheio (#2563EB, #1D4ED8 no hover). .btn-s: branco com borda. .btn-g: só texto, ganha fundo no
-   hover. .btn-danger: branco com borda e texto vermelhos; .btn-d: vermelho cheio (confirmação). .btn-sm: 32 px.
-   Altura 38 px com mouse e 44 px no toque. */
+/* ---------- botões (rodada 10, Pantanal) ----------
+   .btn-p: verde cheio com texto branco. .btn-s: branco com contorno verde-claro. .btn-g: só texto, ganha fundo no
+   hover. .btn-ipe: amarelo ipê com texto verde-escuro (ação principal do destaque). .btn-danger: branco com
+   contorno e texto vermelhos; .btn-d: vermelho cheio (confirmação). .btn-sm: 34 px.
+   Raio de 14, altura 40 px com mouse e 44 px no toque. No hover, o botão sobe com a mola. */
 html .btn {
-  min-height: 38px;
-  padding: 0 14px;
+  min-height: 40px;
+  padding: 0 16px;
   gap: 8px;
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: var(--r-ctl);
   font-size: var(--fs-14);
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.2;
   text-decoration: none;
+  transition:
+    transform var(--dur) var(--mola),
+    box-shadow 0.2s ease,
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
 }
 html .btn svg {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
 }
+html :is(.btn-p, .btn-s, .btn-ipe, .btn-d):hover:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(-2px);
+}
+html :is(.btn-p, .btn-s, .btn-ipe, .btn-d):active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(0) scale(0.98);
+}
 html .btn-p {
   border-color: transparent;
   background: var(--brand);
   color: #fff;
   box-shadow:
-    0 1px 2px rgb(37 99 235 / 0.25),
-    inset 0 1px 0 rgb(255 255 255 / 0.12);
+    0 10px 20px -12px rgb(19 134 60 / 0.75),
+    inset 0 1px 0 rgb(255 255 255 / 0.14);
 }
 html .btn-p:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--brand-h);
-  box-shadow: 0 1px 2px rgb(37 99 235 / 0.3);
+  box-shadow: 0 14px 24px -12px rgb(19 134 60 / 0.8);
+}
+html .btn-p svg {
+  color: currentColor;
 }
 html .btn-s {
   border-color: var(--line-strong);
@@ -72,12 +88,22 @@ html .btn-s {
   box-shadow: var(--sh-btn);
 }
 html .btn-s svg {
-  color: var(--ink-3);
+  color: var(--brand);
 }
 html .btn-s:hover:not(:disabled):not([aria-disabled="true"]) {
-  border-color: var(--line-hover);
-  background: var(--surface-2);
+  border-color: var(--brand-200);
+  background: var(--surface);
   color: var(--ink);
+  box-shadow: var(--sh-lift);
+}
+html .btn-ipe {
+  border-color: transparent;
+  background: var(--ipe);
+  color: #0b3d1f;
+  box-shadow: 0 12px 24px -12px rgb(122 86 0 / 0.55);
+}
+html .btn-ipe:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: #f5c33e;
 }
 html .btn-danger {
   border-color: var(--red-line);
@@ -86,14 +112,14 @@ html .btn-danger {
   box-shadow: var(--sh-btn);
 }
 html .btn-danger:hover:not(:disabled):not([aria-disabled="true"]) {
-  border-color: #fca5a5;
+  border-color: #ee9da1;
   background: var(--red-bg);
 }
 html .btn-d {
   border-color: transparent;
-  background: #dc2626;
+  background: #c9343a;
   color: #fff;
-  box-shadow: 0 1px 2px rgb(220 38 38 / 0.25);
+  box-shadow: 0 10px 20px -12px rgb(201 52 58 / 0.7);
 }
 html .btn-d:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--red);
@@ -101,18 +127,21 @@ html .btn-d:hover:not(:disabled):not([aria-disabled="true"]) {
 html .btn-g {
   border-color: transparent;
   background: transparent;
-  color: var(--ink-3);
+  color: var(--ink-2);
   box-shadow: none;
+}
+html .btn-g svg {
+  color: var(--brand);
 }
 html .btn-g:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--fill);
   color: var(--ink);
 }
 html .btn-sm {
-  min-height: 32px;
-  padding: 0 10px;
+  min-height: 34px;
+  padding: 0 12px;
   gap: 6px;
-  border-radius: var(--r-sm);
+  border-radius: 12px;
   font-size: var(--fs-13);
 }
 html .btn-sm svg {
@@ -152,18 +181,23 @@ html .split > .btn-s:last-child {
 
 /* botão de ícone: 34 px (30 no .sm), transparente; com .bd, branco com borda */
 html .ib {
-  width: 34px;
-  height: 34px;
-  border-radius: var(--r-sm);
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
   border: 1px solid var(--line-strong);
   background: var(--surface);
   color: var(--ink-3);
   box-shadow: var(--sh-btn);
+  transition:
+    transform var(--dur) var(--mola),
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
 }
 html .ib.sm {
   width: 32px;
   height: 32px;
-  border-radius: var(--r-sm);
+  border-radius: 10px;
 }
 html .ib.ghost {
   border-color: transparent;
@@ -224,12 +258,12 @@ html a.mini:not(.admin-mini):hover .mini-ico {
 
 /* ---------- números em destaque ---------- */
 html .kpi-val {
-  margin-top: 10px;
-  font-family: var(--font);
-  font-size: var(--fs-26);
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  margin-top: 12px;
+  font-family: var(--disp);
+  font-size: 34px;
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -287,12 +321,12 @@ html .kpi-val.is-date small {
   align-items: baseline;
   gap: 4px;
   padding: 4px 10px 5px;
-  border-radius: var(--r-md);
+  border-radius: 12px;
   background: var(--tom-bg);
   color: var(--tom);
-  font-family: var(--font);
+  font-family: var(--disp);
   font-size: var(--fs-26);
-  font-weight: 700;
+  font-weight: 750;
   line-height: 1;
   letter-spacing: -0.02em;
 }
@@ -356,15 +390,15 @@ html .kpi-val.is-date small {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-width: 34px;
-  height: 34px;
+  min-width: 36px;
+  height: 36px;
   padding: 0 10px;
-  border-radius: var(--r-sm);
+  border-radius: 12px;
   border: 1px solid var(--line-strong);
   background: var(--surface);
   color: var(--ink-2);
   font-size: var(--fs-14);
-  font-weight: 600;
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
   transition:
     background-color 0.16s ease,
@@ -434,7 +468,7 @@ html .countdown .eyebrow {
    Um só estilo para "Como todos vão ver", "Situação do evento", "Dados da turma", os meses das datas
    importadas...: 16.5 px, 700, fonte de título. */
 .drawer-h3 {
-  font-family: var(--font);
+  font-family: var(--disp);
   font-size: var(--fs-16);
   font-weight: 700;
   line-height: 1.3;
@@ -710,15 +744,15 @@ html :is(h1, h2, h3, h4) {
   color: var(--ink);
 }
 html .disp {
-  font-family: var(--font);
+  font-family: var(--disp);
   letter-spacing: -0.02em;
 }
 html .h2 {
-  font-family: var(--font);
-  font-size: var(--fs-18);
+  font-family: var(--disp);
+  font-size: 19px;
   font-weight: 700;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
   color: var(--ink);
 }
 html .h2.lg {
@@ -740,25 +774,22 @@ html .muted {
   color: var(--muted);
 }
 
-/* cabeçalho da tela (PageHeader, ui.tsx): título de 26 px, subtítulo e ações à direita */
+/* cabeçalho da tela (PageHeader, ui.tsx): na rodada 10 o título e o subtítulo ficam só para o leitor de tela; sobram
+   as ações, à direita. Sem ações, o cabeçalho não ocupa lugar (nem o vão do .content) */
 .pagehead {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px 24px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
-.pagehead-t {
-  font-size: var(--fs-26);
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-}
-.pagehead-s {
-  margin-top: 4px;
-  font-size: var(--fs-15);
-  color: var(--ink-3);
+html .pagehead.is-bare {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  margin: 0;
 }
 .pagehead-a {
   display: flex;
@@ -766,30 +797,21 @@ html .muted {
   align-items: center;
   gap: 8px;
 }
-@media (max-width: 1023px) {
-  .pagehead {
-    flex-direction: column;
-    gap: 14px;
-  }
-  .pagehead-t {
-    font-size: var(--fs-22);
-  }
-  .pagehead-s {
-    font-size: var(--fs-14);
-  }
-}
 
 /* ---------- campos ----------
-   Branco com borda #CBD5E1, 40 px (44 no toque), raio 10; hover escurece a borda; foco com borda azul e anel. */
+   Branco com borda verde-clara, 44 px, raio 14; hover escurece a borda; foco com borda verde e anel. */
 html .input {
-  min-height: 40px;
-  padding: 0 12px;
+  min-height: 44px;
+  padding: 0 14px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--r-md);
+  border-radius: var(--r-ctl);
   background-color: var(--surface);
   color: var(--ink);
   font-size: var(--fs-14);
   box-shadow: var(--sh-btn);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.2s ease;
 }
 html .input::placeholder {
   color: var(--faint);
@@ -814,15 +836,15 @@ html .input[aria-invalid="true"] {
 }
 html .input[aria-invalid="true"]:focus {
   border-color: var(--red-bar);
-  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.18);
+  box-shadow: 0 0 0 3px rgb(229 72 77 / 0.2);
 }
 html textarea.input {
-  padding: 10px 12px;
+  padding: 11px 14px;
 }
 html select.input {
-  padding-right: 36px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-position: right 12px center;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235B7565' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 13px center;
 }
 /* campos (texto, data e hora, seleção nativa) com 44 px no toque e abaixo de 768 px, também dentro do Drawer
    (decisão 2 da rodada 8) */
@@ -856,13 +878,37 @@ html input[type="radio"] {
   accent-color: var(--brand);
 }
 
+/* ==================================================================
+   CONTRATO DA RODADA 10 (dono base). Classes compartilhadas que as telas usam:
+   .card (raio 24, sombra macia, sem borda dura; .is-link / .lift sobem no hover), .hero (destaque verde-escuro),
+   .kpi + .kpi-ic (.k-brand, .k-prova, .k-ipe, .k-ok, .k-azul, .k-lilas), .dbadge / .ev-date (selo de data; .today
+   cheio em verde), .anim-in (entrada em cascata com style="--i: N"), .pen-ring (SVG da caneta que circula a data),
+   .bar-grow (barra de progresso que cresce). Os seletores com "html" vencem as regras antigas do globals.css.
+   ================================================================== */
+
 /* ---------- cards ---------- */
+html :is(.card, .surface) {
+  border: 1px solid transparent;
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--sh-card);
+}
+/* card clicável (ou .lift): sobe com a mola e a sombra cresce */
+html :is(.card.is-link, .card.lift, a.card, button.card) {
+  transition:
+    transform 0.3s var(--mola),
+    box-shadow 0.25s ease;
+}
+html :is(.card.is-link, .card.lift, a.card, button.card):hover {
+  transform: translateY(-3px);
+  box-shadow: var(--sh-lift);
+}
 html .pad {
-  padding: 24px;
+  padding: 24px 26px;
 }
 @media (max-width: 639px) {
   html .pad {
-    padding: 16px;
+    padding: 18px;
   }
 }
 html .card-foot {
@@ -872,32 +918,205 @@ html .divider {
   background: var(--line);
 }
 
-/* ---------- indicadores ----------
-   Ícone pequeno antes do rótulo (a ordem muda só no desenho), número de 28 px e dica de 13 px. */
+/* ---------- destaque (.hero): verde-escuro em gradiente com pontilhado de caderno ----------
+   Texto branco, acentos em ipê (--ipe; claro: --ipe-soft) em "Faltam", nas unidades e na caneta da data. Dentro
+   dele, .btn-p vira amarelo ipê e .btn-s fica translúcido com borda branca a 30%. Classes de apoio opcionais:
+   .hero-kicker (linha de cima), .hero-accent (texto em ipê), .hero-dim (texto branco a 78%). */
+html .hero {
+  position: relative;
+  overflow: hidden;
+  padding: 30px 36px 32px;
+  border: 0;
+  border-radius: var(--r-xl);
+  color: #fff;
+  background:
+    radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.14) 1.1px, transparent 1.6px) 0 0 / 20px 20px,
+    radial-gradient(70% 120% at 100% 0%, var(--hero-glow) 0%, transparent 62%),
+    linear-gradient(135deg, var(--hero-a) 0%, var(--hero-b) 100%);
+  box-shadow: var(--sh-hero);
+}
+html .hero :is(h1, h2, h3, .hero-title) {
+  color: #fff;
+}
+html .hero :is(.hero-accent, .accent-ipe) {
+  color: var(--ipe-soft);
+}
+html .hero .hero-dim {
+  color: rgb(255 255 255 / 0.78);
+}
+html .hero .btn-p,
+html .hero .btn-ipe {
+  border-color: transparent;
+  background: var(--ipe);
+  color: #0b3d1f;
+  box-shadow: 0 12px 24px -12px rgb(0 0 0 / 0.5);
+}
+html .hero .btn-p:hover:not(:disabled):not([aria-disabled="true"]),
+html .hero .btn-ipe:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: #f5c33e;
+}
+html .hero :is(.btn-s, .btn-g) {
+  border-color: rgb(255 255 255 / 0.3);
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  box-shadow: none;
+}
+html .hero :is(.btn-s, .btn-g) svg {
+  color: var(--ipe-soft);
+}
+html .hero :is(.btn-s, .btn-g):hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: rgb(255 255 255 / 0.45);
+  background: rgb(255 255 255 / 0.2);
+  color: #fff;
+}
+html .hero :is(a, button):focus-visible {
+  outline: 2px solid var(--ipe);
+  outline-offset: 2px;
+}
+@media (max-width: 639px) {
+  html .hero {
+    padding: 22px 20px 24px;
+    border-radius: var(--r-card);
+  }
+}
+
+/* ---------- caneta (.pen-ring): SVG que circula a data de hoje e a data do destaque ----------
+   <svg class="pen-ring" viewBox="0 0 64 56" aria-hidden><path pathLength="100" d="M35 5C52 4 62 16 59 30C56 45 38 53
+   22 49C7 45 2 31 7 19C12 8 26 3 40 6C45 7 49 9 51 11"/></svg>, dentro de um pai com position: relative. A cor vem
+   de --pen (ipê no destaque, verde fora dele). */
+.pen-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 158%;
+  height: 132%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  overflow: visible;
+  pointer-events: none;
+}
+.pen-ring path {
+  fill: none;
+  stroke: var(--pen, var(--brand));
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: pen-draw 1.1s 0.6s cubic-bezier(0.6, 0.1, 0.3, 1) forwards;
+}
+html .hero .pen-ring {
+  --pen: var(--ipe);
+}
+@keyframes pen-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------- entrada em cascata (.anim-in, style="--i: N") e barra que cresce (.bar-grow) ---------- */
+.anim-in {
+  animation: anim-in 0.5s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+@keyframes anim-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.bar-grow {
+  transform-origin: left center;
+  animation: bar-grow 0.9s 0.35s var(--ease) both;
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* movimento reduzido: o globals.css já zera a duração de toda animação e transição (a caneta e a cascata chegam
+   direto ao fim); aqui saem também os deslocamentos do hover (botão, card, trilho e sino que sobem) */
+@media (prefers-reduced-motion: reduce) {
+  html :is(.btn, .card, .rail-ic, .rail-new-ic, .rail-me .avatar, .tbell, .ib):is(:hover, :active) {
+    transform: none !important;
+  }
+  html :is(.rail-item, .rail-new, .rail-me):hover :is(.rail-ic, .rail-new-ic, .avatar) {
+    transform: none !important;
+  }
+  .anim-in,
+  .bar-grow {
+    animation: none;
+  }
+  .pen-ring path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------- indicadores (.kpi) ----------
+   Ícone num quadrado suave antes do rótulo (.kpi-ic, ou o antigo .kpi-ico), número grande em Sora e dica de 13 px. */
 html .kpi {
-  padding: 18px 20px;
+  padding: 20px 22px;
 }
 html .kpi-top {
   justify-content: flex-start;
-  gap: 8px;
+  gap: 10px;
 }
-html .kpi-ico {
+html :is(.kpi-ic, .kpi-ico) {
   order: -1;
-  width: 18px;
-  height: 18px;
-  border-radius: 0;
-  background: none;
-  color: var(--muted);
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
 }
-html .kpi-ico svg {
-  width: 16px;
-  height: 16px;
+html :is(.kpi-ic, .kpi-ico) svg {
+  width: 17px;
+  height: 17px;
 }
-html .kpi-ico:is(.c-prova, .c-trab, .c-ativ, .c-extra, .c-inst) {
-  background: none;
+html :is(.kpi-ic, .kpi-ico).k-brand {
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+html :is(.kpi-ic, .kpi-ico):is(.k-prova, .c-prova) {
+  background: var(--c-prova-bg);
+  color: var(--c-prova-t);
+}
+html :is(.kpi-ic, .kpi-ico).k-ipe {
+  background: var(--ipe-bg);
+  color: var(--ipe-ink);
+}
+html :is(.kpi-ic, .kpi-ico).k-ok {
+  background: var(--green-bg);
+  color: var(--green);
+}
+html :is(.kpi-ic, .kpi-ico):is(.k-azul, .c-inst) {
+  background: var(--ms-azul-bg);
+  color: var(--ms-azul);
+}
+html :is(.kpi-ic, .kpi-ico):is(.k-lilas, .c-trab) {
+  background: var(--c-trab-bg);
+  color: var(--c-trab-t);
+}
+html .kpi-ico.c-ativ {
+  background: var(--c-ativ-bg);
+  color: var(--c-ativ-t);
+}
+html .kpi-ico.c-extra {
+  background: var(--c-extra-bg);
+  color: var(--c-extra-t);
 }
 html .kpi-label {
-  font-size: var(--fs-13);
+  font-size: var(--fs-14);
   font-weight: 600;
   color: var(--ink-3);
 }
@@ -907,21 +1126,21 @@ html .kpi-hint {
   color: var(--muted);
 }
 html .kpi-hit::after {
-  border-radius: var(--r-lg);
+  border-radius: var(--r-card);
 }
 html .kpi.is-link:hover {
-  border-color: var(--line-strong);
+  border-color: transparent;
 }
-/* indicador que pede atenção (âmbar) */
+/* indicador que pede atenção (âmbar ipê) */
 html .kpi.attn {
   border-color: var(--amber-line);
-  background: var(--amber-bg);
+  background: var(--ipe-bg);
 }
-html .kpi.attn :is(.kpi-label, .kpi-ico) {
-  color: var(--amber);
+html .kpi.attn :is(.kpi-label, .kpi-ico, .kpi-ic) {
+  color: var(--ipe-ink);
 }
 html .kpi.attn .kpi-val {
-  color: #92400e;
+  color: #5c4100;
 }
 
 /* ---------- listas de evento ---------- */
@@ -937,7 +1156,7 @@ html .ev-group::after {
 html .ev {
   gap: 14px;
   padding: 10px 12px;
-  border-radius: var(--r-md);
+  border-radius: 18px;
 }
 html button.ev:hover,
 html a.ev:hover {
@@ -945,39 +1164,56 @@ html a.ev:hover {
 }
 html .ev.sel {
   background: var(--brand-50);
-  box-shadow: inset 3px 0 0 var(--brand);
+  box-shadow: inset 0 0 0 1.5px var(--brand-200);
 }
+/* selo de data (.ev-date das listas e .dbadge): quadrado arredondado de 16, "SEG" pequeno e o dia em Sora. O de
+   hoje (.today no selo ou .ev.today) é cheio em verde com texto branco */
 html .ev-date {
-  width: 48px;
-  padding: 5px 0 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 54px;
+  min-height: 56px;
+  padding: 6px 0;
+  border: 0;
+  border-radius: var(--r-badge);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html :is(.ev-date.today, .ev.today .ev-date, .ev-date.is-today) {
+  background: var(--brand);
+  box-shadow: 0 10px 18px -10px rgb(19 134 60 / 0.8);
+}
+html :is(.ev-date.today, .ev.today .ev-date, .ev-date.is-today) :is(.dw, .dn, .ev-mo) {
+  color: #fff;
 }
 /* selo de data: o dia da semana sai sempre em MAIÚSCULAS ("SEG 23"), igual no Painel, no Cronograma, nas Notas e
    na Gestão (decisão 1 da rodada 8). .ev-date .dw e .dbadge small usam a mesma regra; a cor fica em cada um
    (o selo de hoje é azul). */
 html :is(.ev-date .dw, .dbadge small, .datebig .dw) {
-  font-size: var(--fs-12);
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 html .ev-date .dw {
-  color: var(--muted);
+  color: var(--ink-3);
 }
 html .ev-date .dn {
-  font-family: var(--font);
-  font-size: var(--fs-18);
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: 0;
+  font-family: var(--disp);
+  font-size: 22px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -0.02em;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 html .ev-title {
   font-size: var(--fs-15);
-  font-weight: 600;
+  font-weight: 650;
   color: var(--ink);
 }
 html .ev-meta {
@@ -1001,20 +1237,20 @@ html :is(.ev-rel.soon, .ev-at .soon) {
 
 /* ---------- blocos pequenos, avisos e vazio ---------- */
 html .mini {
-  border-radius: var(--r-md);
+  border-radius: 18px;
 }
 html .mini-ico {
-  border-radius: var(--r-sm);
+  border-radius: 12px;
   background: var(--brand-50);
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 html .mini-t {
-  font-weight: 600;
+  font-weight: 650;
   color: var(--ink);
 }
 html .aviso {
   border-color: var(--line);
-  border-radius: var(--r-md);
+  border-radius: 18px;
 }
 /* ---------- estado vazio único (decisão 3 da rodada 8) ----------
    Sem caixa tracejada nem fundo: o vazio fica solto no card, do tamanho do conteúdo. Ícone num círculo claro de
@@ -1052,16 +1288,25 @@ html .empty-inline.compact .empty-ico {
   display: grid;
   place-items: center;
   flex: none;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: var(--r-badge);
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+html .empty-inline.compact .empty-ico {
   width: 40px;
   height: 40px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--fill);
-  color: var(--ink-3);
+  border-radius: 13px;
 }
 html .empty-ico svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
+}
+html .empty-inline.compact .empty-ico svg {
+  width: 19px;
+  height: 19px;
 }
 html .empty-body {
   display: flex;
@@ -1099,22 +1344,24 @@ html .empty-body > .btn {
    Minhas turmas), o card de fora basta: sem borda dupla */
 html .empty-inline.is-error {
   padding: 32px 24px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+  border: 1px solid transparent;
+  border-radius: var(--r-card);
   background: var(--surface);
+  box-shadow: var(--sh-card);
 }
 html .card .empty-inline.is-error {
   padding: 24px 16px;
   border: 0;
   border-radius: 0;
   background: transparent;
+  box-shadow: none;
 }
 html .empty-inline.is-error .empty-ico {
   background: var(--red-bg);
   color: var(--red);
 }
 html .skel {
-  border-radius: var(--r-sm);
+  border-radius: 12px;
   background: var(--fill);
 }
 
@@ -1170,19 +1417,30 @@ html .info > :nth-last-child(-n + 2) {
 html :is(.drawer-veil, .modal-veil) {
   background: var(--scrim);
 }
+/* painel lateral: cantos de dentro (à esquerda) com raio 28, desliza da direita */
 html .drawer {
-  border-radius: 0;
-  border-left: 1px solid var(--line);
+  border-radius: var(--r-xl) 0 0 var(--r-xl);
+  border-left: 0;
   box-shadow: var(--sh-drawer);
+}
+/* o rodapé branco acompanha o canto de baixo (sem ele, o canto quadrado do rodapé aparecia sobre o véu) */
+html .drawer-foot {
+  border-bottom-left-radius: var(--r-xl);
+}
+@media (max-width: 639px) {
+  html .drawer,
+  html .drawer-foot {
+    border-radius: 0;
+  }
 }
 html .drawer-head,
 html .modal-head {
-  padding: 20px 24px 16px;
+  padding: 22px 26px 16px;
   border-bottom: 1px solid var(--line);
 }
 html .drawer-head h2,
 html .modal-head h2 {
-  font-family: var(--font);
+  font-family: var(--disp);
   font-size: var(--fs-22);
   font-weight: 700;
   line-height: 1.25;
@@ -1191,8 +1449,9 @@ html .modal-head h2 {
 }
 html .drawer-head-row > .ib,
 html .modal-head > .ib {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
 }
 /* X de fechar com 44 px no toque e abaixo de 768 px, também com mouse; a margem negativa tira parte da folga,
    para o cabeçalho quase não crescer */
@@ -1254,8 +1513,8 @@ html .modal-foot {
   background: var(--surface);
 }
 html .modal-box {
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+  border: 0;
+  border-radius: var(--r-xl);
   box-shadow: var(--sh-pop);
 }
 /* a partir de 640 px o modal fica preso pelo topo (margem fixa), e não centrado: quando o conteúdo muda de altura
@@ -1275,7 +1534,7 @@ html .modal-box {
 @media (max-width: 639px) {
   html .modal-box,
   html .modal-box.wide {
-    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
   }
   html .drawer-head,
   html .modal-head {
