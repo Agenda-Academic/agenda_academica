@@ -21,7 +21,7 @@ const NEW_PASSWORD = 'senhaNova123'
 
 /** A conta de teste com um e-mail que recebe e-mail (as @agenda.test nunca recebem). */
 async function realAccount() {
-  const user = await User.findByOrFail('email', 'diogo@agenda.test')
+  const user = await User.findByOrFail('email', 'aluno@agenda.test')
   user.email = EMAIL
   await user.save()
   return user

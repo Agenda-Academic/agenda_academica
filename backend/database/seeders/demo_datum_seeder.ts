@@ -15,21 +15,61 @@ import User from '#models/user'
 import { appTimezone } from '#services/date_time_service'
 import { DateTime } from 'luxon'
 
-/** Dia letivo às `hour` horas no fuso da instituição (MS), normalizado para UTC; sábado e domingo vão para a segunda. */
+/**
+ * Dia letivo às `hour` horas no fuso da instituição (MS), normalizado para UTC. Sábado e domingo
+ * vão para a segunda no futuro e para a sexta no passado (uma data passada nunca vira futura).
+ */
 function classDay(days: number, hour: number, minute = 0) {
+  const step = days < 0 ? -1 : 1
   let day = DateTime.now().setZone(appTimezone()).startOf('day').plus({ days })
-  while (day.weekday > 5) day = day.plus({ days: 1 })
+  while (day.weekday > 5) day = day.plus({ days: step })
   return day.plus({ hours: hour, minutes: minute }).toUTC()
+}
+
+/** E-mails das contas que aparecem nos atalhos da tela de entrar (`frontend/src/lib/meta.ts`). */
+export const DEMO_STUDENT_EMAIL = 'aluno@agenda.test'
+export const DEMO_GUARDIAN_EMAIL = 'responsavel@agenda.test'
+
+/**
+ * Até 23/11/2026 o aluno e a mãe da demonstração tinham nome de gente do grupo (diogo@ e
+ * maria@). Num banco que ainda tem essas contas, troca só o e-mail: o id, as notas, os vínculos e
+ * os lembretes continuam os mesmos, e o nome novo vem logo depois, no `updateOrCreate`.
+ */
+async function renameDemoAccount(from: string, to: string) {
+  const old = await User.findBy('email', from)
+  if (!old || (await User.findBy('email', to))) {
+    return false
+  }
+  old.email = to
+  await old.save()
+  return true
+}
+
+/** Os avisos já gravados guardam o nome no título ("Nota de Diogo publicada: ..."). */
+async function renameInNotices(userId: number, from: string, to: string) {
+  const notices = await Notification.query()
+    .where('userId', userId)
+    .where('title', 'like', `%${from}%`)
+  for (const notice of notices) {
+    notice.title = notice.title.split(from).join(to)
+    await notice.save()
+  }
 }
 
 /**
  * Dados de demonstração. Pode rodar quantas vezes quiser: tudo é `updateOrCreate` pela chave
  * natural (e-mail, código, nome da turma no período), então não duplica nada. Os registros
  * novos ficam no fim, para não mudar os ids que os testes usam (turma 1, disciplinas 1 e 3).
+ *
+ * Este é o núcleo que os testes usam. A escola maior (mais turmas, alunos, docentes e a mãe com
+ * três filhos) fica em `escola_demo_seeder.ts`, que não roda nos testes.
  */
 export default class extends BaseSeeder {
   async run() {
     const year = DateTime.now().year
+    const renamedStudent = await renameDemoAccount('diogo@agenda.test', DEMO_STUDENT_EMAIL)
+    const renamedGuardian = await renameDemoAccount('maria@agenda.test', DEMO_GUARDIAN_EMAIL)
+
     const demoUser = (
       email: string,
       data: { fullName: string; role: string; registration: string; minutes: number }
@@ -64,8 +104,8 @@ export default class extends BaseSeeder {
       registration: 'DOC-002',
       minutes: 2880,
     })
-    const student = await demoUser('diogo@agenda.test', {
-      fullName: 'Diogo Queiroz da Silva',
+    const student = await demoUser(DEMO_STUDENT_EMAIL, {
+      fullName: 'Lucas Ferreira',
       role: 'student',
       registration: 'ALU-001',
       minutes: 1440,
@@ -204,7 +244,8 @@ export default class extends BaseSeeder {
       }
     }
 
-    // Fase 2: dois responsáveis, com a mesma senha das contas demo e sem matrícula.
+    // Fase 2: dois responsáveis, com a mesma senha das contas demo e sem matrícula. A Juliana é a
+    // mãe do Lucas; os outros dois filhos dela entram em `escola_demo_seeder.ts`.
     const guardian = (email: string, fullName: string) =>
       User.updateOrCreate(
         { email },
@@ -217,20 +258,26 @@ export default class extends BaseSeeder {
           notificationChannel: 'email',
         }
       )
-    const maria = await guardian('maria@agenda.test', 'Maria Queiroz')
+    const juliana = await guardian(DEMO_GUARDIAN_EMAIL, 'Juliana Ferreira')
     const carlos = await guardian('carlos@agenda.test', 'Carlos Ribeiro')
+    if (renamedStudent) {
+      await renameInNotices(student.id, 'Maria Queiroz', 'Juliana Ferreira')
+    }
+    if (renamedGuardian) {
+      await renameInNotices(juliana.id, 'Diogo', 'Lucas')
+    }
 
     // Vínculos com firstOrCreate: o seed não desfaz o que foi mudado na demonstração (um
     // vínculo desfeito ou bloqueado continua assim).
     const now = DateTime.now()
     await GuardianLink.firstOrCreate(
-      { guardianId: maria.id, studentId: student.id },
+      { guardianId: juliana.id, studentId: student.id },
       {
         relationship: 'mae',
         status: 'active',
         origin: 'student_code',
         shareGrades: true,
-        createdById: maria.id,
+        createdById: juliana.id,
       }
     )
     await GuardianLink.firstOrCreate(
@@ -251,7 +298,7 @@ export default class extends BaseSeeder {
       {
         userId: student.id,
         kind: 'guardian_linked',
-        title: 'Maria Queiroz agora acompanha sua agenda',
+        title: 'Juliana Ferreira agora acompanha sua agenda',
       },
       {
         body: 'Parentesco: mãe. Você vê quem acompanha sua agenda no seu perfil.',
@@ -270,7 +317,7 @@ export default class extends BaseSeeder {
       }
     )
 
-    // Fase 3: uma prova e um trabalho da TADS 5 que já aconteceram, com as notas do Diogo
+    // Fase 3: uma prova e um trabalho da TADS 5 que já aconteceram, com as notas do Lucas
     // publicadas. A da prova veio de uma importação (modelo da Agenda); a do trabalho foi
     // digitada na Agenda. Tudo com firstOrCreate: o seed não desfaz o que mudou na
     // demonstração (nota editada, importação desfeita, notas despublicadas).
@@ -307,11 +354,12 @@ export default class extends BaseSeeder {
     const examPublishedAt = now.minus({ days: 9 })
     const assignmentPublishedAt = now.minus({ days: 2 })
     const examImport = await GradeImport.firstOrCreate(
-      { academicEventId: pastExam.id, fileName: 'notas-prova-1-matematica.csv' },
+      // A chave é o checksum, não o nome: a importação gravada antes como .csv é a mesma
+      { academicEventId: pastExam.id, checksum: 'demo-prova-1-matematica' },
       {
+        fileName: 'notas-prova-1-matematica.xlsx',
         createdById: teacher.id,
         source: 'modelo',
-        checksum: 'demo-prova-1-matematica',
         mapping: JSON.stringify({
           identifierType: 'email',
           identifierColumn: 'e-mail',

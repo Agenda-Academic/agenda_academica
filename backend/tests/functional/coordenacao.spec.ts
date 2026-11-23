@@ -222,7 +222,7 @@ test.group('Coordenação pela tela', (group) => {
     const marina = await User.findByOrFail('email', 'marina@agenda.test')
     const admin = await User.findByOrFail('email', 'admin@agenda.test')
 
-    for (const email of ['maraisa@agenda.test', 'diogo@agenda.test', 'maria@agenda.test']) {
+    for (const email of ['maraisa@agenda.test', 'aluno@agenda.test', 'responsavel@agenda.test']) {
       const token = await loginAs(client, email)
       const promote = await setRole(client, token, marina.id, 'admin')
       promote.assertStatus(403)
@@ -254,8 +254,8 @@ test.group('Coordenação pela tela', (group) => {
     assert,
   }) => {
     const token = await loginAs(client, (await createRoot()).email)
-    const diogo = await User.findByOrFail('email', 'diogo@agenda.test')
-    const maria = await User.findByOrFail('email', 'maria@agenda.test')
+    const diogo = await User.findByOrFail('email', 'aluno@agenda.test')
+    const maria = await User.findByOrFail('email', 'responsavel@agenda.test')
     const maraisa = await User.findByOrFail('email', 'maraisa@agenda.test')
 
     for (const person of [diogo, maria]) {
@@ -268,7 +268,10 @@ test.group('Coordenação pela tela', (group) => {
       // nem "voltar a docente" transforma aluno ou responsável em docente
       const back = await setRole(client, token, person.id, 'teacher')
       back.assertStatus(422)
-      assert.equal((back.body() as unknown as FieldErrors).errors[0].message, ROLE_MESSAGES.notAdmin)
+      assert.equal(
+        (back.body() as unknown as FieldErrors).errors[0].message,
+        ROLE_MESSAGES.notAdmin
+      )
     }
 
     for (const role of ['student', 'guardian', 'chefe', '']) {
@@ -279,7 +282,6 @@ test.group('Coordenação pela tela', (group) => {
     ;(
       await client.patch(`${API}/users/${maraisa.id}/role`).bearerToken(token).json({})
     ).assertStatus(422)
-
     ;(await setRole(client, token, 999999, 'admin')).assertStatus(404)
 
     await diogo.refresh()
@@ -349,8 +351,8 @@ test.group('Coordenação pela tela', (group) => {
       'admin@agenda.test': false,
       'marina@agenda.test': false,
       'docente.listada@agenda.test': false,
-      'diogo@agenda.test': false,
-      'maria@agenda.test': false,
+      'aluno@agenda.test': false,
+      'responsavel@agenda.test': false,
     }
     type Account = { canManageCoordination: boolean }
     for (const [email, can] of Object.entries(expected)) {
@@ -367,7 +369,11 @@ test.group('Coordenação pela tela', (group) => {
       const context = await client.get(`${API}/context`).bearerToken(session.token)
       context.assertStatus(200)
       const body = context.body() as { data?: { user: Account }; user?: Account }
-      assert.strictEqual((body.data ?? body).user!.canManageCoordination, can, `/context de ${email}`)
+      assert.strictEqual(
+        (body.data ?? body).user!.canManageCoordination,
+        can,
+        `/context de ${email}`
+      )
 
       // a lista ADMIN_EMAILS não sai nas respostas: cada conta só vê o próprio e-mail
       for (const other of listed.filter((item) => item !== email)) {
@@ -379,13 +385,16 @@ test.group('Coordenação pela tela', (group) => {
 
     // a coordenação nomeada pela principal continua sem o card Coordenação
     const marina = await User.findByOrFail('email', 'marina@agenda.test')
-    ;(await setRole(client, await loginAs(client, root.email), marina.id, 'admin')).assertStatus(200)
+    ;(await setRole(client, await loginAs(client, root.email), marina.id, 'admin')).assertStatus(
+      200
+    )
     const marinaLogin = await client
       .post(`${API}/auth/login`)
       .json({ email: marina.email, password: 'password123' })
     marinaLogin.assertStatus(200)
-    const marinaSession = (marinaLogin.body() as unknown as Envelope<{ user: Account & { role: string } }>)
-      .data
+    const marinaSession = (
+      marinaLogin.body() as unknown as Envelope<{ user: Account & { role: string } }>
+    ).data
     assert.equal(marinaSession.user.role, 'admin')
     assert.isFalse(marinaSession.user.canManageCoordination)
   })

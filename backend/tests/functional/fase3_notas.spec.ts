@@ -99,9 +99,9 @@ async function demo() {
       User.findByOrFail('email', 'admin@agenda.test'),
       User.findByOrFail('email', 'maraisa@agenda.test'),
       User.findByOrFail('email', 'marina@agenda.test'),
-      User.findByOrFail('email', 'diogo@agenda.test'),
+      User.findByOrFail('email', 'aluno@agenda.test'),
       User.findByOrFail('email', 'ana@agenda.test'),
-      User.findByOrFail('email', 'maria@agenda.test'),
+      User.findByOrFail('email', 'responsavel@agenda.test'),
       User.findByOrFail('email', 'carlos@agenda.test'),
       Subject.findByOrFail('code', 'MAT-401'),
       Subject.findByOrFail('code', 'ED-401'),
@@ -290,7 +290,7 @@ test.group('Fase 3: notas', (group) => {
       client,
       token,
       importBody(mathExam.id, [
-        { rowNumber: 2, identifier: ' Diogo@Agenda.test ', name: 'Diogo', score: '8,5' },
+        { rowNumber: 2, identifier: ' Aluno@Agenda.test ', name: 'Lucas', score: '8,5' },
         { rowNumber: 3, identifier: 'bia@agenda.test', score: '11' },
         { rowNumber: 4, identifier: 'ninguem@agenda.test', score: '7' },
         { rowNumber: 5, identifier: 'duda@agenda.test', score: '6' },
@@ -408,7 +408,7 @@ test.group('Fase 3: notas', (group) => {
       .where('userId', maria.id)
       .where('kind', 'grades_published')
       .firstOrFail()
-    assert.equal(mariaNotice.title, 'Nota de Diogo publicada: Prova de Matemática')
+    assert.equal(mariaNotice.title, 'Nota de Lucas publicada: Prova de Matemática')
     assert.notInclude(`${diogoNotice.title} ${diogoNotice.body}`, '8,5')
 
     const visible = await client.get(`${API}/me/grades`).bearerToken(diogoToken)
@@ -670,7 +670,7 @@ test.group('Fase 3: notas', (group) => {
     const later = await createImport(
       client,
       token,
-      importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '6' }])
+      importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '6' }])
     )
     await expectStatus(
       client.post(`${API}/grade-imports/${later.id}/apply`).bearerToken(token).json({}),
@@ -737,7 +737,7 @@ test.group('Fase 3: notas', (group) => {
     const first = await createImport(
       client,
       token,
-      importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '8' }], { fileModifiedAt })
+      importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '8' }], { fileModifiedAt })
     )
     assert.equal(first.totals.newerInAgenda, 1)
     assert.equal(first.rows![0].kind, 'newer_in_agenda')
@@ -756,7 +756,7 @@ test.group('Fase 3: notas', (group) => {
     const second = await createImport(
       client,
       token,
-      importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '8' }], { fileModifiedAt })
+      importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '8' }], { fileModifiedAt })
     )
     await expectStatus(
       client
@@ -771,7 +771,7 @@ test.group('Fase 3: notas', (group) => {
     const third = await createImport(
       client,
       token,
-      importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '9' }])
+      importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '9' }])
     )
     assert.equal(third.totals.changed, 1)
     await expectStatus(putGrade(client, token, mathExam.id, diogo.id, { score: 750 }), 200)
@@ -791,7 +791,7 @@ test.group('Fase 3: notas', (group) => {
     const draft = await createImport(
       client,
       maraisaToken,
-      importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '8' }])
+      importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '8' }])
     )
     await User.create({
       fullName: 'Docente Sem Turma',
@@ -817,7 +817,7 @@ test.group('Fase 3: notas', (group) => {
       [
         'post',
         `${API}/grade-imports`,
-        importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '1' }]),
+        importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '1' }]),
       ],
     ]
     const onImport: Attempt[] = [
@@ -1100,7 +1100,7 @@ test.group('Fase 3: notas', (group) => {
       client
         .post(`${API}/grade-imports`)
         .bearerToken(token)
-        .json(importBody(activity.id, [{ identifier: 'diogo@agenda.test', score: '1' }])),
+        .json(importBody(activity.id, [{ identifier: 'aluno@agenda.test', score: '1' }])),
       409
     )
 
@@ -1122,13 +1122,13 @@ test.group('Fase 3: notas', (group) => {
     const askPoints = await client
       .post(`${API}/grade-imports`)
       .bearerToken(token)
-      .json(importBody(surpriseId, [{ identifier: 'diogo@agenda.test', score: '15' }]))
+      .json(importBody(surpriseId, [{ identifier: 'aluno@agenda.test', score: '15' }]))
     askPoints.assertStatus(422)
     assert.include(fieldOf(askPoints.body()), 'points')
     const withPoints = await createImport(
       client,
       token,
-      importBody(surpriseId, [{ identifier: 'diogo@agenda.test', score: '15' }], { points: 20 })
+      importBody(surpriseId, [{ identifier: 'aluno@agenda.test', score: '15' }], { points: 20 })
     )
     assert.equal(withPoints.totals.new, 1)
     const surprise = await AcademicEvent.findOrFail(surpriseId)
@@ -1137,7 +1137,7 @@ test.group('Fase 3: notas', (group) => {
       .post(`${API}/grade-imports`)
       .bearerToken(token)
       .json(
-        importBody(surpriseId, [{ identifier: 'diogo@agenda.test', score: '1' }], { points: 10 })
+        importBody(surpriseId, [{ identifier: 'aluno@agenda.test', score: '1' }], { points: 10 })
       )
     otherPoints.assertStatus(422)
     assert.include(fieldOf(otherPoints.body()), 'points')
@@ -1198,7 +1198,7 @@ test.group('Fase 3: notas', (group) => {
     const draft = await createImport(
       client,
       token,
-      importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '7' }])
+      importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '7' }])
     )
     await expectStatus(client.delete(`${API}/events/${mathExam.id}`).bearerToken(token), 200)
     assert.isNull(await AcademicEvent.find(mathExam.id))
@@ -1214,7 +1214,7 @@ test.group('Fase 3: notas', (group) => {
     const draft = await createImport(
       client,
       token,
-      importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '7' }])
+      importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '7' }])
     )
     const discarded = await expectStatus(
       client.delete(`${API}/grade-imports/${draft.id}`).bearerToken(token),
@@ -1246,7 +1246,7 @@ test.group('Fase 3: notas', (group) => {
       await client
         .post(`${API}/grade-imports`)
         .bearerToken(token)
-        .json(importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '1' }])),
+        .json(importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '1' }])),
     ]) {
       response.assertStatus(409)
       assert.equal((response.body() as unknown as { code: string }).code, 'ARCHIVED')
@@ -1322,7 +1322,7 @@ test.group('Fase 3: notas', (group) => {
     const tadsDraft = await createImport(
       client,
       maraisaToken,
-      importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '8' }])
+      importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '8' }])
     )
     // A Maria acompanha o Diogo, não a Ana: o aviso da prova da Ana foi só para o Carlos.
     assert.isNull(
@@ -1443,7 +1443,7 @@ test.group('Fase 3: notas', (group) => {
         'post',
         `${API}/grade-imports`,
         403,
-        importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '1' }]),
+        importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '1' }]),
       ],
       // Ids que não existem, mesmo para a administração.
       ['admin', 'get', `${API}/events/999999/grades`, 404],
@@ -1459,7 +1459,7 @@ test.group('Fase 3: notas', (group) => {
       // Nenhuma resposta negada traz nota, nome ou e-mail de aluno.
       if (status >= 400) {
         const text = JSON.stringify(response.body())
-        for (const leak of ['ana@agenda.test', 'diogo@agenda.test', 'Ana Clara', '600']) {
+        for (const leak of ['ana@agenda.test', 'aluno@agenda.test', 'Ana Clara', '600']) {
           assert.notInclude(text, leak, `${who} ${method.toUpperCase()} ${url}`)
         }
       }
@@ -1485,7 +1485,7 @@ test.group('Fase 3: notas', (group) => {
       [logicExam.id]
     )
     assert.equal(anaEvaluations[0].grade?.score, 600)
-    assert.notInclude(JSON.stringify(anaGrades.body()), 'Diogo')
+    assert.notInclude(JSON.stringify(anaGrades.body()), 'Lucas')
   })
 
   test('revisão: prova sem disciplina não tem oferta, então só a autora mexe nas notas', async ({
@@ -1527,7 +1527,7 @@ test.group('Fase 3: notas', (group) => {
     const ownDraft = await createImport(
       client,
       marinaToken,
-      importBody(ownExam, [{ identifier: 'diogo@agenda.test', score: '8' }])
+      importBody(ownExam, [{ identifier: 'aluno@agenda.test', score: '8' }])
     )
 
     // A Maraísa dá aula na mesma turma, mas não é a autora: 403 em tudo, e a importação some.
@@ -1540,7 +1540,7 @@ test.group('Fase 3: notas', (group) => {
       await client
         .post(`${API}/grade-imports`)
         .bearerToken(maraisaToken)
-        .json(importBody(ownExam, [{ identifier: 'diogo@agenda.test', score: '1' }])),
+        .json(importBody(ownExam, [{ identifier: 'aluno@agenda.test', score: '1' }])),
     ]) {
       response.assertStatus(403)
     }
@@ -1633,7 +1633,7 @@ test.group('Fase 3: notas', (group) => {
         'importar',
         'post',
         `${API}/grade-imports`,
-        importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '1' }]),
+        importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '1' }]),
       ],
       ['aplicar', 'post', `${API}/grade-imports/${draft.id}/apply`, {}],
       ['descartar', 'delete', `${API}/grade-imports/${draft.id}`],
@@ -1746,8 +1746,8 @@ test.group('Fase 3: notas', (group) => {
     // minúsculas e o banco recusa a repetida. O e-mail em maiúsculas no arquivo casa com o Diogo.
     await assert.rejects(() =>
       User.create({
-        fullName: 'Diogo Parecido',
-        email: 'DIOGO@agenda.test',
+        fullName: 'Lucas Parecido',
+        email: 'ALUNO@agenda.test',
         password: 'password123',
         role: 'student',
       })
@@ -1756,7 +1756,7 @@ test.group('Fase 3: notas', (group) => {
       client,
       token,
       importBody(mathExam.id, [
-        { identifier: 'DIOGO@agenda.test', score: '10' },
+        { identifier: 'ALUNO@agenda.test', score: '10' },
         { identifier: 'bia@agenda.test', score: '6' },
       ])
     )
@@ -1787,7 +1787,7 @@ test.group('Fase 3: notas', (group) => {
         mathExam.id,
         [
           { rowNumber: 2, identifier: '  jose   DA silva ', score: '8' },
-          { rowNumber: 3, identifier: 'Diogo Queiróz da Silva', score: '9,5' },
+          { rowNumber: 3, identifier: 'LUCAS Ferréira', score: '9,5' },
           { rowNumber: 4, identifier: 'João Pereira', score: '7' },
           { rowNumber: 5, identifier: 'Fulano de Tal', score: '6' },
           { rowNumber: 6, identifier: null, score: '5' },
@@ -1850,7 +1850,7 @@ test.group('Fase 3: notas', (group) => {
     const draft = await createImport(
       client,
       maraisaToken,
-      importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', name: 'Diogo', score: '8' }])
+      importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', name: 'Lucas', score: '8' }])
     )
 
     // A administração leva a prova para a INF 3A (Lógica, da Marina).
@@ -1876,7 +1876,7 @@ test.group('Fase 3: notas', (group) => {
       200
     )
     assert.notProperty((seen.body() as unknown as Envelope<ImportDetail>).data, 'rows')
-    assert.notInclude(JSON.stringify(seen.body()), 'diogo@agenda.test')
+    assert.notInclude(JSON.stringify(seen.body()), 'aluno@agenda.test')
 
     // Editar sem mudar turma nem disciplina não mexe no rascunho.
     const kept = await createImport(
@@ -1964,7 +1964,7 @@ test.group('Fase 3: notas', (group) => {
     const draft = await createImport(
       client,
       token,
-      importBody(mathExam.id, [{ identifier: 'diogo@agenda.test', score: '8' }])
+      importBody(mathExam.id, [{ identifier: 'aluno@agenda.test', score: '8' }])
     )
     // O Descartar leu o rascunho; antes de ele gravar, o Aplicar chega e grava as notas.
     const stale = await GradeImport.findOrFail(draft.id)

@@ -70,7 +70,7 @@ async function demo() {
       User.findByOrFail('email', 'admin@agenda.test'),
       User.findByOrFail('email', 'maraisa@agenda.test'),
       User.findByOrFail('email', 'marina@agenda.test'),
-      User.findByOrFail('email', 'diogo@agenda.test'),
+      User.findByOrFail('email', 'aluno@agenda.test'),
       User.findByOrFail('email', 'ana@agenda.test'),
       Subject.findByOrFail('code', 'MAT-401'),
       Subject.findByOrFail('code', 'ED-401'),
@@ -216,7 +216,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
   })
 
   test('cursos: docente e aluno recebem 403', async ({ client }) => {
-    for (const email of ['maraisa@agenda.test', 'diogo@agenda.test']) {
+    for (const email of ['maraisa@agenda.test', 'aluno@agenda.test']) {
       const token = await loginAs(client, email)
       await expectStatus(client.get(`${API}/courses`).bearerToken(token), 403)
       await expectStatus(
@@ -262,7 +262,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const student = await client
       .get(`${API}/classes`)
-      .bearerToken(await loginAs(client, 'diogo@agenda.test'))
+      .bearerToken(await loginAs(client, 'aluno@agenda.test'))
     student.assertStatus(403)
   })
 
@@ -298,13 +298,13 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const student = await client
       .get(`${API}/classes/${tads.id}`)
-      .bearerToken(await loginAs(client, 'diogo@agenda.test'))
+      .bearerToken(await loginAs(client, 'aluno@agenda.test'))
     student.assertStatus(403)
 
     // Nem o catalog nem os eventos levam o código da turma.
     const context = await client
       .get(`${API}/context`)
-      .bearerToken(await loginAs(client, 'diogo@agenda.test'))
+      .bearerToken(await loginAs(client, 'aluno@agenda.test'))
     const catalog = (context.body() as unknown as Envelope<{ catalog: { classes: object[] } }>).data
       .catalog
     for (const item of catalog.classes) {
@@ -505,7 +505,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     // O aluno continua vendo os eventos da turma arquivada no histórico.
     const events = await client
       .get(`${API}/events`)
-      .bearerToken(await loginAs(client, 'diogo@agenda.test'))
+      .bearerToken(await loginAs(client, 'aluno@agenda.test'))
     assert.include(
       (events.body() as unknown as Envelope<{ id: number }[]>).data.map((item) => item.id),
       event.id
@@ -514,7 +514,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     // E a turma sai do catalog e da lista padrão.
     const context = await client
       .get(`${API}/context`)
-      .bearerToken(await loginAs(client, 'diogo@agenda.test'))
+      .bearerToken(await loginAs(client, 'aluno@agenda.test'))
     const data = (
       context.body() as unknown as Envelope<{
         catalog: { classes: { id: number }[] }
@@ -631,7 +631,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const student = await client
       .get(`${API}/subjects`)
-      .bearerToken(await loginAs(client, 'diogo@agenda.test'))
+      .bearerToken(await loginAs(client, 'aluno@agenda.test'))
     student.assertStatus(403)
   })
 
@@ -803,7 +803,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     const invalid = await client.get(`${API}/users`).bearerToken(token).qs({ role: 'chefe' })
     invalid.assertStatus(422)
 
-    for (const email of ['maraisa@agenda.test', 'diogo@agenda.test']) {
+    for (const email of ['maraisa@agenda.test', 'aluno@agenda.test']) {
       await expectStatus(client.get(`${API}/users`).bearerToken(await loginAs(client, email)), 403)
     }
   })
@@ -820,7 +820,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .bearerToken(token)
       .json({
         emails: [
-          'diogo@agenda.test',
+          'aluno@agenda.test',
           'ANA@agenda.test',
           'maraisa@agenda.test',
           'sem arroba',
@@ -919,7 +919,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const student = await client
       .get(`${API}/classes/${tads.id}/students`)
-      .bearerToken(await loginAs(client, 'diogo@agenda.test'))
+      .bearerToken(await loginAs(client, 'aluno@agenda.test'))
     student.assertStatus(403)
 
     // Matrícula repetida na mesma turma volta como erro do campo.
@@ -1179,7 +1179,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     await expectStatus(
       client
         .post(`${API}/classes/${tads.id}/join-code`)
-        .bearerToken(await loginAs(client, 'diogo@agenda.test')),
+        .bearerToken(await loginAs(client, 'aluno@agenda.test')),
       403
     )
 
@@ -1449,7 +1449,7 @@ test.group('Fase 1: revisão (autorização por objeto, limite e exclusão)', (g
 
     // Aluno de outra turma, a aluna da própria INF 3A e o responsável sem vínculo: 403 em tudo.
     const outsiders: Record<string, string> = {
-      'aluno de outra turma': await loginAs(client, 'diogo@agenda.test'),
+      'aluno de outra turma': await loginAs(client, 'aluno@agenda.test'),
       'aluna da própria turma': await loginAs(client, 'ana@agenda.test'),
       'responsável sem vínculo': await loginAs(client, 'responsavel.matriz@agenda.test'),
     }

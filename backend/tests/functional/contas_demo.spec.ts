@@ -41,13 +41,13 @@ test.group('Interruptor das contas de demonstração (DEMO_ACCOUNTS)', (group) =
     client,
     assert,
   }) => {
-    const before = await login(client, 'diogo@agenda.test')
+    const before = await login(client, 'aluno@agenda.test')
     before.assertStatus(200)
     const token = tokenOf(before)
 
     env.set('DEMO_ACCOUNTS', false)
 
-    for (const email of ['diogo@agenda.test', 'Admin@Agenda.test']) {
+    for (const email of ['aluno@agenda.test', 'Admin@Agenda.test']) {
       const denied = await login(client, email)
       denied.assertStatus(403)
       assert.equal((denied.body() as { message: string }).message, DEMO_ACCOUNTS_OFF)

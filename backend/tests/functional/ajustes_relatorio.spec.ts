@@ -80,7 +80,7 @@ test.group('Limite do tamanho do nome', (group) => {
   }) => {
     const login = await client
       .post(`${API}/auth/login`)
-      .json({ email: 'diogo@agenda.test', password: 'password123' })
+      .json({ email: 'aluno@agenda.test', password: 'password123' })
     login.assertStatus(200)
     const token = (login.body() as { data: { token: string } }).data.token
 
@@ -95,7 +95,7 @@ test.group('Limite do tamanho do nome', (group) => {
       .bearerToken(token)
       .json({ fullName: 'Diogo '.repeat(20).trim() })
     edge.assertStatus(200)
-    const user = await User.findByOrFail('email', 'diogo@agenda.test')
+    const user = await User.findByOrFail('email', 'aluno@agenda.test')
     assert.isAtMost(user.fullName!.length, MAX_NAME_LENGTH)
   })
 })

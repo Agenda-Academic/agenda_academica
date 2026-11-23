@@ -27,7 +27,7 @@ test.group('Academic API', (group) => {
   group.each.setup(() => testUtils.db().withGlobalTransaction())
 
   test('student can see own academic timeline and dashboard', async ({ client, assert }) => {
-    const token = await loginAs(client, 'diogo@agenda.test')
+    const token = await loginAs(client, 'aluno@agenda.test')
 
     const events = await client
       .get('/api/v1/events')
@@ -46,7 +46,7 @@ test.group('Academic API', (group) => {
   })
 
   test('student cannot create academic events', async ({ client }) => {
-    const token = await loginAs(client, 'diogo@agenda.test')
+    const token = await loginAs(client, 'aluno@agenda.test')
 
     const response = await client.post('/api/v1/events').bearerToken(token).json({
       title: 'Prova indevida',
@@ -79,7 +79,7 @@ test.group('Academic API', (group) => {
     const createdBody = created.body() as unknown as ApiEnvelope<{ id: number; title: string }>
     assert.equal(createdBody.data.title, 'Seminario de requisitos')
 
-    const studentToken = await loginAs(client, 'diogo@agenda.test')
+    const studentToken = await loginAs(client, 'aluno@agenda.test')
     const reminder = await client.post('/api/v1/reminders').bearerToken(studentToken).json({
       academicEventId: createdBody.data.id,
       channel: 'email',
@@ -119,7 +119,7 @@ test.group('Academic API', (group) => {
   })
 
   test('delivery service sends due reminders once', async ({ assert }) => {
-    const student = await User.findByOrFail('email', 'diogo@agenda.test')
+    const student = await User.findByOrFail('email', 'aluno@agenda.test')
     const event = await AcademicEvent.query().orderBy('startsAt', 'asc').firstOrFail()
     const reminder = await Reminder.create({
       userId: student.id,

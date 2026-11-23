@@ -80,9 +80,9 @@ async function demo() {
     User.findByOrFail('email', 'admin@agenda.test'),
     User.findByOrFail('email', 'maraisa@agenda.test'),
     User.findByOrFail('email', 'marina@agenda.test'),
-    User.findByOrFail('email', 'diogo@agenda.test'),
+    User.findByOrFail('email', 'aluno@agenda.test'),
     User.findByOrFail('email', 'ana@agenda.test'),
-    User.findByOrFail('email', 'maria@agenda.test'),
+    User.findByOrFail('email', 'responsavel@agenda.test'),
     User.findByOrFail('email', 'carlos@agenda.test'),
     Subject.findByOrFail('code', 'LP-101'),
   ])
@@ -221,7 +221,7 @@ test.group('Fase 2: responsável', (group) => {
     assert.equal(linked.relationship, 'mae')
     assert.equal(linked.status, 'active')
     assert.isTrue(linked.shareGrades)
-    assert.equal(linked.initials, 'DQ')
+    assert.equal(linked.initials, 'LF')
     assert.deepEqual(
       linked.classes.map((item) => item.id),
       [tads.id]
@@ -362,7 +362,7 @@ test.group('Fase 2: responsável', (group) => {
     assert.isFalse(listed.isMinor)
     assert.deepEqual(
       listed.guardians.map((item) => item.fullName),
-      ['Maria Queiroz']
+      ['Juliana Ferreira']
     )
     assert.isTrue(listed.guardians[0].canRemove)
     assert.isTrue(listed.guardians[0].canShareGrades)
@@ -376,7 +376,7 @@ test.group('Fase 2: responsável', (group) => {
       'canCancel',
     ])
 
-    const guardian = await signup(client, 'pai.diogo@agenda.test', 'guardian', 'José Silva')
+    const guardian = await signup(client, 'pai.aluno@agenda.test', 'guardian', 'José Silva')
     // Minúsculas e o hífen valem igual.
     const claimed = await claim(client, guardian.token, code.codeFormatted.toLowerCase(), 'pai')
     claimed.assertStatus(201)
@@ -385,7 +385,7 @@ test.group('Fase 2: responsável', (group) => {
     assert.equal(body.link.origin, 'student_code')
     assert.equal(body.link.relationship, 'pai')
     assert.equal(body.student.id, diogo.id)
-    assert.equal(body.message, 'Agora você acompanha Diogo.')
+    assert.equal(body.message, 'Agora você acompanha Lucas.')
 
     await stored.refresh()
     assert.isNotNull(stored.usedAt)
@@ -658,14 +658,14 @@ test.group('Fase 2: responsável', (group) => {
     const linked = await client
       .post(`${API}/students/${ana.id}/guardians`)
       .bearerToken(adminToken)
-      .json({ email: 'MARIA@agenda.test', relationship: 'responsavel_legal' })
+      .json({ email: 'RESPONSAVEL@agenda.test', relationship: 'responsavel_legal' })
     linked.assertStatus(201)
     const linkData = (
       linked.body() as unknown as Envelope<{ status: string; origin: string; email: string }>
     ).data
     assert.equal(linkData.status, 'active')
     assert.equal(linkData.origin, 'admin')
-    assert.equal(linkData.email, 'maria@agenda.test')
+    assert.equal(linkData.email, 'responsavel@agenda.test')
     // A secretaria vinculou: o aluno e o responsável recebem aviso.
     assert.isAtLeast(await countNotifications(maria.id, 'guardian_linked'), 1)
     assert.isAtLeast(await countNotifications(ana.id, 'guardian_linked'), 1)
@@ -854,7 +854,7 @@ test.group('Fase 2: responsável', (group) => {
     assert.equal(mariaLink.revokedById, maria.id)
     const unlinked = await notificationsOf(diogo.id, 'guardian_unlinked')
     assert.lengthOf(unlinked, 1)
-    assert.equal(unlinked[0].title, 'Maria Queiroz deixou de acompanhar sua agenda')
+    assert.equal(unlinked[0].title, 'Juliana Ferreira deixou de acompanhar sua agenda')
     assert.lengthOf(await notificationsOf(maria.id, 'guardian_unlinked'), 0)
 
     // A linha não é apagada; desfazer de novo não muda nada.
@@ -878,7 +878,7 @@ test.group('Fase 2: responsável', (group) => {
     assert.isNull(mariaLink.revokedAt)
     assert.include(
       await notificationTitles(diogo.id, 'guardian_linked'),
-      'Maria Queiroz voltou a acompanhar sua agenda'
+      'Juliana Ferreira voltou a acompanhar sua agenda'
     )
 
     // O aluno adulto desfaz; o responsável recebe aviso.
@@ -1023,7 +1023,7 @@ test.group('Fase 2: responsável', (group) => {
     assert.equal(listed.student.id, diogo.id)
     assert.deepEqual(
       listed.guardians.map((item) => item.email),
-      ['maria@agenda.test']
+      ['responsavel@agenda.test']
     )
 
     const notGuardian = await client
@@ -1035,7 +1035,7 @@ test.group('Fase 2: responsável', (group) => {
     const already = await client
       .post(`${API}/students/${diogo.id}/guardians`)
       .bearerToken(adminToken)
-      .json({ email: 'maria@agenda.test', relationship: 'mae' })
+      .json({ email: 'responsavel@agenda.test', relationship: 'mae' })
     already.assertStatus(422)
     const badRelationship = await client
       .post(`${API}/students/${diogo.id}/guardians`)
@@ -1188,7 +1188,7 @@ test.group('Fase 2: responsável', (group) => {
       }>
     ).data
     assert.isAtLeast(data.notifications.length, 1)
-    assert.equal(data.notifications[0].title, 'Maria Queiroz agora acompanha sua agenda')
+    assert.equal(data.notifications[0].title, 'Juliana Ferreira agora acompanha sua agenda')
     assert.equal(data.unreadCount, data.notifications.length)
     const [first] = data.notifications
 
@@ -1667,9 +1667,9 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
       assert.deepEqual(fieldOf(response.body()), ['fullName'])
     }
     await maria.refresh()
-    assert.equal(maria.fullName, 'Maria Queiroz')
+    assert.equal(maria.fullName, 'Juliana Ferreira')
     await expectStatus(
-      client.put(`${API}/account/profile`).bearerToken(mariaToken).json({ fullName: 'Maria Q.' }),
+      client.put(`${API}/account/profile`).bearerToken(mariaToken).json({ fullName: 'Juliana F.' }),
       200
     )
     await expectStatus(
@@ -1690,7 +1690,7 @@ test.group('Fase 2: revisão (BOLA e regras)', (group) => {
     await expectStatus(
       client
         .delete(`${API}/guardian-links/${mariaLink.id}`)
-        .bearerToken(await loginAs(client, 'maria@agenda.test')),
+        .bearerToken(await loginAs(client, 'responsavel@agenda.test')),
       200
     )
     const count = async () => {

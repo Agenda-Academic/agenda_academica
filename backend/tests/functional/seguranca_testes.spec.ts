@@ -47,11 +47,11 @@ test.group('Correções da rodada de testes', (group) => {
   })
 
   test('e-mail sem diferenciar maiúsculas no login e no cadastro', async ({ client, assert }) => {
-    await loginAs(client, ' Diogo@Agenda.TEST ')
+    await loginAs(client, ' Aluno@Agenda.TEST ')
 
     const repeated = await client.post(`${API}/auth/signup`).json({
       fullName: 'Outra pessoa',
-      email: 'DIOGO@agenda.test',
+      email: 'ALUNO@agenda.test',
       password: 'password123',
       passwordConfirmation: 'password123',
     })
@@ -75,13 +75,13 @@ test.group('Correções da rodada de testes', (group) => {
     for (let attempt = 0; attempt < 10; attempt++) {
       const wrong = await client
         .post(`${API}/auth/login`)
-        .json({ email: 'diogo@agenda.test', password: 'senha-errada' })
+        .json({ email: 'aluno@agenda.test', password: 'senha-errada' })
       wrong.assertStatus(400)
     }
 
     const blocked = await client
       .post(`${API}/auth/login`)
-      .json({ email: 'diogo@agenda.test', password: 'password123' })
+      .json({ email: 'aluno@agenda.test', password: 'password123' })
     blocked.assertStatus(429)
     assert.equal((blocked.body() as unknown as { code: string }).code, 'TOO_MANY_ATTEMPTS')
     assert.isAbove(Number(blocked.header('retry-after')), 0)
@@ -109,7 +109,7 @@ test.group('Correções da rodada de testes', (group) => {
     assert.equal(event.source, 'teacher')
 
     // aluno de outra turma não vê
-    const diogo = await loginAs(client, 'diogo@agenda.test')
+    const diogo = await loginAs(client, 'aluno@agenda.test')
     const list = await client.get(`${API}/events`).bearerToken(diogo)
     list.assertStatus(200)
     const ids = (list.body() as Envelope<{ id: number }[]>).data.map((item) => item.id)

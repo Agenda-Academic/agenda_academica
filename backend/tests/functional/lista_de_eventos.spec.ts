@@ -28,7 +28,7 @@ test.group('Lista de eventos enxuta', (group) => {
     client,
     assert,
   }) => {
-    for (const email of ['diogo@agenda.test', 'maraisa@agenda.test', 'admin@agenda.test']) {
+    for (const email of ['aluno@agenda.test', 'maraisa@agenda.test', 'admin@agenda.test']) {
       const token = await loginAs(client, email)
       const response = await client.get('/api/v1/events').bearerToken(token)
       response.assertStatus(200)
@@ -86,7 +86,7 @@ test.group('Lista de eventos enxuta', (group) => {
     client,
     assert,
   }) => {
-    const token = await loginAs(client, 'diogo@agenda.test')
+    const token = await loginAs(client, 'aluno@agenda.test')
     const response = await client.get('/api/v1/events').bearerToken(token)
     const events = (response.body() as { data: Listed[] }).data
     const withClass = events.filter((event) => event.academicClass && event.subject)

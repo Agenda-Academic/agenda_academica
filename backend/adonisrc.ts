@@ -104,7 +104,8 @@ export default defineConfig({
   | the production build.
   |
   */
-  metaFiles: [],
+  // O PDF do calendário que o seed importa precisa ir para o build (a imagem do Render só tem o build)
+  metaFiles: [{ pattern: 'database/seeders/data/**', reloadServer: false }],
 
   hooks: {
     init: [

@@ -47,15 +47,23 @@ As telas foram desenhadas antes no Figma (protótipo clicável) e o front segue 
 
 Todas usam a senha `password123`. A tela de login tem atalhos para as quatro primeiras.
 
-| Perfil                                 | Nome                   | E-mail                |
-| -------------------------------------- | ---------------------- | --------------------- |
-| Aluno                                  | Diogo Queiroz da Silva | `diogo@agenda.test`   |
-| Professora                             | Profa. Maraísa         | `maraisa@agenda.test` |
-| Admin                                  | Coordenação Acadêmica  | `admin@agenda.test`   |
-| Responsável (mãe do Diogo)             | Maria Queiroz          | `maria@agenda.test`   |
-| Aluna menor de idade (curso integrado) | Ana Clara Ribeiro      | `ana@agenda.test`     |
-| Responsável (pai da Ana)               | Carlos Ribeiro         | `carlos@agenda.test`  |
-| Professora (curso integrado)           | Profa. Marina Souza    | `marina@agenda.test`  |
+| Perfil                                         | Nome                  | E-mail                    |
+| ---------------------------------------------- | --------------------- | ------------------------- |
+| Aluno (TADS 5)                                 | Lucas Ferreira        | `aluno@agenda.test`       |
+| Professora (TADS 5 e TADS 3)                   | Profa. Maraísa        | `maraisa@agenda.test`     |
+| Admin                                          | Coordenação Acadêmica | `admin@agenda.test`       |
+| Responsável (mãe do Lucas, da Sofia e do Pedro) | Juliana Ferreira      | `responsavel@agenda.test` |
+| Aluna menor de idade (INF 3A)                  | Ana Clara Ribeiro     | `ana@agenda.test`         |
+| Responsável (pai da Ana)                       | Carlos Ribeiro        | `carlos@agenda.test`      |
+| Professora (TADS 5 e INF 3A)                   | Profa. Marina Souza   | `marina@agenda.test`      |
+
+Além delas, o seed monta uma escola de demonstração (`backend/database/seeders/escola_demo_seeder.ts`): as turmas
+TADS 5, TADS 3, INF 3A e INF 1A, cinco docentes, quase 50 alunos, pedidos de entrada esperando aprovação, um pai
+esperando a secretaria, notas publicadas, uma prova que já passou sem nota lançada, um evento cancelado e o
+Calendário Acadêmico 2026 do campus, importado do PDF em `backend/database/seeders/data/` como a tela faria (sem as
+datas só de servidores). O de 2027 a administração importa pela tela. Os outros alunos e docentes seguem o padrão `nome.sobrenome@agenda.test` (por exemplo,
+`sofia.ferreira@agenda.test`) ou `nome@agenda.test` para os docentes (`ricardo@`, `helena@`, `andre@`). Os testes usam
+só as contas da tabela.
 
 Essas contas nunca recebem e-mail (o domínio `.test` é reservado).
 
@@ -175,7 +183,9 @@ ficam salvos entre os reinícios. No computador e nos testes o banco continua SQ
    O `render.yaml` já define `DB_CONNECTION=pg`.
 
 A cada início a API aplica as migrations e, só se o banco não tiver nenhum usuário, cria as
-[contas de demonstração](#contas-de-demonstração) (`node ace db:seed-if-empty`). A conexão usa TLS.
+[contas de demonstração](#contas-de-demonstração) (`node ace db:seed-if-empty`). Um banco com a demonstração
+de antes de 23/11/2026 (contas `diogo@` e `maria@`) é atualizado uma vez: as duas contas viram `aluno@` e
+`responsavel@`, com o mesmo id, e a escola de demonstração é completada. A conexão usa TLS.
 
 ### Entrar com o Google
 

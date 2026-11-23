@@ -49,7 +49,7 @@ test.group('Fase 0: base segura', (group) => {
     client,
     assert,
   }) => {
-    const token = await loginAs(client, 'diogo@agenda.test')
+    const token = await loginAs(client, 'aluno@agenda.test')
 
     const events = await client.get('/api/v1/events').bearerToken(token)
     events.assertStatus(200)
@@ -112,7 +112,7 @@ test.group('Fase 0: base segura', (group) => {
   })
 
   test('só docente e administração criam evento: responsável recebe 403', async ({ client }) => {
-    const token = await createAccount(client, 'responsavel@agenda.test', 'guardian')
+    const token = await createAccount(client, 'responsavel.avulso@agenda.test', 'guardian')
     const tads = await AcademicClass.findByOrFail('name', 'TADS 5')
 
     const response = await client.post('/api/v1/events').bearerToken(token).json({

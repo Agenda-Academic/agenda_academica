@@ -200,7 +200,7 @@ test.group('Entrar com o Google', (group) => {
     client,
     assert,
   }) => {
-    const claims = googleClaims({ email: 'diogo@agenda.test' })
+    const claims = googleClaims({ email: 'aluno@agenda.test' })
 
     const wrong = await backFromGoogle(client, claims, { state: 'outro-state' })
     assertFrontError(assert, wrong.location, 'estado')
@@ -333,12 +333,12 @@ test.group('Entrar com o Google', (group) => {
   })
 
   test('conta que já existe, de outro domínio, entra pelo Google', async ({ client, assert }) => {
-    const diogo = await User.findByOrFail('email', 'diogo@agenda.test')
+    const diogo = await User.findByOrFail('email', 'aluno@agenda.test')
     const before = await countUsers()
 
     const { location } = await backFromGoogle(
       client,
-      googleClaims({ email: 'Diogo@Agenda.test', name: 'Outro Nome' })
+      googleClaims({ email: 'Aluno@Agenda.test', name: 'Outro Nome' })
     )
     const code = loginCodeFrom(assert, location)
 
@@ -354,7 +354,7 @@ test.group('Entrar com o Google', (group) => {
     client,
     assert,
   }) => {
-    env.set('ADMIN_EMAILS', ' coordenacao.agenda@gmail.com , diogo@agenda.test')
+    env.set('ADMIN_EMAILS', ' coordenacao.agenda@gmail.com , aluno@agenda.test')
     try {
       // fora do IFMS e sem conta: só entra porque está na lista, e já como administração
       const outside = await backFromGoogle(
@@ -370,9 +370,9 @@ test.group('Entrar com o Google', (group) => {
       assert.isTrue((exchange.body() as unknown as SessionBody).data.user.canManageCoordination)
 
       // aluno que já existe: vira administração ao entrar pelo Google, e o registro fica
-      const diogo = await User.findByOrFail('email', 'diogo@agenda.test')
+      const diogo = await User.findByOrFail('email', 'aluno@agenda.test')
       assert.equal(diogo.role, 'student')
-      const again = await backFromGoogle(client, googleClaims({ email: 'diogo@agenda.test' }))
+      const again = await backFromGoogle(client, googleClaims({ email: 'aluno@agenda.test' }))
       loginCodeFrom(assert, again.location)
       await diogo.refresh()
       assert.equal(diogo.role, 'admin')
@@ -531,13 +531,13 @@ test.group('Entrar com o Google', (group) => {
     client,
     assert,
   }) => {
-    env.set('ADMIN_EMAILS', 'diogo@agenda.test')
+    env.set('ADMIN_EMAILS', 'aluno@agenda.test')
     try {
       const response = await client
         .post(`${API}/auth/login`)
-        .json({ email: 'diogo@agenda.test', password: 'password123' })
+        .json({ email: 'aluno@agenda.test', password: 'password123' })
       response.assertStatus(200)
-      const diogo = await User.findByOrFail('email', 'diogo@agenda.test')
+      const diogo = await User.findByOrFail('email', 'aluno@agenda.test')
       assert.equal(diogo.role, 'student')
     } finally {
       env.set('ADMIN_EMAILS', '')
@@ -575,7 +575,7 @@ test.group('Entrar com o Google', (group) => {
   })
 
   test('iss de fora do Google ou id_token vencido falha', async ({ client, assert }) => {
-    const base = { email: 'diogo@agenda.test' }
+    const base = { email: 'aluno@agenda.test' }
     const cases = [
       googleClaims({ ...base, iss: 'https://accounts.example.com' }),
       googleClaims({ ...base, exp: Math.floor(Date.now() / 1000) - 10 }),
@@ -591,16 +591,16 @@ test.group('Entrar com o Google', (group) => {
     assert,
   }) => {
     // conta que já provou o e-mail: o login pelo Google não mexe nela
-    const verified = await User.findByOrFail('email', 'diogo@agenda.test')
+    const verified = await User.findByOrFail('email', 'aluno@agenda.test')
     verified.emailVerifiedAt = DateTime.utc()
     await verified.save()
 
     const login = await client
       .post(`${API}/auth/login`)
-      .json({ email: 'diogo@agenda.test', password: 'password123' })
+      .json({ email: 'aluno@agenda.test', password: 'password123' })
     login.assertStatus(200)
 
-    const { location } = await backFromGoogle(client, googleClaims({ email: 'diogo@agenda.test' }))
+    const { location } = await backFromGoogle(client, googleClaims({ email: 'aluno@agenda.test' }))
     const exchange = await client
       .post(`${API}/auth/google/exchange`)
       .json({ code: loginCodeFrom(assert, location) })
@@ -620,7 +620,7 @@ test.group('Entrar com o Google', (group) => {
     profile.assertStatus(200)
     assert.equal(
       (profile.body() as unknown as Envelope<{ email: string }>).data.email,
-      'diogo@agenda.test'
+      'aluno@agenda.test'
     )
   })
 
@@ -628,8 +628,8 @@ test.group('Entrar com o Google', (group) => {
     client,
     assert,
   }) => {
-    const diogo = await User.findByOrFail('email', 'diogo@agenda.test')
-    const { location } = await backFromGoogle(client, googleClaims({ email: 'diogo@agenda.test' }))
+    const diogo = await User.findByOrFail('email', 'aluno@agenda.test')
+    const { location } = await backFromGoogle(client, googleClaims({ email: 'aluno@agenda.test' }))
     const code = loginCodeFrom(assert, location)
 
     const first = await client.post(`${API}/auth/google/exchange`).json({ code })

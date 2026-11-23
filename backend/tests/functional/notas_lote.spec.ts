@@ -71,9 +71,9 @@ async function demo() {
     User.findByOrFail('email', 'maraisa@agenda.test'),
     User.findByOrFail('email', 'marina@agenda.test'),
     User.findByOrFail('email', 'admin@agenda.test'),
-    User.findByOrFail('email', 'diogo@agenda.test'),
+    User.findByOrFail('email', 'aluno@agenda.test'),
     User.findByOrFail('email', 'ana@agenda.test'),
-    User.findByOrFail('email', 'maria@agenda.test'),
+    User.findByOrFail('email', 'responsavel@agenda.test'),
   ])
   const event = (title: string) =>
     AcademicEvent.query().where('title', title).where('academicClassId', tads.id).firstOrFail()
@@ -323,7 +323,7 @@ test.group('Notas em lote (planilha)', (group) => {
     assert.equal(toDiogo?.title, `Sua nota de ${pastExam.title} foi atualizada`)
     assert.equal(toDiogo?.link, `?tela=notas&evento=${pastExam.id}`)
     assert.equal(toBia?.title, `Nota publicada: ${pastExam.title}`)
-    assert.equal(toMaria?.title, `A nota de Diogo em ${pastExam.title} foi atualizada`)
+    assert.equal(toMaria?.title, `A nota de Lucas em ${pastExam.title} foi atualizada`)
     assert.equal(toMaria?.link, `?tela=notas&aluno=${diogo.id}&evento=${pastExam.id}`)
     assert.lengthOf(notices, 3)
 

@@ -1,3 +1,4 @@
+import { CALENDAR_2026_PDF } from '#database/seeders/escola_demo_seeder'
 import {
   parseCalendarItems,
   parseDateText,
@@ -11,8 +12,8 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 
 /**
- * Leitura do PDF do Calendário Acadêmico do IFMS. O arquivo de teste é o calendário de 2027 do
- * Campus Três Lagoas, publicado pelo IFMS.
+ * Leitura do PDF do Calendário Acadêmico do IFMS. Os arquivos de teste são os calendários de 2027
+ * e de 2026 do Campus Três Lagoas, publicados pelo IFMS.
  */
 
 type Envelope<T> = { data: T }
@@ -26,6 +27,8 @@ type PdfBody = Envelope<{
 
 const API = '/api/v1'
 const PDF_2027 = app.makePath('tests/fixtures/calendario-ifms-2027-tres-lagoas.pdf')
+// o de 2026 fica com o seed, que o importa na escola de demonstração
+const PDF_2026 = app.makePath(CALENDAR_2026_PDF)
 
 async function loginAs(client: any, email: string) {
   const response = await client.post(`${API}/auth/login`).json({ email, password: 'password123' })
@@ -144,6 +147,68 @@ test.group('Calendário em PDF', (group) => {
     const keys = events.map((event) => `${event.startsAt}|${event.endsAt}|${event.title}`)
     assert.equal(new Set(keys).size, keys.length)
     assert.isFalse(events.some((event) => event.title.startsWith('Ref.')))
+  })
+
+  test('lê o calendário de 2026, que escreve os feriados só pelo nome', async ({
+    client,
+    assert,
+  }) => {
+    const token = await loginAs(client, 'admin@agenda.test')
+    const response = await client
+      .post(`${API}/calendar-imports/pdf`)
+      .bearerToken(token)
+      .file('file', PDF_2026)
+    response.assertStatus(200)
+    const body = (response.body() as unknown as PdfBody).data
+    assert.equal(body.sourceName, 'Calendário Acadêmico 2026, Campus Três Lagoas')
+    assert.equal(body.year, 2026)
+    const events = body.events
+    assert.lengthOf(events, 148)
+
+    // o PDF de 2026 não tem "(Feriado Nacional)" no título: o nome basta
+    for (const [day, title] of [
+      ['2026-04-03', 'Paixão de Cristo'],
+      ['2026-04-21', 'Tiradentes'],
+      ['2026-09-07', 'Independência do Brasil'],
+      ['2026-10-12', 'Padroeira do Brasil'],
+      ['2026-11-02', 'Finados'],
+      ['2026-11-20', 'Dia Nacional de Zumbi e da Consciência Negra'],
+      ['2026-12-25', 'Natal'],
+    ]) {
+      assert.equal(find(events, day, title)[0]?.category, 'holiday', title)
+    }
+    assert.equal(find(events, '2026-02-16', 'Carnaval - Recesso')[0]?.category, 'recess')
+    assert.equal(find(events, '2026-02-16', 'Carnaval - Recesso')[0]?.endsAt, '2026-02-18')
+    assert.equal(find(events, '2026-06-04', 'Corpus Christi')[0]?.category, 'recess')
+    // data comemorativa não é feriado, e o aviso do Dia do Servidor não vira recesso
+    assert.equal(
+      find(events, '2026-01-20', 'Dia da Consciência Indígena')[0]?.category,
+      'institutional'
+    )
+    assert.equal(
+      find(
+        events,
+        '2026-10-28',
+        'Dia do Servidor Público (recesso será remanejado para o dia 13/10)'
+      )[0]?.category,
+      'institutional'
+    )
+
+    // dezembro: o fim do semestre e o que vem antes do recesso
+    assert.lengthOf(
+      find(events, '2026-12-22', 'Término das aulas do 2º semestre letivo de 2026'),
+      1
+    )
+    assert.equal(
+      find(events, '2026-12-23', 'Fechamento de diários, notas e relatórios')[0]?.audience,
+      'staff'
+    )
+
+    const keys = events.map((event) => `${event.startsAt}|${event.endsAt}|${event.title}`)
+    assert.equal(new Set(keys).size, keys.length)
+    for (const event of events) {
+      assert.isAtMost(event.title.length, 140)
+    }
   })
 
   test('as datas lidas do PDF entram pela importação normal', async ({ client, assert }) => {

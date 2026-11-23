@@ -19,7 +19,7 @@ async function dueReminder(options: {
   email?: string
   startsIn?: { minutes?: number; days?: number }
 }) {
-  const user = await User.findByOrFail('email', 'diogo@agenda.test')
+  const user = await User.findByOrFail('email', 'aluno@agenda.test')
   if (options.email) {
     user.email = options.email
     await user.save()
