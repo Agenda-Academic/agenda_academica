@@ -79,24 +79,6 @@ import { Select, type SelectOption } from "./select";
 
 export type ManagePane = "events" | "classes";
 
-const PANE_KEY = "agenda.gestao.aba";
-
-/** Aba da Gestão da docente guardada na sessão do navegador (o F5 volta para ela). */
-function readPane(): ManagePane {
-  try {
-    return window.sessionStorage.getItem(PANE_KEY) === "classes" ? "classes" : "events";
-  } catch {
-    return "events";
-  }
-}
-
-function writePane(pane: ManagePane) {
-  try {
-    window.sessionStorage.setItem(PANE_KEY, pane);
-  } catch {
-    // navegação privada sem armazenamento: a aba só não fica guardada
-  }
-}
 
 /** Turmas com vínculo em vigor (o mesmo que GET /classes devolve para a docente), até a lista carregar. */
 function classCount(assignments: TeachingAssignment[]) {
@@ -503,7 +485,8 @@ export function ManageView({
   const paneIds = { events: useId(), classes: useId() };
   // a docente tem as abas Eventos e Minhas turmas; a administração continua só com os eventos (ela tem a tela Turmas)
   const teacherTabs = !admin && role === "teacher";
-  const [pane, setPane] = useState<ManagePane>(() => (teacherTabs ? readPane() : "events"));
+  // a Gestão sempre abre na primeira aba, Eventos (pedido do Diogo em 2026-11-23): a aba não fica guardada
+  const [pane, setPane] = useState<ManagePane>("events");
   const [classesSummary, setClassesSummary] = useState<MyClassesSummary | null>(null);
   // erro da primeira carga da lista de turmas (onLoadError da MyClasses; volta a null quando ela recarrega): com
   // erro, o 4º indicador deixa o esqueleto na hora e mostra as turmas do contexto
@@ -809,13 +792,6 @@ export function ManageView({
     }
     monthTitleRef.current?.focus({ preventScroll: true });
   }, [monthJump]);
-
-  // a aba escolhida fica guardada na sessão do navegador
-  useEffect(() => {
-    if (teacherTabs) {
-      writePane(pane);
-    }
-  }, [pane, teacherTabs]);
 
   // a página sabe qual aba está aberta (a busca do menu muda de assunto em Minhas turmas)
   useEffect(() => {
