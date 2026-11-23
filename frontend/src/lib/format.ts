@@ -960,3 +960,15 @@ export function gradeSourceText(source: GradeSourceInfo | null | undefined, upda
   }
   return updatedAt ? `Fonte: lançada na Agenda em ${formatDateBR(updatedAt)}` : "Fonte: lançada na Agenda";
 }
+
+/** A mesma fonte, curta, para a linha de dados da avaliação: "Agenda, 19/11", "SUAP, 04/11" ou "planilha, 04/11". */
+export function gradeSourceShort(source: GradeSourceInfo | null | undefined, updatedAt?: string | null) {
+  if (!source) {
+    return "";
+  }
+  if (source.type === "import") {
+    const origin = source.source === "modelo" ? "planilha" : (gradeImportSourceLabels[source.source] ?? source.source);
+    return `${origin}, ${formatDateBR(source.importedAt)}`;
+  }
+  return updatedAt ? `Agenda, ${formatDateBR(updatedAt)}` : "Agenda";
+}

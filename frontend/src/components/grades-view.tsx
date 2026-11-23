@@ -33,13 +33,13 @@ import {
   formatShortDate,
   formatShortDateTime,
   formatTime,
-  gradeSourceText,
+  gradeSourceShort,
   isAllDay,
   monthGroupLabel,
   normalizeText,
   relationshipText,
 } from "@/lib/format";
-import { categoryMeta } from "@/lib/meta";
+import { categoryIcons, categoryMeta } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, LinkedStudent, MyGuardians, StudentEvaluation, UserRole } from "@/lib/types";
 import { useAppActions } from "./app-actions";
 import { delay, showAllText } from "./dashboard-bits";
@@ -54,8 +54,9 @@ import { Drawer, EmptyState, ErrorState, RetryButton, SectionTitle, primaryButto
  * - responsável: as do aluno escolhido (GET /students/:id/grades); "Diogo não compartilha as notas" quando
  *   shareGrades vem false (sem nenhum número);
  * - docente e administração: GradesTeacher (área Notas docente).
- * Por disciplina, "7,5 de 10" (gradeDisplay), a data e "Fonte: SUAP, importada em 04/11" (gradeSourceText; o ano só fora do ano corrente);
+ * Por disciplina, "7,5 de 10" (gradeDisplay), a data e a fonte curta, "SUAP, 04/11" (gradeSourceShort; o ano só fora do ano corrente);
  * "Aguardando publicação" quando published é false; sem média e sem ranking (desenho 5.8, amostras notas-*).
+ * A disciplina em que nada aconteceu ainda não ganha card: entra numa linha do card "Ainda sem notas".
  * Dona: área Notas (leitura).
  */
 export type GradesViewProps = {
@@ -142,11 +143,6 @@ type GroupView = {
 /** "ter, 03/11, 19:00" (sem horário quando é o dia todo). */
 function whenText(value: string) {
   return isAllDay(value) ? formatShortDate(value) : formatShortDateTime(value);
-}
-
-/** "Fonte: SUAP, importada em 04/11", "Fonte: planilha importada em 04/11" ou "Fonte: lançada na Agenda em 06/11/2025" (ano só fora do corrente). */
-function sourceLine(grade: NonNullable<StudentEvaluation["grade"]>) {
-  return gradeSourceText(grade.source, grade.updatedAt);
 }
 
 function pointsText(max: string) {
@@ -254,6 +250,9 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
         .filter((group) => group.items.length)
     : groups;
   const matchCount = visibleGroups.reduce((sum, group) => sum + group.items.length, 0);
+  // disciplina com avaliação à vista ganha card; a que ainda não teve nenhuma entra no card "Ainda sem notas"
+  const cardGroups = visibleGroups.filter((group) => group.items.length);
+  const emptyGroups = visibleGroups.filter((group) => !group.items.length);
 
   // a busca do menu conta as avaliações achadas aqui (sem as notas na tela, ainda não há o que contar)
   const searchCount = words.length && grades.status === "ready" ? matchCount : undefined;
@@ -601,7 +600,7 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
             </section>
           ) : null}
 
-          {visibleGroups.map((group, index) => {
+          {cardGroups.map((group, index) => {
             // com ou sem busca, o card mostra no máximo três; o resto do que a busca achou abre no painel lateral
             const limit = GROUP_LIMIT;
             let shown = group.items.slice(0, limit);
@@ -626,32 +625,17 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
                   <GroupCounts group={group} />
                 </div>
 
-                {shown.length ? (
-                  <ul id={listId}>
-                    {shown.map((item) => (
-                      <GradeRow
-                        key={item.eventId}
-                        evaluation={item}
-                        focused={item.eventId === focusEventId}
-                        guardianName={isGuardian ? name : null}
-                        now={now}
-                      />
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="notas-soon">
-                    <p>Nenhuma prova ou trabalho desta disciplina aconteceu ainda. A nota aparece aqui depois da avaliação.</p>
-                    <button
-                      className="link link-solto"
-                      aria-label={`Ver no cronograma: ${group.next ? group.next.title : group.title}`}
-                      onClick={() => (group.next ? onOpenEvent(group.next.eventId) : navigate("calendar"))}
-                      type="button"
-                    >
-                      Ver no cronograma
-                      <ArrowRight className="h-4 w-4" aria-hidden />
-                    </button>
-                  </div>
-                )}
+                <ul id={listId}>
+                  {shown.map((item) => (
+                    <GradeRow
+                      key={item.eventId}
+                      evaluation={item}
+                      focused={item.eventId === focusEventId}
+                      guardianName={isGuardian ? name : null}
+                      now={now}
+                    />
+                  ))}
+                </ul>
 
                 {/* espaçador: com as colunas quase iguais, o último card estica esse pouco aqui (NotasColumns) */}
                 <div className="notas-fill" aria-hidden />
@@ -676,6 +660,47 @@ function ReaderGrades({ role, context, student, focusEventId, search, onOpenEven
               </section>
             );
           })}
+
+          {/* as disciplinas em que nada aconteceu ainda: uma linha cada, num card só (em vez de um card cheio por disciplina) */}
+          {emptyGroups.length ? (
+            <section className="card notas-disc notas-empty rise" style={delay(3 + cardGroups.length)} aria-labelledby="notas-vazias">
+              <div className="notas-empty-head">
+                <h2 className="h2" id="notas-vazias">
+                  Ainda sem notas
+                </h2>
+                <span className="pill stat">{countText(emptyGroups.length, "disciplina", "disciplinas")}</span>
+                <p className="notas-empty-hint">Nenhuma prova ou trabalho aconteceu ainda. A nota aparece aqui depois da avaliação.</p>
+              </div>
+              <ul>
+                {emptyGroups.map((group) => (
+                  <li key={group.key}>
+                    <button
+                      className="notas-emp-row"
+                      aria-label={`${group.title}: ver no cronograma${group.next ? `, ${group.next.title}` : ""}`}
+                      onClick={() => (group.next ? onOpenEvent(group.next.eventId) : navigate("calendar"))}
+                      type="button"
+                    >
+                      <span className="notas-disc-ico" aria-hidden>
+                        <BookOpen className="h-[18px] w-[18px]" />
+                      </span>
+                      <span className="notas-emp-main">
+                        <span className="notas-emp-name wrap-anywhere">{group.title}</span>
+                        {group.sub ? <span className="notas-emp-sub wrap-anywhere">{group.sub}</span> : null}
+                      </span>
+                      <span className="notas-emp-link">
+                        <span className="notas-emp-next wrap-anywhere">
+                          {group.next ? `Próxima: ${group.next.title}, ${formatShortDate(group.next.startsAt)}` : "Nada marcado, ver no cronograma"}
+                        </span>
+                        <ArrowRight className="notas-emp-go h-4 w-4 shrink-0" aria-hidden />
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {/* espaçador: o último card da coluna estica a pequena sobra aqui (NotasColumns) */}
+              <div className="notas-fill" aria-hidden />
+            </section>
+          ) : null}
       </NotasColumns>
       {dialog}
       <GroupDrawer
@@ -930,42 +955,49 @@ function GradeRow({
   now: number;
 }) {
   const meta = categoryMeta[evaluation.category];
+  const CategoryIcon = categoryIcons[evaluation.category];
   const grade = evaluation.grade;
   const waiting = !evaluation.published;
   const future = new Date(evaluation.startsAt).getTime() > now;
 
-  let line: ReactNode;
-  if (waiting) {
-    // a pílula "Aguardando publicação" já diz tudo; sem frase explicando como a nota chega
-    line = null;
-  } else if (grade) {
-    const Icon = grade.source?.type === "import" ? FileSpreadsheet : PenLine;
-    line = (
-      <>
-        <Icon className="h-[15px] w-[15px]" aria-hidden />
-        {sourceLine(grade)}
-      </>
-    );
-  } else {
-    line = (
-      <>
-        <Info className="h-[15px] w-[15px]" aria-hidden />
-        {guardianName
-          ? `Publicada sem nota para ${guardianName}. Dúvida? Fale com a docente da disciplina.`
-          : "Publicada sem nota para você. Dúvida? Fale com a docente da disciplina."}
-      </>
-    );
-  }
+  // a fonte da nota segue na linha de dados, curta ("Agenda, 19/11"); o "Fonte:" fica para o leitor de tela
+  const sourceText = !waiting && grade ? gradeSourceShort(grade.source, grade.updatedAt) : "";
+  const SourceIcon = grade?.source?.type === "import" ? FileSpreadsheet : PenLine;
+  // publicada sem nota para esta pessoa: a frase que explica fica numa linha própria (a pílula só diz "Sem nota")
+  const note =
+    !waiting && !grade
+      ? guardianName
+        ? `Publicada sem nota para ${guardianName}. Dúvida? Fale com a docente da disciplina.`
+        : "Publicada sem nota para você. Dúvida? Fale com a docente da disciplina."
+      : null;
 
   return (
     <li className={cx("notas-grade", waiting && "is-wait", focused && "is-focus")} data-grade-id={evaluation.eventId} tabIndex={-1}>
-      <p className="notas-g-title wrap-anywhere">{evaluation.title}</p>
-      <p className="notas-g-meta">
-        {meta ? <span className={cx("pill", meta.tint)}>{meta.short}</span> : null}
-        <span>{whenText(evaluation.startsAt)}</span>
-        {evaluation.status === "cancelled" ? <span className="pill stat stat-canc">Cancelada</span> : null}
-      </p>
-      {line ? <p className="notas-g-src">{line}</p> : null}
+      <span aria-hidden className={cx("notas-g-ico", meta?.tint)}>
+        {CategoryIcon ? <CategoryIcon className="h-5 w-5" /> : null}
+      </span>
+      <div className="notas-g-body">
+        <p className="notas-g-title wrap-anywhere">{evaluation.title}</p>
+        <p className="notas-g-meta">
+          {meta ? <span className={cx("notas-g-cat", meta.tint)}>{meta.short}</span> : null}
+          <span>{whenText(evaluation.startsAt)}</span>
+          {evaluation.status === "cancelled" ? <span className="pill stat stat-canc">Cancelada</span> : null}
+          {sourceText ? (
+            <span className="notas-g-src">
+              <span aria-hidden>·</span>
+              <SourceIcon className="h-[13px] w-[13px]" aria-hidden />
+              <span className="sr-only">Fonte: </span>
+              {sourceText}
+            </span>
+          ) : null}
+        </p>
+        {note ? (
+          <p className="notas-g-note">
+            <Info className="h-[15px] w-[15px]" aria-hidden />
+            {note}
+          </p>
+        ) : null}
+      </div>
       {waiting ? (
         <div className="notas-g-wait">
           <span className={cx("pill stat", !future && "stat-alt")}>
@@ -1005,12 +1037,12 @@ function GradesSkeleton() {
           </div>
           {[0, 1].map((row) => (
             <div key={row} className="notas-grade">
-              <span className="grid gap-2" style={{ gridArea: "t" }}>
+              <span className="skel !h-11 !w-11 !rounded-[14px]" />
+              <span className="grid gap-2">
                 <span className="skel h-4 w-2/3" />
                 <span className="skel h-3.5 w-1/3" />
-                <span className="skel h-3 w-1/2" />
               </span>
-              <span className="skel h-7 w-16" style={{ gridArea: "s" }} />
+              <span className="skel h-7 w-16" />
             </div>
           ))}
         </div>

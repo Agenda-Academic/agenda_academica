@@ -2333,3 +2333,239 @@ html .gx .gxd-acts .btn-sm {
     left: 10px;
   }
 }
+
+/* ==================================================================
+   Visão geral da docente (rodada de 2026-11-23): o que fazer agora em cartões com uma ação principal, depois os
+   próximos por semana e os passados na mesma linha das abas (gxd), com a data em cima da hora.
+   ================================================================== */
+.gxo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  min-width: 0;
+}
+
+/* "Precisa de atenção": um bloco âmbar claro, sem a faixa colorida na borda */
+.gxo-attn {
+  padding: 20px 22px 16px;
+  border: 1px solid var(--amber-line);
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--amber-bg) 42%, var(--surface));
+  box-shadow: 0 1px 2px rgb(15 36 24 / 0.04), 0 12px 32px rgb(122 86 0 / 0.07);
+}
+.gxo-attn-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 0 4px 14px;
+}
+.gxo-attn-ico {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--amber-bar) 38%, var(--surface));
+  color: var(--ipe-ink, #7a5600);
+}
+html .gx .gxo-attn-head h3 {
+  font-family: var(--disp);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.gxo-attn-head p {
+  flex: 1 1 260px;
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--ipe-ink, #7a5600);
+}
+.gxo-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* a tarefa: ícone, o que é, o que falta e a ação (celular e tablet: o que falta desce, os botões ocupam a linha) */
+.gxt {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-areas:
+    "ico main"
+    "state state"
+    "acts acts";
+  align-items: center;
+  gap: 10px 14px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--amber-line) 55%, var(--surface));
+  border-radius: 22px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: box-shadow 0.2s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .gxt:hover {
+    box-shadow: 0 10px 24px -16px rgb(122 86 0 / 0.45);
+  }
+}
+.gxt.editing {
+  border-color: var(--brand);
+}
+.gxt .gxd-ico {
+  grid-area: ico;
+}
+.gxt-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+html .gx .gxt-main .gx-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.gxt-state {
+  grid-area: state;
+  min-width: 0;
+}
+html .gx .gxt-state .gx-prog {
+  width: 100%;
+  max-width: 300px;
+}
+.gxt-text {
+  font-size: var(--fs-14);
+  color: var(--ink-2);
+}
+.gxt-acts {
+  grid-area: acts;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 10px;
+}
+html .gx .gxt-acts .btn-sm {
+  height: 38px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+html .gx .gxt-acts .btn-p.btn-sm {
+  font-weight: 700;
+}
+@media (pointer: coarse), (max-width: 767px) {
+  html .gx .gxt-acts .btn-sm {
+    height: 44px;
+  }
+}
+@media (max-width: 639px) {
+  .gxt-acts {
+    justify-content: stretch;
+  }
+  html .gx .gxt-acts .btn-p {
+    flex: 1 1 100%;
+    order: -1;
+    justify-content: center;
+  }
+  html .gx .gxt-acts .btn-s {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+}
+@media (min-width: 900px) {
+  .gxt {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ico main acts"
+      "ico state acts";
+    padding: 14px 16px 14px 14px;
+  }
+}
+@media (min-width: 1280px) {
+  .gxt {
+    grid-template-columns: 44px minmax(0, 1.4fr) minmax(0, 1fr) 330px;
+    grid-template-areas: "ico main state acts";
+    gap: 18px;
+  }
+}
+
+/* sem nada pendente: uma linha, sem a faixa verde de antes */
+.gxo-ok {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 14px 20px;
+  border: 1px solid var(--brand-100);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--brand-50) 60%, var(--surface));
+}
+.gxo-ok-ico {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+}
+html .gx .gxo-ok h3 {
+  font-family: var(--disp);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.gxo-ok p {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--ink-3);
+}
+
+/* o card branco: as semanas em maiúsculas com um fio, e a data em cima da hora nas linhas */
+html .gx .gxo-card .gx-sub {
+  align-items: center;
+  padding: 16px 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--brand-ink);
+}
+html .gx .gxo-card .gx-sub::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--line);
+}
+html .gx .gxo-card .gx-sec + .gx-sec {
+  border-top: 0;
+}
+.gxd-time .gxd-dd {
+  font-size: var(--fs-12);
+  font-weight: 700;
+  color: var(--muted);
+}
+.gxd-time .gxd-dd.soon {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ipe-ink, #7a5600);
+}
+/* a linha da visão geral tem uma ação só (a das notas, ou "Editar") e o "...": a coluna das ações é a mesma em todas */
+@media (min-width: 1280px) {
+  html .gx .gxd-sec.gxo-card,
+  html .gx .gxd-sec.gxo-card:has(.gxd-acts .gx-act) {
+    --gxd-acts: 190px;
+  }
+}
+.gxo-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 2px;
+}

@@ -103,17 +103,13 @@ html .notas-kpi-prox .kpi-val.notas-kpi-none {
 }
 .notas-grade {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "t s"
-    "m s"
-    "f s";
-  column-gap: 24px;
-  padding: 16px 0;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 16px;
+  padding: 14px 0;
   border-top: 1px solid var(--line-2);
   scroll-margin-top: 96px;
 }
-/* avaliação que um aviso abriu: um brilho verde que some devagar */
 .notas-grade.is-focus {
   border-radius: 12px;
   animation: notas-flash 2.6s ease-out 0.35s backwards;
@@ -139,41 +135,67 @@ html .notas-kpi-prox .kpi-val.notas-kpi-none {
     box-shadow: 0 0 0 10px var(--brand-50);
   }
 }
+/* ícone da categoria: quadrado na cor dela (as classes c-prova, c-trab... dão o fundo e a tinta) */
+.notas-g-ico {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+.notas-g-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
 .notas-g-title {
-  grid-area: t;
   font-size: var(--fs-15);
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
 }
+/* tipo, data e fonte numa linha só (quebra quando falta largura) */
 .notas-g-meta {
-  grid-area: m;
-  margin-top: 6px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 10px;
-  font-size: 14px;
+  gap: 2px 8px;
+  font-size: var(--fs-13);
+  line-height: 1.4;
   color: var(--muted);
 }
+/* a palavra do tipo só com a cor da tinta (o fundo das classes c-* fica para o ícone) */
+html .notas-g-cat.notas-g-cat {
+  padding: 0;
+  background: transparent;
+  font-weight: 700;
+}
 .notas-g-src {
-  grid-area: f;
-  margin-top: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-2);
+}
+.notas-g-src svg {
+  flex-shrink: 0;
+}
+/* "Publicada sem nota para você...": a frase inteira, numa linha própria */
+.notas-g-note {
   display: flex;
   align-items: flex-start;
   gap: 7px;
+  margin-top: 2px;
   font-size: var(--fs-13);
   line-height: 1.45;
   color: var(--muted);
 }
-.notas-g-src svg {
+.notas-g-note svg {
   margin-top: 2px;
   flex-shrink: 0;
   color: var(--muted-2);
 }
 /* a nota usa a classe .score do ux.css (número grande na cor do desempenho e a barra embaixo) */
 .notas-g-score {
-  grid-area: s;
-  align-self: center;
   text-align: right;
   white-space: nowrap;
 }
@@ -181,10 +203,6 @@ html .notas-kpi-prox .kpi-val.notas-kpi-none {
   height: 30px;
   padding: 0 12px;
   font-size: 13px;
-}
-.notas-g-wait {
-  grid-area: s;
-  align-self: center;
 }
 .notas-g-wait .pill {
   height: 30px;
@@ -196,18 +214,75 @@ html .notas-kpi-prox .kpi-val.notas-kpi-none {
   padding: 14px 0 16px;
   border-top: 1px solid var(--line-2);
 }
-/* disciplina em que nada aconteceu ainda: a próxima avaliação e o caminho para o Cronograma */
-.notas-soon {
+/* disciplinas em que nada aconteceu ainda: um card só, uma linha por disciplina com a próxima avaliação */
+.notas-empty-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  padding: 16px 0 14px;
+  gap: 6px 12px;
+  padding-bottom: 12px;
+}
+.notas-empty-hint {
+  flex: 1 1 280px;
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.notas-emp-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-areas: "ico main link";
+  align-items: center;
+  column-gap: 16px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
   border-top: 1px solid var(--line-2);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--ink-3);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.notas-emp-row .notas-disc-ico {
+  grid-area: ico;
+}
+.notas-emp-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.notas-emp-name {
+  font-size: var(--fs-15);
+  font-weight: 700;
+}
+.notas-emp-sub {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.notas-emp-link {
+  grid-area: link;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 440px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: left;
+}
+.notas-emp-row:hover .notas-emp-link {
+  background: var(--brand-100);
+}
+.notas-emp-row:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 12px;
 }
 /* a avaliação tem o mesmo desenho em todas as larguras: solta, com a linha divisória, como as outras listas
    (antes, no card largo, cada uma virava um quadro com borda e o desenho mudava entre 1440 e 1920) */
@@ -234,33 +309,46 @@ html .notas-kpi-prox .kpi-val.notas-kpi-none {
     justify-content: flex-start;
   }
   .notas-grade {
-    grid-template-areas:
-      "t s"
-      "m m"
-      "f f";
-    column-gap: 14px;
-    padding: 14px 0;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: 12px;
+    padding: 13px 0;
+  }
+  .notas-g-ico {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
   }
   .notas-g-title {
     font-size: 15px;
   }
-  .notas-g-score {
-    align-self: start;
-  }
-  .notas-g-score .score-n {
-    font-size: var(--fs-22);
-  }
-  .notas-grade.is-wait {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "t"
-      "m"
-      "s"
-      "f";
-  }
   .notas-grade.is-wait .notas-g-wait {
-    margin-top: 10px;
+    grid-column: 2 / -1;
+    margin-top: 8px;
     justify-self: start;
+  }
+  /* a próxima avaliação desce para baixo do nome e a seta fica à direita */
+  .notas-emp-row {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ico main go"
+      "ico next go";
+    column-gap: 12px;
+    row-gap: 2px;
+  }
+  .notas-emp-link {
+    display: contents;
+  }
+  .notas-emp-next {
+    grid-area: next;
+    font-size: var(--fs-13);
+    font-weight: 600;
+    color: var(--brand-ink);
+  }
+  .notas-emp-go {
+    grid-area: go;
+    align-self: center;
+    color: var(--brand-ink);
   }
 }
 @media (max-width: 767px) {
@@ -789,7 +877,6 @@ html .notas-kpis .kpi-top {
     vertical-align: middle;
   }
   html .notas-up-foot .link,
-  html .notas-soon .link,
   html .notas-layout .card-foot .link {
     min-height: 44px;
   }
@@ -910,7 +997,7 @@ html .notas-tela .notas-disc-head .h2 {
 }
 html .notas-tela .notas-grade,
 html .notas-tela .notas-more,
-html .notas-tela .notas-soon {
+html .notas-tela .notas-emp-row {
   border-top-color: var(--line);
 }
 html .notas-tela .notas-g-title {
@@ -918,13 +1005,13 @@ html .notas-tela .notas-g-title {
   font-weight: 650;
 }
 
-/* a nota: o número grande em Sora e, à esquerda dele, a barra de quanto a avaliação vale (artefato). O número fica
-   na cor do texto; abaixo de 70% ele e a barra ganham o tom do desempenho (âmbar ou vermelho, .score.mid e .low) */
+/* a nota: o número grande em Sora e, embaixo dele, a barra de quanto a avaliação vale. O número fica na cor do texto;
+   abaixo de 70% ele e a barra ganham o tom do desempenho (âmbar ou vermelho, .score.mid e .low) */
 html .notas-tela .notas-g-score.score {
   display: flex;
-  flex-direction: row-reverse;
-  align-items: center;
-  gap: 18px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
   min-width: 0;
 }
 html :is(.notas-tela, .pnl) .score .score-n {
@@ -948,13 +1035,13 @@ html :is(.notas-tela, .pnl) .score .score-n small {
 }
 html .notas-tela .notas-g-score .score-n {
   justify-content: flex-end;
-  min-width: 92px;
+  min-width: 0;
   font-size: 30px;
   line-height: 1;
 }
 html .notas-tela .notas-g-score .score-bar {
-  width: 150px;
-  height: 8px;
+  width: 124px;
+  height: 6px;
   border-radius: 999px;
   background: var(--fill, #e6f0e4);
 }
@@ -967,20 +1054,14 @@ html :is(.notas-tela, .pnl) .score .score-bar > span {
 html :is(.notas-tela, .pnl) .score:is(.mid, .low) .score-bar > span {
   background: var(--tom);
 }
-/* card estreito (celular ou coluna apertada): a nota volta para cima da barra, ao lado do título */
+/* card estreito (celular ou coluna apertada): o número e a barra menores */
 @container (max-width: 560px) {
-  html .notas-tela .notas-g-score.score {
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-  }
   html .notas-tela .notas-g-score .score-n {
-    min-width: 0;
-    font-size: 26px;
+    font-size: 24px;
   }
   html .notas-tela .notas-g-score .score-bar {
-    width: 84px;
-    height: 6px;
+    width: 72px;
+    height: 5px;
   }
 }
 

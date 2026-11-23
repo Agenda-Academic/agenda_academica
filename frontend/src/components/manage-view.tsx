@@ -35,14 +35,12 @@ import {
   useId,
   useRef,
   useState,
-  useSyncExternalStore,
   type KeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import { getEventGrades } from "@/lib/api";
 import {
-  NBSP,
   countText,
   cx,
   dateParts,
@@ -67,7 +65,6 @@ import {
   NoAssignmentsNotice,
   activeAssignments,
   eventWhen,
-  eventWhenLabel,
   type EventStatusChange,
 } from "./event-editor";
 import { launchedCount, subscribeGradesChanged } from "./event-grades-drawer";
@@ -142,20 +139,6 @@ function matchesOrigin(event: AcademicEvent, origin: Origin) {
 
 /** Filtro de disciplina da docente: "all", "s12" (disciplina 12) ou "none" (sem disciplina). */
 const subjectKey = (event: AcademicEvent) => (event.subjectId === null ? "none" : `s${event.subjectId}`);
-
-function mediaStore(query: string) {
-  return {
-    subscribe(notify: () => void) {
-      const list = window.matchMedia(query);
-      list.addEventListener("change", notify);
-      return () => list.removeEventListener("change", notify);
-    },
-    read: () => window.matchMedia(query).matches,
-  };
-}
-const onServer = () => true;
-// a partir de 1440px a linha vira tabela de colunas (evento, quando, notas, ações); abaixo, cartão com o selo da data
-const wideMedia = mediaStore("(min-width: 1440px)");
 
 const normalize = (value: string) =>
   value
@@ -289,20 +272,10 @@ const MONTH_PAGING_SEARCH_FROM = 20;
 /** Visão geral: quantos próximos e quantos passados recentes aparecem (o resto fica nas abas, sem expandir aqui). */
 const OVERVIEW_NEXT = 5;
 const OVERVIEW_PAST = 3;
+/** Visão geral: quantas tarefas de "Precisa de atenção" aparecem antes do "Ver as N pendências" (os pedidos de entrada sempre). */
+const ATTENTION_SHOWN = 5;
 /** Próximas avaliações: a janela do indicador. */
 const SOON_DAYS = 30;
-
-/** Para quem é o evento ("Matemática, TADS 5"); na administração, também quem publicou. */
-function audienceOf(event: AcademicEvent, withTeacher: boolean) {
-  return [
-    event.subject?.name,
-    event.academicClass?.name ?? "Toda a instituição",
-    withTeacher && event.source === "teacher" ? event.teacher?.fullName : null,
-    event.location,
-  ]
-    .filter(Boolean)
-    .join(", ");
-}
 
 const pad = (value: number) => String(value).padStart(2, "0");
 const dayMonth = (value: string | Date) => {
@@ -525,7 +498,6 @@ export function ManageView({
 }: ManageViewProps) {
   const { token, toast, showError, navigate } = useAppActions();
   const admin = isAdmin || role === "admin";
-  const wide = useSyncExternalStore(wideMedia.subscribe, wideMedia.read, onServer);
   const headingId = useId();
   const listHeadingId = useId();
   const paneIds = { events: useId(), classes: useId() };
@@ -539,6 +511,8 @@ export function ManageView({
   const paneTabsRef = useRef<HTMLDivElement>(null);
   const [now] = useState(() => zonedNowMs());
   const [period, setPeriod] = useState<Period>(admin ? "upcoming" : "overview");
+  // "Ver as N pendências" da visão geral: com muitas, o bloco mostra só as primeiras
+  const [allTasks, setAllTasks] = useState(false);
   // origem (administração): todas, só as datas oficiais da instituição ou só os eventos das turmas
   const [origin, setOrigin] = useState<Origin>("all");
   // disciplina (docente com duas ou mais): "all", "s12" ou "none"
@@ -1165,19 +1139,6 @@ export function ManageView({
     return pills;
   }
 
-  /** "18:00, amanhã" (tom âmbar hoje e amanhã); na atenção, "há 4 dias" em âmbar; no passado, só a hora. */
-  function whenLine(event: AcademicEvent, attention: boolean, year: boolean) {
-    const when = rowWhen(event, year);
-    const past = tabOf(event, now) === "past";
-    if (past) {
-      return { day: when.day, sub: attention ? relativeDue(event.startsAt) : when.time, soon: attention };
-    }
-    const started = startTime(event) < todayStart;
-    const rel = started ? "em andamento" : relativeDue(event.startsAt);
-    const soon = rel === "hoje" || rel === "amanhã" || started;
-    return { day: when.day, sub: `${when.time}, ${rel}`, soon };
-  }
-
   function menuItems(event: AcademicEvent, { editButton, sheetButton }: { editButton: boolean; sheetButton: boolean }) {
     const items: RowMenuItem<RowAction>[] = [];
     if (!editButton) {
@@ -1234,23 +1195,18 @@ export function ManageView({
   }
 
   /**
-   * Linha do evento, a mesma nas seções e nas abas. A partir de 1440px: evento (título, categoria e para quem),
-   * quando, notas e ações rotuladas. Abaixo: cartão com o selo da data, o título (que abre o editor) e a ação das
-   * notas em botão largo; o resto no menu de três pontos.
+   * Tarefa da "Precisa de atenção": a avaliação que já passou e ainda não tem as notas publicadas. Um cartão por
+   * tarefa, com o que falta (quantos já têm nota) e UMA ação principal ligada ao estado: "Lançar notas" ou
+   * "Publicar notas", com "Baixar planilha" ou "Ver notas" ao lado. O resto fica no "..." (e o clique no cartão abre o editor).
    */
-  function eventRow(event: AcademicEvent, { attention = false, year = false } = {}) {
+  function taskCard(event: AcademicEvent) {
     const index = rowIndex.get(event.id) ?? 0;
     const meta = categoryMeta[event.category];
-    const parts = dateParts(event.startsAt);
+    const CategoryIcon = categoryIcons[event.category];
     const editing = editingEventId === event.id;
-    const cancelled = event.status === "cancelled";
-    const closed = cancelled || event.status === "completed";
-    const when = whenLine(event, attention, year);
     const action = gradeAction(event);
-    const audience = audienceOf(event, admin);
-    const sheetButton = attention && Boolean(action) && !action?.publish;
-    // na atenção, a ação das notas é a principal; "Baixar planilha" ou "Ver notas" ao lado
-    const secondary = attention && action ? (
+    const sub = [event.academicClass?.name, relativeDue(event.startsAt)].filter(Boolean).join(", ");
+    const secondary = action ? (
       action.publish ? (
         <button className="btn btn-s btn-sm" onClick={() => onOpenGrades?.(event.id)} type="button">
           Ver notas
@@ -1268,86 +1224,46 @@ export function ManageView({
         </button>
       )
     ) : null;
-    // "Editar" rotulado na linha: na tabela, sempre (fora da atenção); no cartão (abaixo de 1440), quando a linha não
-    // tem ação de notas, para a ação principal nunca ficar só no "..." (aí o título é texto e o botão abre o editor)
-    const editButton = !attention && (wide || !action);
-    const titleButton = !wide && !editButton;
-    const actionButton = action ? (
-      <button
-        className={cx("btn btn-sm gx-act", attention ? "btn-p" : "btn-s")}
-        data-edit-button={attention && wide ? "" : undefined}
-        aria-haspopup="dialog"
-        aria-label={`${action.label} de ${event.title}`}
-        onClick={() => onOpenGrades?.(event.id)}
-        type="button"
-      >
-        {action.publish ? <Send className="h-4 w-4" aria-hidden /> : null}
-        {action.label}
-      </button>
-    ) : null;
-    const pills = titlePills(event);
     return (
       <li
         key={event.id}
         data-event-id={event.id}
         data-editing={editing ? "" : undefined}
         aria-current={editing ? "true" : undefined}
-        className={cx("gx-row", closed && "closed", editing && "editing")}
+        className={cx("gxt", editing && "editing")}
         onClick={rowClick(event, index)}
       >
-        <span className={cx("dbadge gx-date", tabOf(event, now) === "upcoming" && startTime(event) < todayStart + 86400000 && "today")} aria-hidden>
-          <small>{parts.weekday}</small>
-          <b>{parts.day}</b>
+        <span className={cx("gxd-ico", meta.tint)} aria-hidden>
+          <CategoryIcon className="h-5 w-5" />
         </span>
-        <div className="gx-main">
-          <div className="gx-t">
-            {!titleButton ? (
-              <span className={cx("gx-title", cancelled && "line-through")}>{event.title}</span>
-            ) : (
-              <button
-                className={cx("gx-title gx-title-btn", cancelled && "line-through")}
-                data-edit-button=""
-                aria-label={`Editar ${event.title}, ${eventWhenLabel(event.startsAt, event.endsAt)}, ${audience}`}
-                onClick={() => edit(event, index)}
-                type="button"
-              >
-                {event.title}
-              </button>
-            )}
-            {pills.length ? <span className="gx-pills">{pills}</span> : null}
-          </div>
-          <div className="gx-m">
-            <span className={cx("cat", meta.tint)}>{meta.short}</span>
-            <span className="gx-aud">{wide ? audience : [audience, when.sub].filter(Boolean).join(", ").replace(/ (\d)/g, `${NBSP}$1`)}</span>
-          </div>
+        <div className="gxt-main">
+          <span className={cx("gxd-over", meta.tint)}>{meta.short}</span>
+          <span className="gx-title">{event.title}</span>
+          {sub ? <span className="gxd-sub">{sub}</span> : null}
         </div>
-        <div className="gx-when">
-          <b className={cx(cancelled && "line-through")}>{when.day}</b>
-          <span className={cx(when.soon && "soon")}>{when.sub}</span>
-        </div>
-        <div className="gx-state">{stateCell(event)}</div>
-        <div className="gx-acts">
+        <div className="gxt-state">{stateCell(event, true)}</div>
+        <div className="gxt-acts">
           {secondary}
-          {actionButton}
-          {editButton ? (
+          {action ? (
             <button
-              className="btn btn-s btn-sm gx-edit"
+              className="btn btn-p btn-sm gx-act"
               data-edit-button=""
-              aria-label={`Editar ${event.title}`}
-              onClick={() => edit(event, index)}
+              aria-haspopup="dialog"
+              aria-label={`${action.label} de ${event.title}`}
+              onClick={() => onOpenGrades?.(event.id)}
               type="button"
             >
-              <Pencil className="h-4 w-4" aria-hidden />
-              Editar
+              {action.publish ? <Send className="h-4 w-4" aria-hidden /> : null}
+              {action.label}
             </button>
           ) : null}
-        </div>
-        <div className="gx-more">
-          <RowMenu
-            label={`Mais ações de ${event.title}`}
-            items={menuItems(event, { editButton, sheetButton })}
-            onSelect={(id) => runAction(event, index, id)}
-          />
+          <div className="gxd-more">
+            <RowMenu
+              label={`Mais ações de ${event.title}`}
+              items={menuItems(event, { editButton: false, sheetButton: Boolean(action) && !action?.publish })}
+              onSelect={(id) => runAction(event, index, id)}
+            />
+          </div>
         </div>
       </li>
     );
@@ -1359,24 +1275,31 @@ export function ManageView({
    * linha abre o editor). Aqui o "Editar" fica sempre à vista, com a ação das notas e o "..." ao lado; o título é
    * texto (a linha toda e o botão abrem o editor).
    */
-  function dayRow(event: AcademicEvent) {
+  function dayRow(event: AcademicEvent, dated = false) {
     const index = rowIndex.get(event.id) ?? 0;
     const meta = categoryMeta[event.category];
     const CategoryIcon = categoryIcons[event.category];
     const editing = editingEventId === event.id;
     const cancelled = event.status === "cancelled";
     const closed = cancelled || event.status === "completed";
-    const when = rowWhen(event, false);
+    const when = rowWhen(event, dated);
     const wholeDay = when.time === "Dia todo";
     const hour = wholeDay ? "Dia todo" : when.time.slice(0, 5);
     // "até 21:00" ou "até 21/11" quando o evento tem término; sem ele, manhã, tarde ou noite
+    // (na visão geral, sem selo de dia, a data vem em cima da hora e o período não cabe)
     const hourSub = wholeDay
       ? when.day.includes(" a ")
         ? when.day
         : ""
       : when.time.length > 5
         ? when.time.slice(5).trim()
-        : dayPeriod(event.startsAt);
+        : dated
+          ? ""
+          : dayPeriod(event.startsAt);
+    // visão geral: "amanhã" ou "ter, 24/11" acima da hora (o dia faltante do selo)
+    const dueNow = dated && tabOf(event, now) === "upcoming" ? relativeDue(event.startsAt) : "";
+    const dateSoon = dueNow === "hoje" || dueNow === "amanhã";
+    const dateLine = dateSoon ? dueNow : wholeDay && when.day.includes(" a ") ? "" : when.day;
     const sub = [event.subject?.name, event.location].filter(Boolean).join(" · ");
     const className = event.academicClass?.name ?? null;
     // quem publicou, só para a administração (a docente vê só os próprios eventos)
@@ -1388,6 +1311,9 @@ export function ManageView({
           : "Administração"
       : null;
     const action = gradeAction(event);
+    // nas abas, "Editar" fica sempre à vista; na visão geral, a linha tem uma ação principal só (a das notas, quando
+    // há; senão, "Editar") e o resto vai para o "..."
+    const editButton = !dated || !action;
     const pills = titlePills(event);
     return (
       <li
@@ -1399,6 +1325,7 @@ export function ManageView({
         onClick={rowClick(event, index)}
       >
         <div className="gxd-time">
+          {dated && dateLine ? <span className={cx("gxd-dd", dateSoon && "soon")}>{dateLine}</span> : null}
           <b className={cx(wholeDay && "all", cancelled && "line-through")}>{hour}</b>
           {hourSub ? <span>{hourSub}</span> : null}
         </div>
@@ -1424,6 +1351,7 @@ export function ManageView({
           {action ? (
             <button
               className="btn btn-sm gx-act btn-s"
+              data-edit-button={dated ? "" : undefined}
               aria-haspopup="dialog"
               aria-label={`${action.label} de ${event.title}`}
               onClick={() => onOpenGrades?.(event.id)}
@@ -1433,20 +1361,22 @@ export function ManageView({
               {action.label}
             </button>
           ) : null}
-          <button
-            className="btn btn-s btn-sm gx-edit"
-            data-edit-button=""
-            aria-label={`Editar ${event.title}`}
-            onClick={() => edit(event, index)}
-            type="button"
-          >
-            <Pencil className="h-4 w-4" aria-hidden />
-            Editar
-          </button>
+          {editButton ? (
+            <button
+              className="btn btn-s btn-sm gx-edit"
+              data-edit-button=""
+              aria-label={`Editar ${event.title}`}
+              onClick={() => edit(event, index)}
+              type="button"
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Editar
+            </button>
+          ) : null}
           <div className="gxd-more">
             <RowMenu
               label={`Mais ações de ${event.title}`}
-              items={menuItems(event, { editButton: true, sheetButton: false })}
+              items={menuItems(event, { editButton, sheetButton: false })}
               onSelect={(id) => runAction(event, index, id)}
             />
           </div>
@@ -1945,104 +1875,121 @@ export function ManageView({
     </div>
   );
 
+  const attentionTotal = overview ? overview.attention.length + (pendingTotal ? 1 : 0) : 0;
   const overviewCard = overview ? (
-    <section className="card gx-card rise" style={delay(1)} aria-labelledby={listHeadingId}>
+    <div className="gxo">
       <h3 id={listHeadingId} className="sr-only">
         Visão geral
       </h3>
-      {/* a) o que pede ação: avaliações passadas sem notas publicadas e pedidos de entrada */}
-      {overview.attention.length || pendingTotal ? (
-        <div className="gx-sec attn" aria-labelledby={`${listHeadingId}-a`}>
-          {sectionHead(`${listHeadingId}-a`, "Precisa de atenção", overview.attention.length + (pendingTotal ? 1 : 0), "amber")}
-          <ul className="gx-list">
-            {overview.attention.map((event) => eventRow(event, { attention: true, year: true }))}
+      {/* a) o que pede ação: um cartão por tarefa, com a ação principal dela (avaliações sem notas publicadas e pedidos de entrada) */}
+      {attentionTotal ? (
+        <section className="gxo-attn rise" style={delay(1)} aria-labelledby={`${listHeadingId}-a`}>
+          <div className="gxo-attn-head">
+            <span className="gxo-attn-ico" aria-hidden>
+              <AlertTriangle className="h-[18px] w-[18px]" />
+            </span>
+            <h3 id={`${listHeadingId}-a`}>Precisa de atenção</h3>
+            <span className="badge amber">{attentionTotal}</span>
+            <p>O que falta fazer para os alunos verem as notas</p>
+          </div>
+          <ul className="gxo-tasks">
             {pendingTotal ? (
-              <li className="gx-row gx-req">
-                <span className="gx-date gx-req-ico" aria-hidden>
+              <li className="gxt gxt-req">
+                <span className="gxd-ico c-inst" aria-hidden>
                   <UserPlus className="h-5 w-5" />
                 </span>
-                <div className="gx-main">
-                  <div className="gx-t">
-                    <span className="gx-title">Pedidos de entrada na turma</span>
-                  </div>
-                  <div className="gx-m">
-                    <span className="gx-aud">{`${countText(pendingTotal, "aluno esperando", "alunos esperando")} a sua aprovação`}</span>
-                  </div>
+                <div className="gxt-main">
+                  <span className="gxd-over c-inst">Pedidos</span>
+                  <span className="gx-title">Pedidos de entrada na turma</span>
                 </div>
-                <div className="gx-when" />
-                <div className="gx-state" />
-                <div className="gx-acts">
+                <div className="gxt-state">
+                  <span className="gxt-text">{`${countText(pendingTotal, "aluno esperando", "alunos esperando")} a sua aprovação`}</span>
+                </div>
+                <div className="gxt-acts">
                   <button className="btn btn-p btn-sm gx-act" onClick={openClasses} type="button">
                     Ver pedidos
                   </button>
                 </div>
-                <div className="gx-more" />
               </li>
             ) : null}
+            {(allTasks ? overview.attention : overview.attention.slice(0, ATTENTION_SHOWN)).map((event) => taskCard(event))}
           </ul>
-        </div>
-      ) : (
-        <div className="gx-sec ok">
-          <p className="gx-allgood" role="status">
-            <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden />
-            <span>
-              <b>Tudo em dia.</b> As avaliações que já passaram têm notas publicadas.
-            </span>
-          </p>
-        </div>
-      )}
-      {/* b) o que vem pela frente, por semana */}
-      <div className="gx-sec" aria-labelledby={`${listHeadingId}-p`}>
-        {sectionHead(
-          `${listHeadingId}-p`,
-          "Próximos",
-          overview.upcomingTotal,
-          undefined,
-          overview.upcomingTotal > overview.upcoming.length ? (
-            <button className="link gx-lnk" onClick={() => showPeriod("upcoming")} type="button">
-              {`Ver os ${overview.upcomingTotal} próximos`}
-              <ChevronRight className="h-4 w-4" aria-hidden />
-            </button>
-          ) : null
-        )}
-        {overview.upcoming.length ? (
-          groupByWeek(overview.upcoming, new Date(now)).map((group) => (
-            <div key={group.label}>
-              <p className="gx-sub">{group.label}</p>
-              <ul className="gx-list">{group.items.map((event) => eventRow(event, { year: true }))}</ul>
-            </div>
-          ))
-        ) : (
-          <div className="gx-none">
-            <p>Nenhum evento à frente.</p>
-            {canCreate ? (
-              <button className="btn btn-s btn-sm" onClick={onNewEvent} type="button">
-                <Plus className="h-4 w-4" aria-hidden />
-                Novo evento
+          {overview.attention.length > ATTENTION_SHOWN ? (
+            <div className="gxo-more">
+              <button className="btn btn-s btn-sm" aria-expanded={allTasks} onClick={() => setAllTasks((open) => !open)} type="button">
+                {allTasks ? `Mostrar só as ${ATTENTION_SHOWN} primeiras` : `Ver as ${overview.attention.length} avaliações sem notas publicadas`}
+                <ChevronDown className={cx("h-4 w-4 transition-transform", allTasks && "rotate-180")} aria-hidden />
               </button>
-            ) : null}
-          </div>
-        )}
-      </div>
-      {/* c) o histórico recente, com a situação das notas */}
-      {overview.past.length ? (
-        <div className="gx-sec" aria-labelledby={`${listHeadingId}-r`}>
+            </div>
+          ) : null}
+        </section>
+      ) : (
+        <section className="gxo-ok rise" style={delay(1)} role="status">
+          <span className="gxo-ok-ico" aria-hidden>
+            <CheckCircle2 className="h-[18px] w-[18px]" />
+          </span>
+          <h3>Tudo em dia</h3>
+          <p>As avaliações que já passaram têm notas publicadas.</p>
+        </section>
+      )}
+      <section className="card gx-card gxd-sec gxo-card rise" style={delay(2)}>
+        {/* b) o que vem pela frente, por semana */}
+        <div className="gx-sec" aria-labelledby={`${listHeadingId}-p`}>
           {sectionHead(
-            `${listHeadingId}-r`,
-            "Passados recentemente",
-            overview.past.length,
+            `${listHeadingId}-p`,
+            "Próximos",
+            overview.upcomingTotal,
             undefined,
-            overview.pastTotal > overview.past.length ? (
-              <button className="link gx-lnk" onClick={() => showPeriod("past")} type="button">
-                {`Ver os ${overview.pastTotal} passados`}
+            overview.upcomingTotal > overview.upcoming.length ? (
+              <button className="link gx-lnk" onClick={() => showPeriod("upcoming")} type="button">
+                {`Ver os ${overview.upcomingTotal} próximos`}
                 <ChevronRight className="h-4 w-4" aria-hidden />
               </button>
             ) : null
           )}
-          <ul className="gx-list">{overview.past.map((event) => eventRow(event, { year: true }))}</ul>
+          {overview.upcoming.length ? (
+            groupByWeek(overview.upcoming, new Date(now)).map((group) => (
+              <div key={group.label}>
+                <p className="gx-sub">{group.label}</p>
+                <ul className="gx-list gxd-list" aria-label={`${group.label}: ${eventsText(group.items.length)}`}>
+                  {group.items.map((event) => dayRow(event, true))}
+                </ul>
+              </div>
+            ))
+          ) : (
+            <div className="gx-none">
+              <p>Nenhum evento à frente.</p>
+              {canCreate ? (
+                <button className="btn btn-s btn-sm" onClick={onNewEvent} type="button">
+                  <Plus className="h-4 w-4" aria-hidden />
+                  Novo evento
+                </button>
+              ) : null}
+            </div>
+          )}
         </div>
-      ) : null}
-    </section>
+        {/* c) o histórico recente, com a situação das notas */}
+        {overview.past.length ? (
+          <div className="gx-sec" aria-labelledby={`${listHeadingId}-r`}>
+            {sectionHead(
+              `${listHeadingId}-r`,
+              "Passados recentemente",
+              overview.past.length,
+              undefined,
+              overview.pastTotal > overview.past.length ? (
+                <button className="link gx-lnk" onClick={() => showPeriod("past")} type="button">
+                  {`Ver os ${overview.pastTotal} passados`}
+                  <ChevronRight className="h-4 w-4" aria-hidden />
+                </button>
+              ) : null
+            )}
+            <ul className="gx-list gxd-list" aria-label={`Passados recentemente: ${eventsText(overview.past.length)}`}>
+              {overview.past.map((event) => dayRow(event, true))}
+            </ul>
+          </div>
+        ) : null}
+      </section>
+    </div>
   ) : null;
 
   /* ---------- listas por período (Próximos, Passados, Todos) ---------- */
