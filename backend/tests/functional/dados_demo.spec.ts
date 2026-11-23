@@ -102,9 +102,17 @@ test.group('Dados de demonstração', (group) => {
     assert.isNull(uml.gradesPublishedAt)
     assert.lengthOf(await Grade.query().where('academicEventId', uml.id), 0)
 
-    // Pedidos de entrada esperando e um vínculo esperando a secretaria
+    // Ninguém espera aprovação para entrar: quem tem o código entrou. Três entraram agora há
+    // pouco, sozinhos (sem quem decidisse). Só o vínculo do responsável de menor espera a secretaria.
     const [pending] = await db.from('enrollments').where('status', 'pending').count('* as total')
-    assert.isAtLeast(Number(pending.total), 3)
+    assert.equal(Number(pending.total), 0)
+    const recent = await db
+      .from('enrollments')
+      .where('source', 'code')
+      .whereNull('decided_by_id')
+      .where('created_at', '>', DateTime.now().minus({ days: 3 }).toSQL({ includeOffset: false })!)
+      .count('* as total')
+    assert.equal(Number(recent[0].total), 3)
     const [waiting] = await db.from('guardian_links').where('status', 'pending').count('* as total')
     assert.equal(Number(waiting.total), 1)
 

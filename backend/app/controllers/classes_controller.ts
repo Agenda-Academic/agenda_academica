@@ -22,6 +22,8 @@ import { DateTime } from 'luxon'
 
 const ONLY_ADMIN = 'Só a administração cria, edita, arquiva e exclui turmas.'
 const NOT_FOUND = 'Turma não encontrada.'
+const CODE_ONLY_ADMIN =
+  'Só a coordenação troca ou desliga o código da turma, porque ele vale para todos os docentes. Você vê e copia o código no painel da turma.'
 const ARCHIVED =
   'Esta turma está arquivada e fica somente leitura. Restaure a turma para mudar algo.'
 const ANNUAL_ONLY_INTEGRADO = 'Turma de curso integrado é anual e não tem semestre.'
@@ -138,6 +140,9 @@ export default class ClassesController {
           semester,
           shift: payload.shift,
           active: true,
+          // a turma já nasce com o código ligado: os docentes só passam para os alunos
+          joinCode: await JoinCodeService.generateUnique(trx),
+          joinCodeActive: true,
         },
         { client: trx }
       )
@@ -356,8 +361,10 @@ export default class ClassesController {
   /** Gera um código novo (o antigo para de valer) e liga. */
   async createJoinCode({ auth, params, response }: HttpContext) {
     const user = auth.getUserOrFail()
-    if (!AcademicAccessService.allow(user, ['admin', 'teacher'])) {
-      return forbidden(response, 'Seu perfil não cuida do código da turma.')
+    // O código é da turma, e não de uma disciplina: trocar vale para todos os docentes dela,
+    // então fica com a coordenação. A docente vê e copia o código no painel da turma.
+    if (!AcademicAccessService.allow(user, ['admin'])) {
+      return forbidden(response, CODE_ONLY_ADMIN)
     }
 
     const academicClass = await this.findVisible(user, params.id)
@@ -390,8 +397,8 @@ export default class ClassesController {
 
   async disableJoinCode({ auth, params, response }: HttpContext) {
     const user = auth.getUserOrFail()
-    if (!AcademicAccessService.allow(user, ['admin', 'teacher'])) {
-      return forbidden(response, 'Seu perfil não cuida do código da turma.')
+    if (!AcademicAccessService.allow(user, ['admin'])) {
+      return forbidden(response, CODE_ONLY_ADMIN)
     }
 
     const academicClass = await this.findVisible(user, params.id)

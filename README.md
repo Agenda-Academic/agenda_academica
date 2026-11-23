@@ -26,7 +26,9 @@ Professora: Profa. Maraísa.
 - O professor importa as notas de uma prova ou trabalho (CSV do SUAP, do Moodle, do Google Classroom ou do modelo da
   Agenda), confere a prévia e publica para alunos e responsáveis.
 - A administração cria as turmas e as disciplinas e liga os professores a elas. O aluno entra na turma pelo código da
-  turma.
+  turma, na hora, sem pedido para aprovar. A turma já nasce com o código ligado; os docentes veem e copiam o código, e
+  só a coordenação troca ou desliga, porque ele vale para todos. A docente tira da turma quem entrou pelo código, e quem
+  foi tirado não volta sozinho com o mesmo código.
 - O responsável (pai, mãe) acompanha a agenda e as notas do aluno vinculado, pelo código que o aluno gera no perfil.
 - A administração importa o calendário oficial arrastando o PDF do Calendário Acadêmico do IFMS (ou por JSON). As
   datas oficiais têm prioridade sobre os eventos das turmas.
@@ -58,7 +60,7 @@ Todas usam a senha `password123`. A tela de login tem atalhos para as quatro pri
 | Professora (TADS 5 e INF 3A)                   | Profa. Marina Souza   | `marina@agenda.test`      |
 
 Além delas, o seed monta uma escola de demonstração (`backend/database/seeders/escola_demo_seeder.ts`): as turmas
-TADS 5, TADS 3, INF 3A e INF 1A, cinco docentes, quase 50 alunos, pedidos de entrada esperando aprovação, um pai
+TADS 5, TADS 3, INF 3A e INF 1A, cinco docentes, quase 50 alunos, três que acabaram de entrar pelo código, um pai
 esperando a secretaria, notas publicadas, uma prova que já passou sem nota lançada, um evento cancelado e o
 Calendário Acadêmico 2026 do campus, importado do PDF em `backend/database/seeders/data/` como a tela faria (sem as
 datas só de servidores). O de 2027 a administração importa pela tela. Os outros alunos e docentes seguem o padrão `nome.sobrenome@agenda.test` (por exemplo,

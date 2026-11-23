@@ -92,12 +92,12 @@ function demoEmail(fullName: string) {
   return `${first}.${rest[rest.length - 1]}@agenda.test`
 }
 
-type StudentSeed = { name: string; registration: string; source?: string; status?: string }
+type StudentSeed = { name: string; registration: string; source?: string; joinedDaysAgo?: number }
 
 /**
  * Escola de demonstração completa, por cima do núcleo de `demo_datum_seeder.ts`: quatro turmas
  * (duas do superior e duas do integrado), cinco docentes, quase 50 alunos, a mãe que acompanha
- * três filhos, pedidos de entrada, vínculo esperando a secretaria, notas publicadas, uma prova
+ * três filhos, alunos que acabaram de entrar pelo código, vínculo esperando a secretaria, notas publicadas, uma prova
  * que já passou sem nota lançada, evento cancelado e datas da instituição.
  *
  * Não roda nos testes (eles contam o que o núcleo cria). Pode rodar de novo: cada registro é
@@ -215,18 +215,25 @@ export default class extends BaseSeeder {
       }
       return user
     }
-    // firstOrCreate: quem a demonstração tirou da turma não volta sozinho
-    const enroll = (user: User, academicClass: AcademicClass, source: string, status = 'active') =>
-      Enrollment.firstOrCreate(
+    // firstOrCreate: quem a demonstração tirou da turma não volta sozinho. Pelo código o aluno
+    // entra sozinho (ninguém decide); pela lista ou pela secretaria, a administração decidiu.
+    const enroll = (user: User, academicClass: AcademicClass, source: string, daysAgo = 60) => {
+      const createdAt = now.minus({ days: daysAgo })
+      const decided = source === 'admin' || source === 'list'
+      return Enrollment.firstOrCreate(
         { userId: user.id, academicClassId: academicClass.id },
         {
-          status,
+          status: 'active',
           source,
-          decidedAt: status === 'active' && source === 'code' ? now.minus({ days: 60 }) : null,
-          decidedById: status === 'active' && source === 'code' ? maraisa.id : null,
+          decidedAt: decided ? createdAt : null,
+          decidedById: decided ? admin.id : null,
+          createdAt,
         }
       )
+    }
 
+    // Devolve só quem já estava na turma nas avaliações passadas: quem entrou pelo código
+    // agora há pouco (joinedDaysAgo) fica sem nota nelas, como seria de verdade
     const roster = async (
       academicClass: AcademicClass,
       people: StudentSeed[],
@@ -236,8 +243,8 @@ export default class extends BaseSeeder {
       const users: User[] = []
       for (const person of people) {
         const user = await studentUser(person, isMinor)
-        await enroll(user, academicClass, person.source ?? defaultSource, person.status)
-        if ((person.status ?? 'active') === 'active') users.push(user)
+        await enroll(user, academicClass, person.source ?? defaultSource, person.joinedDaysAgo)
+        if (person.joinedDaysAgo === undefined) users.push(user)
       }
       return users
     }
@@ -260,9 +267,10 @@ export default class extends BaseSeeder {
           { name: 'Patrícia Vieira', registration: 'ALU-111' },
           { name: 'Renato Batista', registration: 'ALU-112', source: 'list' },
           { name: 'Tainá Correia', registration: 'ALU-113' },
-          // Pedidos de entrada pelo código da turma, esperando a docente ou a secretaria
-          { name: 'Vitor Prado', registration: 'ALU-114', status: 'pending' },
-          { name: 'Yasmin Freitas', registration: 'ALU-115', status: 'pending' },
+          // Entraram pelo código da turma agora há pouco: a docente vê e, se não forem da
+          // turma, tira
+          { name: 'Vitor Prado', registration: 'ALU-114', joinedDaysAgo: 1 },
+          { name: 'Yasmin Freitas', registration: 'ALU-115', joinedDaysAgo: 0 },
         ],
         false,
         'code'
@@ -279,7 +287,7 @@ export default class extends BaseSeeder {
         { name: 'Kevin Rezende', registration: 'ALU-206' },
         { name: 'Luana Bezerra', registration: 'ALU-207' },
         { name: 'Murilo Antunes', registration: 'ALU-208' },
-        { name: 'Rafaela Nunes', registration: 'ALU-209', status: 'pending' },
+        { name: 'Rafaela Nunes', registration: 'ALU-209', joinedDaysAgo: 2 },
       ],
       false,
       'code'

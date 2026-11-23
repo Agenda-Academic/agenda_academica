@@ -26,6 +26,8 @@ const CLASS_ARCHIVED =
   'Esta turma está arquivada e fica somente leitura. Restaure a turma para mudar algo.'
 /** A mesma resposta para código inexistente, desligado, de turma arquivada ou mal digitado. */
 const INVALID_CODE = 'Código inválido ou expirado. Confira com quem passou o código.'
+const REMOVED_FROM_CLASS =
+  'Você não está mais nesta turma. Para voltar, fale com a docente ou com a coordenação.'
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type Rejected = { email: string; reason: string; message: string }
@@ -166,10 +168,17 @@ export default class ClassMembersController {
       if (payload.registration !== undefined) {
         return forbidden(response, 'Só a administração grava a matrícula escolar.')
       }
-      if (enrollment.status !== 'pending' || !['active', 'inactive'].includes(payload.status!)) {
+      // A docente controla quem entrou sozinho pelo código: tira da turma e desfaz. Um pedido
+      // pendente de antes da entrada direta ela ainda aprova ou recusa. O resto é da secretaria.
+      const toggles =
+        payload.status !== undefined &&
+        ['active', 'inactive'].includes(payload.status) &&
+        (enrollment.status === 'pending' ||
+          (enrollment.source === 'code' && ['active', 'inactive'].includes(enrollment.status)))
+      if (!toggles) {
         return forbidden(
           response,
-          'A docente só aprova ou recusa pedidos pendentes. Para inativar ou concluir, fale com a secretaria.'
+          'A docente tira da turma só quem entrou pelo código. Para os outros alunos, fale com a secretaria.'
         )
       }
     }
@@ -309,8 +318,13 @@ export default class ClassMembersController {
         .where('userId', user.id)
         .where('academicClassId', academicClass.id)
         .first()
-      if (existing && ['active', 'pending'].includes(existing.status)) {
-        return { enrollment: existing, alreadyEnrolled: true }
+      if (existing?.status === 'active') {
+        return { enrollment: existing, alreadyEnrolled: true, removed: false }
+      }
+      // Quem a docente ou a secretaria tirou da turma (ou cuja turma terminou) não volta sozinho
+      // com o mesmo código: tirar precisa valer mesmo sem trocar o código
+      if (existing && ['inactive', 'completed'].includes(existing.status)) {
+        return { enrollment: existing, alreadyEnrolled: false, removed: true }
       }
 
       const invite = await ClassMembershipService.pendingInvitesQuery(user.email, trx)
@@ -327,12 +341,14 @@ export default class ClassMembersController {
           ? invite.registration
           : undefined
 
+      // O código é a autorização: quem tem o código entra na hora, sem pedido para aprovar. Um
+      // pedido antigo, de antes dessa regra, também vira matrícula ativa aqui.
       const { enrollment } = await ClassMembershipService.enroll({
         trx,
         actorId: user.id,
         userId: user.id,
         academicClassId: academicClass.id,
-        status: invite ? 'active' : 'pending',
+        status: 'active',
         source: invite ? 'invite' : 'code',
         registration,
         decided: false,
@@ -343,19 +359,18 @@ export default class ClassMembersController {
         invite.acceptedAt = DateTime.now()
         await invite.save()
       }
-      return { enrollment, alreadyEnrolled: false }
+      return { enrollment, alreadyEnrolled: false, removed: false }
     })
 
-    const { enrollment, alreadyEnrolled } = result
+    const { enrollment, alreadyEnrolled, removed } = result
     const name = academicClass.name
-    let message: string
-    if (enrollment.status === 'active') {
-      message = alreadyEnrolled ? `Você já está em ${name}.` : `Você entrou em ${name}.`
-    } else {
-      message = alreadyEnrolled
-        ? `Seu pedido para ${name} já foi enviado. A docente ou a secretaria confirma.`
-        : `Pedido enviado para ${name}. A docente ou a secretaria confirma.`
+    if (removed) {
+      return response.unprocessableEntity({
+        message: REMOVED_FROM_CLASS,
+        errors: [{ field: 'code', rule: 'removed', message: REMOVED_FROM_CLASS }],
+      })
     }
+    const message = alreadyEnrolled ? `Você já está em ${name}.` : `Você entrou em ${name}.`
 
     response.status(alreadyEnrolled ? 200 : 201)
     return {

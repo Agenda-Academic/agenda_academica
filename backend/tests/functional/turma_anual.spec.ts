@@ -494,15 +494,11 @@ test.group('Turma anual (curso integrado)', (group) => {
     join.assertStatus(201)
     const joined = (join.body() as unknown as Envelope<any>).data
     assert.equal(joined.academicClass.semester, ANNUAL_SEMESTER)
-    assert.equal(joined.message, 'Pedido enviado para INF 3A. A docente ou a secretaria confirma.')
+    assert.equal(joined.message, 'Você entrou em INF 3A.')
     assert.notMatch(JSON.stringify(join.body()), TERM_ZERO)
 
-    // A regra do curso integrado continua: matrícula ativa marca o aluno como menor.
-    const approved = await client
-      .patch(`${API}/enrollments/${joined.enrollment.id}`)
-      .bearerToken(marinaToken)
-      .json({ status: 'active' })
-    approved.assertStatus(200)
+    // A regra do curso integrado continua: entrar pelo código já marca o aluno como menor.
+    assert.equal(joined.enrollment.status, 'active')
     assert.isTrue(await isMinor(newcomer.user.id))
 
     const added = await signup(client, 'outro.integrado@agenda.test')

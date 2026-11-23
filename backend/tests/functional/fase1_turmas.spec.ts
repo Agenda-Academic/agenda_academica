@@ -327,7 +327,17 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const created = await client.post(`${API}/classes`).bearerToken(token).json(payload)
     created.assertStatus(201)
-    const id = (created.body() as unknown as Envelope<{ id: number }>).data.id
+    const createdData = (
+      created.body() as unknown as Envelope<{
+        id: number
+        joinCode: string | null
+        joinCodeActive: boolean
+      }>
+    ).data
+    const id = createdData.id
+    // a turma já nasce com o código ligado, para os docentes só passarem aos alunos
+    assert.match(createdData.joinCode ?? '', /^[0-9A-HJKMNP-TV-Z]{8}$/)
+    assert.isTrue(createdData.joinCodeActive)
 
     const repeated = await client
       .post(`${API}/classes`)
@@ -932,11 +942,11 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     assert.include(fieldOf(add.body()), 'registration')
   })
 
-  test('código da turma: pedido pendente, docente aprova, não inativa; aluno não decide', async ({
+  test('código da turma: entra na hora; a docente tira quem entrou pelo código e desfaz', async ({
     client,
     assert,
   }) => {
-    const { tads, maraisa } = await demo()
+    const { tads, maraisa, diogo } = await demo()
     const student = await signup(client, 'pedido@agenda.test')
 
     const join = await client
@@ -946,58 +956,79 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     join.assertStatus(201)
     const joined = (
       join.body() as unknown as Envelope<{
-        enrollment: { id: number; status: string }
+        enrollment: { id: number; status: string; source: string }
         message: string
       }>
     ).data
-    assert.equal(joined.enrollment.status, 'pending')
-    assert.equal(joined.message, 'Pedido enviado para TADS 5. A docente ou a secretaria confirma.')
+    assert.equal(joined.enrollment.status, 'active')
+    assert.equal(joined.enrollment.source, 'code')
+    assert.equal(joined.message, 'Você entrou em TADS 5.')
 
     const repeat = await client
       .post(`${API}/enrollments/join`)
       .bearerToken(student.token)
       .json({ code: 'TADS5K7Q' })
     repeat.assertStatus(200)
-    assert.isTrue(
-      (repeat.body() as unknown as Envelope<{ alreadyEnrolled: boolean }>).data.alreadyEnrolled
-    )
+    const repeated = (
+      repeat.body() as unknown as Envelope<{ alreadyEnrolled: boolean; message: string }>
+    ).data
+    assert.isTrue(repeated.alreadyEnrolled)
+    assert.equal(repeated.message, 'Você já está em TADS 5.')
 
+    // Ninguém decidiu: o código bastou. A turma e os eventos dela aparecem na hora.
+    const enrollment = await Enrollment.findOrFail(joined.enrollment.id)
+    assert.isNull(enrollment.decidedById)
     const context = await client.get(`${API}/context`).bearerToken(student.token)
     const contextData = (
       context.body() as unknown as Envelope<{ enrollments: object[]; pendingEnrollments: object[] }>
     ).data
-    assert.lengthOf(contextData.enrollments, 0)
-    assert.lengthOf(contextData.pendingEnrollments, 1)
-
-    // Pendente não vê os eventos da turma.
+    assert.lengthOf(contextData.enrollments, 1)
+    assert.lengthOf(contextData.pendingEnrollments, 0)
     const events = await client.get(`${API}/events`).bearerToken(student.token)
     const tadsEvents = (
       events.body() as unknown as Envelope<{ academicClassId: number | null }[]>
     ).data.filter((event) => event.academicClassId === tads.id)
-    assert.lengthOf(tadsEvents, 0)
+    assert.isAbove(tadsEvents.length, 0)
 
-    const selfApprove = await client
+    // O aluno não muda a própria matrícula
+    const selfChange = await client
       .patch(`${API}/enrollments/${joined.enrollment.id}`)
       .bearerToken(student.token)
-      .json({ status: 'active' })
-    selfApprove.assertStatus(403)
+      .json({ status: 'inactive' })
+    selfChange.assertStatus(403)
 
+    // A docente tira quem entrou pelo código...
     const teacherToken = await loginAs(client, 'maraisa@agenda.test')
-    const approved = await client
-      .patch(`${API}/enrollments/${joined.enrollment.id}`)
-      .bearerToken(teacherToken)
-      .json({ status: 'active' })
-    approved.assertStatus(200)
-    const enrollment = await Enrollment.findOrFail(joined.enrollment.id)
-    assert.equal(enrollment.status, 'active')
-    assert.equal(enrollment.decidedById, maraisa.id)
-    assert.isNotNull(enrollment.decidedAt)
-
-    const inactivate = await client
+    const removed = await client
       .patch(`${API}/enrollments/${joined.enrollment.id}`)
       .bearerToken(teacherToken)
       .json({ status: 'inactive' })
-    inactivate.assertStatus(403)
+    removed.assertStatus(200)
+    await enrollment.refresh()
+    assert.equal(enrollment.status, 'inactive')
+    assert.equal(enrollment.decidedById, maraisa.id)
+
+    // ...e quem foi tirado não volta sozinho com o mesmo código
+    const back = await client
+      .post(`${API}/enrollments/join`)
+      .bearerToken(student.token)
+      .json({ code: 'TADS5K7Q' })
+    back.assertStatus(422)
+    assert.deepEqual(
+      (back.body() as unknown as { errors: { field: string; rule: string }[] }).errors.map(
+        (error) => [error.field, error.rule]
+      ),
+      [['code', 'removed']]
+    )
+
+    // Desfazer: a docente devolve a matrícula
+    const undo = await client
+      .patch(`${API}/enrollments/${joined.enrollment.id}`)
+      .bearerToken(teacherToken)
+      .json({ status: 'active' })
+    undo.assertStatus(200)
+    await enrollment.refresh()
+    assert.equal(enrollment.status, 'active')
 
     const audit = await AuditLog.query()
       .where('entity', 'enrollment')
@@ -1005,37 +1036,48 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .orderBy('id')
     assert.deepEqual(
       audit.map((entry) => entry.action),
-      ['enrollment.request', 'enrollment.approve']
+      ['enrollment.create', 'enrollment.inactivate', 'enrollment.reactivate']
     )
     assert.equal(audit[1].actorId, maraisa.id)
     assert.notInclude(audit[1].meta ?? '', 'pedido@agenda.test')
 
-    // A administração inativa: a linha continua lá, só muda o status.
+    // Quem a secretaria incluiu continua sendo da secretaria
+    const included = await Enrollment.query()
+      .where('userId', diogo.id)
+      .where('academicClassId', tads.id)
+      .firstOrFail()
+    const notHers = await client
+      .patch(`${API}/enrollments/${included.id}`)
+      .bearerToken(teacherToken)
+      .json({ status: 'inactive' })
+    notHers.assertStatus(403)
+
+    // A administração inativa qualquer um: a linha continua lá, só muda o status
     const adminToken = await loginAs(client, 'admin@agenda.test')
-    const removed = await client
-      .patch(`${API}/enrollments/${joined.enrollment.id}`)
+    const adminRemoved = await client
+      .patch(`${API}/enrollments/${included.id}`)
       .bearerToken(adminToken)
       .json({ status: 'inactive' })
-    removed.assertStatus(200)
-    await enrollment.refresh()
-    assert.equal(enrollment.status, 'inactive')
+    adminRemoved.assertStatus(200)
+    await included.refresh()
+    assert.equal(included.status, 'inactive')
   })
 
-  test('pedidos em lote: aprova os pendentes da turma e pula o resto; docente de fora 404', async ({
+  test('pedidos antigos em lote: aprova os pendentes da turma e pula o resto; docente de fora 404', async ({
     client,
     assert,
   }) => {
     const { tads, inf, diogo } = await demo()
-    const first = await signup(client, 'lote1@agenda.test')
-    const second = await signup(client, 'lote2@agenda.test')
-    for (const account of [first, second]) {
-      await expectStatus(
-        client
-          .post(`${API}/enrollments/join`)
-          .bearerToken(account.token)
-          .json({ code: 'TADS5K7Q' }),
-        201
-      )
+    // Pedidos de antes da entrada direta pelo código (a migration aprova os que havia, mas a
+    // rota continua decidindo um que sobrar)
+    for (const email of ['lote1@agenda.test', 'lote2@agenda.test']) {
+      const account = await signup(client, email)
+      await Enrollment.create({
+        userId: account.user.id,
+        academicClassId: tads.id,
+        status: 'pending',
+        source: 'code',
+      })
     }
     const pending = await Enrollment.query()
       .where('academicClassId', tads.id)
@@ -1127,16 +1169,32 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     teacher.assertStatus(403)
   })
 
-  test('código da turma: docente gera e desliga só nas suas turmas; o antigo para de valer', async ({
+  test('código da turma: só a coordenação gera e desliga; a docente vê; o antigo para de valer', async ({
     client,
     assert,
   }) => {
-    const { tads, inf } = await demo()
+    const { tads } = await demo()
     const teacherToken = await loginAs(client, 'maraisa@agenda.test')
+    const adminToken = await loginAs(client, 'admin@agenda.test')
+
+    // A docente vê e copia o código da turma, mas não troca nem desliga: ele vale para todos
+    const detail = await client.get(`${API}/classes/${tads.id}`).bearerToken(teacherToken)
+    detail.assertStatus(200)
+    assert.equal(
+      (detail.body() as unknown as Envelope<{ joinCode: string }>).data.joinCode,
+      'TADS5K7Q'
+    )
+    for (const method of ['post', 'delete'] as const) {
+      const denied = await client[method](`${API}/classes/${tads.id}/join-code`).bearerToken(
+        teacherToken
+      )
+      denied.assertStatus(403)
+      assert.include((denied.body() as unknown as { message: string }).message, 'coordenação')
+    }
 
     const generated = await client
       .post(`${API}/classes/${tads.id}/join-code`)
-      .bearerToken(teacherToken)
+      .bearerToken(adminToken)
     generated.assertStatus(200)
     const code = (
       generated.body() as unknown as Envelope<{ joinCode: string; joinCodeActive: boolean }>
@@ -1159,7 +1217,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
 
     const disabled = await client
       .delete(`${API}/classes/${tads.id}/join-code`)
-      .bearerToken(teacherToken)
+      .bearerToken(adminToken)
     disabled.assertStatus(200)
     assert.isFalse(
       (disabled.body() as unknown as Envelope<{ joinCodeActive: boolean }>).data.joinCodeActive
@@ -1172,10 +1230,6 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .json({ code: code.joinCode })
     off.assertStatus(422)
     assert.equal((off.body() as unknown as { message: string }).message, INVALID_CODE)
-    await expectStatus(
-      client.post(`${API}/classes/${inf.id}/join-code`).bearerToken(teacherToken),
-      404
-    )
     await expectStatus(
       client
         .post(`${API}/classes/${tads.id}/join-code`)
@@ -1374,8 +1428,6 @@ test.group('Fase 1: revisão (autorização por objeto, limite e exclusão)', (g
     // Rotas em que a docente da turma entra: quem é de fora recebe 404.
     const classRoutes: Route[] = [
       ['get', `/classes/${inf.id}`],
-      ['post', `/classes/${inf.id}/join-code`],
-      ['delete', `/classes/${inf.id}/join-code`],
       ['get', `/classes/${inf.id}/students`],
       [
         'post',
@@ -1387,6 +1439,9 @@ test.group('Fase 1: revisão (autorização por objeto, limite e exclusão)', (g
     ]
     // Rotas só da administração: qualquer outro papel recebe 403.
     const adminRoutes: Route[] = [
+      // o código é da turma inteira: só a coordenação troca ou desliga
+      ['post', `/classes/${inf.id}/join-code`],
+      ['delete', `/classes/${inf.id}/join-code`],
       ['put', `/classes/${inf.id}`, { name: 'INF 3B' }],
       ['post', `/classes/${inf.id}/archive`],
       ['post', `/classes/${inf.id}/restore`],
