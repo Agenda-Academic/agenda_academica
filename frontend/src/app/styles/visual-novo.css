@@ -1057,11 +1057,11 @@ html .student-pick svg {
 html .student-pick.is-select:hover {
   box-shadow: var(--sh-lift);
 }
-html .student-pick:has(select:focus-visible) {
+html .student-pick:has(.select-btn:focus-visible) {
   outline-color: var(--brand);
 }
 /* no trilho do computador (rodada 11, saiu da barra do topo): o avatar do aluno, o primeiro nome e a turma, em
-   coluna, num bloco claro logo abaixo do logo. Com mais de um aluno, o select transparente cobre o bloco */
+   coluna, num bloco claro logo abaixo do logo. Com mais de um aluno, a lista do app (Select) cobre o bloco */
 html .student-pick.rail-kid {
   flex: none;
   flex-direction: column;

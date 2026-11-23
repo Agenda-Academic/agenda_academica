@@ -216,8 +216,11 @@ export type SelectProps<V extends string = string> = {
   prefix?: string;
   /** "md" (44 px) ou "sm" (36 px; 44 px no toque). */
   size?: "md" | "sm";
-  /** "field" (campo de formulário) ou "filter" (botão de filtro, como "Curso: Todos"). */
-  variant?: "field" | "filter";
+  /**
+   * "field" (campo de formulário), "filter" (botão de filtro, como "Curso: Todos") ou "bare" (botão sem aparência
+   * própria, transparente e do tamanho do bloco que o contém: o bloco do aluno acompanhado no menu, que só ganha a lista).
+   */
+  variant?: "field" | "filter" | "bare";
   /** Filtro aplicado: botão em azul. */
   active?: boolean;
   /**
@@ -755,6 +758,7 @@ export function Select<V extends string = string>({
           className={cx(
             "select-btn",
             variant === "filter" && "is-filter",
+            variant === "bare" && "is-bare",
             filterActive && "is-on",
             size === "sm" && "sm",
             open && "is-open",

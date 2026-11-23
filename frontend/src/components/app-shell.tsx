@@ -26,6 +26,7 @@ import { createPortal } from "react-dom";
 import { cx, firstName, formatTime } from "@/lib/format";
 import { roleLabels } from "@/lib/meta";
 import type { AcademicContext, LinkedStudent, User, UserRole } from "@/lib/types";
+import { Select } from "./select";
 import { isOnTopLayer, useDialogLayer } from "./ui";
 
 /** Telas do app. O endereço de cada uma (?tela=) fica em app/page.tsx (viewSlugs). */
@@ -329,7 +330,6 @@ function StudentPick({
   students: LinkedStudent[];
   onChoose?: (studentId: number) => void;
 }) {
-  const selectId = useId();
   const name = firstName(student.fullName ?? "Aluno");
   const classes = studentClassesText(student);
   const many = students.length > 1 && Boolean(onChoose);
@@ -377,21 +377,25 @@ function StudentPick({
       <span className="contents" aria-hidden>
         {body}
       </span>
-      <label htmlFor={selectId} className="sr-only">
-        Estudante acompanhado
-      </label>
-      <select
-        id={selectId}
-        value={student.id}
-        onChange={(event) => onChoose?.(Number(event.target.value))}
-        title="Trocar estudante"
-      >
-        {students.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.fullName ?? "Aluno"}, {studentClassesText(item)}
-          </option>
-        ))}
-      </select>
+      {/* a lista é a do app (Select), por cima do bloco: o clique, o teclado e o leitor de tela ficam com ela */}
+      <Select
+        className="pick-select"
+        variant="bare"
+        ariaLabel="Estudante acompanhado"
+        value={String(student.id)}
+        onChange={(value) => onChoose?.(Number(value))}
+        menuMinWidth={300}
+        options={students.map((item) => ({
+          value: String(item.id),
+          label: item.fullName ?? "Aluno",
+          description: studentClassesText(item),
+          icon: (
+            <span className="pick-ava" aria-hidden>
+              {item.initials}
+            </span>
+          ),
+        }))}
+      />
     </div>
   );
 }

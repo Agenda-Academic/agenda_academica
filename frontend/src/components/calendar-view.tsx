@@ -220,6 +220,9 @@ type WeekLine = {
 };
 /** Períodos da semana que não ganharam linha (mais de 3): o "+N períodos", no dia em que o primeiro deles começa. */
 type WeekMore = { col: number; dayKey: string; events: AcademicEvent[] };
+
+/** Filtro de docente da coordenação: "t7" (a docente 7) ou "none" (sem docente: as datas da instituição). */
+const teacherKeyOf = (event: AcademicEvent) => (event.teacher?.id ? `t${event.teacher.id}` : "none");
 type CalWeek = { cells: DayCell[]; lines: WeekLine[]; more: WeekMore | null };
 /** Dica da linha fina: qual linha (semana e evento), o mês da grade e o ponto (x, y) dentro da grade. */
 type LineTip = { key: string; month: number; event: AcademicEvent; x: number; y: number; cx: number };
@@ -1455,6 +1458,8 @@ export function CalendarView({
   );
   const [mineOnly, setMineOnly] = useState(false);
   const [classFilter, setClassFilter] = useState("all");
+  // docente (só a coordenação, que vê os eventos de todas): "all", "t7" ou "none" (as datas da instituição, sem docente)
+  const [teacherFilter, setTeacherFilter] = useState("all");
   // mês da Agenda e do Calendário, o mesmo nas duas vistas (trocar de vista mantém o mês). Chegando com um
   // evento (endereço, Painel, avisos), começa no mês dele; sem evento, no mês de hoje: na Agenda, a lista vai
   // para o mês com eventos mais perto (nos Próximos, o primeiro à frente; em Passados, o mais recente)
@@ -1592,9 +1597,12 @@ export function CalendarView({
             ? scoped.filter((event) => !event.academicClassId)
             : scoped.filter((event) => event.academicClassId === Number(classFilter));
       }
+      if (role === "admin" && teacherFilter !== "all") {
+        scoped = scoped.filter((event) => teacherKeyOf(event) === teacherFilter);
+      }
       return scoped;
     },
-    [role, mineOnly, classFilter, canManageEvent]
+    [role, mineOnly, classFilter, teacherFilter, canManageEvent]
   );
 
   const term = search.trim();
@@ -1620,7 +1628,7 @@ export function CalendarView({
     () => (allEvents ? bucketByMonth(scope(allEvents).filter((event) => inPeriod(event, timeFilter)), timeFilter) : null),
     [allEvents, scope, timeFilter]
   );
-  const filterKey = `${timeFilter}|${selectedCategories.join(",")}|${mineOnly ? 1 : 0}|${classFilter}`;
+  const filterKey = `${timeFilter}|${selectedCategories.join(",")}|${mineOnly ? 1 : 0}|${classFilter}|${teacherFilter}`;
   const cursorIndex = monthIndex(cursor);
   // a Agenda mostra o mês do seletor, mesmo vazio (dezembro sem eventos continua navegável, com o vazio útil);
   // o filtro não troca o mês sozinho
@@ -1707,7 +1715,7 @@ export function CalendarView({
     (presentCategories !== null &&
       allCategories.every((category) => selectedCategories.includes(category) || !presentCategories.has(category)));
   const pickedWithEvents = selectedCategories.some((category) => categoryCounts[category] > 0);
-  const narrowed = !allSelected || mineOnly || classFilter !== "all";
+  const narrowed = !allSelected || mineOnly || classFilter !== "all" || teacherFilter !== "all";
   // a aba Próximos, Passados ou Todos não é filtro: sozinha, ela não mostra o "Limpar filtros"
   const hasFilter = Boolean(term) || narrowed;
   // uma categoria só: "2 provas", "Nenhuma prova em dezembro"
@@ -1774,7 +1782,7 @@ export function CalendarView({
   //   mês) já volta as categorias; com só categoria escolhida, o "Limpar filtros" faria o mesmo;
   // - o vazio (ou o aviso do Calendário sem resultado) que já tem o próprio "Limpar filtros"
   const showAllOffer = Boolean(term) && hiddenCount > 0;
-  const onlyCategories = !mineOnly && classFilter === "all";
+  const onlyCategories = !mineOnly && classFilter === "all" && teacherFilter === "all";
   const emptyHasClear =
     narrowed && !showAllOffer && (monthMode ? Boolean(term) && !searchMonthKeys.length : !listEvents.length);
   const showClear = narrowed && !emptyHasClear && !(showAllOffer && onlyCategories);
@@ -1987,6 +1995,7 @@ export function CalendarView({
     // a aba Próximos, Passados ou Todos não é filtro: o período fica onde está
     setMineOnly(false);
     setClassFilter("all");
+    setTeacherFilter("all");
     selectAllCategories();
   }
 
@@ -2038,6 +2047,7 @@ export function CalendarView({
   function clearNarrowing() {
     setMineOnly(false);
     setClassFilter("all");
+    setTeacherFilter("all");
     selectAllCategories();
     focusAllChip();
   }
@@ -2678,6 +2688,29 @@ export function CalendarView({
       </span>
     ) : null;
 
+  // docentes com evento na lista (só a coordenação): quem publica o quê; as datas da instituição não têm docente
+  const teacherOptions: { value: string; label: string; description?: string }[] = [];
+  if (role === "admin") {
+    const seen = new Map<string, string>();
+    for (const event of allEvents ?? events) {
+      const key = teacherKeyOf(event);
+      if (!seen.has(key)) {
+        seen.set(key, event.teacher?.fullName ?? "Datas da instituição");
+      }
+    }
+    if (seen.size > 1) {
+      teacherOptions.push({ value: "all", label: "Todos" });
+      for (const [value, label] of [...seen].sort((a, b) =>
+        a[0] === "none" || b[0] === "none" ? (a[0] === "none" ? 1 : -1) : a[1].localeCompare(b[1], "pt-BR")
+      )) {
+        teacherOptions.push({
+          value,
+          label,
+          description: value === "none" ? "Feriados, recessos e eventos oficiais, sem docente" : undefined,
+        });
+      }
+    }
+  }
   const classOptions: SelectOption[] = [
     { value: "all", label: "Todas" },
     { value: "official", label: "Só da instituição", description: "Datas sem turma, para todos" },
@@ -2811,9 +2844,30 @@ export function CalendarView({
           onPick: (value) => setClassFilter(value),
         }
       : null;
-  const filterSections = [categorySection, classSection].filter((section): section is FilterSection => section !== null);
+  const teacherLabel = teacherOptions.find((option) => option.value === teacherFilter)?.label ?? "Todos";
+  const teacherSection: FilterSection | null = teacherOptions.length
+    ? {
+        id: "docente",
+        title: "Docente",
+        summary: teacherLabel,
+        options: teacherOptions.map<FilterOption>((option) => ({
+          value: option.value,
+          label: option.label,
+          description: option.description,
+          selected: teacherFilter === option.value,
+        })),
+        onPick: (value) => setTeacherFilter(value),
+      }
+    : null;
+  const filterSections = [categorySection, classSection, teacherSection].filter(
+    (section): section is FilterSection => section !== null
+  );
   // rótulo curto no botão: o que está escolhido ("Provas", "TADS 5"); com os dois, o primeiro e "+1"
-  const activeParts = [allSelected || !pickedShown.length ? null : categorySummary, classFilter !== "all" ? classLabel : null].filter(
+  const activeParts = [
+    allSelected || !pickedShown.length ? null : categorySummary,
+    classFilter !== "all" ? classLabel : null,
+    teacherFilter !== "all" ? teacherLabel : null,
+  ].filter(
     (part): part is string => part !== null
   );
   const activeLabel = activeParts.length ? (activeParts.length > 1 ? `${activeParts[0]} +1` : activeParts[0]) : null;
@@ -2832,6 +2886,7 @@ export function CalendarView({
       // "Limpar" no painel: volta o que o painel escolhe (categorias e turma)
       onClear={() => {
         setClassFilter("all");
+        setTeacherFilter("all");
         selectAllCategories();
       }}
       // "Limpar" ao lado do botão: o mesmo "Limpar filtros" de antes (categorias, turma e "Só meus"), com a mesma

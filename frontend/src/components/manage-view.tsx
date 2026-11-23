@@ -122,6 +122,9 @@ function matchesOrigin(event: AcademicEvent, origin: Origin) {
 /** Filtro de disciplina da docente: "all", "s12" (disciplina 12) ou "none" (sem disciplina). */
 const subjectKey = (event: AcademicEvent) => (event.subjectId === null ? "none" : `s${event.subjectId}`);
 
+/** Filtro de docente da coordenação: "t7" (a docente 7) ou "none" (sem docente: as datas da instituição). */
+const teacherKey = (event: AcademicEvent) => (event.teacher?.id ? `t${event.teacher.id}` : "none");
+
 const normalize = (value: string) =>
   value
     .normalize("NFD")
@@ -500,6 +503,8 @@ export function ManageView({
   const [origin, setOrigin] = useState<Origin>("all");
   // disciplina (docente com duas ou mais): "all", "s12" ou "none"
   const [subject, setSubject] = useState("all");
+  // docente (só a coordenação, que vê os eventos de todas): "all", "t7" ou "none" (as datas da instituição, sem docente)
+  const [teacher, setTeacher] = useState("all");
   // indicador "Alterados ou cancelados" (administração): só os que fogem do agendado
   const [onlyChanged, setOnlyChanged] = useState(false);
   // mês escolhido, valendo para o filtro em que foi escolhido (período, origem, disciplina e busca)
@@ -565,9 +570,43 @@ export function ManageView({
   }
   const subjectFilter = subjectOptions.length && subjectOptions.some((option) => option.value === subject) ? subject : "all";
 
+  // docentes na lista (só a coordenação): quem publica o quê. As datas da instituição não têm docente
+  const teacherOptions: SelectOption[] = [];
+  if (admin) {
+    const seen = new Map<string, { label: string; count: number }>();
+    for (const event of manageableEvents) {
+      const key = teacherKey(event);
+      const item = seen.get(key);
+      if (item) {
+        item.count += 1;
+      } else {
+        seen.set(key, { label: event.teacher?.fullName ?? "Datas da instituição", count: 1 });
+      }
+    }
+    if (seen.size > 1) {
+      teacherOptions.push({ value: "all", label: "Todos", count: manageableEvents.length });
+      for (const [value, item] of [...seen].sort((a, b) => {
+        // as datas da instituição por último
+        if (a[0] === "none" || b[0] === "none") {
+          return a[0] === "none" ? 1 : -1;
+        }
+        return a[1].label.localeCompare(b[1].label, "pt-BR");
+      })) {
+        teacherOptions.push({
+          value,
+          label: item.label,
+          count: item.count,
+          description: value === "none" ? "Feriados, recessos e eventos oficiais, sem docente" : undefined,
+        });
+      }
+    }
+  }
+  const teacherFilter = teacherOptions.length && teacherOptions.some((option) => option.value === teacher) ? teacher : "all";
+
   const matchesFilters = (event: AcademicEvent, forOrigin: Origin, forSubject: string, forChanged: boolean) =>
     matchesOrigin(event, forOrigin) &&
     (forSubject === "all" || subjectKey(event) === forSubject) &&
+    (teacherFilter === "all" || teacherKey(event) === teacherFilter) &&
     (!forChanged || isChanged(event));
   const filtered = (searchTerm: string, forOrigin: Origin, forSubject = subjectFilter, forChanged = onlyChanged) =>
     manageableEvents.filter(
@@ -577,7 +616,7 @@ export function ManageView({
   // a busca troca a visão geral por "Todos" (a visão geral não é uma lista que a busca possa estreitar)
   const shownPeriod: Exclude<Period, "overview"> | "overview" = period === "overview" && term ? "all" : period;
   const filterKey = (forPeriod: Period, forOrigin: Origin, forTerm: string) =>
-    `${forPeriod}|${forOrigin}|${subjectFilter}|${onlyChanged ? 1 : 0}|${forTerm}`;
+    `${forPeriod}|${forOrigin}|${subjectFilter}|${teacherFilter}|${onlyChanged ? 1 : 0}|${forTerm}`;
 
   /** O que a visão geral mostra (docente): atenção, os próximos e os passados recentes. */
   function overviewOf(events: AcademicEvent[]) {
@@ -615,6 +654,10 @@ export function ManageView({
       const keepOrigin = matchesOrigin(target, origin);
       const keepSubject = subjectFilter === "all" || subjectKey(target) === subjectFilter;
       const keepChanged = !onlyChanged || isChanged(target);
+      const keepTeacher = teacherFilter === "all" || teacherKey(target) === teacherFilter;
+      if (!keepTeacher) {
+        setTeacher("all");
+      }
       if (!keepOrigin) {
         setOrigin("all");
       }
@@ -626,6 +669,7 @@ export function ManageView({
       }
       const nextTerm = clearSearch ? "" : term;
       const nextSubject = keepSubject ? subjectFilter : "all";
+      const nextTeacher = keepTeacher ? teacherFilter : "all";
       let targetPeriod: Period = period;
       if (period === "overview" && !nextTerm) {
         const view = overviewOf(
@@ -643,7 +687,7 @@ export function ManageView({
       }
       const keyPeriod = targetPeriod === "overview" && nextTerm ? "all" : targetPeriod;
       setPicked({
-        key: `${keyPeriod}|${keepOrigin ? origin : "all"}|${nextSubject}|${keepChanged && onlyChanged ? 1 : 0}|${nextTerm}`,
+        key: `${keyPeriod}|${keepOrigin ? origin : "all"}|${nextSubject}|${nextTeacher}|${keepChanged && onlyChanged ? 1 : 0}|${nextTerm}`,
         index: monthOfEvent(target, targetPeriod, todayStart),
       });
       setReveal({ ...reveal, ready: true, clearSearch });
@@ -880,6 +924,7 @@ export function ManageView({
     setOrigin(next.origin ?? "all");
     // o número do indicador não olha a disciplina: a lista aberta precisa bater com ele
     setSubject("all");
+    setTeacher("all");
     setOnlyChanged(Boolean(next.changed));
     setPicked(null);
     listRef.current?.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" });
@@ -1742,15 +1787,37 @@ export function ManageView({
           </button>
         ) : null}
         {admin ? (
-          <Select<Origin>
-            variant="filter"
-            prefix="Origem:"
-            ariaLabel="Origem"
-            active={origin !== "all"}
-            value={origin}
-            options={originOptions.map((option) => (option.value === "all" ? { ...option, label: "Todas" } : option))}
-            onChange={(value) => chooseOrigin(value)}
-          />
+          <>
+            <Select<Origin>
+              variant="filter"
+              prefix="Origem:"
+              ariaLabel="Origem"
+              active={origin !== "all"}
+              value={origin}
+              options={originOptions.map((option) => (option.value === "all" ? { ...option, label: "Todas" } : option))}
+              onChange={(value) => chooseOrigin(value)}
+            />
+            {teacherOptions.length ? (
+              // só a coordenação vê os eventos de todas as docentes: ela filtra por quem publicou
+              <Select
+                variant="filter"
+                prefix="Docente:"
+                ariaLabel="Docente"
+                active={teacherFilter !== "all"}
+                value={teacherFilter}
+                options={teacherOptions}
+                menuMinWidth={300}
+                onClear={() => {
+                  pendingRef.current = null;
+                  setTeacher("all");
+                }}
+                onChange={(value) => {
+                  pendingRef.current = null;
+                  setTeacher(value);
+                }}
+              />
+            ) : null}
+          </>
         ) : subjectOptions.length ? (
           <Select
             variant="filter"

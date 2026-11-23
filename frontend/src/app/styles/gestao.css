@@ -1279,7 +1279,8 @@ html .gx .seg.gx-seg button .n {
   color: var(--muted);
 }
 html .gx .seg.gx-seg button.on .n {
-  color: rgb(255 255 255 / 0.85);
+  /* branco cheio: com 85% de opacidade o número ficava com 3,8:1 sobre o verde */
+  color: #fff;
 }
 @media (pointer: coarse), (max-width: 767px) {
   html .gx .seg.gx-seg button {

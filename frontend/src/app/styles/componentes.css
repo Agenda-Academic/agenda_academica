@@ -1074,3 +1074,43 @@
     transform: none !important;
   }
 }
+
+/* ---------- aluno acompanhado (responsável): a lista do app por cima do bloco ----------
+   O bloco (avatar, nome, turma) continua sendo o que se vê; o Select "bare" fica transparente sobre ele e cuida do
+   clique, do teclado e do leitor de tela. A lista abre embaixo, no desenho dos outros seletores. */
+html .student-pick .pick-select {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+html .student-pick .pick-select .select-ctl {
+  width: 100%;
+  height: 100%;
+}
+html .student-pick .select-btn.is-bare {
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  box-shadow: none;
+  color: transparent;
+}
+html .student-pick .select-btn.is-bare :is(.select-value, .select-chev) {
+  opacity: 0;
+}
+/* a pessoa na lista: as iniciais num quadrado suave, como o avatar do bloco */
+html .pick-ava {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--brand-50);
+  color: var(--brand-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
