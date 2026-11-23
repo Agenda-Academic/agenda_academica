@@ -748,7 +748,8 @@ export function assignTeacher(
   token: string,
   classId: number,
   subjectId: number,
-  input: { teacherId: number; role?: TeachingRole }
+  // a conta de docente que já existe, ou o e-mail institucional de quem ainda não entrou na Agenda
+  input: { teacherId: number; role?: TeachingRole } | { email: string; fullName?: string; role?: TeachingRole }
 ) {
   return requestData<TeachingAssignment>(token, `/classes/${classId}/subjects/${subjectId}/teachers`, {
     method: "POST",

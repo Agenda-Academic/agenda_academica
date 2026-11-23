@@ -12,6 +12,19 @@ export const STAFF_SIGNUP_GOOGLE_ONLY =
 export const EMAIL_GOOGLE_ONLY =
   'Esse e-mail entra com o Google. Use o botão Entrar com o Google, na tela de entrar.'
 
+/**
+ * Nome provisório tirado do e-mail ("maraisa.lima@..." vira "Maraisa Lima"), da docente vinculada
+ * pela coordenação antes do primeiro acesso. O 1º login com o Google troca pelo nome de verdade.
+ */
+export function nameFromEmail(email: string) {
+  return email
+    .split('@')[0]
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
 /** Domínio de e-mail da instituição (ifms.edu.br e os subdomínios, como o dos estudantes). */
 export function isInstitutionDomain(domain: string | null | undefined) {
   if (!domain) {

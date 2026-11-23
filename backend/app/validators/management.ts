@@ -170,9 +170,15 @@ export const offerSubjectValidator = withMessages(
   })
 )
 
+/**
+ * Vincular docente: a conta que já existe (teacherId) ou, para quem ainda não entrou na Agenda, o
+ * e-mail institucional dela (email); o controller exige um dos dois.
+ */
 export const assignTeacherValidator = withMessages(
   vine.create({
-    teacherId: id(),
+    teacherId: id().optional(),
+    email: vine.string().trim().toLowerCase().email().maxLength(254).optional(),
+    fullName: vine.string().trim().minLength(2).maxLength(120).optional(),
     role: vine.enum(TEACHING_ROLES).optional(),
   })
 )

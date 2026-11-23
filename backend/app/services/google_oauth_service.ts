@@ -1,5 +1,8 @@
 import User from '#models/user'
-import AccountPolicyService, { isInstitutionDomain } from '#services/account_policy_service'
+import AccountPolicyService, {
+  isInstitutionDomain,
+  nameFromEmail,
+} from '#services/account_policy_service'
 import AuditLogService from '#services/audit_log_service'
 import ClassMembershipService from '#services/class_membership_service'
 import env from '#start/env'
@@ -249,6 +252,11 @@ export default class GoogleOAuthService {
         if (!existing.emailVerifiedAt) {
           existing.password = randomToken()
           existing.emailVerifiedAt = DateTime.utc()
+          // Docente vinculada pela coordenação antes do 1º acesso: o nome provisório (tirado do
+          // e-mail) vira o nome do Google. Qualquer outro nome já gravado fica como está.
+          if (identity.name?.trim() && existing.fullName === nameFromEmail(existing.email)) {
+            existing.fullName = identity.name.trim().slice(0, 120)
+          }
           await trx.from('auth_access_tokens').where('tokenable_id', existing.id).delete()
           await AuditLogService.record(
             {

@@ -942,6 +942,8 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
   const linkedIds = new Set(current.teachers.map((teacher) => teacher.teacherId));
   const results = (teachers.data ?? []).filter((person) => !linkedIds.has(person.id));
   const where = `${current.subject.name} na ${klass.name}`;
+  // o que foi digitado é um e-mail inteiro? Sem docente com ele, dá para vincular pelo e-mail
+  const typedEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settled) ? settled.toLowerCase() : null;
 
   function refresh() {
     void detail.reload();
@@ -971,6 +973,36 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
         const byField = fieldErrors(error);
         if (byField.teacherId) {
           setSearchError(byField.teacherId);
+          return;
+        }
+        showError(error, `docente-${klass.id}-${current.subjectId}`);
+      }
+    });
+  }
+
+  /** Docente que ainda não entrou na Agenda: a conta nasce pelo e-mail institucional, já vinculada. */
+  function linkByEmail(email: string) {
+    setSearchError(null);
+    void run(`link-email`, async () => {
+      try {
+        const assignment = await assignTeacher(token, klass.id, current.subjectId, { email, role });
+        refresh();
+        toast(`${email} agora dá aula de ${where}, ${roleInSentence(role)}. Ao entrar com o Google, ela já encontra a turma.`, {
+          key: `docente-${klass.id}-${current.subjectId}-email`,
+          undo: async () => {
+            try {
+              await endTeachingAssignment(token, assignment.id);
+              refresh();
+            } catch (error) {
+              showError(error, `docente-${klass.id}-${current.subjectId}-email`);
+            }
+          },
+        });
+        api.back();
+      } catch (error) {
+        const byField = fieldErrors(error);
+        if (byField.email || byField.teacherId) {
+          setSearchError(byField.email ?? byField.teacherId);
           return;
         }
         showError(error, `docente-${klass.id}-${current.subjectId}`);
@@ -1129,7 +1161,9 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
             >
               {current.teachers.length ? "Outra docente" : "Escolher a docente"}
             </h3>
-            <p className="admin-sec-s">Busque pelo nome ou pelo e-mail da conta de docente.</p>
+            <p className="admin-sec-s">
+              Busque pelo nome ou pelo e-mail. Quem ainda não entrou na Agenda é vinculada pelo e-mail institucional.
+            </p>
           </div>
         </div>
         <div className="mb-3 grid gap-2">
@@ -1185,12 +1219,35 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
                 </li>
               ))}
             </ul>
+          ) : typedEmail ? (
+            // ninguém com esse e-mail: a docente ainda não entrou na Agenda, então a conta nasce agora, vinculada
+            <div className="admin-irow" role="group" aria-label="Vincular pelo e-mail">
+              <span className="admin-av-xs" aria-hidden>
+                <UserPlus className="h-4 w-4" />
+              </span>
+              <span className="admin-s-main">
+                <span className="admin-s-name">{typedEmail}</span>
+                <span className="admin-s-mail">
+                  Ainda não entrou na Agenda. Ao entrar com o Google, ela já encontra a turma.
+                </span>
+              </span>
+              <button
+                className={cx(primaryButton, "btn-sm", busyLook)}
+                aria-disabled={busyAttr}
+                aria-label={`Vincular ${typedEmail} ${roleInSentence(role)} pelo e-mail`}
+                onClick={() => linkByEmail(typedEmail)}
+                type="button"
+              >
+                <UserPlus className="h-4 w-4" aria-hidden />
+                Vincular
+              </button>
+            </div>
           ) : (
             <EmptyState
               compact
               icon={Search}
               text={settled ? `Nenhuma docente com "${settled}"` : "Nenhuma docente para vincular"}
-              hint="Confira o nome ou o e-mail. A pessoa precisa ter uma conta de docente na Agenda."
+              hint="Confira o nome ou o e-mail. Se ela ainda não entrou na Agenda, digite o e-mail institucional dela para vincular assim mesmo."
             />
           )}
         </div>

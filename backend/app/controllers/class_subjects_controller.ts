@@ -5,6 +5,7 @@ import Subject from '#models/subject'
 import TeachingAssignment from '#models/teaching_assignment'
 import User from '#models/user'
 import AcademicAccessService from '#services/academic_access_service'
+import { isInstitutionDomain, nameFromEmail } from '#services/account_policy_service'
 import { conflict, fieldError, forbidden, notFound, routeId } from '#services/api_errors'
 import AuditLogService from '#services/audit_log_service'
 import { countOf } from '#services/query_helpers'
@@ -17,8 +18,20 @@ import {
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
 import { DateTime } from 'luxon'
+import { randomBytes } from 'node:crypto'
 
 const ONLY_ADMIN = 'Só a administração oferta disciplinas e vincula docentes.'
+const NOT_A_TEACHER_EMAIL =
+  'Esse e-mail é de uma conta que não é de docente. Confira o e-mail ou fale com a coordenação principal.'
+const TEACHER_EMAIL_DOMAIN =
+  'Use o e-mail institucional da docente, o mesmo com que ela entra pelo Google.'
+
+/** E-mail de servidor da instituição (o de estudante não vira docente). */
+function isTeacherInstitutionEmail(email: string) {
+  const domain = email.split('@')[1] ?? ''
+  return isInstitutionDomain(domain) && !domain.startsWith('estudante.')
+}
+
 const CLASS_NOT_FOUND = 'Turma não encontrada.'
 const OFFER_NOT_FOUND = 'Esta disciplina não é ofertada nesta turma.'
 const ASSIGNMENT_NOT_FOUND = 'Vínculo de docente não encontrado.'
@@ -260,13 +273,49 @@ export default class ClassSubjectsController {
     }
 
     const payload = await request.validateUsing(assignTeacherValidator)
-    const teacher = await User.find(payload.teacherId)
-    if (!teacher || teacher.role !== 'teacher') {
-      return fieldError(response, 'teacherId', 'Escolha uma conta de docente.')
+    let teacher: User | null = null
+    if (payload.teacherId !== undefined) {
+      teacher = await User.find(payload.teacherId)
+      if (!teacher || teacher.role !== 'teacher') {
+        return fieldError(response, 'teacherId', 'Escolha uma conta de docente.')
+      }
+    } else if (payload.email !== undefined) {
+      // Docente que ainda não entrou: a conta nasce aqui, já vinculada, e o primeiro login com o
+      // Google (mesmo e-mail) entra nela e confere o e-mail. Só e-mail de servidor da instituição.
+      teacher = await User.findByEmail(payload.email)
+      if (teacher && teacher.role !== 'teacher') {
+        return fieldError(response, 'email', NOT_A_TEACHER_EMAIL)
+      }
+      if (!teacher) {
+        if (!isTeacherInstitutionEmail(payload.email)) {
+          return fieldError(response, 'email', TEACHER_EMAIL_DOMAIN, 'institution')
+        }
+        teacher = await User.create({
+          email: payload.email,
+          fullName: payload.fullName ?? nameFromEmail(payload.email),
+          password: randomBytes(32).toString('base64url'),
+          role: 'teacher',
+          registration: null,
+        })
+        await AuditLogService.record({
+          actorId: user.id,
+          action: 'user.precreate_teacher',
+          entity: 'user',
+          entityId: teacher.id,
+          subjectUserId: teacher.id,
+        })
+      }
+    } else {
+      return fieldError(
+        response,
+        'teacherId',
+        'Escolha uma conta de docente ou digite o e-mail dela.'
+      )
     }
+    const assignee = teacher
 
     const existing = await TeachingAssignment.query()
-      .where('teacherId', teacher.id)
+      .where('teacherId', assignee.id)
       .where('academicClassId', offer.academicClassId)
       .where('subjectId', offer.subjectId)
       .first()
@@ -293,7 +342,7 @@ export default class ClassSubjectsController {
             action: 'teaching.reactivate',
             entity: 'teaching_assignment',
             entityId: existing.id,
-            subjectUserId: teacher.id,
+            subjectUserId: assignee.id,
             meta: { academicClassId: offer.academicClassId, subjectId: offer.subjectId, role },
           },
           trx
@@ -302,7 +351,7 @@ export default class ClassSubjectsController {
       }
       const created = await TeachingAssignment.create(
         {
-          teacherId: teacher.id,
+          teacherId: assignee.id,
           academicClassId: offer.academicClassId,
           subjectId: offer.subjectId,
           role,
@@ -315,7 +364,7 @@ export default class ClassSubjectsController {
           action: 'teaching.create',
           entity: 'teaching_assignment',
           entityId: created.id,
-          subjectUserId: teacher.id,
+          subjectUserId: assignee.id,
           meta: { academicClassId: offer.academicClassId, subjectId: offer.subjectId, role },
         },
         trx
