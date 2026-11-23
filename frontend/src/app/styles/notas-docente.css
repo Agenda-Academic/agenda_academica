@@ -2694,3 +2694,8 @@ html .nd-review > :nth-child(n + 5) {
     transition: none;
   }
 }
+
+/* campo de nota vazio: "sem nota" cabia só cortado ("sem not") na coluna estreita do celular; menos respiro nas laterais */
+html .nd-cell.is-empty .nd-input {
+  padding-inline: 4px;
+}
