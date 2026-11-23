@@ -869,7 +869,7 @@ function LinkByEmailBlock({ first, headingId, studentId, working, onChanged, onR
   function validate() {
     const next: Record<string, string> = {};
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      next.email = "Digite o e-mail da conta do responsável. Ex.: maria@agenda.test.";
+      next.email = "Digite o e-mail da conta do responsável. Ex.: nome@exemplo.com.";
     }
     if (!relationship) {
       next.relationship = "Escolha o parentesco.";
@@ -966,7 +966,7 @@ function LinkByEmailBlock({ first, headingId, studentId, working, onChanged, onR
                 className="input"
                 autoComplete="off"
                 inputMode="email"
-                placeholder="Ex.: maria@agenda.test"
+                placeholder="Ex.: nome@exemplo.com"
                 type="email"
                 value={email}
                 onChange={(event) => {

@@ -208,7 +208,7 @@ export const demoAccounts = [
   {
     label: roleLabels.student,
     description: "Visualiza eventos e configura lembretes",
-    email: "diogo@agenda.test",
+    email: "aluno@agenda.test",
     password: "password123",
   },
   {
@@ -225,8 +225,8 @@ export const demoAccounts = [
   },
   {
     label: roleLabels.guardian,
-    description: "Acompanha a agenda e as notas de um aluno",
-    email: "maria@agenda.test",
+    description: "Acompanha a agenda e as notas dos três filhos",
+    email: "responsavel@agenda.test",
     password: "password123",
   },
 ];
