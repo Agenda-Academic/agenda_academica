@@ -154,7 +154,7 @@ export function AdminPendingCard({ order = 0, onLayoutChange }: AdminPendingCard
             compact
             icon={CircleCheck}
             text="Tudo em dia"
-            hint="Nenhum pedido de entrada, vínculo pendente ou disciplina sem docente."
+            hint="Nenhum vínculo de responsável esperando a secretaria nem disciplina sem docente."
             action={{ label: "Abrir Turmas e disciplinas", onClick: () => openClasses() }}
           />
         </div>

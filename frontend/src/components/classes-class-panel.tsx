@@ -143,7 +143,7 @@ function useRevealOnPage<T>(paged: Paged<T>, target: RefObject<HTMLElement | nul
 }
 
 /** Restaurar a turma (e o Desfazer do arquivar) deixa o código desligado, por regra da API. */
-const CODE_OFF_TEXT = "O código da turma ficou desligado. Gere um novo para voltar a aceitar pedidos.";
+const CODE_OFF_TEXT = "O código da turma ficou desligado. Gere um novo para os alunos voltarem a entrar com ele.";
 
 /** A API respondeu 404: a turma não existe (ou saiu). */
 function isNotFound(error: unknown) {
@@ -1361,8 +1361,8 @@ export function NewClassPanel({ api, data, subtitle, view }: PanelProps<"newClas
                 <KeyRound className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0 flex-1">
-                <b>Ligar o código da turma</b>
-                <span>para os alunos pedirem para entrar</span>
+                <b>Ver o código da turma</b>
+                <span>já nasce ligado: passe para os alunos entrarem</span>
               </span>
               <ChevronRight className="admin-go" aria-hidden />
             </button>
@@ -2849,7 +2849,7 @@ function sourceLine(student: ClassStudent) {
   const when = formatOnDayAt(student.createdAt);
   switch (student.source) {
     case "code":
-      return `Pediu pelo código ${when}`;
+      return `Entrou pelo código ${when}`;
     case "invite":
       return `Entrou pelo convite ${when}`;
     case "list":
@@ -3203,7 +3203,7 @@ function StudentsSection({
                 <p className="empty-s">
                   {archived
                     ? "A turma arquivada não recebe alunos."
-                    : "Cole a lista de e-mails da turma ou passe o código para os alunos pedirem para entrar."}
+                    : "Cole a lista de e-mails da turma ou passe o código: quem tem o código entra na hora."}
                 </p>
                 {/* uma ação só: "Adicionar alunos" já está no cabeçalho da seção */}
                 {!archived ? (
@@ -3544,7 +3544,7 @@ function CodeSection({
     }
     confirm({
       title: "Gerar um código novo?",
-      message: `O código de agora${shown && code ? ` (${code})` : ""} deixa de funcionar na hora. Quem ainda não pediu para entrar vai precisar do código novo.`,
+      message: `O código de agora${shown && code ? ` (${code})` : ""} deixa de funcionar na hora, para todos os docentes da turma. Quem ainda não entrou vai precisar do código novo.`,
       confirmLabel: "Gerar código novo",
       cancelLabel: "Manter o código de agora",
       tone: "primary",
@@ -3559,7 +3559,7 @@ function CodeSection({
         focusGenerate.current = { from };
         onUpdated();
         onShown(false);
-        toast("Código da turma desligado. Ninguém pede para entrar com ele até você gerar um novo.", { key: `codigo-${item.id}` });
+        toast("Código da turma desligado. Ninguém entra com ele até você gerar um novo.", { key: `codigo-${item.id}` });
       } catch (error) {
         showError(error, `codigo-${item.id}`);
       }
@@ -3572,7 +3572,7 @@ function CodeSection({
     confirm({
       title: "Desligar o código da turma?",
       message:
-        "O código de agora deixa de funcionar na hora, e ninguém pede para entrar com ele. Para aceitar pedidos de novo, gere um código novo: o de agora não volta.",
+        "O código de agora deixa de funcionar na hora, para todos os docentes da turma, e ninguém entra com ele. Para os alunos voltarem a entrar, gere um código novo: o de agora não volta.",
       confirmLabel: "Desligar o código",
       cancelLabel: "Manter o código ligado",
       action: () => disableNow(from),
@@ -3592,7 +3592,7 @@ function CodeSection({
           >
             Código da turma
           </h3>
-          <p className="admin-sec-s">Quem tem o código pede para entrar, e o pedido aparece em Alunos.</p>
+          <p className="admin-sec-s">Quem tem o código entra na turma na hora e aparece em Alunos. O código vale para todos os docentes; só a coordenação troca ou desliga.</p>
         </div>
         <span className={cx("pill stat", on && "stat-conc")}>{on ? "Ligado" : "Desligado"}</span>
       </div>
@@ -3618,7 +3618,7 @@ function CodeSection({
                     ? "Restaure a turma para gerar um código novo."
                     : item.joinCode
                       ? CODE_OFF_TEXT
-                      : "Gere um código para os alunos pedirem para entrar."}
+                      : "Gere um código para os alunos entrarem na turma."}
               </p>
             </>
           )}

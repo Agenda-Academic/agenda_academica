@@ -10,8 +10,6 @@ import {
   Info,
   KeyRound,
   Loader2,
-  Power,
-  RefreshCw,
   School,
   SearchX,
   UserPlus,
@@ -20,9 +18,7 @@ import {
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   ApiError,
-  createJoinCode,
   decideEnrollments,
-  disableJoinCode,
   getClass,
   getClassStudents,
   getClasses,
@@ -46,7 +42,6 @@ import type {
   ClassShift,
   ClassStudent,
   ClassSummary,
-  JoinCodeResult,
 } from "@/lib/types";
 import { useAppActions, useBackLayer } from "./app-actions";
 import { Pager, usePaged } from "./pager";
@@ -311,6 +306,7 @@ export function MyClasses({ context, search, onSummary, onLoadError, onSearchCou
   }
 
   const totalPending = (classes ?? []).reduce((sum, item) => sum + item.counts.pendingStudents, 0);
+  const totalActive = (classes ?? []).reduce((sum, item) => sum + item.counts.activeStudents, 0);
   let subline: ReactNode;
   if (!classes) {
     // com erro, o aviso do corpo basta: sem subtítulo repetindo a mesma coisa
@@ -318,9 +314,14 @@ export function MyClasses({ context, search, onSummary, onLoadError, onSearchCou
   } else if (term) {
     subline = `${shown.length} de ${countText(classes.length, "turma", "turmas")} para "${term}"`;
   } else if (classes.length) {
-    subline = `${countText(classes.length, "turma", "turmas")}, ${
-      totalPending ? countText(totalPending, "pedido de entrada", "pedidos de entrada") : "nenhum pedido de entrada"
-    }`;
+    // quem tem o código entra na hora; pedido pendente só sobra de antes dessa regra
+    subline = [
+      countText(classes.length, "turma", "turmas"),
+      countText(totalActive, "aluno", "alunos"),
+      totalPending ? countText(totalPending, "pedido de entrada", "pedidos de entrada") : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
   } else {
     subline = "Nenhuma turma vinculada a você.";
   }
@@ -523,9 +524,7 @@ function ClassDrawer({
   );
 }
 
-type Busy =
-  | { kind: "approve" | "reject"; id: number }
-  | { kind: "bulk" | "code-on" | "code-new" | "code-off" };
+type Busy = { kind: "approve" | "reject" | "remove"; id: number } | { kind: "bulk" };
 
 type PanelData = { detail: ClassDetail; students: ClassStudent[] };
 
@@ -663,20 +662,53 @@ function ClassPanelBody({
     setData((current) => (current ? { ...current, students: sortStudents(change(current.students)) } : current));
   }
 
-  function updateCode(result: JoinCodeResult) {
-    setData((current) =>
-      current
-        ? {
-            ...current,
-            detail: {
-              ...current.detail,
-              joinCode: result.joinCode,
-              joinCodeFormatted: result.joinCodeFormatted,
-              joinCodeActive: result.joinCodeActive,
-            },
-          }
-        : current
-    );
+  /** Quem entrou sozinho pelo código: a docente tira da turma (e não volta com o código) e pode desfazer. */
+  function removeStudent(student: ClassStudent) {
+    if (busy) {
+      return;
+    }
+    const name = studentName(student);
+    const key = `tirar-${student.enrollmentId}`;
+    confirm({
+      title: `Tirar ${name} da turma?`,
+      message: `${name} sai de ${className} e não consegue voltar com o código. Se foi engano, dá para desfazer logo depois.`,
+      confirmLabel: "Tirar da turma",
+      cancelLabel: "Manter na turma",
+      tone: "danger",
+      action: async () => {
+        setBusy({ kind: "remove", id: student.enrollmentId });
+        try {
+          await updateEnrollment(token, student.enrollmentId, { status: "inactive" });
+          updateStudents((list) => list.filter((item) => item.enrollmentId !== student.enrollmentId));
+          onCounts(cls.id, { active: -1, pending: 0 });
+          toast(`${name} saiu de ${className}.`, {
+            key,
+            action: { label: "Desfazer", onClick: () => void bringBack(student) },
+          });
+          void reload();
+        } catch (err) {
+          showError(err, key);
+          refreshIfStale(err);
+        } finally {
+          setBusy(null);
+        }
+      },
+    });
+  }
+
+  async function bringBack(student: ClassStudent) {
+    const name = studentName(student);
+    const key = `tirar-${student.enrollmentId}`;
+    try {
+      const updated = await updateEnrollment(token, student.enrollmentId, { status: "active" });
+      updateStudents((list) => [...list.filter((item) => item.enrollmentId !== student.enrollmentId), { ...student, ...updated }]);
+      onCounts(cls.id, { active: 1, pending: 0 });
+      toast(`${name} voltou para ${className}.`, { key });
+      void reload();
+    } catch (err) {
+      showError(err, key);
+      refreshIfStale(err);
+    }
   }
 
   async function approve(student: ClassStudent, index: number) {
@@ -780,62 +812,6 @@ function ClassPanelBody({
     setSelected((list) => (list.includes(id) ? list.filter((item) => item !== id) : [...list, id]));
   }
 
-  async function generateCode(kind: "code-on" | "code-new") {
-    const key = `codigo-${cls.id}`;
-    setBusy({ kind });
-    try {
-      const result = await createJoinCode(token, cls.id);
-      focusCodeRef.current = "code";
-      updateCode(result);
-      setCodeShown(true);
-      toast(
-        kind === "code-new"
-          ? "Código novo gerado. O anterior parou de valer."
-          : `Código de ${className} ligado. Passe para os alunos.`,
-        { key }
-      );
-    } catch (err) {
-      showError(err, key);
-      refreshIfStale(err);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  function askNewCode() {
-    if (busy) {
-      return;
-    }
-    confirm({
-      title: "Gerar um código novo?",
-      message: `O código ${codeText} para de valer. Quem ainda não entrou em ${className} vai precisar do código novo.`,
-      confirmLabel: "Gerar código novo",
-      cancelLabel: "Manter código",
-      tone: "primary",
-      action: () => generateCode("code-new"),
-    });
-  }
-
-  async function turnOff() {
-    if (busy) {
-      return;
-    }
-    const key = `codigo-${cls.id}`;
-    setBusy({ kind: "code-off" });
-    try {
-      const result = await disableJoinCode(token, cls.id);
-      focusCodeRef.current = "actions";
-      updateCode(result);
-      setCodeShown(false);
-      toast(`Código de ${className} desligado. Ninguém mais entra com ele.`, { key });
-    } catch (err) {
-      showError(err, key);
-      refreshIfStale(err);
-    } finally {
-      setBusy(null);
-    }
-  }
-
   function copyCode() {
     const key = `codigo-${cls.id}`;
     const fail = () => toast("Não deu para copiar aqui. Selecione o código e copie.", { tone: "info", key });
@@ -847,16 +823,12 @@ function ClassPanelBody({
   }
 
   function showCodeFromEmpty() {
-    if (codeOn) {
-      setCodeShown(true);
-      // o código aparece no próximo quadro: rola até ele e leva o foco, para ler e copiar
-      window.setTimeout(() => {
-        codeRef.current?.scrollIntoView({ block: "center" });
-        codeRef.current?.focus({ preventScroll: true });
-      }, 30);
-    } else {
-      void generateCode("code-on");
-    }
+    setCodeShown(true);
+    // o código aparece no próximo quadro: rola até ele e leva o foco, para ler e copiar
+    window.setTimeout(() => {
+      codeRef.current?.scrollIntoView({ block: "center" });
+      codeRef.current?.focus({ preventScroll: true });
+    }, 30);
   }
 
   const waiting = busy !== null;
@@ -1017,6 +989,9 @@ function ClassPanelBody({
               <ul className="docente-slist">
                 {visibleActive.map((student) => {
                   const name = studentName(student);
+                  // quem entrou sozinho pelo código: a docente vê quando e pode tirar; o resto é da secretaria
+                  const byCode = student.source === "code";
+                  const rowBusy = busy && "id" in busy && busy.id === student.enrollmentId ? busy.kind : null;
                   return (
                     <li key={student.enrollmentId} className="docente-srow">
                       <span className="docente-av-sm" aria-hidden>
@@ -1025,7 +1000,23 @@ function ClassPanelBody({
                       <div className="docente-s-main">
                         <p className="docente-s-name">{name}</p>
                         {student.fullName ? <p className="docente-s-mail">{student.email}</p> : null}
+                        {byCode && student.createdAt ? (
+                          <p className="docente-s-mail">Entrou pelo código {formatOnDayAt(student.createdAt)}</p>
+                        ) : null}
                       </div>
+                      {byCode ? (
+                        <button
+                          className="btn btn-s btn-sm shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                          aria-label={`Tirar ${name} da turma`}
+                          aria-disabled={waiting || undefined}
+                          aria-busy={rowBusy === "remove" || undefined}
+                          onClick={() => removeStudent(student)}
+                          type="button"
+                        >
+                          {rowBusy === "remove" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                          Tirar
+                        </button>
+                      ) : null}
                     </li>
                   );
                 })}
@@ -1044,8 +1035,12 @@ function ClassPanelBody({
               compact
               icon={Users}
               text="Turma sem alunos ainda"
-              hint="Passe o código da turma. Quem não está na lista da turma aparece aqui como pedido, para você aprovar."
-              action={{ label: codeOn ? "Mostrar código" : "Gerar código", onClick: showCodeFromEmpty }}
+              hint={
+                codeOn
+                  ? "Passe o código da turma. Quem entra com ele aparece aqui na hora."
+                  : "O código da turma está desligado. Para ligar, fale com a coordenação."
+              }
+              action={codeOn ? { label: "Mostrar código", onClick: showCodeFromEmpty } : undefined}
             />
           ) : null}
         </div>
@@ -1134,7 +1129,7 @@ function ClassPanelBody({
             <h3 id={ids.code} className="docente-dsec-t drawer-h3">
               Código da turma
             </h3>
-            <p className="docente-dsec-s">Quem tem o código pede para entrar, e o pedido aparece em Alunos.</p>
+            <p className="docente-dsec-s">Quem tem o código entra na turma na hora e aparece em Alunos.</p>
           </div>
           <span className={cx("pill stat shrink-0", codeOn && "stat-conc")}>{codeOn ? "Ligado" : "Desligado"}</span>
         </div>
@@ -1157,8 +1152,8 @@ function ClassPanelBody({
               </>
             ) : (
               <>
-                <p className="docente-p-name">Nenhum código ligado</p>
-                <p className="docente-p-sub">Ninguém entra na turma por código agora.</p>
+                <p className="docente-p-name">Código desligado</p>
+                <p className="docente-p-sub">Ninguém entra na turma por código agora. Para ligar, fale com a coordenação.</p>
               </>
             )}
           </div>
@@ -1169,62 +1164,23 @@ function ClassPanelBody({
             </button>
           ) : null}
         </div>
-        <div ref={codeActionsRef} className="docente-code-acts">
-          {codeOn ? (
-            <>
-              <button
-                className="btn btn-s btn-sm"
-                aria-expanded={codeShown}
-                onClick={() => setCodeShown((value) => !value)}
-                type="button"
-              >
-                {codeShown ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
-                {codeShown ? "Esconder código" : "Mostrar código"}
-              </button>
-              <button
-                className="btn btn-s btn-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-                aria-disabled={waiting || undefined}
-                aria-busy={busy?.kind === "code-new" || undefined}
-                aria-describedby={ids.codeHelp}
-                onClick={askNewCode}
-                type="button"
-              >
-                {spin((current) => current.kind === "code-new") ?? <RefreshCw className="h-4 w-4" aria-hidden />}
-                Gerar novo
-              </button>
-              <button
-                className="btn btn-s btn-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-                aria-disabled={waiting || undefined}
-                aria-busy={busy?.kind === "code-off" || undefined}
-                onClick={() => void turnOff()}
-                type="button"
-              >
-                {spin((current) => current.kind === "code-off") ?? <Power className="h-4 w-4" aria-hidden />}
-                Desligar
-              </button>
-            </>
-          ) : (
+        {codeOn ? (
+          <div ref={codeActionsRef} className="docente-code-acts">
             <button
-              className="btn btn-p btn-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-              aria-disabled={waiting || undefined}
-              aria-busy={busy?.kind === "code-on" || undefined}
+              className="btn btn-s btn-sm"
+              aria-expanded={codeShown}
               aria-describedby={ids.codeHelp}
-              onClick={() => {
-                if (!waiting) {
-                  void generateCode("code-on");
-                }
-              }}
+              onClick={() => setCodeShown((value) => !value)}
               type="button"
             >
-              {spin((current) => current.kind === "code-on") ?? <KeyRound className="h-4 w-4" aria-hidden />}
-              Gerar código
+              {codeShown ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              {codeShown ? "Esconder código" : "Mostrar código"}
             </button>
-          )}
-        </div>
+          </div>
+        ) : null}
+        {/* o código é da turma inteira: trocar ou desligar vale para todos os docentes, por isso fica com a coordenação */}
         <p id={ids.codeHelp} className="field-help">
-          {codeOn
-            ? "Gerar novo faz o código antigo parar de valer."
-            : "O código novo já vem ligado. Quem não está na lista da turma entra como pedido, para você aprovar."}
+          O código vale para todos os docentes da turma. Se ele vazar, peça à coordenação para trocar.
         </p>
       </section>
     </div>

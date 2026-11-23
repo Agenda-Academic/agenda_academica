@@ -1589,8 +1589,9 @@ export function ManageView({
               icon: Users,
               ic: "k-brand",
               value: activeStudents,
-              hint: "Nenhum pedido de entrada",
-              aria: `Alunos ativos: ${activeStudents}, em ${countText(classTotal, "turma", "turmas")}, nenhum pedido de entrada`,
+              // quem tem o código entra na hora: o card fala das turmas, não de pedidos
+              hint: `Em ${countText(classTotal, "turma", "turmas")}`,
+              aria: `Alunos ativos: ${activeStudents}, em ${countText(classTotal, "turma", "turmas")}`,
               go: "classes",
             }
           : {
@@ -1599,8 +1600,8 @@ export function ManageView({
               icon: Users,
               ic: "k-brand",
               value: classTotal,
-              hint: "Nenhum pedido de entrada",
-              aria: `Minhas turmas: ${classTotal}, nenhum pedido de entrada`,
+              hint: "Alunos entram com o código da turma",
+              aria: `Minhas turmas: ${classTotal}`,
               go: "classes",
             }
     );
