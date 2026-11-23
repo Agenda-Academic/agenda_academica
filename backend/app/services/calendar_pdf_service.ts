@@ -104,11 +104,40 @@ function iso(year: number, month: number, day: number) {
   return date.isValid ? date.toISODate() : null
 }
 
+/**
+ * Feriados pelo nome. O calendário de 2027 escreve "(Feriado Nacional)" no título; o de 2026
+ * traz só o nome ("Natal", "Tiradentes") e marca o feriado pela cor da célula, que o texto não tem.
+ */
+const HOLIDAY_NAMES = [
+  /^confraterniza[cç][aã]o universal\b/i,
+  /^paix[aã]o de cristo\b/i,
+  /^sexta-feira santa\b/i,
+  /^tiradentes\b/i,
+  /^dia (mundial )?do trabalho\b/i,
+  /^anivers[aá]rio de tr[eê]s lagoas\b/i,
+  /^independ[eê]ncia do brasil\b/i,
+  /^divis[aã]o do estado\b/i,
+  /^padroeira do brasil\b/i,
+  /^nossa senhora aparecida\b/i,
+  /^finados\b/i,
+  /^proclama[cç][aã]o da rep[uú]blica\b/i,
+  /^dia nacional de zumbi\b/i,
+  /^natal\b/i,
+]
+
 function categoryOf(text: string): CalendarCategory {
-  if (/\bferiado\b/i.test(text) || /^confraterniza[cç][aã]o universal/i.test(text)) {
+  if (/\bferiado\b/i.test(text) || HOLIDAY_NAMES.some((name) => name.test(text))) {
     return 'holiday'
   }
-  if (/^recesso\b/i.test(text) || /ponto facultativo/i.test(text) || /^f[ée]rias\b/i.test(text)) {
+  if (
+    /^recesso\b/i.test(text) ||
+    // "Carnaval - Recesso"
+    /\brecesso$/i.test(text) ||
+    /ponto facultativo/i.test(text) ||
+    // ponto facultativo nacional; o PDF de 2026 não escreve isso no título
+    /^corpus christi\b/i.test(text) ||
+    /^f[ée]rias\b/i.test(text)
+  ) {
     return 'recess'
   }
   return 'institutional'
