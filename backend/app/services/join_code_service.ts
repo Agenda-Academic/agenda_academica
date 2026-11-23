@@ -39,6 +39,20 @@ export default class JoinCodeService {
     return code
   }
 
+  /**
+   * Os códigos que valem para o que a pessoa digitou: o normalizado (O vira 0, I e L viram 1) e o digitado como está.
+   * O segundo cobre códigos antigos gravados com letra fora do alfabeto (como INF1AH4R, da demonstração), que o
+   * normalizado nunca acharia.
+   */
+  static candidates(input: string) {
+    const raw = input.toUpperCase().replace(/[\s-]/g, '')
+    const list = [this.normalize(input)]
+    if (raw.length === JOIN_CODE_LENGTH && /^[A-Z0-9]+$/.test(raw)) {
+      list.push(raw)
+    }
+    return [...new Set(list.filter((code): code is string => code !== null))]
+  }
+
   static format(code: string | null) {
     return code ? `${code.slice(0, 4)}-${code.slice(4)}` : null
   }

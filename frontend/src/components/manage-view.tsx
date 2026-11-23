@@ -1097,7 +1097,8 @@ export function ManageView({
           Cancelado
         </span>
       );
-    } else if (event.status === "completed") {
+    } else if (event.status === "completed" && tabOf(event, now) !== "past") {
+      // o que já passou está em Passados: "Concluído" ali só repete o que a lista já diz
       pills.push(
         <span key="st" className="stat green">
           Concluído

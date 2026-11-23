@@ -508,7 +508,7 @@
   border: 1px solid var(--line-strong, #c6d9c2);
   border-radius: 12px;
   background: var(--surface, #fff);
-  color: var(--ink-3, #5b7565);
+  color: var(--ink-3, #557060);
   cursor: pointer;
   transition:
     transform 0.25s var(--mola, ease),

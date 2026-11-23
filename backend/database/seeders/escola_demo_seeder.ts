@@ -158,7 +158,7 @@ export default class extends BaseSeeder {
     )
     for (const [target, code] of [
       [tads3, 'TADS3P8W'],
-      [inf1a, 'INF1AH4R'],
+      [inf1a, 'KNF1AH4R'],
     ] as const) {
       if (!target.joinCode) {
         target.joinCode = code

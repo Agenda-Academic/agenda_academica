@@ -218,7 +218,7 @@ html .pnl .pnl-list .ev {
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 .wk-day.wk-past .wk-label,
 .wk-day.wk-past .wk-free {

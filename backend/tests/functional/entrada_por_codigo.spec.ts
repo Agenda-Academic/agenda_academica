@@ -94,3 +94,37 @@ test.group('Entrada pelo código sem aprovação (migration)', (group) => {
     assert.equal(tads.joinCode, 'TADS5K7Q')
   })
 })
+
+test.group('Código de turma antigo com letra fora do alfabeto', (group) => {
+  group.each.setup(() => testUtils.db().withGlobalTransaction())
+
+  test('o aluno entra digitando o código como está gravado (a demonstração tinha INF1AH4R)', async ({
+    assert,
+    client,
+  }) => {
+    // o alfabeto de hoje não tem I, L nem O (viram 1 e 0 na digitação), mas a demonstração foi semeada
+    // com INF1AH4R: sem a busca pelo código digitado, nenhum aluno entraria com ele
+    const tads = await AcademicClass.findByOrFail('name', 'TADS 5')
+    tads.joinCode = 'INF1AH4R'
+    tads.joinCodeActive = true
+    await tads.save()
+    const aluno = await student('codigo.antigo@agenda.test')
+
+    const login = await client
+      .post('/api/v1/auth/login')
+      .json({ email: aluno.email, password: 'password123' })
+    login.assertStatus(200)
+    const token = (login.body() as unknown as { data: { token: string } }).data.token
+
+    for (const digitado of ['inf1-ah4r', 'INF1AH4R']) {
+      await Enrollment.query().where('userId', aluno.id).delete()
+      const join = await client.post('/api/v1/enrollments/join').bearerToken(token).json({ code: digitado })
+      join.assertStatus(201)
+      const matricula = await Enrollment.query()
+        .where('userId', aluno.id)
+        .where('academicClassId', tads.id)
+        .firstOrFail()
+      assert.equal(matricula.status, 'active')
+    }
+  })
+})

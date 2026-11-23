@@ -47,9 +47,9 @@
   --neutral-tint: #eef4ec;
   --ink: #0f2418; /* títulos */
   --ink-2: #34503f; /* corpo */
-  --ink-3: #5b7565; /* secundário (5:1 no branco) */
-  --muted: #5b7565; /* metadado */
-  --muted-2: #5b7565;
+  --ink-3: #557060; /* secundário (5,4:1 no branco e 4,6:1 nos fundos suaves) */
+  --muted: #557060; /* metadado */
+  --muted-2: #557060;
   --faint: #93a89a; /* desabilitado, placeholder */
   /* cor de ação: verde mata */
   --brand: #13863c;

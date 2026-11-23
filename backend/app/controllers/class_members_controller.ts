@@ -278,10 +278,10 @@ export default class ClassMembersController {
     }
 
     const payload = await request.validateUsing(joinClassValidator)
-    const code = JoinCodeService.normalize(payload.code)
-    const academicClass = code
+    const codes = JoinCodeService.candidates(payload.code)
+    const academicClass = codes.length
       ? await AcademicClass.query()
-          .where('joinCode', code)
+          .whereIn('joinCode', codes)
           .where('joinCodeActive', true)
           .whereNull('archivedAt')
           .preload('course')

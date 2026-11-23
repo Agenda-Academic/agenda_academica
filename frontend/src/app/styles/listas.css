@@ -1107,3 +1107,15 @@ html .pnl .pnl-list .ev-mini[data-cat="institutional"] {
     display: none;
   }
 }
+
+/* ==================================================================
+   Alvos de clique de pelo menos 24 px (WCAG 2.2, critério 2.5.8): os links e botões de texto que ficavam com 18 a 21 px
+   de altura (os indicadores da Gestão, "Ver todos no cronograma", as linhas de Lembretes, o link do PDF de exemplo).
+   ================================================================== */
+html :is(.kpi-chip-hit, .lb-title, .kpi-hit, .link, .imp-sample-link) {
+  min-height: 24px;
+}
+html :is(.kpi-chip-hit, .kpi-hit, .imp-sample-link) {
+  display: inline-flex;
+  align-items: center;
+}

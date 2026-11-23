@@ -706,8 +706,8 @@ export function StudentDashboard({
     >
       <form id={joinFormId} onSubmit={submitJoin} noValidate>
         <p className="text-sm leading-6 text-ink-3">
-          Você continua nas turmas de agora. Com o código, as provas e os trabalhos da outra turma também aparecem no
-          Painel. Se o seu e-mail não estiver na lista da turma, o pedido espera a docente ou a secretaria confirmar.
+          Você continua nas turmas de agora. Com o código, você entra na outra turma na hora, e as provas e os trabalhos
+          dela também aparecem no Painel.
         </p>
         <div className="mt-5">
           <JoinCodeField inputRef={joinInputRef} join={join} />
