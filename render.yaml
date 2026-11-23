@@ -54,3 +54,43 @@ services:
         value: pg
       - key: DATABASE_URL
         sync: false
+
+  # Demonstração: a mesma API, com banco próprio (outro projeto do Supabase) e todas as contas de
+  # demonstração ligadas, inclusive a coordenação. Fica separada da produção para as contas com senha
+  # pública nunca alcançarem dados reais. Sem Google e sem e-mail: ninguém de verdade entra aqui.
+  - type: web
+    name: agenda-academica-demo-api
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - backend/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: TZ
+        value: UTC
+      - key: LOG_LEVEL
+        value: info
+      - key: SESSION_DRIVER
+        value: cookie
+      - key: APP_KEY
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://agenda-academica*.vercel.app
+      # Endereço do front da demonstração no Vercel, preenchido no painel
+      - key: FRONTEND_URL
+        sync: false
+      - key: DEMO_ACCOUNTS
+        value: "true"
+      - key: DB_CONNECTION
+        value: pg
+      # Banco da demonstração (o endereço com a senha é colado no painel, nunca aqui)
+      - key: DATABASE_URL
+        sync: false

@@ -69,8 +69,18 @@ só as contas da tabela.
 
 Essas contas nunca recebem e-mail (o domínio `.test` é reservado).
 
-Como o banco de produção guarda os dados, essas contas (com a senha pública) dariam acesso a dados reais. Antes de
-alunos e responsáveis de verdade usarem o sistema, desligue-as no Render, em **Environment**:
+Como essas contas têm a senha pública, elas não podem existir no banco com dados reais. Por isso o sistema roda em
+**dois ambientes**, cada um com o seu banco (um projeto do Supabase para cada):
+
+- **Produção** (`agenda-academica-api` no Render e o projeto principal no Vercel): contas de demonstração desligadas,
+  entrada só pelo Google da instituição (e responsáveis pelo cadastro). A tela de entrar mostra o link
+  "Abrir a demonstração" quando o Vercel da produção tem `NEXT_PUBLIC_DEMO_URL`.
+- **Demonstração** (`agenda-academica-demo-api` no Render, no `render.yaml`, e um segundo projeto no Vercel com
+  `NEXT_PUBLIC_API_URL` apontando para ela): todas as contas da tabela acima ligadas, sem Google e sem e-mail.
+
+As duas APIs importam sozinhas os Calendários Acadêmicos 2026 e 2027 do campus (`backend/database/seeders/data`).
+
+Na produção, as contas de demonstração ficam desligadas no Render, em **Environment**:
 
 - `DEMO_ACCOUNTS=false`: as contas `@agenda.test` deixam de entrar, as sessões abertas delas caem e os atalhos somem
   da tela de login. Sem a variável, elas ficam ligadas.

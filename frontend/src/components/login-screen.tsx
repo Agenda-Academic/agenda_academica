@@ -35,6 +35,9 @@ type FieldErrors = Partial<Record<FieldName, string>>;
 // ordem dos campos na tela: o foco vai para o primeiro com erro
 const fieldOrder: FieldName[] = ["fullName", "email", "password", "passwordConfirmation", "consent"];
 
+/** Endereço do site de demonstração (Vercel da produção: NEXT_PUBLIC_DEMO_URL). Sem ele, o link não aparece. */
+const DEMO_URL = process.env.NEXT_PUBLIC_DEMO_URL?.trim() || null;
+
 // o "Li e concordo" do responsável (LGPD, desenho 6.1) é só da tela: a API não guarda o aceite
 const consentMissing = "Marque a caixa de consentimento (Li e concordo) para criar a conta de responsável.";
 
@@ -1061,6 +1064,16 @@ export function LoginScreen({
                     })}
                   </div>
                 </div>
+              ) : null}
+
+              {/* produção (contas de demonstração desligadas): leva à demonstração, que é outro site com banco próprio */}
+              {mode === "login" && demoOn === false && DEMO_URL ? (
+                <p className="mt-5 text-center text-[13px] leading-5 text-muted">
+                  Quer conhecer com contas prontas?{" "}
+                  <a className="link" href={DEMO_URL}>
+                    Abrir a demonstração
+                  </a>
+                </p>
               ) : null}
             </form>
           )}
