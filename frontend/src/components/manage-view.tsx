@@ -14,6 +14,7 @@ import {
   Copy,
   Download,
   EyeOff,
+  Hourglass,
   Pencil,
   Plus,
   RefreshCw,
@@ -45,6 +46,8 @@ import {
   countText,
   cx,
   dateParts,
+  dayPeriod,
+  daysUntil,
   groupByWeek,
   isSameDay,
   matchesSearch,
@@ -55,7 +58,7 @@ import {
   yearSuffix,
 } from "@/lib/format";
 import { downloadTemplate } from "@/lib/grades-file";
-import { categoryMeta, isGradable, showsOfficialPill } from "@/lib/meta";
+import { categoryIcons, categoryMeta, isGradable, showsOfficialPill } from "@/lib/meta";
 import type { AcademicContext, AcademicEvent, TeachingAssignment, UserRole } from "@/lib/types";
 import { useAppActions } from "./app-actions";
 import { delay, isOfficialDate, openAhead, upcomingOfficialDates } from "./dashboard-bits";
@@ -1067,10 +1070,16 @@ export function ManageView({
     return null;
   }
 
-  function stateCell(event: AcademicEvent) {
+  /** `pill`: na lista por dia, "Notas depois da prova" vira selo com a ampulheta (nas outras linhas segue texto simples). */
+  function stateCell(event: AcademicEvent, pill = false) {
     const state = gradeState(event);
     if (state.kind === "later") {
-      return <span className="gx-nt">{event.category === "exam" ? "Notas depois da prova" : "Notas depois da entrega"}</span>;
+      return (
+        <span className="gx-nt">
+          {pill ? <Hourglass className="h-3.5 w-3.5" aria-hidden /> : null}
+          {event.category === "exam" ? "Notas depois da prova" : "Notas depois da entrega"}
+        </span>
+      );
     }
     if (state.kind === "published") {
       return (
@@ -1342,6 +1351,148 @@ export function ManageView({
         </div>
       </li>
     );
+  }
+
+  /**
+   * Linha das listas por período (Próximos, Passados e Todos), dentro do bloco do dia: hora, ícone da categoria,
+   * evento, turma e docente, notas e ações. Mesmos ganchos da eventRow (data-event-id, data-edit-button, clique na
+   * linha abre o editor). Aqui o "Editar" fica sempre à vista, com a ação das notas e o "..." ao lado; o título é
+   * texto (a linha toda e o botão abrem o editor).
+   */
+  function dayRow(event: AcademicEvent) {
+    const index = rowIndex.get(event.id) ?? 0;
+    const meta = categoryMeta[event.category];
+    const CategoryIcon = categoryIcons[event.category];
+    const editing = editingEventId === event.id;
+    const cancelled = event.status === "cancelled";
+    const closed = cancelled || event.status === "completed";
+    const when = rowWhen(event, false);
+    const wholeDay = when.time === "Dia todo";
+    const hour = wholeDay ? "Dia todo" : when.time.slice(0, 5);
+    // "até 21:00" ou "até 21/11" quando o evento tem término; sem ele, manhã, tarde ou noite
+    const hourSub = wholeDay
+      ? when.day.includes(" a ")
+        ? when.day
+        : ""
+      : when.time.length > 5
+        ? when.time.slice(5).trim()
+        : dayPeriod(event.startsAt);
+    const sub = [event.subject?.name, event.location].filter(Boolean).join(" · ");
+    const className = event.academicClass?.name ?? null;
+    // quem publicou, só para a administração (a docente vê só os próprios eventos)
+    const byline = admin
+      ? event.source === "teacher"
+        ? (event.teacher?.fullName ?? null)
+        : event.source === "imported"
+          ? "Calendário oficial"
+          : "Administração"
+      : null;
+    const action = gradeAction(event);
+    const pills = titlePills(event);
+    return (
+      <li
+        key={event.id}
+        data-event-id={event.id}
+        data-editing={editing ? "" : undefined}
+        aria-current={editing ? "true" : undefined}
+        className={cx("gx-row gxd", closed && "closed", editing && "editing")}
+        onClick={rowClick(event, index)}
+      >
+        <div className="gxd-time">
+          <b className={cx(wholeDay && "all", cancelled && "line-through")}>{hour}</b>
+          {hourSub ? <span>{hourSub}</span> : null}
+        </div>
+        <span className={cx("gxd-ico", meta.tint)} aria-hidden>
+          <CategoryIcon className="h-5 w-5" />
+        </span>
+        <div className="gxd-main">
+          <span className={cx("gxd-over", meta.tint)}>{meta.short}</span>
+          <div className="gx-t">
+            <span className={cx("gx-title", cancelled && "line-through")}>{event.title}</span>
+            {pills.length ? <span className="gx-pills">{pills}</span> : null}
+          </div>
+          {sub ? <span className="gxd-sub">{sub}</span> : null}
+        </div>
+        <div className="gxd-extra">
+          <div className="gxd-who">
+            <span className={cx("gxd-chip", className ? "cls" : "inst")}>{className ?? "Toda a instituição"}</span>
+            {byline ? <span className="gxd-by">{byline}</span> : null}
+          </div>
+          <div className="gxd-state">{stateCell(event, true) ?? <span className="gxd-no">Sem nota</span>}</div>
+        </div>
+        <div className="gxd-acts">
+          {action ? (
+            <button
+              className="btn btn-sm gx-act btn-s"
+              aria-haspopup="dialog"
+              aria-label={`${action.label} de ${event.title}`}
+              onClick={() => onOpenGrades?.(event.id)}
+              type="button"
+            >
+              {action.publish ? <Send className="h-4 w-4" aria-hidden /> : null}
+              {action.label}
+            </button>
+          ) : null}
+          <button
+            className="btn btn-s btn-sm gx-edit"
+            data-edit-button=""
+            aria-label={`Editar ${event.title}`}
+            onClick={() => edit(event, index)}
+            type="button"
+          >
+            <Pencil className="h-4 w-4" aria-hidden />
+            Editar
+          </button>
+          <div className="gxd-more">
+            <RowMenu
+              label={`Mais ações de ${event.title}`}
+              items={menuItems(event, { editButton: true, sheetButton: false })}
+              onSelect={(id) => runAction(event, index, id)}
+            />
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  /** Os eventos de uma lista juntos por dia: o selo (SEG 23), "amanhã", a quantidade e as linhas do dia num bloco. */
+  function dayBlocks(items: AcademicEvent[]) {
+    const days: AcademicEvent[][] = [];
+    for (const event of items) {
+      const last = days[days.length - 1];
+      if (last && isSameDay(new Date(last[0].startsAt), new Date(event.startsAt))) {
+        last.push(event);
+      } else {
+        days.push([event]);
+      }
+    }
+    return days.map((day) => {
+      const first = day[0];
+      const parts = dateParts(first.startsAt);
+      const offset = daysUntil(first.startsAt);
+      const label = new Date(first.startsAt).toLocaleDateString("pt-BR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        ...(parts.otherYear ? { year: "numeric" as const } : {}),
+      });
+      return (
+        <div key={first.id} className="gxd-day">
+          <div className="gxd-dh" aria-hidden>
+            <span className={cx("gxd-selo", offset === 0 && "today", offset === 1 && "soon")}>
+              <b>{parts.weekday}</b>
+              <span>{parts.day}</span>
+            </span>
+            <span className={cx("gxd-rel", (offset === 0 || offset === 1) && "soon")}>{relativeDue(first.startsAt)}</span>
+            <span className="gxd-cnt">{eventsText(day.length)}</span>
+            <span className="gxd-fio" />
+          </div>
+          <ul className="gx-list gxd-list" aria-label={`${label}: ${eventsText(day.length)}`}>
+            {day.map((event) => dayRow(event))}
+          </ul>
+        </div>
+      );
+    });
   }
 
   /* ---------- cabeçalho, indicadores e filtros ---------- */
@@ -1907,14 +2058,17 @@ export function ManageView({
   const goMonthFooter = (key: number) => goToMonth(key, true);
   const nextWith = monthKeys.find((key) => key > shownMonth) ?? null;
   const prevWith = [...monthKeys].reverse().find((key) => key < shownMonth) ?? null;
-  const colHead = wide ? (
-    <div className={cx("gx-colhead", !anyState && "no-state")} aria-hidden>
+  // cabeçalho das colunas da lista por dia: só em tela larga (o CSS esconde abaixo de 1280 px, onde as linhas empilham)
+  const colHead = (
+    <div className={cx("gxd-head", !anyState && "no-state")} aria-hidden>
+      <span>Hora</span>
+      <span />
       <span>Evento</span>
-      <span>Quando</span>
+      <span>Turma e docente</span>
       {anyState ? <span>Notas</span> : null}
       <span className="r">Ações</span>
     </div>
-  ) : null;
+  );
 
   const listCard = shownPeriod !== "overview" ? (
     <section className="card gx-card rise" style={delay(1)} aria-labelledby={listHeadingId}>
@@ -1947,11 +2101,11 @@ export function ManageView({
       {rows.length ? (
         byMonth ? (
           monthItems.length ? (
-            <div key={`${shownPeriod}-${shownMonth}`} className={cx("gx-sec", !anyState && "no-state")}>
+            <div key={`${shownPeriod}-${shownMonth}`} className={cx("gx-sec gxd-sec", !anyState && "no-state")}>
               {colHead}
-              <ul className="gx-list" aria-label={`${activeLabel}, ${shownTitle}: ${eventsText(monthItems.length)}`}>
-                {monthItems.map((event) => eventRow(event))}
-              </ul>
+              <div role="group" className="gxd-days" aria-label={`${activeLabel}, ${shownTitle}: ${eventsText(monthItems.length)}`}>
+                {dayBlocks(monthItems)}
+              </div>
             </div>
           ) : (
             <MonthEmpty
@@ -1962,17 +2116,15 @@ export function ManageView({
             />
           )
         ) : (
-          <div className={cx("gx-sec", !anyState && "no-state")}>
+          <div className={cx("gx-sec gxd-sec", !anyState && "no-state")}>
             {colHead}
             {groups.map(([month, items]) => (
-              <div key={month}>
+              <div key={month} role="group" aria-label={`${activeLabel}, ${groupTitle(month)}: ${eventsText(items.length)}`}>
                 <p className="gx-sub">
                   {groupTitle(month)}
                   <span>{eventsText(items.length)}</span>
                 </p>
-                <ul className="gx-list" aria-label={`${activeLabel}, ${groupTitle(month)}: ${eventsText(items.length)}`}>
-                  {items.map((event) => eventRow(event))}
-                </ul>
+                <div className="gxd-days">{dayBlocks(items)}</div>
               </div>
             ))}
           </div>
