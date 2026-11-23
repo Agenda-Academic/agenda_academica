@@ -46,7 +46,7 @@ import {
 import { categoryMeta } from "@/lib/meta";
 import type { AcademicEvent, AppNotification, Category, Reminder } from "@/lib/types";
 import { useOptionalAppActions } from "./app-actions";
-import { EventRow, StatusPill, eventLastDay } from "./event-bits";
+import { EventRow, StatusPill, dayTileOf, eventLastDay } from "./event-bits";
 import { useBackLayer } from "./app-actions";
 import { Drawer, EmptyState, SectionTitle } from "./ui";
 
@@ -824,6 +824,7 @@ export function EventList({
   fillRef,
   grouped,
   hideClass,
+  layout,
   limit,
   mineId,
   isMine,
@@ -834,6 +835,12 @@ export function EventList({
 }: {
   /** Classes do bloco da lista (ex.: margem em cima). */
   className?: string;
+  /**
+   * Linha no padrão da rodada 12 (listas.css). "day": blocos por dia, com o selo do dia à esquerda e linhas compactas
+   * (hora, ícone da categoria, título e dados); "strip": faixas finas com a data (SEG 23) e o prazo na linha de dados,
+   * para listas de datas soltas e para colunas estreitas. Sem isso, a linha de sempre (selo da data em cada linha).
+   */
+  layout?: "day" | "strip";
   /** Vazio em uma linha (cards do Painel). */
   emptyCompact?: boolean;
   emptyHint?: string;
@@ -892,9 +899,14 @@ export function EventList({
 
   // as linhas (EventRow) já dizem qual evento abrem (data-opens-event), para o foco voltar a elas. O invólucro diz
   // se a data é hoje: o selo de hoje fica cheio, em verde (painel.css)
-  const row = (event: AcademicEvent, showMonth = false) => (
+  const row = (event: AcademicEvent, showMonth = false, dayRel?: string) => (
     <div key={event.id} className="pnl-ev" data-today={isToday(event.startsAt) || undefined}>
       <EventRow
+        agenda={layout !== undefined}
+        compact={layout !== undefined}
+        dayRel={dayRel}
+        miniDate={layout === "strip"}
+        relInline={layout === "strip"}
         event={event}
         hideClass={hideClass}
         showMonth={showMonth}
@@ -907,21 +919,59 @@ export function EventList({
     </div>
   );
 
+  // "day": as linhas do mesmo dia juntas, num bloco, com o selo do dia (e o "amanhã") ao lado
+  const dayBlocks = (items: AcademicEvent[], withMonth: boolean) => {
+    const days: AcademicEvent[][] = [];
+    for (const event of items) {
+      const last = days[days.length - 1];
+      if (last && isSameDay(new Date(last[0].startsAt), new Date(event.startsAt))) {
+        last.push(event);
+      } else {
+        days.push([event]);
+      }
+    }
+    return days.map((day) => {
+      const tile = dayTileOf(day[0]);
+      return (
+        <div key={`dia-${day[0].id}`} className="pnl-day">
+          {/* o selo é só visual: cada linha já diz a data no nome acessível */}
+          <div aria-hidden className={cx("pnl-tile", tile.today && "today", tile.soon && "soon")}>
+            <span className="pnl-tile-box">
+              <span className="dw">{tile.weekday}</span>
+              <span className="dn">{tile.day}</span>
+              {withMonth ? <span className="mo">{tile.month}</span> : null}
+            </span>
+            <span className="rel">{tile.rel}</span>
+          </div>
+          <div className="pnl-dayrows">{day.map((event) => row(event, withMonth, tile.rel))}</div>
+        </div>
+      );
+    });
+  };
+  const body = (items: AcademicEvent[], withMonth: boolean) =>
+    layout === "day" ? (
+      <div className="pnl-days">{dayBlocks(items, withMonth)}</div>
+    ) : (
+      <div className={cx("grid", layout === "strip" ? "gap-2" : "gap-0.5")}>{items.map((event) => row(event, withMonth))}</div>
+    );
+
   const groups = grouped ? (grouped === "month" ? groupByMonth(visible) : groupByWeek(visible)) : null;
   const list = groups ? (
-    <div className={cx("pnl-list", className)}>
+    <div className={cx("pnl-list", layout && `is-${layout}`, className)}>
       {groups.map((group) => {
         const withMonth = spansMonths(group.items);
         return (
           <div key={group.label}>
             <p className="ev-group">{group.label}</p>
-            <div className="grid gap-0.5">{group.items.map((event) => row(event, withMonth))}</div>
+            {body(group.items, withMonth)}
           </div>
         );
       })}
     </div>
+  ) : layout === "day" ? (
+    <div className={cx("pnl-list is-day", className)}>{body(visible, spansMonths(visible))}</div>
   ) : (
-    <div className={cx("pnl-list grid gap-0.5", className)}>
+    <div className={cx("pnl-list grid", layout === "strip" ? "is-strip gap-2" : "gap-0.5", className)}>
       {visible.map((event) => row(event, spansMonths(visible)))}
     </div>
   );
@@ -996,6 +1046,7 @@ export function InstitutionDatesCard({
         events={events}
         grouped="month"
         hideClass
+        layout="strip"
         limit={limit}
         fillRef={fillRef}
         savedId={savedId}

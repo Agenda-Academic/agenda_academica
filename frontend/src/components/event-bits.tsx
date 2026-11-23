@@ -412,6 +412,10 @@ export function descriptionSnippet(description: string | null | undefined, term:
 
 export function EventRow({
   agenda,
+  compact: compactRow,
+  dayRel,
+  miniDate,
+  relInline,
   event,
   hideClass,
   hideDate,
@@ -429,8 +433,17 @@ export function EventRow({
    * listas (Painéis, Lembretes, lista do dia do Calendário) seguem com a linha de sempre.
    */
   agenda?: boolean;
-  /** Mantido por compatibilidade: a linha sempre mostra a data relativa. */
+  /** Com `agenda`: a linha dos Painéis (sem cartão, 36 px de ícone), em blocos por dia (listas.css, .ev-cp). */
   compact?: boolean;
+  /**
+   * Com `agenda`: o "amanhã" do selo à direita só aparece quando difere do selo do dia (o do dia já diz o mesmo
+   * para todas as linhas dele). Sem isso, o selo fica em toda linha.
+   */
+  dayRel?: string;
+  /** Com `agenda`: faixa fina com a data (SEG 23) no lugar da hora e do ícone, para listas sem selo de dia (Datas da instituição). */
+  miniDate?: boolean;
+  /** Com `agenda`: o "em 7 dias" vai no fim da linha de dados, em vez do selo à direita. */
+  relInline?: boolean;
   event: AcademicEvent;
   /** Oculta o nome da turma (visão de aluno, que só tem uma). */
   hideClass?: boolean;
@@ -503,11 +516,13 @@ export function EventRow({
     const Icon = categoryIcons[event.category];
     // "Dia todo" ou um intervalo de dias: sem coluna de hora (nas datas do campus ela some), o texto vai para os dados
     const spansDay = time === "Dia todo" || multi;
+    // o selo da direita: só quando não repete o do dia (e nunca na faixa fina, que leva o prazo na linha de dados)
+    const relChip = !relInline && !(dayRel !== undefined && rel === dayRel);
     return (
       <button
         aria-current={selected ? "true" : undefined}
         aria-label={name}
-        className={cx("ev ev-ag", selected && "sel", days === 0 && "today")}
+        className={cx("ev ev-ag", compactRow && "ev-cp", miniDate && "ev-mini", !relChip && "no-rel", selected && "sel", days === 0 && "today")}
         // faixa fina das datas do campus: a cor vem da categoria (listas.css)
         data-cat={event.category}
         data-event-id={event.id}
@@ -516,6 +531,13 @@ export function EventRow({
         onClick={onClick}
         type="button"
       >
+        {miniDate ? (
+          <span aria-hidden className="ag-date">
+            <span className="dw">{parts.weekday}</span>
+            <span className="dn">{parts.day}</span>
+            {showMonth ? <span className="mo">{parts.month}</span> : null}
+          </span>
+        ) : null}
         <span className={cx("ag-time", spansDay && "is-span")}>
           <span className="ag-t">{time}</span>
           {spansDay ? null : <span className="ag-p">{dayPeriod(event.startsAt)}</span>}
@@ -556,12 +578,13 @@ export function EventRow({
                 {event.location}
               </span>
             ) : null}
-            {spansDay ? <span className="ag-whole">{multi ? time : "dia todo"}</span> : null}
+            {spansDay || miniDate ? <span className="ag-whole">{time === "Dia todo" ? "dia todo" : time}</span> : null}
             {event.points !== null ? <span className={cx("ag-pts", meta.tint)}>{event.points}&nbsp;pts</span> : null}
+            {relInline ? <span className={cx("ag-relin", soon && "soon")}>{rel}</span> : null}
           </span>
           {snippet ? <span className="ev-snip">{highlightMatches(snippet, highlight)}</span> : null}
         </span>
-        <span className={cx("ag-rel", soon ? "soon" : days >= 2 && days <= 6 ? "near" : days < 0 && !ongoing ? "past" : null)}>{rel}</span>
+        {relChip ? <span className={cx("ag-rel", soon ? "soon" : days >= 2 && days <= 6 ? "near" : days < 0 && !ongoing ? "past" : null)}>{rel}</span> : null}
       </button>
     );
   }

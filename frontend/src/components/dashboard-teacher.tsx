@@ -484,6 +484,7 @@ export function TeacherDashboard({
       <EventList
         className="mt-3"
         events={listEvents}
+        layout="strip"
         limit={sideCount}
         fillRef={sideGapRef}
         savedId={savedId}

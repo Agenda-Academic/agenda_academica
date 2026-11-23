@@ -2232,7 +2232,7 @@ export function CalendarView({
    * (cronograma.css), e as provas e trabalhos se destacam no meio delas. O mês só aparece no bloco da data
    * quando o evento começou em outro mês (um recesso que vem de dezembro, na lista de janeiro).
    */
-  function listRow(item: MonthItem, continued = false, order = 0) {
+  function listRow(item: MonthItem, continued = false, order = 0, dayRel?: string) {
     const { event } = item;
     return (
       <div
@@ -2247,6 +2247,8 @@ export function CalendarView({
       >
         <EventRow
           agenda
+          // o selo do dia já diz "amanhã": a linha só repete o prazo quando ele é outro (evento em andamento)
+          dayRel={dayRel}
           event={event}
           hideClass={role === "student" || role === "guardian"}
           hideDate={continued}
@@ -2301,7 +2303,7 @@ export function CalendarView({
             </span>
             <span className="rel">{tile.rel}</span>
           </div>
-          <div className="crono-dayrows">{day.map((item, index) => listRow(item, index > 0, counter.n++))}</div>
+          <div className="crono-dayrows">{day.map((item, index) => listRow(item, index > 0, counter.n++, tile.rel))}</div>
         </div>
       );
     });

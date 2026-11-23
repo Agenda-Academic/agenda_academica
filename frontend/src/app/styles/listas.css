@@ -116,6 +116,11 @@ html .crono .crono-list .ev.ev-ag {
     transform 0.15s var(--ease),
     box-shadow 0.15s var(--ease);
 }
+/* sem o selo "amanhã" à direita (o do dia já diz): a linha fica com três colunas */
+html .crono .crono-list .ev.ev-ag.no-rel {
+  grid-template-columns: 58px 42px minmax(0, 1fr);
+  grid-template-areas: "time ico body";
+}
 /* a linha seguinte do mesmo dia não precisa mais do espaço do selo (ele fica na coluna ao lado) */
 html .crono .crono-list .crono-item[data-cont] > .ev.ev-ag::before {
   content: none;
@@ -335,6 +340,10 @@ html .crono .crono-list .crono-item[data-campus] .ev.ev-ag {
   padding: 10px 16px;
   border-radius: 18px;
 }
+html .crono .crono-list .crono-item[data-campus] .ev.ev-ag.no-rel {
+  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-areas: "ico body";
+}
 html .crono .crono-list .crono-item[data-campus] .ev-ag .ag-ico {
   width: 34px;
   height: 34px;
@@ -433,7 +442,8 @@ html .crono .crono-list .ev-ag[data-cat="institutional"]:hover {
     background: var(--line);
   }
   /* a linha: ícone, corpo e a hora à direita; o "amanhã" já está na faixa do dia */
-  html .crono .crono-list .ev.ev-ag {
+  html .crono .crono-list .ev.ev-ag,
+  html .crono .crono-list .ev.ev-ag.no-rel {
     grid-template-columns: 42px minmax(0, 1fr) auto;
     grid-template-areas: "ico body time";
     gap: 12px;
@@ -449,7 +459,8 @@ html .crono .crono-list .ev-ag[data-cat="institutional"]:hover {
   html .crono .crono-list .ev-ag .ag-rel {
     display: none;
   }
-  html .crono .crono-list .crono-item[data-campus] .ev.ev-ag {
+  html .crono .crono-list .crono-item[data-campus] .ev.ev-ag,
+  html .crono .crono-list .crono-item[data-campus] .ev.ev-ag.no-rel {
     grid-template-areas: "ico body";
     grid-template-columns: 34px minmax(0, 1fr);
     padding: 10px 14px;
@@ -656,4 +667,443 @@ html .crono .crono-strip-empty {
   border: 1px dashed var(--line-strong);
   font-size: var(--fs-14);
   color: var(--ink-3);
+}
+
+/* ==================================================================
+   Painéis (rodada 12): as listas de eventos no mesmo vocabulário do Cronograma, mais compactas.
+   "day" (Próximos compromissos do aluno e do responsável): blocos por dia, com o selo do dia à esquerda e linhas
+   sem cartão, separadas por um fio (hora, ícone da categoria, título e dados). O selo do dia já diz "amanhã": a linha
+   não repete. "strip" (Datas da instituição e Meus próximos eventos): faixas finas com a data (SEG 23) e o prazo
+   na linha de dados. Seletores com "html .pnl .pnl-list .ev.ev-ag" para vencer a linha antiga (painel.css).
+   ================================================================== */
+html .pnl .pnl-list.is-day .ev-group,
+html .pnl .pnl-list.is-strip .ev-group {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 12.5px;
+}
+html .pnl .pnl-list.is-day .ev-group {
+  font-family: var(--disp);
+  font-weight: 700;
+  color: var(--brand-ink);
+}
+html .pnl .pnl-list.is-strip .ev-group {
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+/* ---------- peças da linha (.ev-ag), as mesmas do Cronograma, para as listas dos Painéis ---------- */
+html .pnl .pnl-list .ev-ag .ag-time {
+  grid-area: time;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+html .pnl .pnl-list .ev-ag .ag-t {
+  font-family: var(--disp);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+html .pnl .pnl-list .ev-ag .ag-p {
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+html .pnl .pnl-list .ev-ag .ag-time.is-span .ag-t {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ink-2);
+}
+html .pnl .pnl-list .ev-ag .ag-ico {
+  grid-area: ico;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+}
+html .pnl .pnl-list .ev-ag .ag-body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+html .pnl .pnl-list .ev-ag .ag-over {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 16px;
+}
+html .pnl .pnl-list .ev-ag .ag-cat {
+  padding: 0;
+  background: transparent;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+html .pnl .pnl-list .ev-ag .ag-title {
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+}
+html .pnl .pnl-list .ev-ag .ag-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: var(--fs-13);
+  line-height: 1.35;
+  color: var(--muted);
+}
+html .pnl .pnl-list .ev-ag .ag-sub {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+html .pnl .pnl-list .ev-ag .ag-loc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+html .pnl .pnl-list .ev-ag .ag-pts {
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+html .pnl .pnl-list .ev-ag .ag-whole,
+html .pnl .pnl-list .ev-ag .ag-relin {
+  display: none;
+}
+
+/* ---------- "day": o dia ---------- */
+html .pnl .pnl-list .pnl-days {
+  display: flex;
+  flex-direction: column;
+}
+html .pnl .pnl-list .pnl-day {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 0 14px;
+  align-items: start;
+  padding: 6px 0;
+}
+html .pnl .pnl-list .pnl-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+html .pnl .pnl-list .pnl-tile-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 56px;
+  padding: 9px 0 8px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+}
+html .pnl .pnl-list .pnl-tile .dw {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+html .pnl .pnl-list .pnl-tile .dn {
+  font-family: var(--disp);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+html .pnl .pnl-list .pnl-tile .mo {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+html .pnl .pnl-list .pnl-tile .rel {
+  max-width: 70px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--ink-3);
+}
+html .pnl .pnl-list .pnl-tile.soon .pnl-tile-box {
+  background: var(--amber-bg);
+  box-shadow: inset 0 0 0 1px var(--amber-line);
+}
+html .pnl .pnl-list .pnl-tile.soon :is(.dw, .dn, .mo, .rel) {
+  color: var(--amber);
+}
+html .pnl .pnl-list .pnl-tile.today .pnl-tile-box {
+  background: var(--brand);
+  box-shadow: 0 8px 16px -10px rgb(var(--brand-rgb) / 0.9);
+}
+html .pnl .pnl-list .pnl-tile.today :is(.dw, .dn, .mo) {
+  color: #fff;
+}
+html .pnl .pnl-list .pnl-tile.today .rel {
+  color: var(--brand-ink);
+}
+html .pnl .pnl-list .pnl-dayrows {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  overflow: hidden;
+}
+html .pnl .pnl-list .pnl-dayrows > .pnl-ev + .pnl-ev {
+  border-top: 1px solid var(--line-2);
+}
+
+/* ---------- a linha compacta (.ev-cp): hora | ícone | corpo ---------- */
+html .pnl .pnl-list .ev.ev-ag.ev-cp {
+  display: grid;
+  grid-template-columns: 52px 36px minmax(0, 1fr);
+  grid-template-areas: "time ico body";
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+html .pnl .pnl-list .ev.ev-ag.ev-cp:hover {
+  background: var(--surface-2);
+  box-shadow: none;
+}
+html .pnl .pnl-list .ev.ev-ag.ev-cp.sel,
+html .pnl .pnl-list .ev.ev-ag.ev-cp.sel:hover {
+  background: var(--brand-50);
+  box-shadow: inset 0 0 0 1.5px var(--brand);
+}
+/* a folga que o equilíbrio das colunas reparte entre as linhas (useColumnFill) vira respiro dentro da linha */
+html .pnl .duo.duo-even > .duo-col .pnl-list .ev.ev-ag.ev-cp {
+  margin-block: 0;
+  padding-block: calc(12px + var(--fill-row, 0px) / 2);
+}
+html .pnl .pnl-list .ev-cp .ag-t {
+  font-size: 16px;
+}
+html .pnl .pnl-list .ev-cp .ag-ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+html .pnl .pnl-list .ev-cp .ag-ico svg {
+  width: 18px;
+  height: 18px;
+}
+/* título em cima e, embaixo, a palavra da categoria e os dados na mesma linha */
+html .pnl .pnl-list .ev-cp .ag-body {
+  flex-flow: row wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+html .pnl .pnl-list .ev-cp .ag-title {
+  order: 1;
+  flex: 0 0 100%;
+  font-size: var(--fs-15);
+  font-weight: 600;
+  -webkit-line-clamp: 3;
+}
+html .pnl .pnl-list .ev-cp .ag-over {
+  order: 2;
+  min-height: 0;
+}
+html .pnl .pnl-list .ev-cp .ag-meta {
+  order: 3;
+  gap: 0 10px;
+  font-size: var(--fs-13);
+}
+html .pnl .pnl-list .ev-cp .ag-cat {
+  font-size: 11px;
+}
+/* os pontos em texto, sem o selo colorido: três sinais de cor por linha era demais */
+html .pnl .pnl-list .ev-cp .ag-pts {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* ---------- "strip": faixa fina com a data ---------- */
+html .pnl .pnl-list .ev.ev-ag.ev-mini {
+  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-areas: "date body";
+  gap: 12px;
+  padding: 9px 14px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html .pnl .pnl-list .ev.ev-ag.ev-mini:hover {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+html .pnl .pnl-list .ev.ev-ag.ev-mini.sel,
+html .pnl .pnl-list .ev.ev-ag.ev-mini.sel:hover {
+  box-shadow:
+    inset 0 0 0 1.5px var(--brand),
+    0 0 0 3px rgb(var(--brand-rgb) / 0.16);
+}
+html .pnl .pnl-list .ev-mini .ag-time,
+html .pnl .pnl-list .ev-mini .ag-ico {
+  display: none;
+}
+html .pnl .pnl-list .ev-mini .ag-date {
+  grid-area: date;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+html .pnl .pnl-list .ev-mini .ag-date .dw {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+html .pnl .pnl-list .ev-mini .ag-date .dn {
+  font-family: var(--disp);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+html .pnl .pnl-list .ev-mini .ag-date .mo {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+html .pnl .pnl-list .ev-mini .ag-whole {
+  display: inline;
+}
+html .pnl .pnl-list .ev-mini .ag-relin {
+  display: inline;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+html .pnl .pnl-list .ev-mini .ag-relin.soon {
+  color: var(--amber);
+}
+/* as datas do campus na cor da categoria (a das turmas fica neutra) */
+html .pnl .pnl-list .ev.ev-ag.ev-mini[data-cat="holiday"] {
+  background: var(--c-fer-bg);
+  box-shadow: inset 0 0 0 1px var(--green-line);
+}
+html .pnl .pnl-list .ev.ev-ag.ev-mini[data-cat="recess"] {
+  background: var(--c-rec-bg);
+  box-shadow: inset 0 0 0 1px var(--amber-line);
+}
+html .pnl .pnl-list .ev.ev-ag.ev-mini[data-cat="institutional"] {
+  background: var(--c-inst-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-inst) 28%, transparent);
+}
+html .pnl .pnl-list .ev-mini[data-cat="holiday"] :is(.dw, .dn, .mo, .ag-relin, .ag-whole),
+html .pnl .pnl-list .ev-mini[data-cat="recess"] :is(.dw, .dn, .mo, .ag-relin, .ag-whole),
+html .pnl .pnl-list .ev-mini[data-cat="institutional"] :is(.dw, .dn, .mo, .ag-relin, .ag-whole) {
+  color: var(--cat-ink);
+}
+html .pnl .pnl-list .ev-mini[data-cat="holiday"] {
+  --cat-ink: var(--c-fer-t);
+}
+html .pnl .pnl-list .ev-mini[data-cat="recess"] {
+  --cat-ink: #7a5200;
+}
+html .pnl .pnl-list .ev-mini[data-cat="institutional"] {
+  --cat-ink: var(--c-inst-t);
+}
+
+/* ---------- coluna estreita (celular, ou a coluna de apoio): o selo do dia vira uma faixa acima das linhas ---------- */
+@container (max-width: 459px) {
+  html .pnl .pnl-list .pnl-day {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  html .pnl .pnl-list .pnl-tile {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    margin: 2px 2px 8px;
+  }
+  html .pnl .pnl-list .pnl-tile-box {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    width: auto;
+    padding: 5px 12px;
+    border-radius: 999px;
+  }
+  html .pnl .pnl-list .pnl-tile .dn {
+    font-size: 16px;
+  }
+  html .pnl .pnl-list .pnl-tile .rel {
+    max-width: none;
+    font-size: 13px;
+  }
+  html .pnl .pnl-list .ev.ev-ag.ev-cp:not(.ev-mini) {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    grid-template-areas: "ico body time";
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  html .pnl .pnl-list .ev-cp:not(.ev-mini) .ag-time {
+    align-items: flex-end;
+    text-align: right;
+  }
+  html .pnl .pnl-list .ev-cp:not(.ev-mini) .ag-t {
+    font-size: 15px;
+  }
+  /* faixa fina na coluna estreita: a categoria e os dados seguem como uma frase só, embaixo do título (como a
+     linha de dados da linha antiga em painel.css), em vez de uma linha para cada peça. display: contents faz as
+     peças das duas linhas virarem filhas diretas do corpo, que quebra como texto; o título vai antes de todas */
+  html .pnl .pnl-list .ev-mini .ag-body {
+    gap: 0 8px;
+    line-height: 1.5;
+  }
+  html .pnl .pnl-list .ev-mini .ag-title {
+    order: -1;
+  }
+  html .pnl .pnl-list .ev-mini .ag-over,
+  html .pnl .pnl-list .ev-mini .ag-meta {
+    display: contents;
+  }
+  /* como a linha antiga nessa largura (globals.css, container até 400 px): só a categoria, a hora e o prazo; a
+     disciplina, a turma, o local e os pontos ficam no detalhe */
+  html .pnl .pnl-list .ev-mini .ag-meta > :not(.ag-whole, .ag-relin) {
+    display: none;
+  }
 }

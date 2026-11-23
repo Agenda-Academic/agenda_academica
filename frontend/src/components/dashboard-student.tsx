@@ -948,6 +948,7 @@ export function StudentDashboard({
                 className="mt-3.5"
                 events={classAhead}
                 grouped
+                layout="day"
                 hideClass={oneClass}
                 limit={aheadCount}
                 emptyCompact

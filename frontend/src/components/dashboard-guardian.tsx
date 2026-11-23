@@ -383,6 +383,7 @@ export function GuardianDashboard({
                   className="mt-3.5"
                   events={examsList}
                   grouped
+                  layout="day"
                   hideClass={singleClass}
                   limit={mainCount}
                   emptyIcon={CalendarDays}
