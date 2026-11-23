@@ -409,9 +409,14 @@ export default class CalendarPdfService {
     return items
   }
 
+  /** Código do arquivo (o mesmo do `checksum` da leitura), para saber se ele já foi importado. */
+  static checksumOf(data: Uint8Array) {
+    return `pdf-${createHash('sha256').update(data).digest('hex').slice(0, 24)}`
+  }
+
   static async parse(data: Uint8Array) {
     // antes de ler: o PDF.js fica com o buffer do arquivo e ele chega vazio aqui depois
-    const checksum = `pdf-${createHash('sha256').update(data).digest('hex').slice(0, 24)}`
+    const checksum = this.checksumOf(data)
     const items = await this.extractItems(data)
     if (!items.length) {
       throw new CalendarPdfError(

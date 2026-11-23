@@ -14,15 +14,10 @@ import Reminder from '#models/reminder'
 import Subject from '#models/subject'
 import TeachingAssignment from '#models/teaching_assignment'
 import User from '#models/user'
-import CalendarImport from '#models/calendar_import'
-import CalendarPdfService from '#services/calendar_pdf_service'
-import CalendarSyncService, { AlreadyImported } from '#services/calendar_sync_service'
+import BundledCalendarsService from '#services/bundled_calendars_service'
 import { appTimezone } from '#services/date_time_service'
 import { DEMO_GUARDIAN_EMAIL, DEMO_STUDENT_EMAIL } from '#database/seeders/demo_datum_seeder'
-import app from '@adonisjs/core/services/app'
-import logger from '@adonisjs/core/services/logger'
 import { DateTime } from 'luxon'
-import { readFile } from 'node:fs/promises'
 
 /** Conta que só existe depois deste seed: o `db:seed-if-empty` usa para saber se ele já rodou. */
 export const ESCOLA_DEMO_MARKER = 'sofia.ferreira@agenda.test'
@@ -37,46 +32,6 @@ function zonedDay(days: number, hour = 0, minute = 0) {
   let day = DateTime.now().setZone(appTimezone()).startOf('day').plus({ days })
   while (day.weekday > 5) day = day.plus({ days: step })
   return day.plus({ hours: hour, minutes: minute }).toUTC()
-}
-
-/** Calendário Acadêmico 2026 do campus (o de 2027 a administração importa pela tela). */
-export const CALENDAR_2026_PDF = 'database/seeders/data/calendario-ifms-2026-tres-lagoas.pdf'
-
-/**
- * Importa o calendário de 2026 como a tela faz: as datas só de servidores (PIT, RAD, diários)
- * ficam de fora, e o que já está no calendário oficial (mesmo título no mesmo dia) não repete.
- * Sem o arquivo, o seed segue sem ele: um PDF faltando não pode derrubar o início da API.
- */
-async function importCalendar2026(importedById: number) {
-  let data: Uint8Array
-  try {
-    data = new Uint8Array(await readFile(app.makePath(CALENDAR_2026_PDF)))
-  } catch {
-    logger.warn(`calendário de 2026 não encontrado (${CALENDAR_2026_PDF}): seed segue sem ele`)
-    return
-  }
-  const calendar = await CalendarPdfService.parse(data)
-  if (await CalendarImport.findBy('checksum', calendar.checksum)) return
-  try {
-    await CalendarSyncService.importEvents({
-      sourceName: calendar.sourceName,
-      checksum: calendar.checksum,
-      importedById,
-      events: calendar.events
-        .filter((event) => event.audience === 'all')
-        .map(({ title, description, category, startsAt, endsAt, sourceExternalId }) => ({
-          title,
-          description,
-          category,
-          startsAt,
-          // como na tela (sync-view.tsx): término só com o dia vale até 23:59 dele
-          endsAt: endsAt ? `${endsAt}T23:59` : null,
-          sourceExternalId,
-        })),
-    })
-  } catch (error) {
-    if (!(error instanceof AlreadyImported)) throw error
-  }
 }
 
 /** Nota sempre igual para o mesmo aluno e evento: de 55% a 100% da pontuação, em meio ponto. */
@@ -819,9 +774,9 @@ export default class extends BaseSeeder {
       location: 'Auditório',
       description: 'Conversa com a coordenação e com os docentes sobre o andamento do ano.',
     })
-    // As outras datas da instituição são as de verdade: o Calendário Acadêmico 2026 do campus
-    // (feriados, recessos, fim do semestre em dezembro e o histórico do ano)
-    await importCalendar2026(admin.id)
+    // As outras datas da instituição são as de verdade: os Calendários Acadêmicos 2026 e 2027 do
+    // campus (feriados, recessos, fim do semestre em dezembro e o histórico do ano)
+    await BundledCalendarsService.importMissing(admin.id)
 
     // Notas publicadas: todos os alunos da turma, com algumas faltas
     const mathPast = await AcademicEvent.findBy({

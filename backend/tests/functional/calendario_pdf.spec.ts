@@ -1,4 +1,4 @@
-import { CALENDAR_2026_PDF } from '#database/seeders/escola_demo_seeder'
+import { BUNDLED_CALENDARS } from '#services/bundled_calendars_service'
 import {
   parseCalendarItems,
   parseDateText,
@@ -26,9 +26,8 @@ type PdfBody = Envelope<{
 }>
 
 const API = '/api/v1'
-const PDF_2027 = app.makePath('tests/fixtures/calendario-ifms-2027-tres-lagoas.pdf')
-// o de 2026 fica com o seed, que o importa na escola de demonstração
-const PDF_2026 = app.makePath(CALENDAR_2026_PDF)
+const PDF_2027 = app.makePath(BUNDLED_CALENDARS[2027])
+const PDF_2026 = app.makePath(BUNDLED_CALENDARS[2026])
 
 async function loginAs(client: any, email: string) {
   const response = await client.post(`${API}/auth/login`).json({ email, password: 'password123' })

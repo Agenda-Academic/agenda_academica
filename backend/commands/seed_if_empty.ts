@@ -2,8 +2,9 @@ import { BaseCommand } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 
 /**
- * Semeia as contas e os dados de demonstração num banco novo, sem nenhum usuário, e completa
- * uma vez a demonstração antiga (sem a escola de `escola_demo_seeder.ts`).
+ * A cada início da API: importa os Calendários Acadêmicos que vêm com o sistema (em qualquer
+ * banco), semeia as contas e os dados de demonstração num banco novo, sem nenhum usuário, e
+ * completa uma vez a demonstração antiga (sem a escola de `escola_demo_seeder.ts`).
  *
  * O Postgres guarda os dados entre os reinícios da API. Semear de novo a cada boot desfaria o
  * que foi mudado na demonstração e duplicaria o que foi renomeado.
@@ -22,6 +23,17 @@ export default class SeedIfEmpty extends BaseCommand {
     const { default: db } = await import('@adonisjs/lucid/services/db')
     const { default: User } = await import('#models/user')
     const { default: AccountPolicyService } = await import('#services/account_policy_service')
+    const { default: BundledCalendarsService } = await import('#services/bundled_calendars_service')
+
+    // Os Calendários Acadêmicos do campus são dados de verdade: entram em qualquer banco, com ou
+    // sem demonstração (a produção nasce com eles). Um erro aqui também só vai para o log.
+    try {
+      for (const name of await BundledCalendarsService.importMissing()) {
+        this.logger.info(`calendário importado: ${name}`)
+      }
+    } catch (error) {
+      this.logger.error(`calendários não importados: ${(error as Error).message}`)
+    }
 
     if (!AccountPolicyService.demoAccountsEnabled()) {
       this.logger.info('contas de demonstração desligadas (DEMO_ACCOUNTS=false): seed pulado')
