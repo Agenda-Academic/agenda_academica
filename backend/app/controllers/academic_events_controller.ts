@@ -8,7 +8,7 @@ import AcademicAccessService, { type VisibilityOptions } from '#services/academi
 import { fieldError, guardianChoiceError } from '#services/api_errors'
 import { parseIsoDateTime, reminderSendAt } from '#services/date_time_service'
 import GradeService, { formatScore, GRADABLE_CATEGORIES } from '#services/grade_service'
-import { countOf, publicTeacher } from '#services/query_helpers'
+import { countOf, listedClass, listedSubject, publicTeacher } from '#services/query_helpers'
 import { createAcademicEventValidator, updateAcademicEventValidator } from '#validators/academic'
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
@@ -39,10 +39,11 @@ export default class AcademicEventsController {
     if (!AcademicAccessService.isKnownRole(user)) {
       return response.forbidden({ message: 'Seu perfil não tem acesso à agenda.' })
     }
+    // A lista vai inteira para a tela (todas as telas leem dela), então a turma e a disciplina vêm enxutas.
     const query = AcademicEvent.query()
-      .preload('subject')
+      .preload('subject', listedSubject)
       .preload('teacher', publicTeacher)
-      .preload('academicClass', (classQuery) => classQuery.preload('course'))
+      .preload('academicClass', listedClass)
       .orderBy('startsAt', 'asc')
 
     // O responsável vê a agenda de um aluno vinculado por vez (`studentId`).
