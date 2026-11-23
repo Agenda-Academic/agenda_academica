@@ -33,7 +33,7 @@ import {
 import { addDays, cx, formatTime, isWholeDay, monthGroupLabel, monthTitle, startOfDay, weekRangeLabel } from "@/lib/format";
 import { adminOnlyCategories, allCategories, categoryMeta } from "@/lib/meta";
 import type { AcademicClass, AcademicEvent, Category, UserRole } from "@/lib/types";
-import { EventDetailContent, EventRow, eventLastDay, formatDayRange, type EventStatusChange } from "./event-bits";
+import { EventDetailContent, EventRow, dayTileOf, eventLastDay, formatDayRange, type EventStatusChange } from "./event-bits";
 import {
   MonthEmpty,
   MonthNeighbors,
@@ -915,6 +915,46 @@ function DayEvents({
 
 const DOW = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
+/** Um dia da faixa da semana: quantos eventos tem e as categorias (até 3) para os pontinhos. */
+type StripDay = { time: number; date: Date; count: number; categories: Category[]; today: boolean; outside: boolean };
+
+/**
+ * Faixa dos 7 dias da semana de hoje, no alto da Agenda (rodada 12): o que há em cada dia, com um ponto por
+ * categoria, e um toque filtra a lista por aquele dia (de novo, volta a semana toda). Dias de outro mês não valem.
+ */
+function WeekStrip({ days, picked, onPick }: { days: StripDay[]; picked: number | null; onPick: (time: number | null) => void }) {
+  return (
+    <div className="crono-strip" role="group" aria-label="Dias desta semana">
+      {days.map((day) => {
+        const on = picked === day.time;
+        const spoken = `${dayTitle(day.date)}: ${day.count ? plural(day.count, "evento", "eventos") : "nenhum evento"}`;
+        return (
+          <button
+            key={day.time}
+            aria-label={spoken}
+            aria-pressed={on}
+            className={cx("cs-day", on && "on", day.today && "today", !day.count && "free")}
+            disabled={day.outside}
+            onClick={() => onPick(on ? null : day.time)}
+            type="button"
+          >
+            <span className="cs-dw">{DOW[day.date.getDay()]}</span>
+            <span className="cs-dn">{day.date.getDate()}</span>
+            <span aria-hidden className="cs-dots">
+              {day.categories.map((category) => (
+                <i key={category} className={categoryMeta[category].accent} />
+              ))}
+            </span>
+            <span aria-hidden className="cs-cap">
+              {day.today ? "hoje" : day.count ? plural(day.count, "evento", "eventos") : "livre"}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Traço de caneta em volta do número de hoje, desenhado na entrada: a classe .pen-ring do contrato da rodada 10
  * (ux.css), em verde (--pen padrão) e com o movimento reduzido já tratado lá.
@@ -1431,6 +1471,8 @@ export function CalendarView({
   const [selectedDay, setSelectedDay] = useState<string | null>(() =>
     calendarMode === "month" && selectedEvent ? dayKey(new Date(selectedEvent.startsAt)) : null
   );
+  // dia escolhido na faixa da semana da Agenda: vale só para o mês e o período em que foi escolhido (key)
+  const [stripPick, setStripPick] = useState<{ key: string; day: number } | null>(null);
   // último evento escolhido aqui dentro (lista, grade ou dia): esse já está à vista
   const [internalId, setInternalId] = useState<number | null>(null);
   // evento que chega de fora (Painel, avisos, endereço) numa categoria fora do filtro que ficou da última
@@ -2204,6 +2246,7 @@ export function CalendarView({
         data-cont={continued ? "" : undefined}
       >
         <EventRow
+          agenda
           event={event}
           hideClass={role === "student" || role === "guardian"}
           hideDate={continued}
@@ -2231,16 +2274,37 @@ export function CalendarView({
         days.push([item]);
       }
     }
-    return days.map((day) =>
-      day.length === 1 ? (
-        listRow(day[0], false, counter.n++)
-      ) : (
-        // o leitor de tela ouve o dia ao entrar no grupo (as linhas de baixo não têm a data)
-        <div key={`dia-${day[0].event.id}`} className="crono-day" role="group" aria-label={dayTitle(new Date(day[0].day))}>
-          {day.map((item, index) => listRow(item, index > 0, counter.n++))}
+    return days.map((day) => {
+      const first = day[0];
+      const tile = dayTileOf(first.event);
+      // o mês só aparece no selo quando o evento começou em outro mês (um recesso que vem de dezembro, na lista de janeiro)
+      const tileMonth = monthIndexOf(eventSpan(first.event).first) !== monthIndexOf(first.day);
+      const tileYear = tile.year !== new Date(first.day).getFullYear();
+      return (
+        <div
+          key={`dia-${first.event.id}`}
+          className="crono-day"
+          // o leitor de tela ouve o dia ao entrar no grupo de vários eventos (o selo do dia é só visual; cada linha já diz a data)
+          role={day.length > 1 ? "group" : undefined}
+          aria-label={day.length > 1 ? dayTitle(new Date(first.day)) : undefined}
+        >
+          <div aria-hidden className={cx("crono-tile", tile.today && "today", tile.soon && "soon")}>
+            <span className="crono-tile-box">
+              <span className="dw">{tile.weekday}</span>
+              <span className="dn">{tile.day}</span>
+              {tileMonth ? (
+                <span className="mo">
+                  {tile.month}
+                  {tileYear ? ` ${tile.year}` : ""}
+                </span>
+              ) : null}
+            </span>
+            <span className="rel">{tile.rel}</span>
+          </div>
+          <div className="crono-dayrows">{day.map((item, index) => listRow(item, index > 0, counter.n++))}</div>
         </div>
-      )
-    );
+      );
+    });
   }
 
   function listGroups(groups: ListGroup[], ids?: string[]) {
@@ -2251,6 +2315,8 @@ export function CalendarView({
         <p className="ev-group crono-gh" id={ids?.[position]} tabIndex={ids ? -1 : undefined}>
           {group.label}
           {group.range ? <span className="crono-gh-r"> {group.range}</span> : null}
+          <span aria-hidden className="crono-gh-line" />
+          <span className="crono-gh-n">{plural(group.items.length, "evento", "eventos")}</span>
         </p>
         <div className="crono-rows">{dayRows(group.items, counter)}</div>
       </div>
@@ -2264,10 +2330,24 @@ export function CalendarView({
     // o que começou num mês anterior (um recesso de maio que entra em junho) fica num grupo próprio, "Continua
     // de maio", fora das semanas. Na ordem da lista: no alto, ou no fim em Passados (do mais recente ao mais antigo)
     const todayStart = startOfDay(zonedNow()).getTime();
+    // faixa da semana de hoje: só no mês de hoje e fora de Passados; o dia escolhido filtra a lista
+    const stripKey = `${timeFilter}|${index}`;
+    const pickedDay = stripPick?.key === stripKey ? stripPick.day : null;
+    const showStrip = forward && index === monthIndexOf(todayStart) && shownItems.length > 0;
+    const stripDays: StripDay[] = showStrip
+      ? Array.from({ length: 7 }, (_, offset) => {
+          const date = addDays(weekStartOf(todayStart), offset);
+          const time = date.getTime();
+          const own = shownItems.filter((item) => startOfDay(new Date(item.day)).getTime() === time);
+          const categories = [...new Set(own.map((item) => item.event.category))].sort((a, b) => priorityOf(a) - priorityOf(b)).slice(0, 3);
+          return { time, date, count: own.length, categories, today: time === todayStart, outside: monthIndexOf(time) !== index };
+        })
+      : [];
+    const listItems = pickedDay === null ? shownItems : shownItems.filter((item) => startOfDay(new Date(item.day)).getTime() === pickedDay);
     const startedBefore = (item: MonthItem) => monthIndexOf(periodSpan(item.event, timeFilter, todayStart).first) < index;
-    const carried = shownItems.filter(startedBefore);
+    const carried = listItems.filter(startedBefore);
     const ownGroups = groupByWeek(
-      shownItems.filter((item) => !startedBefore(item)),
+      listItems.filter((item) => !startedBefore(item)),
       shown.year
     );
     const carriedFrom = new Set(carried.map((item) => monthIndexOf(periodSpan(item.event, timeFilter, todayStart).first)));
@@ -2307,9 +2387,20 @@ export function CalendarView({
 
         {shownItems.length ? (
           <>
-            <div key={`mes-${timeFilter}-${index}`} className="crono-list pop">
-              {listGroups(weekGroups)}
-            </div>
+            {showStrip ? <WeekStrip days={stripDays} picked={pickedDay} onPick={(time) => setStripPick(time === null ? null : { key: stripKey, day: time })} /> : null}
+            {listItems.length ? (
+              <div key={`mes-${timeFilter}-${index}`} className="crono-list pop">
+                {listGroups(weekGroups)}
+              </div>
+            ) : (
+              // dia da faixa sem evento (com o filtro de categoria, por exemplo): a saída fica ao lado
+              <div className="crono-strip-empty">
+                <p>Nenhum evento nesse dia.</p>
+                <button className="btn btn-s btn-sm" onClick={() => setStripPick(null)} type="button">
+                  Ver a semana toda
+                </button>
+              </div>
+            )}
             {/* pé discreto: o mês vizinho do calendário, mesmo vazio ("Outubro, nenhum evento") */}
             <MonthNeighbors
               main={forward ? "next" : "prev"}

@@ -19,6 +19,8 @@
 @import "./styles/lembretes.css" layer(components);
 @import "./styles/ux.css" layer(components);
 @import "./styles/componentes.css" layer(components);
+/* rodada 12: listas de eventos como no protótipo (Agenda do Cronograma; a Gestão fica em gestao.css) */
+@import "./styles/listas.css" layer(components);
 
 /* ==================================================================
    Tokens do produto: rodada 10, "Pantanal forte" com Sora (2026-11-22).

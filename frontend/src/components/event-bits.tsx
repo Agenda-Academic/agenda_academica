@@ -16,13 +16,14 @@ import {
   RotateCcw,
   ShieldCheck,
   Trash2,
+  User,
   Users,
   X,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { cx, dateParts, daysUntil, formatRelativeWhen, formatTime, isAllDay, normalizeText, relativeDue, startOfDay, yearSuffix } from "@/lib/format";
-import { adminOnlyCategories, categoryMeta, reminderChips, reminderShortLabel, showsOfficialPill, sourceText, statusMeta } from "@/lib/meta";
+import { cx, dateParts, dayPeriod, daysUntil, formatRelativeWhen, formatTime, isAllDay, normalizeText, relativeDue, startOfDay, yearSuffix } from "@/lib/format";
+import { adminOnlyCategories, categoryIcons, categoryMeta, reminderChips, reminderShortLabel, showsOfficialPill, sourceText, statusMeta } from "@/lib/meta";
 import type { AcademicEvent } from "@/lib/types";
 import { RowMenu, type RowMenuItem } from "./gestao-row-menu";
 import { isOnTopLayer } from "./ui";
@@ -134,6 +135,21 @@ export function formatDayRange(event: AcademicEvent) {
 /** Evento de vários dias que já começou e ainda não acabou. */
 function isOngoing(event: AcademicEvent) {
   return isMultiDay(event) && daysUntil(event.startsAt) < 0 && daysUntil(eventLastDay(event).toISOString()) >= 0;
+}
+
+/**
+ * Selo do dia na Agenda (.crono-tile): a data do 1º evento do dia e quando ele acontece ("amanhã", "em 2 dias",
+ * "em andamento"), com o mesmo critério da linha (EventRow): âmbar até amanhã, verde cheio hoje.
+ */
+export function dayTileOf(event: AcademicEvent) {
+  const days = daysUntil(event.startsAt);
+  const ongoing = isOngoing(event);
+  return {
+    ...dateParts(event.startsAt),
+    rel: ongoing ? "em andamento" : relativeDue(event.startsAt),
+    soon: ongoing || (days >= 0 && days <= 1),
+    today: days === 0,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -395,6 +411,7 @@ export function descriptionSnippet(description: string | null | undefined, term:
 }
 
 export function EventRow({
+  agenda,
   event,
   hideClass,
   hideDate,
@@ -406,6 +423,12 @@ export function EventRow({
   showTeacher,
   onClick,
 }: {
+  /**
+   * Linha da Agenda do Cronograma (rodada 12): hora grande à esquerda, ícone da categoria, linha de categoria em
+   * cima do título, dados embaixo e o "amanhã" em selo. O selo do dia fica fora da linha (.crono-tile). As outras
+   * listas (Painéis, Lembretes, lista do dia do Calendário) seguem com a linha de sempre.
+   */
+  agenda?: boolean;
   /** Mantido por compatibilidade: a linha sempre mostra a data relativa. */
   compact?: boolean;
   event: AcademicEvent;
@@ -475,6 +498,73 @@ export function EventRow({
   ]
     .filter(Boolean)
     .join(", ");
+
+  if (agenda) {
+    const Icon = categoryIcons[event.category];
+    // "Dia todo" ou um intervalo de dias: sem coluna de hora (nas datas do campus ela some), o texto vai para os dados
+    const spansDay = time === "Dia todo" || multi;
+    return (
+      <button
+        aria-current={selected ? "true" : undefined}
+        aria-label={name}
+        className={cx("ev ev-ag", selected && "sel", days === 0 && "today")}
+        // faixa fina das datas do campus: a cor vem da categoria (listas.css)
+        data-cat={event.category}
+        data-event-id={event.id}
+        // abre o detalhe: ao fechá-lo, o foco volta para cá (contrato com o page.tsx)
+        data-opens-event={event.id}
+        onClick={onClick}
+        type="button"
+      >
+        <span className={cx("ag-time", spansDay && "is-span")}>
+          <span className="ag-t">{time}</span>
+          {spansDay ? null : <span className="ag-p">{dayPeriod(event.startsAt)}</span>}
+        </span>
+        <span aria-hidden className={cx("ag-ico", meta.tint)}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <span className="ag-body">
+          <span className="ag-over">
+            <span className={cx("ag-cat", meta.tint)}>{meta.short}</span>
+            <StatusPill event={event} />
+            {saved ? (
+              <span className="pill bg-brand text-white">
+                <CheckCircle2 className="h-3 w-3" aria-hidden />
+                Salvo agora
+              </span>
+            ) : null}
+            {showsOfficialPill(event) ? <OfficialPill /> : null}
+            {hasReminder ? (
+              <span className="inline-flex items-center text-brand" title="Lembrete ativo">
+                <Bell className="h-3.5 w-3.5" aria-hidden />
+                <span className="sr-only">lembrete ativo</span>
+              </span>
+            ) : null}
+          </span>
+          {/* o título como veio (importado do PDF também): o .ev-title corta só no fim, na 2ª linha, com reticências,
+              e o nome inteiro fica na dica; palavra longa quebra */}
+          <span className={cx("ev-title ag-title", cancelled && "text-muted line-through")} title={event.title}>
+            {highlightMatches(event.title, highlight)}
+          </span>
+          <span className="ag-meta">
+            {event.subject?.name ? <span className="ag-sub">{event.subject.name}</span> : null}
+            {event.academicClass ? (!hideClass ? <span>{event.academicClass.name}</span> : null) : <span>Toda a instituição</span>}
+            {showTeacher && event.teacher?.fullName ? <span>{event.teacher.fullName}</span> : null}
+            {event.location ? (
+              <span className="ag-loc">
+                <MapPin className="h-3.5 w-3.5" aria-hidden />
+                {event.location}
+              </span>
+            ) : null}
+            {spansDay ? <span className="ag-whole">{multi ? time : "dia todo"}</span> : null}
+            {event.points !== null ? <span className={cx("ag-pts", meta.tint)}>{event.points}&nbsp;pts</span> : null}
+          </span>
+          {snippet ? <span className="ev-snip">{highlightMatches(snippet, highlight)}</span> : null}
+        </span>
+        <span className={cx("ag-rel", soon ? "soon" : days >= 2 && days <= 6 ? "near" : days < 0 && !ongoing ? "past" : null)}>{rel}</span>
+      </button>
+    );
+  }
 
   return (
     <button
@@ -622,6 +712,21 @@ function whenStat(event: AcademicEvent, now: number): { text: string; tone: "amb
     return { text: "Amanhã", tone: "amber" };
   }
   return { text: capitalize(relativeDue(event.startsAt)), tone: "blue" };
+}
+
+/** "Faltam 1 dia e 8 min", "Faltam 3 horas e 5 min": só as partes que não são zero. Âmbar quando falta menos de 2 dias. */
+function countdownText(ms: number) {
+  const minutes = Math.max(1, Math.floor(ms / 60000));
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const rest = minutes % 60;
+  const parts = [
+    days ? `${days} ${days > 1 ? "dias" : "dia"}` : null,
+    hours ? `${hours} h` : null,
+    rest || (!days && !hours) ? `${rest} min` : null,
+  ].filter((part): part is string => part !== null);
+  const spoken = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}` : parts[0];
+  return { text: `Faltam ${spoken}`, soon: ms < 2 * 24 * 3600000 };
 }
 
 /** Linha do detalhe: ícone, rótulo e valor (o dt e o dd juntos num div, que o dl aceita). */
@@ -794,6 +899,13 @@ export function EventDetailContent({
 
   const stat = whenStat(event, now);
   const noReminderTime = validOffsets.length === 0;
+  // bloco da data e da hora (rodada 12) e a contagem regressiva, só para o que está nos próximos 30 dias
+  const heroDate = dateParts(event.startsAt);
+  const heroTime = isMultiDay(event) ? formatDayRange(event) : isWholeDay(event) ? "Dia todo" : clock(new Date(event.startsAt));
+  const countdown =
+    !cancelled && event.status !== "completed" && !isWholeDay(event) && startsAt > now && startsAt - now <= 30 * 24 * 3600000
+      ? countdownText(startsAt - now)
+      : null;
 
   /**
    * Ações de quem gerencia: "Editar" e o "Mais ações" (Concluir ou Reativar, Cancelar evento, Excluir).
@@ -884,7 +996,8 @@ export function EventDetailContent({
           : `O aviso já apareceu ${onNotice(savedAt)}.`;
     }
     const off = saving || (!saved && noReminderTime);
-    const showOffsets = !noReminderTime && (reminderOpen || dirty);
+    // com o lembrete ligado, os atalhos de antecedência já ficam à vista (rodada 12); desligado, atrás do "Mudar antecedência"
+    const showOffsets = !noReminderTime && (reminderOpen || dirty || Boolean(saved));
 
     return (
       <section className="evd-sec evd-remind" aria-labelledby={`${ids}-lembrete`}>
@@ -1007,11 +1120,30 @@ export function EventDetailContent({
         >
           {event.title}
         </h2>
-        <p className="evd-when">
-          <Clock className="evd-when-ico" aria-hidden />
-          <span className="tnum">{eventWhenLong(event)}</span>
-          {stat ? <span className={cx("stat", stat.tone)}>{stat.text}</span> : null}
-        </p>
+        {/* data em selo e hora grande (rodada 12); o texto por extenso e o selo de quando é seguem logo ao lado */}
+        <div className="evd-hero">
+          <span aria-hidden className="evd-tile">
+            <span className="dw">{heroDate.weekday}</span>
+            <span className="dn">{heroDate.day}</span>
+            <span className="mo">{heroDate.month}</span>
+          </span>
+          <div className="evd-hero-t">
+            <span aria-hidden className="evd-clock tnum">
+              {heroTime}
+            </span>
+            <p className="evd-when">
+              <Clock className="evd-when-ico" aria-hidden />
+              <span className="tnum">{eventWhenLong(event)}</span>
+              {stat ? <span className={cx("stat", stat.tone)}>{stat.text}</span> : null}
+            </p>
+          </div>
+        </div>
+        {countdown ? (
+          <p className={cx("evd-count", countdown.soon && "soon")}>
+            <Clock className="h-4 w-4" aria-hidden />
+            {countdown.text}
+          </p>
+        ) : null}
         <p className="evd-src wrap-anywhere">{sourceText(event)}</p>
       </div>
 
@@ -1039,6 +1171,11 @@ export function EventDetailContent({
         {event.subject?.name ? (
           <DetailRow icon={BookOpen} label="Disciplina">
             {event.subject.name}
+          </DetailRow>
+        ) : null}
+        {event.teacher?.fullName ? (
+          <DetailRow icon={User} label="Docente">
+            {event.teacher.fullName}
           </DetailRow>
         ) : null}
         {event.location ? (

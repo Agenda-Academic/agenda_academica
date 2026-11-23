@@ -56,6 +56,12 @@ export function formatTime(value: string) {
   });
 }
 
+/** "manhã", "tarde" ou "noite" pela hora de início (a hora da instituição, como todo Date do front). */
+export function dayPeriod(value: string) {
+  const hour = new Date(value).getHours();
+  return hour < 12 ? "manhã" : hour < 18 ? "tarde" : "noite";
+}
+
 export function formatFullDate(value: Date) {
   return value.toLocaleDateString("pt-BR", {
     weekday: "long",

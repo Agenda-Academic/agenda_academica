@@ -1,4 +1,4 @@
-import { Check, Clock, Pencil, X, type LucideIcon } from "lucide-react";
+import { Check, ClipboardCheck, Clock, FileText, Flag, Landmark, Mic, Pencil, PencilLine, X, type LucideIcon } from "lucide-react";
 import type {
   AcademicEvent,
   Category,
@@ -95,6 +95,20 @@ export const categoryMeta: Record<Category, CategoryMeta> = {
 };
 
 export const allCategories = Object.keys(categoryMeta) as Category[];
+
+/**
+ * Ícone de cada categoria nas listas (Cronograma e Gestão), num quadrado na cor da categoria: a cor deixa de ser a
+ * única pista de que é uma prova, um trabalho ou uma atividade.
+ */
+export const categoryIcons: Record<Category, LucideIcon> = {
+  exam: ClipboardCheck,
+  assignment: FileText,
+  activity: PencilLine,
+  extracurricular: Mic,
+  institutional: Landmark,
+  holiday: Flag,
+  recess: Flag,
+};
 
 /** Categorias que apenas administradores podem usar ao criar eventos. */
 export const adminOnlyCategories: Category[] = ["institutional", "holiday", "recess"];
