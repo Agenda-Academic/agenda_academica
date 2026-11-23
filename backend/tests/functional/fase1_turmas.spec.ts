@@ -942,7 +942,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     assert.include(fieldOf(add.body()), 'registration')
   })
 
-  test('código da turma: entra na hora; a docente tira quem entrou pelo código e desfaz', async ({
+  test('código da turma: entra na hora; a docente só consulta; a coordenação tira e devolve', async ({
     client,
     assert,
   }) => {
@@ -997,16 +997,31 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .json({ status: 'inactive' })
     selfChange.assertStatus(403)
 
-    // A docente tira quem entrou pelo código...
+    // A docente vê a lista, mas não tira ninguém: quem está na turma vale para todas as
+    // disciplinas, então incluir e tirar é da coordenação
     const teacherToken = await loginAs(client, 'maraisa@agenda.test')
+    const list = await client.get(`${API}/classes/${tads.id}/students`).bearerToken(teacherToken)
+    list.assertStatus(200)
+    for (const status of ['inactive', 'active'] as const) {
+      const denied = await client
+        .patch(`${API}/enrollments/${joined.enrollment.id}`)
+        .bearerToken(teacherToken)
+        .json({ status })
+      denied.assertStatus(403)
+      assert.include((denied.body() as unknown as { message: string }).message, 'coordenação')
+    }
+
+    // A coordenação tira...
+    const adminToken = await loginAs(client, 'admin@agenda.test')
+    const admin = await User.findByOrFail('email', 'admin@agenda.test')
     const removed = await client
       .patch(`${API}/enrollments/${joined.enrollment.id}`)
-      .bearerToken(teacherToken)
+      .bearerToken(adminToken)
       .json({ status: 'inactive' })
     removed.assertStatus(200)
     await enrollment.refresh()
     assert.equal(enrollment.status, 'inactive')
-    assert.equal(enrollment.decidedById, maraisa.id)
+    assert.equal(enrollment.decidedById, admin.id)
 
     // ...e quem foi tirado não volta sozinho com o mesmo código
     const back = await client
@@ -1021,10 +1036,10 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       [['code', 'removed']]
     )
 
-    // Desfazer: a docente devolve a matrícula
+    // ...e devolve a matrícula
     const undo = await client
       .patch(`${API}/enrollments/${joined.enrollment.id}`)
-      .bearerToken(teacherToken)
+      .bearerToken(adminToken)
       .json({ status: 'active' })
     undo.assertStatus(200)
     await enrollment.refresh()
@@ -1038,22 +1053,18 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       audit.map((entry) => entry.action),
       ['enrollment.create', 'enrollment.inactivate', 'enrollment.reactivate']
     )
-    assert.equal(audit[1].actorId, maraisa.id)
+    assert.equal(audit[1].actorId, admin.id)
     assert.notInclude(audit[1].meta ?? '', 'pedido@agenda.test')
+    assert.notInclude(
+      audit.map((entry) => entry.actorId),
+      maraisa.id
+    )
 
-    // Quem a secretaria incluiu continua sendo da secretaria
+    // A coordenação tira qualquer um, também quem ela mesma incluiu: a linha fica, só muda o status
     const included = await Enrollment.query()
       .where('userId', diogo.id)
       .where('academicClassId', tads.id)
       .firstOrFail()
-    const notHers = await client
-      .patch(`${API}/enrollments/${included.id}`)
-      .bearerToken(teacherToken)
-      .json({ status: 'inactive' })
-    notHers.assertStatus(403)
-
-    // A administração inativa qualquer um: a linha continua lá, só muda o status
-    const adminToken = await loginAs(client, 'admin@agenda.test')
     const adminRemoved = await client
       .patch(`${API}/enrollments/${included.id}`)
       .bearerToken(adminToken)
@@ -1063,7 +1074,7 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
     assert.equal(included.status, 'inactive')
   })
 
-  test('pedidos antigos em lote: aprova os pendentes da turma e pula o resto; docente de fora 404', async ({
+  test('pedidos antigos em lote: a coordenação aprova os pendentes da turma e pula o resto', async ({
     client,
     assert,
   }) => {
@@ -1087,15 +1098,23 @@ test.group('Fase 1: turmas, disciplinas e vínculos', (group) => {
       .where('academicClassId', tads.id)
       .firstOrFail()
 
-    const outside = await client
-      .post(`${API}/classes/${inf.id}/students/decide`)
+    // a docente da turma não decide (só consulta); na turma errada, nada muda
+    const teacher = await client
+      .post(`${API}/classes/${tads.id}/students/decide`)
       .bearerToken(await loginAs(client, 'maraisa@agenda.test'))
       .json({ enrollmentIds: pending.map((item) => item.id), status: 'active' })
-    outside.assertStatus(404)
+    teacher.assertStatus(403)
+    const adminToken = await loginAs(client, 'admin@agenda.test')
+    const wrongClass = await client
+      .post(`${API}/classes/${inf.id}/students/decide`)
+      .bearerToken(adminToken)
+      .json({ enrollmentIds: pending.map((item) => item.id), status: 'active' })
+    wrongClass.assertStatus(200)
+    assert.equal((wrongClass.body() as unknown as Envelope<{ updated: number }>).data.updated, 0)
 
     const decided = await client
       .post(`${API}/classes/${tads.id}/students/decide`)
-      .bearerToken(await loginAs(client, 'maraisa@agenda.test'))
+      .bearerToken(adminToken)
       .json({
         enrollmentIds: [...pending.map((item) => item.id), diogoEnrollment.id],
         status: 'active',
@@ -1429,6 +1448,12 @@ test.group('Fase 1: revisão (autorização por objeto, limite e exclusão)', (g
     const classRoutes: Route[] = [
       ['get', `/classes/${inf.id}`],
       ['get', `/classes/${inf.id}/students`],
+    ]
+    // Rotas só da administração: qualquer outro papel recebe 403.
+    const adminRoutes: Route[] = [
+      // o código e quem está na turma valem para todas as disciplinas: só a coordenação muda
+      ['post', `/classes/${inf.id}/join-code`],
+      ['delete', `/classes/${inf.id}/join-code`],
       [
         'post',
         `/classes/${inf.id}/students/decide`,
@@ -1436,12 +1461,6 @@ test.group('Fase 1: revisão (autorização por objeto, limite e exclusão)', (g
       ],
       ['patch', `/enrollments/${pending.id}`, { status: 'active' }],
       ['patch', `/enrollments/${anaEnrollment.id}`, { status: 'inactive' }],
-    ]
-    // Rotas só da administração: qualquer outro papel recebe 403.
-    const adminRoutes: Route[] = [
-      // o código é da turma inteira: só a coordenação troca ou desliga
-      ['post', `/classes/${inf.id}/join-code`],
-      ['delete', `/classes/${inf.id}/join-code`],
       ['put', `/classes/${inf.id}`, { name: 'INF 3B' }],
       ['post', `/classes/${inf.id}/archive`],
       ['post', `/classes/${inf.id}/restore`],

@@ -26,8 +26,9 @@ const CLASS_ARCHIVED =
   'Esta turma está arquivada e fica somente leitura. Restaure a turma para mudar algo.'
 /** A mesma resposta para código inexistente, desligado, de turma arquivada ou mal digitado. */
 const INVALID_CODE = 'Código inválido ou expirado. Confira com quem passou o código.'
-const REMOVED_FROM_CLASS =
-  'Você não está mais nesta turma. Para voltar, fale com a docente ou com a coordenação.'
+const ONLY_COORDINATION_CHANGES =
+  'Só a coordenação inclui ou tira alunos da turma. A docente consulta a lista de alunos.'
+const REMOVED_FROM_CLASS = 'Você não está mais nesta turma. Para voltar, fale com a coordenação.'
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type Rejected = { email: string; reason: string; message: string }
@@ -136,13 +137,14 @@ export default class ClassMembersController {
   }
 
   /**
-   * PATCH /enrollments/:id. Administração: qualquer status e a matrícula escolar. Docente da
-   * turma: só de `pending` para `active` ou `inactive`.
+   * PATCH /enrollments/:id. Só a administração (a coordenação): qualquer status e a matrícula
+   * escolar. Quem está na turma vale para todas as disciplinas, então a docente só consulta a
+   * lista (decisão de 2026-11-23).
    */
   async update({ auth, params, request, response, serialize }: HttpContext) {
     const user = auth.getUserOrFail()
-    if (!AcademicAccessService.allow(user, ['admin', 'teacher'])) {
-      return forbidden(response, 'Seu perfil não muda matrículas.')
+    if (!AcademicAccessService.allow(user, ['admin'])) {
+      return forbidden(response, ONLY_COORDINATION_CHANGES)
     }
 
     const enrollment = await Enrollment.query()
@@ -162,25 +164,6 @@ export default class ClassMembersController {
     const payload = await request.validateUsing(updateEnrollmentValidator)
     if (payload.status === undefined && payload.registration === undefined) {
       return fieldError(response, 'status', 'Informe a nova situação ou a matrícula.', 'required')
-    }
-
-    if (AcademicAccessService.isTeacher(user)) {
-      if (payload.registration !== undefined) {
-        return forbidden(response, 'Só a administração grava a matrícula escolar.')
-      }
-      // A docente controla quem entrou sozinho pelo código: tira da turma e desfaz. Um pedido
-      // pendente de antes da entrada direta ela ainda aprova ou recusa. O resto é da secretaria.
-      const toggles =
-        payload.status !== undefined &&
-        ['active', 'inactive'].includes(payload.status) &&
-        (enrollment.status === 'pending' ||
-          (enrollment.source === 'code' && ['active', 'inactive'].includes(enrollment.status)))
-      if (!toggles) {
-        return forbidden(
-          response,
-          'A docente tira da turma só quem entrou pelo código. Para os outros alunos, fale com a secretaria.'
-        )
-      }
     }
 
     const registration =
@@ -238,8 +221,8 @@ export default class ClassMembersController {
   /** POST /classes/:id/students/decide: aprova ou recusa pedidos pendentes em lote. */
   async decide({ auth, params, request, response }: HttpContext) {
     const user = auth.getUserOrFail()
-    if (!AcademicAccessService.allow(user, ['admin', 'teacher'])) {
-      return forbidden(response, 'Seu perfil não decide pedidos de entrada.')
+    if (!AcademicAccessService.allow(user, ['admin'])) {
+      return forbidden(response, ONLY_COORDINATION_CHANGES)
     }
 
     const academicClass = await this.findVisibleClass(user, params.id)

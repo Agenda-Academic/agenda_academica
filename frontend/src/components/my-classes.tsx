@@ -524,7 +524,7 @@ function ClassDrawer({
   );
 }
 
-type Busy = { kind: "approve" | "reject" | "remove"; id: number } | { kind: "bulk" };
+type Busy = { kind: "approve" | "reject"; id: number } | { kind: "bulk" };
 
 type PanelData = { detail: ClassDetail; students: ClassStudent[] };
 
@@ -660,55 +660,6 @@ function ClassPanelBody({
 
   function updateStudents(change: (list: ClassStudent[]) => ClassStudent[]) {
     setData((current) => (current ? { ...current, students: sortStudents(change(current.students)) } : current));
-  }
-
-  /** Quem entrou sozinho pelo código: a docente tira da turma (e não volta com o código) e pode desfazer. */
-  function removeStudent(student: ClassStudent) {
-    if (busy) {
-      return;
-    }
-    const name = studentName(student);
-    const key = `tirar-${student.enrollmentId}`;
-    confirm({
-      title: `Tirar ${name} da turma?`,
-      message: `${name} sai de ${className} e não consegue voltar com o código. Se foi engano, dá para desfazer logo depois.`,
-      confirmLabel: "Tirar da turma",
-      cancelLabel: "Manter na turma",
-      tone: "danger",
-      action: async () => {
-        setBusy({ kind: "remove", id: student.enrollmentId });
-        try {
-          await updateEnrollment(token, student.enrollmentId, { status: "inactive" });
-          updateStudents((list) => list.filter((item) => item.enrollmentId !== student.enrollmentId));
-          onCounts(cls.id, { active: -1, pending: 0 });
-          toast(`${name} saiu de ${className}.`, {
-            key,
-            action: { label: "Desfazer", onClick: () => void bringBack(student) },
-          });
-          void reload();
-        } catch (err) {
-          showError(err, key);
-          refreshIfStale(err);
-        } finally {
-          setBusy(null);
-        }
-      },
-    });
-  }
-
-  async function bringBack(student: ClassStudent) {
-    const name = studentName(student);
-    const key = `tirar-${student.enrollmentId}`;
-    try {
-      const updated = await updateEnrollment(token, student.enrollmentId, { status: "active" });
-      updateStudents((list) => [...list.filter((item) => item.enrollmentId !== student.enrollmentId), { ...student, ...updated }]);
-      onCounts(cls.id, { active: 1, pending: 0 });
-      toast(`${name} voltou para ${className}.`, { key });
-      void reload();
-    } catch (err) {
-      showError(err, key);
-      refreshIfStale(err);
-    }
   }
 
   async function approve(student: ClassStudent, index: number) {
@@ -852,6 +803,8 @@ function ClassPanelBody({
               ]
                 .filter(Boolean)
                 .join(" e ")}
+              {/* a docente só consulta: quem está na turma vale para todas as disciplinas, então incluir e tirar é da coordenação */}
+              {". Incluir ou tirar alunos é com a coordenação."}
             </p>
           </div>
         </div>
@@ -989,9 +942,6 @@ function ClassPanelBody({
               <ul className="docente-slist">
                 {visibleActive.map((student) => {
                   const name = studentName(student);
-                  // quem entrou sozinho pelo código: a docente vê quando e pode tirar; o resto é da secretaria
-                  const byCode = student.source === "code";
-                  const rowBusy = busy && "id" in busy && busy.id === student.enrollmentId ? busy.kind : null;
                   return (
                     <li key={student.enrollmentId} className="docente-srow">
                       <span className="docente-av-sm" aria-hidden>
@@ -1000,23 +950,7 @@ function ClassPanelBody({
                       <div className="docente-s-main">
                         <p className="docente-s-name">{name}</p>
                         {student.fullName ? <p className="docente-s-mail">{student.email}</p> : null}
-                        {byCode && student.createdAt ? (
-                          <p className="docente-s-mail">Entrou pelo código {formatOnDayAt(student.createdAt)}</p>
-                        ) : null}
                       </div>
-                      {byCode ? (
-                        <button
-                          className="btn btn-s btn-sm shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-                          aria-label={`Tirar ${name} da turma`}
-                          aria-disabled={waiting || undefined}
-                          aria-busy={rowBusy === "remove" || undefined}
-                          onClick={() => removeStudent(student)}
-                          type="button"
-                        >
-                          {rowBusy === "remove" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                          Tirar
-                        </button>
-                      ) : null}
                     </li>
                   );
                 })}

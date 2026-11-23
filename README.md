@@ -27,8 +27,8 @@ Professora: Profa. Maraísa.
   Agenda), confere a prévia e publica para alunos e responsáveis.
 - A administração cria as turmas e as disciplinas e liga os professores a elas. O aluno entra na turma pelo código da
   turma, na hora, sem pedido para aprovar. A turma já nasce com o código ligado; os docentes veem e copiam o código, e
-  só a coordenação troca ou desliga, porque ele vale para todos. A docente tira da turma quem entrou pelo código, e quem
-  foi tirado não volta sozinho com o mesmo código.
+  só a coordenação troca ou desliga, porque ele vale para todos. A docente só consulta a lista de alunos: incluir e
+  tirar da turma é da coordenação, e quem foi tirado não volta sozinho com o mesmo código.
 - O responsável (pai, mãe) acompanha a agenda e as notas do aluno vinculado, pelo código que o aluno gera no perfil.
 - A administração importa o calendário oficial arrastando o PDF do Calendário Acadêmico do IFMS (ou por JSON). As
   datas oficiais têm prioridade sobre os eventos das turmas.
