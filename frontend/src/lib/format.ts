@@ -388,6 +388,10 @@ function validationMessage(item: FieldErrorLike) {
     case "sameAs":
       text = "As senhas não são iguais.";
       break;
+    case "institution":
+      // vincular docente pelo e-mail: só servidor da instituição (a frase da API não tem acento, então não passa pelo teste de português)
+      text = "Use o e-mail institucional da docente, o mesmo com que ela entra pelo Google.";
+      break;
     case "database.unique":
       text = key === "email" ? "Este e-mail já tem conta. Entre ou use outro e-mail." : `${Name} já está em uso.`;
       break;

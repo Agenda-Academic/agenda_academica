@@ -944,6 +944,10 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
   const where = `${current.subject.name} na ${klass.name}`;
   // o que foi digitado é um e-mail inteiro? Sem docente com ele, dá para vincular pelo e-mail
   const typedEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settled) ? settled.toLowerCase() : null;
+  // A busca acha por pedaço ("ana.souza@ifms.edu.br" acha "joana.souza@ifms.edu.br"), então só um e-mail IGUAL, inteiro,
+  // quer dizer que a docente já tem conta; achados parciais não escondem o vínculo pelo e-mail.
+  const typedKnown = typedEmail ? (teachers.data ?? []).find((person) => person.email.toLowerCase() === typedEmail) : undefined;
+  const emailToLink = typedEmail && !typedKnown ? typedEmail : null;
 
   function refresh() {
     void detail.reload();
@@ -1195,53 +1199,67 @@ export function OfferPanel({ api, subtitle, view }: PanelProps<"offer">) {
               <CircleAlert aria-hidden />
               <span>{errorMessage(teachers.error)}</span>
             </p>
-          ) : results.length ? (
-            <ul className="admin-people" aria-label="Docentes encontradas">
-              {results.map((person) => (
-                <li key={person.id} className="admin-irow">
+          ) : results.length || emailToLink ? (
+            <>
+              {results.length ? (
+                <ul className="admin-people" aria-label="Docentes encontradas">
+                  {results.map((person) => (
+                    <li key={person.id} className="admin-irow">
+                      <span className="admin-av-xs" aria-hidden>
+                        {initialsOf(person.fullName ?? person.email)}
+                      </span>
+                      <span className="admin-s-main">
+                        <span className="admin-s-name">{person.fullName ?? person.email}</span>
+                        <span className="admin-s-mail">{person.email}</span>
+                      </span>
+                      <button
+                        className={cx(primaryButton, "btn-sm", busyLook)}
+                        aria-disabled={busyAttr}
+                        aria-label={`Vincular ${person.fullName ?? person.email} ${roleInSentence(role)}`}
+                        onClick={() => link(person)}
+                        type="button"
+                      >
+                        <UserPlus className="h-4 w-4" aria-hidden />
+                        Vincular
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {emailToLink ? (
+                // nenhuma docente com ESTE e-mail: ela ainda não entrou na Agenda, então a conta nasce agora, já vinculada
+                // (vale também quando a busca achou outras pessoas por pedaço do e-mail)
+                <div className="admin-irow" role="group" aria-label="Vincular pelo e-mail">
                   <span className="admin-av-xs" aria-hidden>
-                    {initialsOf(person.fullName ?? person.email)}
+                    <UserPlus className="h-4 w-4" />
                   </span>
                   <span className="admin-s-main">
-                    <span className="admin-s-name">{person.fullName ?? person.email}</span>
-                    <span className="admin-s-mail">{person.email}</span>
+                    <span className="admin-s-name">{emailToLink}</span>
+                    <span className="admin-s-mail">
+                      Ainda não entrou na Agenda. Ao entrar com o Google, ela já encontra a turma.
+                    </span>
                   </span>
                   <button
                     className={cx(primaryButton, "btn-sm", busyLook)}
                     aria-disabled={busyAttr}
-                    aria-label={`Vincular ${person.fullName ?? person.email} ${roleInSentence(role)}`}
-                    onClick={() => link(person)}
+                    aria-label={`Vincular ${emailToLink} ${roleInSentence(role)} pelo e-mail`}
+                    onClick={() => linkByEmail(emailToLink)}
                     type="button"
                   >
                     <UserPlus className="h-4 w-4" aria-hidden />
                     Vincular
                   </button>
-                </li>
-              ))}
-            </ul>
-          ) : typedEmail ? (
-            // ninguém com esse e-mail: a docente ainda não entrou na Agenda, então a conta nasce agora, vinculada
-            <div className="admin-irow" role="group" aria-label="Vincular pelo e-mail">
-              <span className="admin-av-xs" aria-hidden>
-                <UserPlus className="h-4 w-4" />
-              </span>
-              <span className="admin-s-main">
-                <span className="admin-s-name">{typedEmail}</span>
-                <span className="admin-s-mail">
-                  Ainda não entrou na Agenda. Ao entrar com o Google, ela já encontra a turma.
-                </span>
-              </span>
-              <button
-                className={cx(primaryButton, "btn-sm", busyLook)}
-                aria-disabled={busyAttr}
-                aria-label={`Vincular ${typedEmail} ${roleInSentence(role)} pelo e-mail`}
-                onClick={() => linkByEmail(typedEmail)}
-                type="button"
-              >
-                <UserPlus className="h-4 w-4" aria-hidden />
-                Vincular
-              </button>
-            </div>
+                </div>
+              ) : null}
+            </>
+          ) : typedKnown ? (
+            // o e-mail inteiro é de uma docente que já está nesta disciplina (some da lista de quem dá para vincular)
+            <EmptyState
+              compact
+              icon={Info}
+              text="Essa docente já está vinculada a esta disciplina"
+              hint="Ela aparece em Docentes desta disciplina, acima. Para trocar o tipo do vínculo, use a lista de lá."
+            />
           ) : (
             <EmptyState
               compact

@@ -2076,6 +2076,8 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: var(--nv-notas); --tom: var(--nv-no
   animation: ls-marca-texto 0.7s 0.8s var(--ease) both;
 }
 .ls-cena {
+  /* a tela de entrar tem calendário e avisos de enfeite, mas o texto fraco deles passa de 4,5:1 no branco (o --faint dava 2,5:1) */
+  --ls-fraco: #5f7a69;
   display: flex;
   align-items: flex-start;
   gap: clamp(20px, 3vw, 44px);
@@ -2102,7 +2104,7 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: var(--nv-notas); --tom: var(--nv-no
 }
 .ls-mes span {
   font-weight: 500;
-  color: var(--faint);
+  color: var(--ls-fraco);
 }
 .ls-grade {
   display: grid;
@@ -2116,7 +2118,7 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: var(--nv-notas); --tom: var(--nv-no
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--faint);
+  color: var(--ls-fraco);
 }
 .ls-dia {
   position: relative;
@@ -2134,10 +2136,10 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: var(--nv-notas); --tom: var(--nv-no
   animation-delay: calc(0.2s + var(--k, 0) * 16ms);
 }
 .ls-dia.passado {
-  color: var(--faint);
+  color: var(--ls-fraco);
 }
 .ls-dia.domingo {
-  color: color-mix(in srgb, var(--faint) 80%, var(--c-prova));
+  color: color-mix(in srgb, var(--ls-fraco) 80%, var(--c-prova));
 }
 /* hoje: o número forte, circulado a caneta verde */
 .ls-dia.hoje {
@@ -2262,7 +2264,7 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: var(--nv-notas); --tom: var(--nv-no
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0;
-  color: var(--faint);
+  color: var(--ls-fraco);
 }
 @keyframes ls-sobe {
   from { opacity: 0.35; transform: translateY(14px); }
