@@ -5,6 +5,7 @@ import { loginValidator } from '#validators/user'
 import type { HttpContext } from '@adonisjs/core/http'
 import UserTransformer from '#transformers/user_transformer'
 import AttemptLimiterService from '#services/attempt_limiter_service'
+import GoogleOAuthService from '#services/google_oauth_service'
 
 /** Senhas erradas aceitas por e-mail e por IP a cada 15 minutos. */
 export const MAX_FAILED_LOGINS = 10
@@ -55,9 +56,17 @@ export default class AccessTokensController {
     })
   }
 
-  /** Público: o que a tela de entrar mostra (os atalhos das contas de demonstração). */
+  /**
+   * Público: o que a tela de entrar mostra. `demoAccounts`: os atalhos das contas de demonstração.
+   * `google`: o botão "Entrar com o Google" (sem as chaves, como na demonstração, ele só daria erro).
+   */
   async options() {
-    return { data: { demoAccounts: AccountPolicyService.demoAccountsEnabled() } }
+    return {
+      data: {
+        demoAccounts: AccountPolicyService.demoAccountsEnabled(),
+        google: GoogleOAuthService.settings() !== null,
+      },
+    }
   }
 
   async destroy({ auth }: HttpContext) {

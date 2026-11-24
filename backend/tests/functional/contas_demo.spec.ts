@@ -26,15 +26,11 @@ test.group('Interruptor das contas de demonstração (DEMO_ACCOUNTS)', (group) =
   test('a tela de entrar sabe se os atalhos aparecem', async ({ client, assert }) => {
     const on = await client.get(`${API}/auth/options`)
     on.assertStatus(200)
-    assert.deepEqual((on.body() as Envelope<{ demoAccounts: boolean }>).data, {
-      demoAccounts: true,
-    })
+    assert.isTrue((on.body() as Envelope<{ demoAccounts: boolean }>).data.demoAccounts)
 
     env.set('DEMO_ACCOUNTS', false)
     const off = await client.get(`${API}/auth/options`)
-    assert.deepEqual((off.body() as Envelope<{ demoAccounts: boolean }>).data, {
-      demoAccounts: false,
-    })
+    assert.isFalse((off.body() as Envelope<{ demoAccounts: boolean }>).data.demoAccounts)
   })
 
   test('desligadas, as contas @agenda.test não entram e a sessão aberta cai', async ({

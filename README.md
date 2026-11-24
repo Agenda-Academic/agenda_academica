@@ -63,7 +63,7 @@ Além delas, o seed monta uma escola de demonstração (`backend/database/seeder
 TADS 5, TADS 3, INF 3A e INF 1A, cinco docentes, quase 50 alunos, três que acabaram de entrar pelo código, um pai
 esperando a secretaria, notas publicadas, uma prova que já passou sem nota lançada, um evento cancelado e o
 Calendário Acadêmico 2026 do campus, importado do PDF em `backend/database/seeders/data/` como a tela faria (sem as
-datas só de servidores). O de 2027 a administração importa pela tela. Os outros alunos e docentes seguem o padrão `nome.sobrenome@agenda.test` (por exemplo,
+datas só de servidores). O de 2027 entra do mesmo jeito. Os outros alunos e docentes seguem o padrão `nome.sobrenome@agenda.test` (por exemplo,
 `sofia.ferreira@agenda.test`) ou `nome@agenda.test` para os docentes (`ricardo@`, `helena@`, `andre@`). Os testes usam
 só as contas da tabela.
 
@@ -76,7 +76,10 @@ Como essas contas têm a senha pública, elas não podem existir no banco com da
   entrada só pelo Google da instituição (e responsáveis pelo cadastro). A tela de entrar mostra o link
   "Abrir a demonstração" quando o Vercel da produção tem `NEXT_PUBLIC_DEMO_URL`.
 - **Demonstração** (`agenda-academica-demo-api` no Render, no `render.yaml`, e um segundo projeto no Vercel com
-  `NEXT_PUBLIC_API_URL` apontando para ela): todas as contas da tabela acima ligadas, sem Google e sem e-mail.
+  `NEXT_PUBLIC_API_URL` apontando para ela): todas as contas da tabela acima ligadas, sem Google e sem e-mail. O botão
+  "Entrar com o Google" aparece mesmo assim, para mostrar que o sistema tem o Google: como a API não tem as chaves,
+  ele abre uma janela que explica que o Google funciona no sistema, com o botão "Ir para o sistema"
+  (`NEXT_PUBLIC_PRODUCTION_URL` no Vercel da demonstração) e o caminho de volta para as contas prontas.
 
 As duas APIs importam sozinhas os Calendários Acadêmicos 2026 e 2027 do campus (`backend/database/seeders/data`).
 

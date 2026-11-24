@@ -152,6 +152,17 @@ test.group('Entrar com o Google', (group) => {
   })
   group.each.setup(() => testUtils.db().withGlobalTransaction())
 
+  test('a tela de entrar sabe se o Google está configurado', async ({ client, assert }) => {
+    const on = await client.get(`${API}/auth/options`)
+    on.assertStatus(200)
+    assert.isTrue((on.body() as { data: { google: boolean } }).data.google)
+
+    // sem as chaves (a demonstração): o botão não aparece
+    env.set('GOOGLE_CLIENT_ID', '')
+    const off = await client.get(`${API}/auth/options`)
+    assert.isFalse((off.body() as { data: { google: boolean } }).data.google)
+  })
+
   test('redirect sem configuração volta ao front com nao_configurado', async ({
     client,
     assert,

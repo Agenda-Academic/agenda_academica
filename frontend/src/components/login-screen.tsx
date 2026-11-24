@@ -3,6 +3,7 @@
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
   BookOpen,
   CalendarCheck2,
   CircleAlert,
@@ -26,7 +27,7 @@ import { demoAccounts } from "@/lib/meta";
 import type { Session } from "@/lib/types";
 import { GuardianDataDialog } from "./guardian-data-dialog";
 import { LoginStage } from "./login-stage";
-import { Field, primaryButton, secondaryButton } from "./ui";
+import { Field, Modal, primaryButton, secondaryButton } from "./ui";
 
 type Mode = "login" | "signup";
 type FieldName = "fullName" | "email" | "password" | "passwordConfirmation" | "consent";
@@ -37,6 +38,11 @@ const fieldOrder: FieldName[] = ["fullName", "email", "password", "passwordConfi
 
 /** Endereço do site de demonstração (Vercel da produção: NEXT_PUBLIC_DEMO_URL). Sem ele, o link não aparece. */
 const DEMO_URL = process.env.NEXT_PUBLIC_DEMO_URL?.trim() || null;
+/**
+ * Endereço do sistema de verdade (Vercel da demonstração: NEXT_PUBLIC_PRODUCTION_URL). A demonstração não tem as
+ * chaves do Google: o botão aparece (o sistema tem Google) e abre a janela que explica onde ele funciona.
+ */
+const PRODUCTION_URL = process.env.NEXT_PUBLIC_PRODUCTION_URL?.trim() || null;
 
 // o "Li e concordo" do responsável (LGPD, desenho 6.1) é só da tela: a API não guarda o aceite
 const consentMissing = "Marque a caixa de consentimento (Li e concordo) para criar a conta de responsável.";
@@ -71,6 +77,63 @@ function googleErrorMessage(reason: string | null | undefined) {
     return null;
   }
   return Object.prototype.hasOwnProperty.call(googleErrors, reason) ? googleErrors[reason] : googleFailed;
+}
+
+/**
+ * "Entrar com o Google" num lugar sem as chaves do Google (a demonstração). O botão aparece de propósito, para
+ * mostrar que o sistema tem o Google; a janela diz onde ele funciona e por que a demonstração não o usa.
+ * onUseDemo: volta para as contas de demonstração (null quando elas estão desligadas).
+ */
+function GoogleInfoDialog({ onClose, onUseDemo }: { onClose: () => void; onUseDemo: (() => void) | null }) {
+  const textId = useId();
+  const demo = Boolean(PRODUCTION_URL);
+  return (
+    <Modal
+      title="Entrar com o Google"
+      onClose={onClose}
+      describedBy={textId}
+      footer={
+        <>
+          {onUseDemo ? (
+            <button className={secondaryButton} onClick={onUseDemo} type="button">
+              Usar uma conta de demonstração
+            </button>
+          ) : (
+            <button className={secondaryButton} onClick={onClose} type="button">
+              Fechar
+            </button>
+          )}
+          {PRODUCTION_URL ? (
+            <a className={primaryButton} href={PRODUCTION_URL}>
+              Ir para o sistema
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </a>
+          ) : null}
+        </>
+      }
+    >
+      <div id={textId} className="grid gap-3 text-[15px] leading-6 text-ink-2">
+        <p className="flex items-center gap-2.5 font-semibold text-ink">
+          <GoogleMark />
+          {demo ? "O sistema tem login com o Google da instituição." : "O login com o Google não está ligado aqui."}
+        </p>
+        {demo ? (
+          <>
+            <p>
+              Aluno e docente entram com o e-mail da instituição, sem criar senha. Isso funciona no sistema, com as
+              contas de verdade.
+            </p>
+            <p>
+              Esta é a demonstração: ela não recebe contas reais, para os dados das pessoas ficarem protegidos. Para
+              conhecer agora, use uma das contas prontas.
+            </p>
+          </>
+        ) : (
+          <p>Faltam as chaves do Google neste ambiente. Use seu e-mail e senha.</p>
+        )}
+      </div>
+    </Modal>
+  );
 }
 
 /** O "G" colorido oficial do Google. */
@@ -546,6 +609,12 @@ export function LoginScreen({
   });
   // Contas de demonstração ligadas na API (DEMO_ACCOUNTS)? Até a resposta chegar, os atalhos não aparecem.
   const [demoOn, setDemoOn] = useState<boolean | null>(null);
+  // Login com o Google configurado na API? Na demonstração (que tem PRODUCTION_URL) já começa em false: um clique
+  // antes de a API acordar abre a explicação, sem ir ao Google e voltar com erro.
+  const [googleOn, setGoogleOn] = useState<boolean | null>(PRODUCTION_URL ? false : null);
+  // janela "Entrar com o Google" da demonstração (o botão aparece, mas o Google só funciona no sistema)
+  const [googleInfoOpen, setGoogleInfoOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   // Cadastro com e-mail e senha: só de responsável (aluno e docente entram com o Google do IFMS)
   const [signupForm, setSignupForm] = useState({
     fullName: "",
@@ -587,6 +656,7 @@ export function LoginScreen({
       .then((options) => {
         if (!active) return;
         setDemoOn(options.demoAccounts);
+        setGoogleOn(options.google !== false);
         if (options.demoAccounts) {
           setLoginForm((current) =>
             current.email || current.password ? current : { email: demoAccounts[0].email, password: demoAccounts[0].password }
@@ -631,6 +701,12 @@ export function LoginScreen({
 
   function startGoogle() {
     if (busy) {
+      return;
+    }
+    // sem as chaves do Google (a demonstração): explica onde ele funciona, em vez de ir e voltar com erro
+    if (googleOn === false) {
+      setGoogleMessage(null);
+      setGoogleInfoOpen(true);
       return;
     }
     setGoogleMessage(null);
@@ -777,7 +853,7 @@ export function LoginScreen({
               }}
             />
           ) : (
-            <form className={cx("ent-form", mode === "signup" && "criar")} onSubmit={handleSubmit} noValidate>
+            <form ref={formRef} className={cx("ent-form", mode === "signup" && "criar")} onSubmit={handleSubmit} noValidate>
               <div className="ent-brand xl:hidden">
                 <span className="mark">
                   <CalendarCheck2 className="h-[22px] w-[22px]" aria-hidden />
@@ -1008,7 +1084,9 @@ export function LoginScreen({
                   caminho dele (o Google) fica numa linha só, sem o botão grande */}
               {mode === "login" ? (
                 <p id={googleHintId} className="ent-hint opcional">
-                  Use o e-mail da sua instituição.
+                  {googleOn === false && PRODUCTION_URL
+                    ? "Funciona no sistema, com o e-mail da sua instituição."
+                    : "Use o e-mail da sua instituição."}
                 </p>
               ) : (
                 <p className="ent-hint ent-hint-google">
@@ -1074,12 +1152,26 @@ export function LoginScreen({
                     Abrir a demonstração
                   </a>
                 </p>
-              ) : null}
-            </form>
+              ) : null}            </form>
           )}
         </div>
       </section>
       <GuardianDataDialog open={dataOpen} onClose={() => setDataOpen(false)} />
+      {googleInfoOpen ? (
+        <GoogleInfoDialog
+          onClose={() => setGoogleInfoOpen(false)}
+          onUseDemo={
+            demoOn
+              ? () => {
+                  setGoogleInfoOpen(false);
+                  switchMode("login");
+                  // volta para a conta de demonstração escolhida (o Modal devolveria o foco ao botão do Google)
+                  window.setTimeout(() => formRef.current?.querySelector<HTMLElement>(".ent-demo-btn.on, .ent-demo-btn")?.focus(), 0);
+                }
+              : null
+          }
+        />
+      ) : null}
     </main>
   );
 }
