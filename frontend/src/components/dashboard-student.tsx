@@ -36,6 +36,7 @@ import {
   isOfficialDate,
   officialCategories,
   openAhead,
+  startsWithinDays,
   upcomingOfficialDates,
   useColumnFill,
   useWideLayout,
@@ -54,7 +55,8 @@ import { Pager, usePaged } from "./pager";
 import { DateBadge, sendWhen } from "./reminders-view";
 import { Drawer, SectionTitle } from "./ui";
 
-const DAY = 24 * 60 * 60 * 1000;
+/** A janela dos indicadores do Painel (e do Cronograma que "Próximos 30 dias" abre). */
+const NEXT_DAYS = 30;
 
 /** As categorias da turma (sem as do calendário oficial): o filtro que o rodapé dos compromissos abre. */
 const CLASS_CATEGORIES: Category[] = ["exam", "assignment", "activity", "extracurricular"];
@@ -250,7 +252,7 @@ export function StudentDashboard({
   const classUpcoming = upcomingEvents.filter((event) => !isOfficialDate(event));
   const nextEvent = classUpcoming[0] ?? null;
   // todos os números do Painel usam a mesma janela, os próximos 30 dias, e as dicas dizem isso
-  const next30 = classUpcoming.filter((event) => new Date(event.startsAt).getTime() <= now + 30 * DAY);
+  const next30 = classUpcoming.filter((event) => startsWithinDays(event, now, NEXT_DAYS));
   const thirtyDays = next30.length;
   const exams30 = next30.filter((event) => event.category === "exam");
   const pointsAtStake = next30.reduce((sum, event) => sum + (event.points ?? 0), 0);
@@ -279,6 +281,7 @@ export function StudentDashboard({
     .filter(
       (reminder) =>
         reminder.enabled &&
+        !reminder.sentAt &&
         !avisoIds.has(reminder.id) &&
         new Date(reminder.sendAt).getTime() > now &&
         reminder.academicEvent?.status !== "cancelled" &&
@@ -807,7 +810,8 @@ export function StudentDashboard({
             value={String(thirtyDays)}
             hint={thirtyDays === 1 ? "evento da turma no período" : "eventos da turma no período"}
             actionLabel="Ver no cronograma"
-            onClick={() => onOpenCalendar()}
+            // abre o Cronograma só com estes eventos (chip "Próximos 30 dias"): o número do cartão é o da lista
+            onClick={() => onOpenCalendar({ withinDays: NEXT_DAYS })}
           >
             <div className="kpi-spark">
               <WeekSpark events={next30} />

@@ -50,8 +50,11 @@ import { EventRow, StatusPill, dayTileOf, eventLastDay } from "./event-bits";
 import { useBackLayer } from "./app-actions";
 import { Drawer, EmptyState, SectionTitle } from "./ui";
 
-/** Filtro com que os painéis abrem o Cronograma (ex.: só Provas). */
-export type CalendarFilter = { categories?: Category[] };
+/**
+ * Filtro com que os painéis abrem o Cronograma (ex.: só Provas). withinDays: só o que acontece nos próximos N dias,
+ * com a regra de startsWithinDays (o "Próximos 30 dias" do Painel).
+ */
+export type CalendarFilter = { categories?: Category[]; withinDays?: number };
 
 /* ------------------------------------------------------------------ */
 /* Datas oficiais: uma regra só para o Painel, a Gestão e o Cronograma */
@@ -98,6 +101,16 @@ function byStart(a: AcademicEvent, b: AcademicEvent) {
 export function openAhead(events: AcademicEvent[], now: number) {
   const today = startOfDay(new Date(now)).getTime();
   return events.filter((event) => isOpen(event) && hasDayAhead(event, today)).sort(byStart);
+}
+
+/**
+ * "Próximos N dias" do Painel: evento da turma (as datas oficiais têm card próprio), aberto (nem cancelado nem
+ * concluído), que ainda não começou e começa em até N dias. O indicador "Próximos 30 dias" e o Cronograma que ele
+ * abre (CalendarFilter.withinDays) usam esta mesma regra, então o número do indicador é o da lista.
+ */
+export function startsWithinDays(event: AcademicEvent, now: number, days: number) {
+  const start = new Date(event.startsAt).getTime();
+  return isOpen(event) && !isOfficialDate(event) && start >= now && start <= now + days * 86400000;
 }
 
 /**

@@ -125,6 +125,7 @@ const EXPIRED_KEY = "agenda:sessao-vencida";
 const FILTERS_KEY = "agenda:filtros";
 const dismissedKey = (userId: number) => `agenda:avisos-dispensados:${userId}`;
 const EXPIRED_NOTICE = "Sua sessão expirou. Entre de novo para continuar de onde parou.";
+const LOGGED_OUT_NOTICE = "Você saiu da conta.";
 const EVENT_GONE = "Esse evento não existe mais. Ele pode ter sido removido.";
 
 // endereço de cada tela (?tela=...)
@@ -291,7 +292,7 @@ type ToastOptions = {
   offline?: boolean;
 };
 type PageToast = ToastItem & { keys?: string[]; offline?: boolean };
-type CalendarFilter = { categories?: Category[] };
+type CalendarFilter = { categories?: Category[]; withinDays?: number };
 type LoadFailure = { message: string; offline: boolean };
 type LoadedData = { events: AcademicEvent[]; context: AcademicContext };
 type LoadResult = ({ ok: true } & LoadedData) | { ok: false; error: unknown };
@@ -1193,6 +1194,9 @@ export default function Home() {
 
   const [activeView, setActiveView] = useState<View>("dashboard");
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("list");
+  // "Próximos 30 dias" do Painel: o Cronograma abre só com o que cai nesses dias (chip com X). Só vale na visita que o
+  // pediu: qualquer outra navegação (goTo) tira o filtro
+  const [calendarWindow, setCalendarWindow] = useState<number | null>(null);
   const [navToken, setNavToken] = useState(0);
   const [focusHeadingToken, setFocusHeadingToken] = useState(0);
 
@@ -1790,6 +1794,8 @@ export default function Home() {
     } = {}
   ) {
     const eventId = view === "calendar" ? (options.eventId ?? null) : null;
+    // o filtro de "Próximos 30 dias" é de uma visita só: ir para outra tela (ou voltar ao Cronograma pelo menu) o tira
+    setCalendarWindow(null);
     const params: Pick<HistoryEntry, "turma" | "membro" | "gradeEventId"> = {
       turma: view === "classes" ? (options.classId ?? undefined) : undefined,
       membro: view === "classes" ? (options.memberId ?? undefined) : undefined,
@@ -1854,6 +1860,8 @@ export default function Home() {
   function openCalendar(filter?: CalendarFilter) {
     setSelectedCategories(filter?.categories?.length ? filter.categories : allCategories);
     goTo("calendar");
+    // depois do goTo, que zera o filtro de dias: este é o único caminho que o liga
+    setCalendarWindow(filter?.withinDays ?? null);
   }
 
   /** Com todas ativas, clicar mostra só a clicada; depois soma e tira; sem nenhuma, volta a todas. */
@@ -3676,6 +3684,7 @@ export default function Home() {
     setSearch("");
     setSelectedCategories(allCategories);
     setCalendarMode("list");
+    setCalendarWindow(null);
     setActiveView("dashboard");
     setLastLoadedAt(null);
     setLoadFailure(null);
@@ -3900,7 +3909,9 @@ export default function Home() {
     markSignedOut();
     // os avisos da sessão que terminou (ex.: "Boas-vindas") não ficam na tela de entrada
     setToasts([]);
-    pushToast("info", "Você saiu da conta.");
+    // "Você saiu da conta." fica dentro do cartão de entrar, e não num aviso flutuante: o aviso do canto de baixo
+    // cobria os atalhos de conta de demonstração em janela baixa (1536 x 674), e o clique neles não pegava
+    setLoginNotice(LOGGED_OUT_NOTICE);
   }
 
   const onUnauthorized = useEffectEvent((token: string) => {
@@ -4539,6 +4550,8 @@ export default function Home() {
                   setSearch={setSearch}
                   studentName={guardianStudent ? firstName(guardianStudent.fullName ?? "Aluno") : null}
                   toggleCategory={toggleCategory}
+                  windowDays={calendarWindow}
+                  onClearWindow={() => setCalendarWindow(null)}
                   onDelete={requestDeleteEvent}
                   onEdit={beginEdit}
                   // "Novo evento neste dia" na lista do dia: só para quem cria eventos

@@ -1998,6 +1998,21 @@ html .ent-demo-btn[data-tom="3"] { --tom-bg: var(--nv-notas); --tom: var(--nv-no
     height: 28px;
   }
 }
+/* o aviso do cartão ("Você saiu da conta.", sessão vencida) fica mais fino em tela baixa, e a frase de apoio do
+   Entrar dá lugar a ele: sem isso o aviso empurrava os atalhos de conta de demonstração para baixo e a folha de entrar
+   ganhava rolagem (1536x674, 1280x720). Ele no cartão (e não num aviso flutuante) é de propósito: o aviso do canto
+   de baixo cobria os atalhos e o clique neles não pegava. */
+@media (max-height: 859px) {
+  html .ent-notice {
+    padding: 7px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: calc(var(--g) * 0.75);
+  }
+  html .ent-form:has(.ent-notice) .ent-desc.opcional {
+    display: none;
+  }
+}
 
 /* ---------- entrar: a folha da agenda (login-stage.tsx) ---------- */
 .ls-palco {

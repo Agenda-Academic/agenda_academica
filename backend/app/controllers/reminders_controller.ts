@@ -5,6 +5,7 @@ import { publicTeacher } from '#services/query_helpers'
 import { reminderSendAt } from '#services/date_time_service'
 import { reminderValidator } from '#validators/academic'
 import type { HttpContext } from '@adonisjs/core/http'
+import { DateTime } from 'luxon'
 
 export default class RemindersController {
   async index({ auth }: HttpContext) {
@@ -50,8 +51,12 @@ export default class RemindersController {
 
     const offsetMinutes = payload.offsetMinutes ?? user.defaultReminderMinutes
     const channel = payload.channel ?? user.notificationChannel
+    const sendAt = reminderSendAt(event.startsAt, offsetMinutes)
     // Um lembrete por usuario+evento: trocar o canal atualiza o registro
     // existente em vez de criar um segundo lembrete.
+    // Se o aviso antigo já tinha saído (sentAt) e o novo cai no futuro (a pessoa mudou a antecedência),
+    // o lembrete volta a esperar a hora. O agendador só olha lembretes sem sentAt: sem isto o aviso novo
+    // nunca sairia e a tela mostraria "Avisado ontem" e "Próximo aviso hoje" para a mesma prova.
     const reminder = await Reminder.updateOrCreate(
       {
         userId: user.id,
@@ -60,8 +65,9 @@ export default class RemindersController {
       {
         channel,
         offsetMinutes,
-        sendAt: reminderSendAt(event.startsAt, offsetMinutes),
+        sendAt,
         enabled: payload.enabled ?? true,
+        ...(sendAt > DateTime.now() ? { sentAt: null } : {}),
       }
     )
 

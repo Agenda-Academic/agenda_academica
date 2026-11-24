@@ -1809,11 +1809,16 @@ html .cg-day-new .btn:hover {
   html .crono-frow .crono-mine {
     min-height: 44px;
   }
-  /* o X do chip "Busca: termo" (24 px): a área de toque passa a 44 */
+  /* o X do chip "Busca: termo" e do "Próximos 30 dias" (24 px): a área de toque passa a 44 */
   html .crono-term > button::after {
     content: "";
     position: absolute;
     inset: -10px;
+  }
+  /* esses chips não são clicáveis, só o X: sem a área de toque do .chip (ux.css), que ficava por cima do X e
+     engolia o toque (no celular o X não fechava a busca nem o filtro) */
+  html .chip.crono-term::after {
+    content: none;
   }
   /* filtro: o botão, as seções, as opções e os dois "Limpar" com 44 px (o painel fica fora da .crono) */
   html .btn.fp-btn,

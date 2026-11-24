@@ -143,6 +143,92 @@ test.group('Academic API', (group) => {
     )
   })
 
+  test('mudar a antecedência de um lembrete que já saiu agenda o aviso novo de verdade', async ({
+    client,
+    assert,
+  }) => {
+    const student = await User.findByOrFail('email', 'aluno@agenda.test')
+    const event = await AcademicEvent.query()
+      .where('academicClassId', 1)
+      .orderBy('startsAt', 'asc')
+      .firstOrFail()
+    event.startsAt = DateTime.now().plus({ days: 1 }).startOf('minute')
+    event.endsAt = null
+    await event.save()
+
+    // o aviso de 2 dias antes já saiu (a hora dele foi ontem)
+    const sent = await Reminder.updateOrCreate(
+      { userId: student.id, academicEventId: event.id },
+      {
+        channel: 'email',
+        offsetMinutes: 2880,
+        sendAt: event.startsAt.minus({ minutes: 2880 }),
+        sentAt: DateTime.now().minus({ hours: 20 }),
+        enabled: true,
+      }
+    )
+    assert.isNotNull(sent.sentAt)
+
+    const token = await loginAs(client, 'aluno@agenda.test')
+    const response = await client
+      .post('/api/v1/reminders')
+      .bearerToken(token)
+      .json({ academicEventId: event.id, offsetMinutes: 60 })
+    response.assertStatus(201)
+    const saved = (
+      response.body() as unknown as ApiEnvelope<{ id: number; sentAt: string | null }>
+    ).data
+    // um lembrete por pessoa e evento: o mesmo registro, que volta a esperar a hora do aviso novo
+    assert.equal(saved.id, sent.id)
+    assert.isNull(saved.sentAt)
+
+    // antes da hora nada sai; na hora, o agendador manda o aviso novo
+    const early = await ReminderDeliveryService.sendDue({ now: DateTime.now() })
+    assert.isFalse(early.deliveries.some((delivery) => delivery.reminderId === sent.id))
+    const onTime = await ReminderDeliveryService.sendDue({ now: event.startsAt.minus({ minutes: 59 }) })
+    assert.isTrue(onTime.deliveries.some((delivery) => delivery.reminderId === sent.id))
+    await sent.refresh()
+    assert.isNotNull(sent.sentAt)
+  })
+
+  test('mudar a antecedência para um aviso que já passou não reenvia o lembrete', async ({
+    client,
+    assert,
+  }) => {
+    const student = await User.findByOrFail('email', 'aluno@agenda.test')
+    const event = await AcademicEvent.query()
+      .where('academicClassId', 1)
+      .orderBy('startsAt', 'asc')
+      .firstOrFail()
+    event.startsAt = DateTime.now().plus({ minutes: 30 }).startOf('minute')
+    event.endsAt = null
+    await event.save()
+
+    const sent = await Reminder.updateOrCreate(
+      { userId: student.id, academicEventId: event.id },
+      {
+        channel: 'email',
+        offsetMinutes: 1440,
+        sendAt: event.startsAt.minus({ minutes: 1440 }),
+        sentAt: DateTime.now().minus({ hours: 20 }),
+        enabled: true,
+      }
+    )
+
+    // 60 min antes de uma prova que começa em 30 min: a hora do aviso já passou
+    const token = await loginAs(client, 'aluno@agenda.test')
+    const response = await client
+      .post('/api/v1/reminders')
+      .bearerToken(token)
+      .json({ academicEventId: event.id, offsetMinutes: 60 })
+    response.assertStatus(201)
+    await sent.refresh()
+    assert.isNotNull(sent.sentAt)
+
+    const result = await ReminderDeliveryService.sendDue({ now: DateTime.now() })
+    assert.isFalse(result.deliveries.some((delivery) => delivery.reminderId === sent.id))
+  })
+
   test('signup with e-mail and password is only for guardians', async ({ client, assert }) => {
     const base = {
       fullName: 'Pessoa Nova',

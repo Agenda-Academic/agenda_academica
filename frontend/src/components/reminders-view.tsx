@@ -568,10 +568,14 @@ export function RemindersView({
   const pagedNext = usePaged(nextEvents, PAGE, "next");
   const pagedSent = usePaged(sent, PAGE, "sent");
 
-  // próximo aviso: o primeiro lembrete ativo cujo aviso ainda vai sair
+  // próximo aviso: o primeiro lembrete ativo cujo aviso ainda vai sair (o que já saiu está em "Já avisados", e uma
+  // prova não aparece nos dois: sem o sentAt aqui ela era "Avisado ontem" na lista e "Próximo aviso" no alto)
   const nextAviso =
     reminders
-      .filter((reminder) => reminder.enabled && !isVoid(reminder.academicEvent) && new Date(reminder.sendAt).getTime() > now)
+      .filter(
+        (reminder) =>
+          reminder.enabled && !reminder.sentAt && !isVoid(reminder.academicEvent) && new Date(reminder.sendAt).getTime() > now
+      )
       .sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime())[0] ?? null;
 
   // cobertura: as avaliações dos próximos 30 dias que ainda aceitam lembrete

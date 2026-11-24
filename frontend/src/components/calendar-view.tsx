@@ -33,6 +33,7 @@ import {
 import { addDays, cx, formatTime, isWholeDay, monthGroupLabel, monthTitle, startOfDay, weekRangeLabel } from "@/lib/format";
 import { adminOnlyCategories, allCategories, categoryMeta } from "@/lib/meta";
 import type { AcademicClass, AcademicEvent, Category, UserRole } from "@/lib/types";
+import { startsWithinDays } from "./dashboard-bits";
 import { EventDetailContent, EventRow, dayTileOf, eventLastDay, formatDayRange, type EventStatusChange } from "./event-bits";
 import {
   MonthEmpty,
@@ -1398,6 +1399,8 @@ export function CalendarView({
   setSearch,
   studentName,
   toggleCategory,
+  windowDays = null,
+  onClearWindow,
   onDelete,
   onEdit,
   onNewEventOn,
@@ -1428,6 +1431,9 @@ export function CalendarView({
   /** Responsável: o primeiro nome do aluno acompanhado ("Cronograma de Diogo"). */
   studentName?: string | null;
   toggleCategory: (category: Category) => void;
+  /** "Próximos N dias" do Painel: só os eventos da turma que começam nesses dias (chip com X, e o "Limpar filtros" tira). */
+  windowDays?: number | null;
+  onClearWindow?: () => void;
   onDelete: (event: AcademicEvent) => void;
   onEdit: (event: AcademicEvent) => void;
   /**
@@ -1588,6 +1594,11 @@ export function CalendarView({
   const scope = useCallback(
     (list: AcademicEvent[]) => {
       let scoped = list;
+      if (windowDays) {
+        // a mesma regra do indicador "Próximos 30 dias" do Painel: o número dele é o desta lista
+        const from = zonedNowMs();
+        scoped = scoped.filter((event) => startsWithinDays(event, from, windowDays));
+      }
       if (role === "teacher" && mineOnly) {
         scoped = scoped.filter(canManageEvent);
       }
@@ -1602,7 +1613,7 @@ export function CalendarView({
       }
       return scoped;
     },
-    [role, mineOnly, classFilter, teacherFilter, canManageEvent]
+    [role, mineOnly, classFilter, teacherFilter, canManageEvent, windowDays]
   );
 
   const term = search.trim();
@@ -1715,7 +1726,7 @@ export function CalendarView({
     (presentCategories !== null &&
       allCategories.every((category) => selectedCategories.includes(category) || !presentCategories.has(category)));
   const pickedWithEvents = selectedCategories.some((category) => categoryCounts[category] > 0);
-  const narrowed = !allSelected || mineOnly || classFilter !== "all" || teacherFilter !== "all";
+  const narrowed = !allSelected || mineOnly || classFilter !== "all" || teacherFilter !== "all" || Boolean(windowDays);
   // a aba Próximos, Passados ou Todos não é filtro: sozinha, ela não mostra o "Limpar filtros"
   const hasFilter = Boolean(term) || narrowed;
   // uma categoria só: "2 provas", "Nenhuma prova em dezembro"
@@ -1782,7 +1793,7 @@ export function CalendarView({
   //   mês) já volta as categorias; com só categoria escolhida, o "Limpar filtros" faria o mesmo;
   // - o vazio (ou o aviso do Calendário sem resultado) que já tem o próprio "Limpar filtros"
   const showAllOffer = Boolean(term) && hiddenCount > 0;
-  const onlyCategories = !mineOnly && classFilter === "all" && teacherFilter === "all";
+  const onlyCategories = !mineOnly && classFilter === "all" && teacherFilter === "all" && !windowDays;
   const emptyHasClear =
     narrowed && !showAllOffer && (monthMode ? Boolean(term) && !searchMonthKeys.length : !listEvents.length);
   const showClear = narrowed && !emptyHasClear && !(showAllOffer && onlyCategories);
@@ -1996,6 +2007,7 @@ export function CalendarView({
     setMineOnly(false);
     setClassFilter("all");
     setTeacherFilter("all");
+    onClearWindow?.();
     selectAllCategories();
   }
 
@@ -2043,11 +2055,12 @@ export function CalendarView({
     toggleCategory(category);
   }
 
-  /** "Limpar filtros": tira as categorias, a turma e o "Só meus"; a busca continua (ela tem o próprio X). */
+  /** "Limpar filtros": tira as categorias, a turma, o "Só meus" e os "Próximos N dias"; a busca continua (ela tem o próprio X). */
   function clearNarrowing() {
     setMineOnly(false);
     setClassFilter("all");
     setTeacherFilter("all");
+    onClearWindow?.();
     selectAllCategories();
     focusAllChip();
   }
@@ -2737,6 +2750,32 @@ export function CalendarView({
     </span>
   ) : null;
 
+  // "Próximos 30 dias" do Painel: o chip diz o que a lista mostra (o mesmo número do indicador) e o X volta ao
+  // cronograma inteiro
+  const windowChip = windowDays ? (
+    <span
+      className="chip picked crono-term min-w-0 max-w-full pr-1.5"
+      title={`Só os eventos da turma que começam nos próximos ${windowDays} dias`}
+    >
+      <CalendarRange className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="min-w-0 truncate">
+        Próximos <b>{windowDays} dias</b>
+      </span>
+      <button
+        className="relative grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-surface-2 pointer-coarse:after:absolute pointer-coarse:after:-inset-2"
+        aria-label={`Tirar o filtro de próximos ${windowDays} dias`}
+        onClick={() => {
+          onClearWindow?.();
+          focusAllChip();
+        }}
+        title={`Tirar o filtro de próximos ${windowDays} dias`}
+        type="button"
+      >
+        <X className="h-3.5 w-3.5" aria-hidden />
+      </button>
+    </span>
+  ) : null;
+
   // busca sem nada em período nenhum: as abas "Próximos 0 | Passados 0 | Todos 0" repetiriam o "Nada encontrado"
   const periodSeg =
     calendarMode === "list" && !(term && periodCounts.upcoming + periodCounts.past === 0) ? (
@@ -2926,6 +2965,7 @@ export function CalendarView({
               </div>
             ) : null}
             {searchChip}
+            {windowChip}
             {mineSwitch}
             {filterPanel}
           </div>
@@ -2935,6 +2975,7 @@ export function CalendarView({
           <div className="crono-frow">
             {modeSwitch}
             {searchChip}
+            {windowChip}
             {mineSwitch}
             {hiddenLine ? <span className="crono-fright">{hiddenLine}</span> : null}
             {filterPanel}

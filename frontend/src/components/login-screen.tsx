@@ -292,6 +292,7 @@ function PasswordRecovery({
   mode,
   token,
   initialEmail,
+  demo,
   onBack,
   onAskLink,
   onSession,
@@ -299,6 +300,8 @@ function PasswordRecovery({
   mode: "forgot" | "reset";
   token: string | null;
   initialEmail: string;
+  /** Ambiente de demonstração: ele não envia e-mail, então a tela não promete o link. */
+  demo: boolean;
   onBack: () => void;
   /** Link que não vale mais: volta para o pedido de link. */
   onAskLink: () => void;
@@ -425,18 +428,32 @@ function PasswordRecovery({
           Esqueci minha senha
         </h1>
         <p className="mt-2 text-[14.5px] leading-6 text-muted">
-          Digite o e-mail da sua conta. Enviamos um link para você criar uma senha nova.
+          {demo
+            ? "Digite o e-mail da conta. Esta demonstração não envia e-mail, então nenhum link chega."
+            : "Digite o e-mail da sua conta. Enviamos um link para você criar uma senha nova."}
         </p>
 
         {sentTo ? (
           <>
-            <p ref={doneRef} role="status" tabIndex={-1} className="callout green mt-5 outline-none">
-              <CircleCheckBig className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span className="min-w-0 wrap-anywhere">
-                Se existir uma conta com <b>{sentTo}</b>, o link chega em alguns minutos e vale por 1 hora. Olhe também
-                no spam.
-              </span>
-            </p>
+            {demo ? (
+              // na demonstração ninguém recebe e-mail (as contas de demonstração nem têm caixa): dizer "o link chega em
+              // alguns minutos" deixava quem testa esperando um e-mail que não vem
+              <p ref={doneRef} role="status" tabIndex={-1} className="callout blue mt-5 outline-none">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <span className="min-w-0 wrap-anywhere">
+                  Esta é a demonstração e ela não envia e-mail: o link para <b>{sentTo}</b> não vai chegar. Para
+                  entrar, volte e use uma das contas de demonstração.
+                </span>
+              </p>
+            ) : (
+              <p ref={doneRef} role="status" tabIndex={-1} className="callout green mt-5 outline-none">
+                <CircleCheckBig className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <span className="min-w-0 wrap-anywhere">
+                  Se existir uma conta com <b>{sentTo}</b>, o link chega em alguns minutos e vale por 1 hora. Olhe
+                  também no spam.
+                </span>
+              </p>
+            )}
             <button className={cx(primaryButton, "mt-5 h-11 w-full")} onClick={onBack} type="button">
               <UserRound className="h-4 w-4" aria-hidden />
               Voltar para entrar
@@ -490,7 +507,6 @@ function PasswordRecovery({
                 {slowServer}
               </p>
             ) : null}
-            <p className="mt-3 text-center text-[13px] leading-5 text-muted">As contas de demonstração não recebem e-mail.</p>
           </>
         )}
       </form>
@@ -838,6 +854,7 @@ export function LoginScreen({
               token={resetToken ?? null}
               // conta de demonstração não recebe e-mail: o campo começa vazio
               initialEmail={demoAccounts.some((account) => account.email === loginForm.email) ? "" : loginForm.email}
+              demo={demoOn === true}
               onBack={() => {
                 if (recovery === "reset") onResetHandled?.();
                 setRecovery(null);
