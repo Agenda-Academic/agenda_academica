@@ -1,6 +1,7 @@
-# O plano grátis do Render dorme depois de uns 15 minutos sem acesso, e ao acordar o banco
-# volta para os dados de demonstração. Acessar a API a cada 10 minutos mantém ela no ar, então
-# os lembretes por e-mail saem na hora e o que foi cadastrado não se perde.
+# O plano grátis do Render dorme depois de uns 15 minutos sem acesso. Quem mantém a API no ar de
+# verdade é o agendamento do banco da produção (pg_cron no Supabase, a cada 10 minutos, das 6h às
+# 23h de MS; ver o README). Este acesso fica de reserva: o GitHub atrasa os agendamentos e ele
+# acaba rodando só umas 4 vezes por dia.
 name: Manter a API acordada
 
 on:

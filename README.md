@@ -260,8 +260,22 @@ Em desenvolvimento, sem e-mail configurado ou com conta `@agenda.test`, o link a
 
 > No plano grátis do Render a API dorme depois de uns 15 minutos sem acesso e o primeiro acesso leva até um
 > minuto.
-> Para a API não dormir (e os lembretes saírem na hora), o GitHub Actions acessa o endereço dela a cada 10
-> minutos (`.github/workflows/manter-api-acordada.yml`).
+> Para a API não dormir (e os lembretes saírem na hora), o próprio banco da produção acessa o endereço dela a
+> cada 10 minutos, das 6h às 23h no horário de MS: um agendamento do `pg_cron` com `pg_net` no Supabase,
+> criado no editor SQL do projeto:
+>
+> ```sql
+> create extension if not exists pg_cron with schema pg_catalog;
+> create extension if not exists pg_net with schema extensions;
+> select cron.schedule('acordar-api', '*/10 10-23,0-2 * * *',
+>   $$select net.http_get(url := 'https://agenda-academica-api-ql31.onrender.com/', timeout_milliseconds := 60000)$$);
+> ```
+>
+> O horário do agendador é GMT (MS fica 4 horas atrás). De madrugada a API pode dormir: assim ela gasta cerca de
+> 530 das 750 horas grátis que o Render dá por mês para os dois serviços juntos, e ligada 24 horas passaria do
+> limite nos meses de 31 dias. O GitHub Actions também acessa a API
+> (`.github/workflows/manter-api-acordada.yml`), mas o GitHub atrasa os agendamentos e ele só roda umas 4 vezes
+> por dia.
 
 ## Testes
 
