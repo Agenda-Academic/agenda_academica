@@ -29,7 +29,9 @@ class ApiSerializer extends BaseSerializer<{
         'Invalid pagination metadata. Expected metadata to contain Lucid pagination keys'
       )
     }
-    return metaData
+    // O Lucid 22.5 acrescentou `pageName` às chaves; a checagem do core ainda não conhece. O
+    // cast vale nas duas versões (o build do Docker instala a mais nova dentro do ^22.4.2)
+    return metaData as SimplePaginatorMetaKeys
   }
 }
 
