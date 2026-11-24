@@ -102,6 +102,11 @@ export type PanelApi = {
   /** Volta ao conteúdo anterior (ou fecha, se não houver). */
   back: () => void;
   /**
+   * Volta ao conteúdo anterior sem perguntar (ou fecha, se não houver): o que estava aqui acabou de ser salvo, então
+   * não há rascunho a descartar (ex.: "Criar e adicionar" da Nova disciplina aberta pela turma).
+   */
+  done: () => void;
+  /**
    * Volta ao conteúdo anterior sem perguntar, mudando o que ele guarda (ex.: o "Novo curso" criou o curso e a
    * "Nova turma" volta com ele escolhido).
    */

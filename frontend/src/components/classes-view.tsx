@@ -890,6 +890,7 @@ export function ClassesView({ search, target, onTargetHandled, onSearchCount, on
   const api: PanelApi = {
     push,
     back: () => requestBack(false),
+    done: popNow,
     backWith: (update) => {
       if (stack.length <= 1) {
         closeNow();

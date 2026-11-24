@@ -313,7 +313,8 @@ export function NewSubjectPanel({ api, data, subtitle, view }: PanelProps<"newSu
         api.changed({ catalog: true });
         showError(error, `disciplina-${subject.id}`);
       }
-      api.back();
+      // a disciplina já foi salva: volta sem o "Descartar as alterações?" (o rascunho ainda estava marcado)
+      api.done();
       return;
     }
     api.changed({ catalog: true });
