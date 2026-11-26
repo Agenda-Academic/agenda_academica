@@ -137,12 +137,15 @@ export const sourceLabels: Record<EventSource, string> = {
   imported: "Importado do calendário oficial",
 };
 
-/** "Publicado por Profa. Maraísa" ou "Publicado pela administração, para todas as turmas". */
+/** "Publicado por Profa. Maraísa" ou "Publicado pela administração, para todas as turmas" (ou "para TADS 5"). */
 export function sourceText(event: AcademicEvent) {
-  if (event.source === "teacher") {
-    return event.teacher?.fullName ? `Publicado por ${event.teacher.fullName}` : sourceLabels.teacher;
-  }
   const scope = event.academicClass?.name ? `para ${event.academicClass.name}` : "para todas as turmas";
+  if (event.source === "teacher") {
+    if (event.teacher?.fullName) return `Publicado por ${event.teacher.fullName}`;
+    // evento de turma sem docente com autor: só a administração publica assim (o docente fica dono do que publica)
+    if (event.teacherId == null && typeof event.createdById === "number") return `${sourceLabels.official}, ${scope}`;
+    return sourceLabels.teacher;
+  }
   return `${sourceLabels[event.source]}, ${scope}`;
 }
 
